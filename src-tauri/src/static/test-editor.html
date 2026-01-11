@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BerryEditor Test</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>BerryEditor WASM Test</h1>
+    <div id="berry-editor-wasm-root">Loading...</div>
+
+    <script type="module">
+        console.log('Test page loading...');
+
+        // Test 1: Load JavaScript module
+        try {
+            const module = await import('/static/berry-editor/berry-editor.js');
+            console.log('✓ JavaScript module loaded:', Object.keys(module));
+
+            const { default: init, init_berry_editor, get_test_file_tree } = module;
+            console.log('✓ Functions found:', { init, init_berry_editor, get_test_file_tree });
+
+            // Test 2: Load WASM
+            console.log('Loading WASM...');
+            await init('/static/berry-editor/berry-editor_bg.wasm');
+            console.log('✓ WASM loaded successfully');
+
+            // Test 3: Get file tree data
+            console.log('Getting file tree...');
+            const fileTree = get_test_file_tree();
+            console.log('✓ File tree data:', fileTree);
+            console.log('✓ Number of files:', fileTree.length);
+
+            // Test 4: Initialize editor
+            console.log('Initializing editor...');
+            init_berry_editor();
+            console.log('✓ Editor initialized');
+
+            document.body.style.background = '#90EE90';
+            document.querySelector('h1').textContent = 'BerryEditor Test - ALL TESTS PASSED ✓';
+        } catch (error) {
+            console.error('✗ Test failed:', error);
+            console.error('Stack:', error.stack);
+            document.body.style.background = '#FFB6C1';
+            document.querySelector('h1').textContent = 'BerryEditor Test - FAILED ✗';
+            document.querySelector('#berry-editor-wasm-root').innerHTML =
+                '<pre style="color: red;">' + error.message + '\n\n' + error.stack + '</pre>';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1708 @@
+[INFO]: 🎯  Checking for the Wasm target...
+   Compiling berry-editor v0.1.0 (/Users/kyosukeishizu/oracleberry/berrcode/gui-editor)
+warning: unused import: `DebugConsole`
+ --> src/components.rs:8:81
+  |
+8 | ... CallStackPanel, WatchPanel, DebugConsole};
+  |                                 ^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+warning: unused import: `LspIntegration`
+  --> src/components.rs:11:33
+   |
+11 | use crate::lsp_ui::{Diagnostic, LspIntegration};
+   |                                 ^^^^^^^^^^^^^^
+warning: unused import: `wasm_bindgen::prelude::*`
+ --> src/file_tree.rs:6:5
+  |
+6 | use wasm_bindgen::prelude::*;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `regex::Regex`
+ --> src/syntax.rs:5:5
+  |
+5 | use regex::Regex;
+  |     ^^^^^^^^^^^^
+warning: unused import: `std::collections::HashSet`
+ --> src/cursor.rs:4:5
+  |
+4 | use std::collections::HashSet;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `Context`
+ --> src/common/async_bridge.rs:5:14
+  |
+5 | use anyhow::{Context, Result};
+  |              ^^^^^^^
+warning: unused import: `crate::common::ui_components::ListView`
+ --> src/completion_widget.rs:8:5
+  |
+8 | use crate::common::ui_components::ListView;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `crate::common::event_handler::KeyCombo`
+ --> src/completion_widget.rs:9:5
+  |
+9 | use crate::common::event_handler::KeyCombo;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `TextEdit`
+ --> src/refactoring/preview_dialog.rs:5:28
+  |
+5 | use super::{WorkspaceEdit, TextEdit};
+  |                            ^^^^^^^^
+warning: unused import: `std::collections::HashMap`
+ --> src/refactoring/preview_dialog.rs:6:5
+  |
+6 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `SystemTime`
+   --> src/git_ui/blame_view.rs:272:21
+    |
+272 |     use std::time::{SystemTime, UNIX_EPOCH};
+    |                     ^^^^^^^^^^
+warning: unused import: `super::*`
+   --> src/minimap.rs:156:9
+    |
+156 |     use super::*;
+    |         ^^^^^^^^
+warning: unused import: `super::*`
+  --> src/common/async_bridge.rs:48:9
+   |
+48 |     use super::*;
+   |         ^^^^^^^^
+warning: unused import: `super::*`
+   --> src/common/ui_components.rs:113:9
+    |
+113 |     use super::*;
+    |         ^^^^^^^^
+warning: unused import: `super::*`
+   --> src/completion_widget.rs:150:9
+    |
+150 |     use super::*;
+    |         ^^^^^^^^
+warning: use of deprecated struct `wasm_bindgen::JsStatic`: use with `#[wasm_bindgen(thread_local_v2)]` instead
+  --> src/lib.rs:58:12
+   |
+58 |     static DOCUMENT: web_sys::Document;
+   |            ^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+warning: use of deprecated static `DOCUMENT`: use with `#[wasm_bindgen(thread_local_v2)]` instead
+  --> src/lib.rs:77:13
+   |
+77 |             DOCUMENT.clone()
+   |             ^^^^^^^^
+warning: variable does not need to be mutable
+   --> src/file_tree.rs:113:9
+    |
+113 |     let mut opts = RequestInit::new();
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+warning: variable does not need to be mutable
+   --> src/file_tree.rs:150:9
+    |
+150 |     let mut opts = RequestInit::new();
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/minimap.rs:57:22
+   |
+57 |         self.context.set_fill_style(&JsValue::from_str("#1e1e1e"));
+   |                      ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/minimap.rs:74:26
+   |
+74 |             self.context.set_fill_style(&JsValue::from_str(color));
+   |                          ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_stroke_style`
+  --> src/minimap.rs:87:26
+   |
+87 |             self.context.set_stroke_style(&JsValue::from_str("#007acc"));
+   |                          ^^^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/minimap.rs:97:26
+   |
+97 | ...   self.context.set_fill_style(&JsValue::from_str("rgba(0, 122, 204, ...
+   |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/canvas_renderer.rs:93:22
+   |
+93 |         self.context.set_fill_style(&self.background_color.clone().into());
+   |                      ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:122:26
+    |
+122 | ...   self.context.set_fill_style(&self.foreground_color.clone().into());
+    |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:133:34
+    |
+133 | ...   self.context.set_fill_style(&self.foreground_color.clone().into());
+    |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:140:30
+    |
+140 |                 self.context.set_fill_style(&token.color.clone().into());
+    |                              ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:150:30
+    |
+150 | ...   self.context.set_fill_style(&self.foreground_color.clone().into());
+    |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:161:22
+    |
+161 |         self.context.set_fill_style(&self.cursor_color.clone().into());
+    |                      ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:212:22
+    |
+212 |         self.context.set_fill_style(&self.selection_color.clone().into());
+    |                      ^^^^^^^^^^^^^^
+warning: use of deprecated field `wasm_bindgen::JsStatic::__inner`: use with `#[wasm_bindgen(thread_local_v2)]` instead
+  --> src/lib.rs:58:12
+   |
+58 |     static DOCUMENT: web_sys::Document;
+   |            ^^^^^^^^
+warning: unused import: `Context`
+ --> src/canvas_renderer.rs:8:14
+  |
+8 | use anyhow::{Context, Result};
+  |              ^^^^^^^
+warning: unused variable: `trimmed`
+  --> src/syntax.rs:94:13
+   |
+94 |         let trimmed = line.trim_start();
+   |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_trimmed`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+warning: variable does not need to be mutable
+   --> src/cursor.rs:176:13
+    |
+176 |         let mut current_line = 0;
+    |             ----^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+warning: variable does not need to be mutable
+   --> src/cursor.rs:177:13
+    |
+177 |         let mut current_col = 0;
+    |             ----^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+warning: unused variable: `current_line`
+   --> src/cursor.rs:176:13
+    |
+176 |         let mut current_line = 0;
+    |             ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_line`
+warning: unused variable: `current_col`
+   --> src/cursor.rs:177:13
+    |
+177 |         let mut current_col = 0;
+    |             ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_col`
+warning: unused variable: `x`
+   --> src/minimap.rs:132:32
+    |
+132 | ...pub fn handle_click(&self, x: f64, y: f64, total_lines: usize) -> us...
+    |                               ^ help: if this is intentional, prefix it with an underscore: `_x`
+warning: unused variable: `minimap`
+   --> src/minimap.rs:144:13
+    |
+144 |         let minimap = Minimap::new(canvas_id).map_err(|e| JsValue::from...
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_minimap`
+warning: unused variable: `context`
+  --> src/refactoring/refactor_menu.rs:17:5
+   |
+17 |     context: RefactorContext,
+   |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context`
+warning: unused variable: `on_close`
+  --> src/refactoring/refactor_menu.rs:19:5
+   |
+19 |     on_close: impl Fn() + 'static,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_on_close`
+warning: unused variable: `line_number`
+   --> src/git_ui/blame_view.rs:139:5
+    |
+139 |     line_number: usize,
+    |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_line_number`
+warning: unused variable: `end`
+   --> src/virtual_scroll.rs:132:21
+    |
+132 |         let (start, end) = vs.visible_range();
+    |                     ^^^ help: if this is intentional, prefix it with an underscore: `_end`
+warning: enum `TokenType` is never used
+ --> src/syntax.rs:8:10
+  |
+8 | pub enum TokenType {
+  |          ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+warning: methods `to_color` and `to_class` are never used
+  --> src/syntax.rs:20:12
+   |
+19 | impl TokenType {
+   | -------------- methods in this implementation
+20 |     pub fn to_color(&self) -> &'static str {
+   |            ^^^^^^^^
+...
+33 |     pub fn to_class(&self) -> &'static str {
+   |            ^^^^^^^^
+warning: struct `SyntaxToken` is never constructed
+  --> src/syntax.rs:48:12
+   |
+48 | pub struct SyntaxToken {
+   |            ^^^^^^^^^^^
+warning: methods `set_language`, `highlight_line`, `highlight_rust`, `highlight_javascript`, `highlight_python`, and `add_basic_tokens` are never used
+   --> src/syntax.rs:67:12
+    |
+ 60 | impl SyntaxHighlighter {
+    | ---------------------- methods in this implementation
+...
+ 67 |     pub fn set_language(&mut self, lang: &str) -> Result<(), String> {
+    |            ^^^^^^^^^^^^
+...
+ 76 |     pub fn highlight_line(&self, line: &str) -> Vec<SyntaxToken> {
+    |            ^^^^^^^^^^^^^^
+...
+ 92 |     fn highlight_rust(&self, line: &str) -> Vec<SyntaxToken> {
+    |        ^^^^^^^^^^^^^^
+...
+114 |     fn highlight_javascript(&self, line: &str) -> Vec<SyntaxToken> {
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+135 |     fn highlight_python(&self, line: &str) -> Vec<SyntaxToken> {
+    |        ^^^^^^^^^^^^^^^^
+...
+156 |     fn add_basic_tokens(&self, tokens: &mut Vec<SyntaxToken>, text: &st...
+    |        ^^^^^^^^^^^^^^^^
+warning: struct `Position` is never constructed
+ --> src/lsp.rs:9:12
+  |
+9 | pub struct Position {
+  |            ^^^^^^^^
+warning: struct `Range` is never constructed
+  --> src/lsp.rs:15:12
+   |
+15 | pub struct Range {
+   |            ^^^^^
+warning: struct `Location` is never constructed
+  --> src/lsp.rs:21:12
+   |
+21 | pub struct Location {
+   |            ^^^^^^^^
+warning: struct `CompletionItem` is never constructed
+  --> src/lsp.rs:27:12
+   |
+27 | pub struct CompletionItem {
+   |            ^^^^^^^^^^^^^^
+warning: struct `Diagnostic` is never constructed
+  --> src/lsp.rs:36:12
+   |
+36 | pub struct Diagnostic {
+   |            ^^^^^^^^^^
+warning: struct `LspClient` is never constructed
+  --> src/lsp.rs:43:12
+   |
+43 | pub struct LspClient {
+   |            ^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/lsp.rs:49:12
+    |
+ 48 | impl LspClient {
+    | -------------- associated items in this implementation
+ 49 |     pub fn new(language: &str) -> Self {
+    |            ^^^
+...
+ 56 |     pub async fn initialize(&mut self, root_uri: String) -> Result<(), ...
+    |                  ^^^^^^^^^^
+...
+ 83 |     pub async fn get_completions(
+    |                  ^^^^^^^^^^^^^^^
+...
+107 |     pub async fn goto_definition(
+    |                  ^^^^^^^^^^^^^^^
+...
+131 |     pub async fn find_references(
+    |                  ^^^^^^^^^^^^^^^
+...
+157 |     pub async fn get_diagnostics(&self, file_path: String) -> Result<Ve...
+    |                  ^^^^^^^^^^^^^^^
+...
+175 |     pub async fn rename(
+    |                  ^^^^^^
+...
+202 |     pub async fn format_document(&self, file_path: String) -> Result<St...
+    |                  ^^^^^^^^^^^^^^^
+warning: struct `CursorPosition` is never constructed
+ --> src/cursor.rs:7:12
+  |
+7 | pub struct CursorPosition {
+  |            ^^^^^^^^^^^^^^
+warning: associated function `new` is never used
+  --> src/cursor.rs:13:12
+   |
+12 | impl CursorPosition {
+   | ------------------- associated function in this implementation
+13 |     pub fn new(line: usize, column: usize) -> Self {
+   |            ^^^
+warning: struct `Selection` is never constructed
+  --> src/cursor.rs:19:12
+   |
+19 | pub struct Selection {
+   |            ^^^^^^^^^
+warning: associated items `new`, `collapsed`, `is_collapsed`, `start`, `end`, and `contains` are never used
+  --> src/cursor.rs:25:12
+   |
+24 | impl Selection {
+   | -------------- associated items in this implementation
+25 |     pub fn new(anchor: CursorPosition, cursor: CursorPosition) -> Self {
+   |            ^^^
+...
+29 |     pub fn collapsed(position: CursorPosition) -> Self {
+   |            ^^^^^^^^^
+...
+36 |     pub fn is_collapsed(&self) -> bool {
+   |            ^^^^^^^^^^^^
+...
+40 |     pub fn start(&self) -> CursorPosition {
+   |            ^^^^^
+...
+50 |     pub fn end(&self) -> CursorPosition {
+   |            ^^^
+...
+60 |     pub fn contains(&self, position: CursorPosition) -> bool {
+   |            ^^^^^^^^
+warning: struct `MultiCursor` is never constructed
+  --> src/cursor.rs:80:12
+   |
+80 | pub struct MultiCursor {
+   |            ^^^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/cursor.rs:86:12
+    |
+ 85 | impl MultiCursor {
+    | ---------------- associated items in this implementation
+ 86 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 93 |     pub fn from_position(position: CursorPosition) -> Self {
+    |            ^^^^^^^^^^^^^
+...
+101 |     pub fn add_cursor(&mut self, position: CursorPosition) {
+    |            ^^^^^^^^^^
+...
+109 |     pub fn remove_cursor_at(&mut self, position: CursorPosition) {
+    |            ^^^^^^^^^^^^^^^^
+...
+119 |     pub fn has_cursor_at(&self, position: CursorPosition) -> bool {
+    |            ^^^^^^^^^^^^^
+...
+124 |     pub fn get_cursors(&self) -> Vec<CursorPosition> {
+    |            ^^^^^^^^^^^
+...
+129 |     pub fn get_selections(&self) -> &[Selection] {
+    |            ^^^^^^^^^^^^^^
+...
+134 |     pub fn primary_selection(&self) -> &Selection {
+    |            ^^^^^^^^^^^^^^^^^
+...
+139 |     pub fn clear_secondary_cursors(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+...
+147 |     pub fn move_all(&mut self, line_offset: i32, column_offset: i32) {
+    |            ^^^^^^^^
+...
+161 |     pub fn select_word_at_cursors(&mut self, get_word_bounds: impl Fn(C...
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+...
+170 |     pub fn select_all_occurrences(&mut self, text: &str, current_select...
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+...
+198 |     pub fn merge_overlapping(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^
+...
+244 |     pub fn count(&self) -> usize {
+    |            ^^^^^
+warning: fields `canvas`, `context`, `width`, `height`, and `scale` are never read
+  --> src/minimap.rs:9:5
+   |
+ 8 | pub struct Minimap {
+   |            ------- fields in this struct
+ 9 |     canvas: HtmlCanvasElement,
+   |     ^^^^^^
+10 |     context: CanvasRenderingContext2d,
+   |     ^^^^^^^
+11 |     width: u32,
+   |     ^^^^^
+12 |     height: u32,
+   |     ^^^^^^
+13 |     scale: f64,
+   |     ^^^^^
+warning: methods `set_size`, `render`, `get_line_color`, and `handle_click` are never used
+   --> src/minimap.rs:45:12
+    |
+ 16 | impl Minimap {
+    | ------------ methods in this implementation
+...
+ 45 |     pub fn set_size(&mut self, width: u32, height: u32) {
+    |            ^^^^^^^^
+...
+ 52 |     pub fn render(&self, lines: &[String], viewport_start: usize, viewp...
+    |            ^^^^^^
+...
+103 |     fn get_line_color(&self, line: &str) -> &str {
+    |        ^^^^^^^^^^^^^^
+...
+132 |     pub fn handle_click(&self, x: f64, y: f64, total_lines: usize) -> u...
+    |            ^^^^^^^^^^^^
+warning: struct `SearchMatch` is never constructed
+ --> src/search.rs:8:12
+  |
+8 | pub struct SearchMatch {
+  |            ^^^^^^^^^^^
+warning: associated items `new` and `range` are never used
+  --> src/search.rs:16:12
+   |
+15 | impl SearchMatch {
+   | ---------------- associated items in this implementation
+16 |     pub fn new(line: usize, start_col: usize, end_col: usize, text: Stri...
+   |            ^^^
+...
+25 |     pub fn range(&self) -> Range<usize> {
+   |            ^^^^^
+warning: struct `SearchOptions` is never constructed
+  --> src/search.rs:31:12
+   |
+31 | pub struct SearchOptions {
+   |            ^^^^^^^^^^^^^
+warning: struct `SearchEngine` is never constructed
+  --> src/search.rs:53:12
+   |
+53 | pub struct SearchEngine {
+   |            ^^^^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/search.rs:61:12
+    |
+ 60 | impl SearchEngine {
+    | ----------------- associated items in this implementation
+ 61 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 70 |     pub fn set_query(&mut self, query: String) {
+    |            ^^^^^^^^^
+...
+ 74 |     pub fn set_options(&mut self, options: SearchOptions) {
+    |            ^^^^^^^^^^^
+...
+ 78 |     pub fn search(&mut self, text: &str) -> Vec<SearchMatch> {
+    |            ^^^^^^
+...
+111 |     fn search_literal(&mut self, lines: &[&str], start_line: usize, end...
+    |        ^^^^^^^^^^^^^^
+...
+153 |     fn search_regex(&mut self, lines: &[&str], start_line: usize, end_l...
+    |        ^^^^^^^^^^^^
+...
+190 |     pub fn find_next(&mut self) -> Option<SearchMatch> {
+    |            ^^^^^^^^^
+...
+201 |     pub fn find_previous(&mut self) -> Option<SearchMatch> {
+    |            ^^^^^^^^^^^^^
+...
+216 |     pub fn get_current_match(&self) -> Option<SearchMatch> {
+    |            ^^^^^^^^^^^^^^^^^
+...
+221 |     pub fn get_matches(&self) -> &[SearchMatch] {
+    |            ^^^^^^^^^^^
+...
+225 |     pub fn match_count(&self) -> usize {
+    |            ^^^^^^^^^^^
+...
+229 |     pub fn current_match_index(&self) -> Option<usize> {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+234 |     pub fn replace_current(&mut self, text: &mut String, replacement: &...
+    |            ^^^^^^^^^^^^^^^
+...
+264 |     pub fn replace_all(&mut self, text: &mut String, replacement: &str)...
+    |            ^^^^^^^^^^^
+warning: enum `ChangeType` is never used
+ --> src/git.rs:9:10
+  |
+9 | pub enum ChangeType {
+  |          ^^^^^^^^^^
+warning: methods `gutter_color` and `gutter_indicator` are never used
+  --> src/git.rs:17:12
+   |
+15 | impl ChangeType {
+   | --------------- methods in this implementation
+16 |     /// Get the gutter color for this change type
+17 |     pub fn gutter_color(&self) -> &'static str {
+   |            ^^^^^^^^^^^^
+...
+26 |     pub fn gutter_indicator(&self) -> &'static str {
+   |            ^^^^^^^^^^^^^^^^
+warning: struct `LineChange` is never constructed
+  --> src/git.rs:36:12
+   |
+36 | pub struct LineChange {
+   |            ^^^^^^^^^^
+warning: associated functions `new` and `with_old_content` are never used
+  --> src/git.rs:43:12
+   |
+42 | impl LineChange {
+   | --------------- associated functions in this implementation
+43 |     pub fn new(line_number: usize, change_type: ChangeType) -> Self {
+   |            ^^^
+...
+51 |     pub fn with_old_content(line_number: usize, change_type: ChangeType,...
+   |            ^^^^^^^^^^^^^^^^
+warning: struct `FileDiff` is never constructed
+  --> src/git.rs:61:12
+   |
+61 | pub struct FileDiff {
+   |            ^^^^^^^^
+warning: associated items `new`, `add_change`, `get_change_at_line`, and `has_changes` are never used
+  --> src/git.rs:67:12
+   |
+66 | impl FileDiff {
+   | ------------- associated items in this implementation
+67 |     pub fn new(file_path: String) -> Self {
+   |            ^^^
+...
+74 |     pub fn add_change(&mut self, change: LineChange) {
+   |            ^^^^^^^^^^
+...
+78 |     pub fn get_change_at_line(&self, line: usize) -> Option<&LineChange> {
+   |            ^^^^^^^^^^^^^^^^^^
+...
+82 |     pub fn has_changes(&self) -> bool {
+   |            ^^^^^^^^^^^
+warning: struct `GitDiffTracker` is never constructed
+  --> src/git.rs:87:12
+   |
+87 | pub struct GitDiffTracker {
+   |            ^^^^^^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/git.rs:93:12
+    |
+ 92 | impl GitDiffTracker {
+    | ------------------- associated items in this implementation
+ 93 |     pub fn new() -> Self {
+    |            ^^^
+...
+100 |     pub async fn load_diff(&mut self, file_path: String) -> Result<File...
+    |                  ^^^^^^^^^
+...
+130 |     pub async fn refresh_current(&mut self) -> Result<Option<FileDiff>,...
+    |                  ^^^^^^^^^^^^^^^
+...
+140 |     pub fn get_cached_diff(&self, file_path: &str) -> Option<&FileDiff> {
+    |            ^^^^^^^^^^^^^^^
+...
+144 |     pub fn clear_cache(&mut self) {
+    |            ^^^^^^^^^^^
+...
+149 |     pub fn parse_unified_diff(diff_text: &str, file_path: String) -> Fi...
+    |            ^^^^^^^^^^^^^^^^^^
+...
+197 |     pub fn get_changed_files(&self) -> Vec<String> {
+    |            ^^^^^^^^^^^^^^^^^
+...
+202 |     pub async fn has_unstaged_changes(&self, file_path: String) -> Resu...
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+221 |     pub async fn stage_file(&self, file_path: String) -> Result<(), Str...
+    |                  ^^^^^^^^^^
+...
+241 |     pub async fn unstage_file(&self, file_path: String) -> Result<(), S...
+    |                  ^^^^^^^^^^^^
+...
+261 |     pub async fn discard_changes(&mut self, file_path: String) -> Resul...
+    |                  ^^^^^^^^^^^^^^^
+warning: field `font_size` is never read
+  --> src/canvas_renderer.rs:48:5
+   |
+45 | pub struct CanvasTextRenderer {
+   |            ------------------ field in this struct
+...
+48 |     font_size: f64,
+   |     ^^^^^^^^^
+warning: variant `Operator` is never constructed
+  --> src/syntax.rs:15:5
+   |
+ 8 | pub enum TokenType {
+   |          --------- variant in this enum
+...
+15 |     Operator,
+   |     ^^^^^^^^
+   |
+   = note: `TokenType` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+warning: fields `start` and `end` are never read
+  --> src/syntax.rs:51:9
+   |
+48 | pub struct SyntaxToken {
+   |            ----------- fields in this struct
+...
+51 |     pub start: usize,
+   |         ^^^^^
+52 |     pub end: usize,
+   |         ^^^
+   |
+   = note: `SyntaxToken` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+warning: multiple methods are never used
+   --> src/lsp.rs:56:18
+    |
+ 48 | impl LspClient {
+    | -------------- methods in this implementation
+...
+ 56 |     pub async fn initialize(&mut self, root_uri: String) -> Result<(), ...
+    |                  ^^^^^^^^^^
+...
+ 83 |     pub async fn get_completions(
+    |                  ^^^^^^^^^^^^^^^
+...
+107 |     pub async fn goto_definition(
+    |                  ^^^^^^^^^^^^^^^
+...
+131 |     pub async fn find_references(
+    |                  ^^^^^^^^^^^^^^^
+...
+157 |     pub async fn get_diagnostics(&self, file_path: String) -> Result<Ve...
+    |                  ^^^^^^^^^^^^^^^
+...
+175 |     pub async fn rename(
+    |                  ^^^^^^
+...
+202 |     pub async fn format_document(&self, file_path: String) -> Result<St...
+    |                  ^^^^^^^^^^^^^^^
+warning: methods `get_selections` and `select_word_at_cursors` are never used
+   --> src/cursor.rs:129:12
+    |
+ 85 | impl MultiCursor {
+    | ---------------- methods in this implementation
+...
+129 |     pub fn get_selections(&self) -> &[Selection] {
+    |            ^^^^^^^^^^^^^^
+...
+161 |     pub fn select_word_at_cursors(&mut self, get_word_bounds: impl Fn(C...
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+warning: methods `get_matches`, `match_count`, and `current_match_index` are never used
+   --> src/search.rs:221:12
+    |
+ 60 | impl SearchEngine {
+    | ----------------- methods in this implementation
+...
+221 |     pub fn get_matches(&self) -> &[SearchMatch] {
+    |            ^^^^^^^^^^^
+...
+225 |     pub fn match_count(&self) -> usize {
+    |            ^^^^^^^^^^^
+...
+229 |     pub fn current_match_index(&self) -> Option<usize> {
+    |            ^^^^^^^^^^^^^^^^^^^
+warning: method `gutter_indicator` is never used
+  --> src/git.rs:26:12
+   |
+15 | impl ChangeType {
+   | --------------- method in this implementation
+...
+26 |     pub fn gutter_indicator(&self) -> &'static str {
+   |            ^^^^^^^^^^^^^^^^
+warning: fields `current_file` and `diff_cache` are never read
+  --> src/git.rs:88:5
+   |
+87 | pub struct GitDiffTracker {
+   |            -------------- fields in this struct
+88 |     current_file: Option<String>,
+   |     ^^^^^^^^^^^^
+89 |     diff_cache: HashMap<String, FileDiff>,
+   |     ^^^^^^^^^^
+warning: multiple methods are never used
+   --> src/git.rs:100:18
+    |
+ 92 | impl GitDiffTracker {
+    | ------------------- methods in this implementation
+...
+100 |     pub async fn load_diff(&mut self, file_path: String) -> Result<File...
+    |                  ^^^^^^^^^
+...
+130 |     pub async fn refresh_current(&mut self) -> Result<Option<FileDiff>,...
+    |                  ^^^^^^^^^^^^^^^
+...
+140 |     pub fn get_cached_diff(&self, file_path: &str) -> Option<&FileDiff> {
+    |            ^^^^^^^^^^^^^^^
+...
+144 |     pub fn clear_cache(&mut self) {
+    |            ^^^^^^^^^^^
+...
+197 |     pub fn get_changed_files(&self) -> Vec<String> {
+    |            ^^^^^^^^^^^^^^^^^
+...
+202 |     pub async fn has_unstaged_changes(&self, file_path: String) -> Resu...
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+221 |     pub async fn stage_file(&self, file_path: String) -> Result<(), Str...
+    |                  ^^^^^^^^^^
+...
+241 |     pub async fn unstage_file(&self, file_path: String) -> Result<(), S...
+    |                  ^^^^^^^^^^^^
+...
+261 |     pub async fn discard_changes(&mut self, file_path: String) -> Resul...
+    |                  ^^^^^^^^^^^^^^^
+warning: `berry-editor` (lib test) generated 54 warnings (40 duplicates) (run `cargo fix --lib -p berry-editor --tests` to apply 5 suggestions)
+warning: `berry-editor` (lib) generated 71 warnings (1 duplicate) (run `cargo fix --lib -p berry-editor` to apply 23 suggestions)
+warning: unused import: `berry_editor::*`
+ --> tests/editor_panel_test.rs:1:5
+  |
+1 | use berry_editor::*;
+  |     ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+warning: `berry-editor` (test "editor_panel_test") generated 1 warning (run `cargo fix --test "editor_panel_test" -p berry-editor` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.90s
+warning: unused import: `DebugConsole`
+ --> src/components.rs:8:81
+  |
+8 | ... CallStackPanel, WatchPanel, DebugConsole};
+  |                                 ^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+warning: unused import: `LspIntegration`
+  --> src/components.rs:11:33
+   |
+11 | use crate::lsp_ui::{Diagnostic, LspIntegration};
+   |                                 ^^^^^^^^^^^^^^
+warning: unused import: `wasm_bindgen::prelude::*`
+ --> src/file_tree.rs:6:5
+  |
+6 | use wasm_bindgen::prelude::*;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `regex::Regex`
+ --> src/syntax.rs:5:5
+  |
+5 | use regex::Regex;
+  |     ^^^^^^^^^^^^
+warning: unused import: `std::collections::HashSet`
+ --> src/cursor.rs:4:5
+  |
+4 | use std::collections::HashSet;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `Context`
+ --> src/common/async_bridge.rs:5:14
+  |
+5 | use anyhow::{Context, Result};
+  |              ^^^^^^^
+warning: unused import: `crate::common::ui_components::ListView`
+ --> src/completion_widget.rs:8:5
+  |
+8 | use crate::common::ui_components::ListView;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `crate::common::event_handler::KeyCombo`
+ --> src/completion_widget.rs:9:5
+  |
+9 | use crate::common::event_handler::KeyCombo;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `TextEdit`
+ --> src/refactoring/preview_dialog.rs:5:28
+  |
+5 | use super::{WorkspaceEdit, TextEdit};
+  |                            ^^^^^^^^
+warning: unused import: `std::collections::HashMap`
+ --> src/refactoring/preview_dialog.rs:6:5
+  |
+6 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+warning: unused import: `SystemTime`
+   --> src/git_ui/blame_view.rs:272:21
+    |
+272 |     use std::time::{SystemTime, UNIX_EPOCH};
+    |                     ^^^^^^^^^^
+warning: use of deprecated struct `wasm_bindgen::JsStatic`: use with `#[wasm_bindgen(thread_local_v2)]` instead
+  --> src/lib.rs:58:12
+   |
+58 |     static DOCUMENT: web_sys::Document;
+   |            ^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+warning: use of deprecated static `DOCUMENT`: use with `#[wasm_bindgen(thread_local_v2)]` instead
+  --> src/lib.rs:77:13
+   |
+77 |             DOCUMENT.clone()
+   |             ^^^^^^^^
+warning: variable does not need to be mutable
+   --> src/file_tree.rs:113:9
+    |
+113 |     let mut opts = RequestInit::new();
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+warning: variable does not need to be mutable
+   --> src/file_tree.rs:150:9
+    |
+150 |     let mut opts = RequestInit::new();
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/minimap.rs:57:22
+   |
+57 |         self.context.set_fill_style(&JsValue::from_str("#1e1e1e"));
+   |                      ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/minimap.rs:74:26
+   |
+74 |             self.context.set_fill_style(&JsValue::from_str(color));
+   |                          ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_stroke_style`
+  --> src/minimap.rs:87:26
+   |
+87 |             self.context.set_stroke_style(&JsValue::from_str("#007acc"));
+   |                          ^^^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/minimap.rs:97:26
+   |
+97 | ...   self.context.set_fill_style(&JsValue::from_str("rgba(0, 122, 204, ...
+   |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+  --> src/canvas_renderer.rs:93:22
+   |
+93 |         self.context.set_fill_style(&self.background_color.clone().into());
+   |                      ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:122:26
+    |
+122 | ...   self.context.set_fill_style(&self.foreground_color.clone().into());
+    |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:133:34
+    |
+133 | ...   self.context.set_fill_style(&self.foreground_color.clone().into());
+    |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:140:30
+    |
+140 |                 self.context.set_fill_style(&token.color.clone().into());
+    |                              ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:150:30
+    |
+150 | ...   self.context.set_fill_style(&self.foreground_color.clone().into());
+    |                    ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:161:22
+    |
+161 |         self.context.set_fill_style(&self.cursor_color.clone().into());
+    |                      ^^^^^^^^^^^^^^
+warning: use of deprecated method `web_sys::CanvasRenderingContext2d::set_fill_style`
+   --> src/canvas_renderer.rs:212:22
+    |
+212 |         self.context.set_fill_style(&self.selection_color.clone().into());
+    |                      ^^^^^^^^^^^^^^
+warning: use of deprecated field `wasm_bindgen::JsStatic::__inner`: use with `#[wasm_bindgen(thread_local_v2)]` instead
+  --> src/lib.rs:58:12
+   |
+58 |     static DOCUMENT: web_sys::Document;
+   |            ^^^^^^^^
+warning: unused import: `Context`
+ --> src/canvas_renderer.rs:8:14
+  |
+8 | use anyhow::{Context, Result};
+  |              ^^^^^^^
+warning: unused variable: `trimmed`
+  --> src/syntax.rs:94:13
+   |
+94 |         let trimmed = line.trim_start();
+   |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_trimmed`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+warning: variable does not need to be mutable
+   --> src/cursor.rs:176:13
+    |
+176 |         let mut current_line = 0;
+    |             ----^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+warning: variable does not need to be mutable
+   --> src/cursor.rs:177:13
+    |
+177 |         let mut current_col = 0;
+    |             ----^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+warning: unused variable: `current_line`
+   --> src/cursor.rs:176:13
+    |
+176 |         let mut current_line = 0;
+    |             ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_line`
+warning: unused variable: `current_col`
+   --> src/cursor.rs:177:13
+    |
+177 |         let mut current_col = 0;
+    |             ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_col`
+warning: unused variable: `x`
+   --> src/minimap.rs:132:32
+    |
+132 | ...pub fn handle_click(&self, x: f64, y: f64, total_lines: usize) -> us...
+    |                               ^ help: if this is intentional, prefix it with an underscore: `_x`
+warning: unused variable: `minimap`
+   --> src/minimap.rs:144:13
+    |
+144 |         let minimap = Minimap::new(canvas_id).map_err(|e| JsValue::from...
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_minimap`
+warning: unused variable: `context`
+  --> src/refactoring/refactor_menu.rs:17:5
+   |
+17 |     context: RefactorContext,
+   |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context`
+warning: unused variable: `on_close`
+  --> src/refactoring/refactor_menu.rs:19:5
+   |
+19 |     on_close: impl Fn() + 'static,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_on_close`
+warning: unused variable: `line_number`
+   --> src/git_ui/blame_view.rs:139:5
+    |
+139 |     line_number: usize,
+    |     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_line_number`
+warning: enum `TokenType` is never used
+ --> src/syntax.rs:8:10
+  |
+8 | pub enum TokenType {
+  |          ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+warning: methods `to_color` and `to_class` are never used
+  --> src/syntax.rs:20:12
+   |
+19 | impl TokenType {
+   | -------------- methods in this implementation
+20 |     pub fn to_color(&self) -> &'static str {
+   |            ^^^^^^^^
+...
+33 |     pub fn to_class(&self) -> &'static str {
+   |            ^^^^^^^^
+warning: struct `SyntaxToken` is never constructed
+  --> src/syntax.rs:48:12
+   |
+48 | pub struct SyntaxToken {
+   |            ^^^^^^^^^^^
+warning: methods `set_language`, `highlight_line`, `highlight_rust`, `highlight_javascript`, `highlight_python`, and `add_basic_tokens` are never used
+   --> src/syntax.rs:67:12
+    |
+ 60 | impl SyntaxHighlighter {
+    | ---------------------- methods in this implementation
+...
+ 67 |     pub fn set_language(&mut self, lang: &str) -> Result<(), String> {
+    |            ^^^^^^^^^^^^
+...
+ 76 |     pub fn highlight_line(&self, line: &str) -> Vec<SyntaxToken> {
+    |            ^^^^^^^^^^^^^^
+...
+ 92 |     fn highlight_rust(&self, line: &str) -> Vec<SyntaxToken> {
+    |        ^^^^^^^^^^^^^^
+...
+114 |     fn highlight_javascript(&self, line: &str) -> Vec<SyntaxToken> {
+    |        ^^^^^^^^^^^^^^^^^^^^
+...
+135 |     fn highlight_python(&self, line: &str) -> Vec<SyntaxToken> {
+    |        ^^^^^^^^^^^^^^^^
+...
+156 |     fn add_basic_tokens(&self, tokens: &mut Vec<SyntaxToken>, text: &st...
+    |        ^^^^^^^^^^^^^^^^
+warning: struct `Position` is never constructed
+ --> src/lsp.rs:9:12
+  |
+9 | pub struct Position {
+  |            ^^^^^^^^
+warning: struct `Range` is never constructed
+  --> src/lsp.rs:15:12
+   |
+15 | pub struct Range {
+   |            ^^^^^
+warning: struct `Location` is never constructed
+  --> src/lsp.rs:21:12
+   |
+21 | pub struct Location {
+   |            ^^^^^^^^
+warning: struct `CompletionItem` is never constructed
+  --> src/lsp.rs:27:12
+   |
+27 | pub struct CompletionItem {
+   |            ^^^^^^^^^^^^^^
+warning: struct `Diagnostic` is never constructed
+  --> src/lsp.rs:36:12
+   |
+36 | pub struct Diagnostic {
+   |            ^^^^^^^^^^
+warning: struct `LspClient` is never constructed
+  --> src/lsp.rs:43:12
+   |
+43 | pub struct LspClient {
+   |            ^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/lsp.rs:49:12
+    |
+ 48 | impl LspClient {
+    | -------------- associated items in this implementation
+ 49 |     pub fn new(language: &str) -> Self {
+    |            ^^^
+...
+ 56 |     pub async fn initialize(&mut self, root_uri: String) -> Result<(), ...
+    |                  ^^^^^^^^^^
+...
+ 83 |     pub async fn get_completions(
+    |                  ^^^^^^^^^^^^^^^
+...
+107 |     pub async fn goto_definition(
+    |                  ^^^^^^^^^^^^^^^
+...
+131 |     pub async fn find_references(
+    |                  ^^^^^^^^^^^^^^^
+...
+157 |     pub async fn get_diagnostics(&self, file_path: String) -> Result<Ve...
+    |                  ^^^^^^^^^^^^^^^
+...
+175 |     pub async fn rename(
+    |                  ^^^^^^
+...
+202 |     pub async fn format_document(&self, file_path: String) -> Result<St...
+    |                  ^^^^^^^^^^^^^^^
+warning: struct `CursorPosition` is never constructed
+ --> src/cursor.rs:7:12
+  |
+7 | pub struct CursorPosition {
+  |            ^^^^^^^^^^^^^^
+warning: associated function `new` is never used
+  --> src/cursor.rs:13:12
+   |
+12 | impl CursorPosition {
+   | ------------------- associated function in this implementation
+13 |     pub fn new(line: usize, column: usize) -> Self {
+   |            ^^^
+warning: struct `Selection` is never constructed
+  --> src/cursor.rs:19:12
+   |
+19 | pub struct Selection {
+   |            ^^^^^^^^^
+warning: associated items `new`, `collapsed`, `is_collapsed`, `start`, `end`, and `contains` are never used
+  --> src/cursor.rs:25:12
+   |
+24 | impl Selection {
+   | -------------- associated items in this implementation
+25 |     pub fn new(anchor: CursorPosition, cursor: CursorPosition) -> Self {
+   |            ^^^
+...
+29 |     pub fn collapsed(position: CursorPosition) -> Self {
+   |            ^^^^^^^^^
+...
+36 |     pub fn is_collapsed(&self) -> bool {
+   |            ^^^^^^^^^^^^
+...
+40 |     pub fn start(&self) -> CursorPosition {
+   |            ^^^^^
+...
+50 |     pub fn end(&self) -> CursorPosition {
+   |            ^^^
+...
+60 |     pub fn contains(&self, position: CursorPosition) -> bool {
+   |            ^^^^^^^^
+warning: struct `MultiCursor` is never constructed
+  --> src/cursor.rs:80:12
+   |
+80 | pub struct MultiCursor {
+   |            ^^^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/cursor.rs:86:12
+    |
+ 85 | impl MultiCursor {
+    | ---------------- associated items in this implementation
+ 86 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 93 |     pub fn from_position(position: CursorPosition) -> Self {
+    |            ^^^^^^^^^^^^^
+...
+101 |     pub fn add_cursor(&mut self, position: CursorPosition) {
+    |            ^^^^^^^^^^
+...
+109 |     pub fn remove_cursor_at(&mut self, position: CursorPosition) {
+    |            ^^^^^^^^^^^^^^^^
+...
+119 |     pub fn has_cursor_at(&self, position: CursorPosition) -> bool {
+    |            ^^^^^^^^^^^^^
+...
+124 |     pub fn get_cursors(&self) -> Vec<CursorPosition> {
+    |            ^^^^^^^^^^^
+...
+129 |     pub fn get_selections(&self) -> &[Selection] {
+    |            ^^^^^^^^^^^^^^
+...
+134 |     pub fn primary_selection(&self) -> &Selection {
+    |            ^^^^^^^^^^^^^^^^^
+...
+139 |     pub fn clear_secondary_cursors(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+...
+147 |     pub fn move_all(&mut self, line_offset: i32, column_offset: i32) {
+    |            ^^^^^^^^
+...
+161 |     pub fn select_word_at_cursors(&mut self, get_word_bounds: impl Fn(C...
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+...
+170 |     pub fn select_all_occurrences(&mut self, text: &str, current_select...
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+...
+198 |     pub fn merge_overlapping(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^
+...
+244 |     pub fn count(&self) -> usize {
+    |            ^^^^^
+warning: fields `canvas`, `context`, `width`, `height`, and `scale` are never read
+  --> src/minimap.rs:9:5
+   |
+ 8 | pub struct Minimap {
+   |            ------- fields in this struct
+ 9 |     canvas: HtmlCanvasElement,
+   |     ^^^^^^
+10 |     context: CanvasRenderingContext2d,
+   |     ^^^^^^^
+11 |     width: u32,
+   |     ^^^^^
+12 |     height: u32,
+   |     ^^^^^^
+13 |     scale: f64,
+   |     ^^^^^
+warning: methods `set_size`, `render`, `get_line_color`, and `handle_click` are never used
+   --> src/minimap.rs:45:12
+    |
+ 16 | impl Minimap {
+    | ------------ methods in this implementation
+...
+ 45 |     pub fn set_size(&mut self, width: u32, height: u32) {
+    |            ^^^^^^^^
+...
+ 52 |     pub fn render(&self, lines: &[String], viewport_start: usize, viewp...
+    |            ^^^^^^
+...
+103 |     fn get_line_color(&self, line: &str) -> &str {
+    |        ^^^^^^^^^^^^^^
+...
+132 |     pub fn handle_click(&self, x: f64, y: f64, total_lines: usize) -> u...
+    |            ^^^^^^^^^^^^
+warning: struct `SearchMatch` is never constructed
+ --> src/search.rs:8:12
+  |
+8 | pub struct SearchMatch {
+  |            ^^^^^^^^^^^
+warning: associated items `new` and `range` are never used
+  --> src/search.rs:16:12
+   |
+15 | impl SearchMatch {
+   | ---------------- associated items in this implementation
+16 |     pub fn new(line: usize, start_col: usize, end_col: usize, text: Stri...
+   |            ^^^
+...
+25 |     pub fn range(&self) -> Range<usize> {
+   |            ^^^^^
+warning: struct `SearchOptions` is never constructed
+  --> src/search.rs:31:12
+   |
+31 | pub struct SearchOptions {
+   |            ^^^^^^^^^^^^^
+warning: struct `SearchEngine` is never constructed
+  --> src/search.rs:53:12
+   |
+53 | pub struct SearchEngine {
+   |            ^^^^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/search.rs:61:12
+    |
+ 60 | impl SearchEngine {
+    | ----------------- associated items in this implementation
+ 61 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 70 |     pub fn set_query(&mut self, query: String) {
+    |            ^^^^^^^^^
+...
+ 74 |     pub fn set_options(&mut self, options: SearchOptions) {
+    |            ^^^^^^^^^^^
+...
+ 78 |     pub fn search(&mut self, text: &str) -> Vec<SearchMatch> {
+    |            ^^^^^^
+...
+111 |     fn search_literal(&mut self, lines: &[&str], start_line: usize, end...
+    |        ^^^^^^^^^^^^^^
+...
+153 |     fn search_regex(&mut self, lines: &[&str], start_line: usize, end_l...
+    |        ^^^^^^^^^^^^
+...
+190 |     pub fn find_next(&mut self) -> Option<SearchMatch> {
+    |            ^^^^^^^^^
+...
+201 |     pub fn find_previous(&mut self) -> Option<SearchMatch> {
+    |            ^^^^^^^^^^^^^
+...
+216 |     pub fn get_current_match(&self) -> Option<SearchMatch> {
+    |            ^^^^^^^^^^^^^^^^^
+...
+221 |     pub fn get_matches(&self) -> &[SearchMatch] {
+    |            ^^^^^^^^^^^
+...
+225 |     pub fn match_count(&self) -> usize {
+    |            ^^^^^^^^^^^
+...
+229 |     pub fn current_match_index(&self) -> Option<usize> {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+234 |     pub fn replace_current(&mut self, text: &mut String, replacement: &...
+    |            ^^^^^^^^^^^^^^^
+...
+264 |     pub fn replace_all(&mut self, text: &mut String, replacement: &str)...
+    |            ^^^^^^^^^^^
+warning: enum `ChangeType` is never used
+ --> src/git.rs:9:10
+  |
+9 | pub enum ChangeType {
+  |          ^^^^^^^^^^
+warning: methods `gutter_color` and `gutter_indicator` are never used
+  --> src/git.rs:17:12
+   |
+15 | impl ChangeType {
+   | --------------- methods in this implementation
+16 |     /// Get the gutter color for this change type
+17 |     pub fn gutter_color(&self) -> &'static str {
+   |            ^^^^^^^^^^^^
+...
+26 |     pub fn gutter_indicator(&self) -> &'static str {
+   |            ^^^^^^^^^^^^^^^^
+warning: struct `LineChange` is never constructed
+  --> src/git.rs:36:12
+   |
+36 | pub struct LineChange {
+   |            ^^^^^^^^^^
+warning: associated functions `new` and `with_old_content` are never used
+  --> src/git.rs:43:12
+   |
+42 | impl LineChange {
+   | --------------- associated functions in this implementation
+43 |     pub fn new(line_number: usize, change_type: ChangeType) -> Self {
+   |            ^^^
+...
+51 |     pub fn with_old_content(line_number: usize, change_type: ChangeType,...
+   |            ^^^^^^^^^^^^^^^^
+warning: struct `FileDiff` is never constructed
+  --> src/git.rs:61:12
+   |
+61 | pub struct FileDiff {
+   |            ^^^^^^^^
+warning: associated items `new`, `add_change`, `get_change_at_line`, and `has_changes` are never used
+  --> src/git.rs:67:12
+   |
+66 | impl FileDiff {
+   | ------------- associated items in this implementation
+67 |     pub fn new(file_path: String) -> Self {
+   |            ^^^
+...
+74 |     pub fn add_change(&mut self, change: LineChange) {
+   |            ^^^^^^^^^^
+...
+78 |     pub fn get_change_at_line(&self, line: usize) -> Option<&LineChange> {
+   |            ^^^^^^^^^^^^^^^^^^
+...
+82 |     pub fn has_changes(&self) -> bool {
+   |            ^^^^^^^^^^^
+warning: struct `GitDiffTracker` is never constructed
+  --> src/git.rs:87:12
+   |
+87 | pub struct GitDiffTracker {
+   |            ^^^^^^^^^^^^^^
+warning: multiple associated items are never used
+   --> src/git.rs:93:12
+    |
+ 92 | impl GitDiffTracker {
+    | ------------------- associated items in this implementation
+ 93 |     pub fn new() -> Self {
+    |            ^^^
+...
+100 |     pub async fn load_diff(&mut self, file_path: String) -> Result<File...
+    |                  ^^^^^^^^^
+...
+130 |     pub async fn refresh_current(&mut self) -> Result<Option<FileDiff>,...
+    |                  ^^^^^^^^^^^^^^^
+...
+140 |     pub fn get_cached_diff(&self, file_path: &str) -> Option<&FileDiff> {
+    |            ^^^^^^^^^^^^^^^
+...
+144 |     pub fn clear_cache(&mut self) {
+    |            ^^^^^^^^^^^
+...
+149 |     pub fn parse_unified_diff(diff_text: &str, file_path: String) -> Fi...
+    |            ^^^^^^^^^^^^^^^^^^
+...
+197 |     pub fn get_changed_files(&self) -> Vec<String> {
+    |            ^^^^^^^^^^^^^^^^^
+...
+202 |     pub async fn has_unstaged_changes(&self, file_path: String) -> Resu...
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+221 |     pub async fn stage_file(&self, file_path: String) -> Result<(), Str...
+    |                  ^^^^^^^^^^
+...
+241 |     pub async fn unstage_file(&self, file_path: String) -> Result<(), S...
+    |                  ^^^^^^^^^^^^
+...
+261 |     pub async fn discard_changes(&mut self, file_path: String) -> Resul...
+    |                  ^^^^^^^^^^^^^^^
+warning: field `font_size` is never read
+  --> src/canvas_renderer.rs:48:5
+   |
+45 | pub struct CanvasTextRenderer {
+   |            ------------------ field in this struct
+...
+48 |     font_size: f64,
+   |     ^^^^^^^^^
+warning: unused import: `super::*`
+   --> src/minimap.rs:156:9
+    |
+156 |     use super::*;
+    |         ^^^^^^^^
+warning: unused import: `super::*`
+  --> src/common/async_bridge.rs:48:9
+   |
+48 |     use super::*;
+   |         ^^^^^^^^
+warning: unused import: `super::*`
+   --> src/common/ui_components.rs:113:9
+    |
+113 |     use super::*;
+    |         ^^^^^^^^
+warning: unused import: `super::*`
+   --> src/completion_widget.rs:150:9
+    |
+150 |     use super::*;
+    |         ^^^^^^^^
+warning: unused variable: `end`
+   --> src/virtual_scroll.rs:132:21
+    |
+132 |         let (start, end) = vs.visible_range();
+    |                     ^^^ help: if this is intentional, prefix it with an underscore: `_end`
+warning: variant `Operator` is never constructed
+  --> src/syntax.rs:15:5
+   |
+ 8 | pub enum TokenType {
+   |          --------- variant in this enum
+...
+15 |     Operator,
+   |     ^^^^^^^^
+   |
+   = note: `TokenType` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+warning: fields `start` and `end` are never read
+  --> src/syntax.rs:51:9
+   |
+48 | pub struct SyntaxToken {
+   |            ----------- fields in this struct
+...
+51 |     pub start: usize,
+   |         ^^^^^
+52 |     pub end: usize,
+   |         ^^^
+   |
+   = note: `SyntaxToken` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+warning: multiple methods are never used
+   --> src/lsp.rs:56:18
+    |
+ 48 | impl LspClient {
+    | -------------- methods in this implementation
+...
+ 56 |     pub async fn initialize(&mut self, root_uri: String) -> Result<(), ...
+    |                  ^^^^^^^^^^
+...
+ 83 |     pub async fn get_completions(
+    |                  ^^^^^^^^^^^^^^^
+...
+107 |     pub async fn goto_definition(
+    |                  ^^^^^^^^^^^^^^^
+...
+131 |     pub async fn find_references(
+    |                  ^^^^^^^^^^^^^^^
+...
+157 |     pub async fn get_diagnostics(&self, file_path: String) -> Result<Ve...
+    |                  ^^^^^^^^^^^^^^^
+...
+175 |     pub async fn rename(
+    |                  ^^^^^^
+...
+202 |     pub async fn format_document(&self, file_path: String) -> Result<St...
+    |                  ^^^^^^^^^^^^^^^
+warning: methods `get_selections` and `select_word_at_cursors` are never used
+   --> src/cursor.rs:129:12
+    |
+ 85 | impl MultiCursor {
+    | ---------------- methods in this implementation
+...
+129 |     pub fn get_selections(&self) -> &[Selection] {
+    |            ^^^^^^^^^^^^^^
+...
+161 |     pub fn select_word_at_cursors(&mut self, get_word_bounds: impl Fn(C...
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+warning: methods `get_matches`, `match_count`, and `current_match_index` are never used
+   --> src/search.rs:221:12
+    |
+ 60 | impl SearchEngine {
+    | ----------------- methods in this implementation
+...
+221 |     pub fn get_matches(&self) -> &[SearchMatch] {
+    |            ^^^^^^^^^^^
+...
+225 |     pub fn match_count(&self) -> usize {
+    |            ^^^^^^^^^^^
+...
+229 |     pub fn current_match_index(&self) -> Option<usize> {
+    |            ^^^^^^^^^^^^^^^^^^^
+warning: method `gutter_indicator` is never used
+  --> src/git.rs:26:12
+   |
+15 | impl ChangeType {
+   | --------------- method in this implementation
+...
+26 |     pub fn gutter_indicator(&self) -> &'static str {
+   |            ^^^^^^^^^^^^^^^^
+warning: fields `current_file` and `diff_cache` are never read
+  --> src/git.rs:88:5
+   |
+87 | pub struct GitDiffTracker {
+   |            -------------- fields in this struct
+88 |     current_file: Option<String>,
+   |     ^^^^^^^^^^^^
+89 |     diff_cache: HashMap<String, FileDiff>,
+   |     ^^^^^^^^^^
+warning: multiple methods are never used
+   --> src/git.rs:100:18
+    |
+ 92 | impl GitDiffTracker {
+    | ------------------- methods in this implementation
+...
+100 |     pub async fn load_diff(&mut self, file_path: String) -> Result<File...
+    |                  ^^^^^^^^^
+...
+130 |     pub async fn refresh_current(&mut self) -> Result<Option<FileDiff>,...
+    |                  ^^^^^^^^^^^^^^^
+...
+140 |     pub fn get_cached_diff(&self, file_path: &str) -> Option<&FileDiff> {
+    |            ^^^^^^^^^^^^^^^
+...
+144 |     pub fn clear_cache(&mut self) {
+    |            ^^^^^^^^^^^
+...
+197 |     pub fn get_changed_files(&self) -> Vec<String> {
+    |            ^^^^^^^^^^^^^^^^^
+...
+202 |     pub async fn has_unstaged_changes(&self, file_path: String) -> Resu...
+    |                  ^^^^^^^^^^^^^^^^^^^^
+...
+221 |     pub async fn stage_file(&self, file_path: String) -> Result<(), Str...
+    |                  ^^^^^^^^^^
+...
+241 |     pub async fn unstage_file(&self, file_path: String) -> Result<(), S...
+    |                  ^^^^^^^^^^^^
+...
+261 |     pub async fn discard_changes(&mut self, file_path: String) -> Resul...
+    |                  ^^^^^^^^^^^^^^^
+warning: `berry-editor` (lib) generated 71 warnings (run `cargo fix --lib -p berry-editor` to apply 23 suggestions)
+warning: `berry-editor` (lib test) generated 54 warnings (41 duplicates) (run `cargo fix --lib -p berry-editor --tests` to apply 5 suggestions)
+warning: unused import: `berry_editor::*`
+ --> tests/editor_panel_test.rs:1:5
+  |
+1 | use berry_editor::*;
+  |     ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+warning: `berry-editor` (test "editor_panel_test") generated 1 warning (run `cargo fix --test "editor_panel_test" -p berry-editor` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running unittests src/lib.rs (/Users/kyosukeishizu/oracleberry/berrcode/target/wasm32-unknown-unknown/debug/deps/berry_editor-a9bc56f0dad6e846.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:62243/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+[2025-12-26T06:43:24Z ERROR wasm_bindgen_cli::wasm_bindgen_test_runner::server] Failed to save benchmark: No such file or directory (os error 2)
+running 100 tests
+test git::tests::test_parse_unified_diff ... ok
+test git::tests::test_line_change_creation ... ok
+test git::tests::test_file_diff_operations ... ok
+test git::tests::test_change_type_colors ... ok
+test common::ui_components::tests::test_components_compile ... ok
+test canvas_renderer::tests::test_syntax_token ... ok
+test canvas_renderer::tests::test_range_creation ... ok
+test canvas_renderer::tests::test_position_creation ... ok
+test minimap::tests::test_minimap_line_color_string ... ok
+test minimap::tests::test_minimap_line_color_keywords ... ok
+test minimap::tests::test_minimap_line_color_default ... ok
+test minimap::tests::test_minimap_line_color_comment ... ok
+test minimap::tests::test_handle_click_edge_cases ... ok
+test minimap::tests::test_handle_click_calculation ... ok
+test syntax::tests::test_uppercase_type_detection ... ok
+test syntax::tests::test_token_type_colors ... ok
+test syntax::tests::test_token_type_classes ... ok
+test syntax::tests::test_python_comment ... ok
+test syntax::tests::test_partial_line_with_comment ... ok
+test syntax::tests::test_number_highlighting ... ok
+test syntax::tests::test_no_language_set ... ok
+test syntax::tests::test_javascript_comment ... ok
+test syntax::tests::test_highlight_type ... ok
+test syntax::tests::test_highlight_rust_keyword ... ok
+test syntax::tests::test_highlight_comment ... ok
+test syntax::tests::test_get_language ... ok
+test buffer::tests::test_set_language ... ok
+test buffer::tests::test_set_file_path ... ok
+test buffer::tests::test_remove ... ok
+test buffer::tests::test_new_buffer ... ok
+test buffer::tests::test_multiple_operations ... ok
+test buffer::tests::test_mark_saved ... ok
+test buffer::tests::test_line ... ok
+test buffer::tests::test_len_lines ... ok
+test buffer::tests::test_len_chars ... ok
+test buffer::tests::test_insert ... ok
+test buffer::tests::test_from_str ... ok
+test lsp_ui::tests::test_set_file_path ... ok
+test lsp_ui::tests::test_lsp_integration_creation ... ok
+test debugger::watch_panel::tests::test_watch_panel_compiles ... ok
+test search::tests::test_whole_word ... ok
+test search::tests::test_replace_current ... ok
+test search::tests::test_replace_all ... ok
+test search::tests::test_regex_search ... ok
+test search::tests::test_literal_search ... ok
+test search::tests::test_find_next_previous ... ok
+test search::tests::test_case_insensitive ... ok
+test debounce::tests::test_debouncer_creation ... ok
+test debounce::tests::test_debouncer_cancel ... ok
+test common::async_bridge::tests::test_tauri_bridge_invoke ... ok
+test cursor::tests::test_selection_start_end_multiline ... ok
+test cursor::tests::test_selection_start_end ... ok
+test cursor::tests::test_selection_new ... ok
+test cursor::tests::test_selection_is_collapsed ... ok
+test cursor::tests::test_selection_contains ... ok
+test cursor::tests::test_selection_collapsed ... ok
+test cursor::tests::test_select_all_occurrences_empty ... ok
+test cursor::tests::test_select_all_occurrences ... ok
+test cursor::tests::test_primary_selection ... ok
+test cursor::tests::test_multi_cursor_remove ... ok
+test cursor::tests::test_multi_cursor_no_duplicate ... ok
+test cursor::tests::test_multi_cursor_always_keeps_one ... ok
+test cursor::tests::test_multi_cursor_add ... ok
+test cursor::tests::test_move_all_no_negative ... ok
+test cursor::tests::test_move_all ... ok
+test cursor::tests::test_merge_overlapping ... ok
+test cursor::tests::test_merge_non_overlapping ... ok
+test cursor::tests::test_has_cursor_at ... ok
+test cursor::tests::test_get_cursors ... ok
+test cursor::tests::test_from_position ... ok
+test cursor::tests::test_cursor_position_new ... ok
+test cursor::tests::test_clear_secondary_cursors ... ok
+test debugger::variables_panel::tests::test_variables_panel_compiles ... ok
+test common::event_handler::tests::test_mouse_button_variants ... ok
+test common::event_handler::tests::test_key_combo_creation ... ok
+test debugger::breakpoint_gutter::tests::test_conditional_dialog_compiles ... ok
+test debugger::breakpoint_gutter::tests::test_breakpoint_gutter_compiles ... ok
+test completion_widget::tests::test_kind_formatting ... ok
+test completion_widget::tests::test_completion_widget_compile ... ok
+test debugger::debug_console::tests::test_debug_console_compiles ... ok
+test lsp::tests::test_range_serialization ... ok
+test lsp::tests::test_range_creation ... ok
+test lsp::tests::test_position_serialization ... ok
+test lsp::tests::test_position_creation ... ok
+test lsp::tests::test_lsp_client_creation ... ok
+test lsp::tests::test_location_creation ... ok
+test lsp::tests::test_diagnostic_creation ... ok
+test lsp::tests::test_completion_item_minimal ... ok
+test lsp::tests::test_completion_item_creation ... ok
+test file_tree::tests::test_nested_directory_structure ... ok
+test file_tree::tests::test_get_mock_file_tree_contains_files ... ok
+test file_tree::tests::test_file_tree_json_roundtrip ... ok
+test file_tree::tests::test_file_node_serialization ... ok
+test file_tree::tests::test_file_node_deserialization ... ok
+test file_tree::tests::test_file_node_creation ... ok
+test file_tree::tests::test_file_extensions ... ok
+test file_tree::tests::test_empty_directory ... ok
+test file_tree::tests::test_directory_node_creation ... ok
+test debugger::call_stack_panel::tests::test_call_stack_panel_compiles ... ok
+test debugger::debug_toolbar::tests::test_debug_toolbar_compiles ... ok
+test result: ok. 100 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.03s
+     Running unittests src/main.rs (/Users/kyosukeishizu/oracleberry/berrcode/target/wasm32-unknown-unknown/debug/deps/berry_editor-6c901462f80560fa.wasm)
+no tests to run!
+     Running tests/editor_panel_test.rs (/Users/kyosukeishizu/oracleberry/berrcode/target/wasm32-unknown-unknown/debug/deps/editor_panel_test-3b7426a2a8f83d74.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:62271/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+[2025-12-26T06:43:26Z ERROR wasm_bindgen_cli::wasm_bindgen_test_runner::server] Failed to save benchmark: No such file or directory (os error 2)
+running 4 tests
+test test_file_tree_click_updates_signal ... ok
+test test_file_selection_signal_propagation ... ok
+test test_editor_panel_reacts_to_file_selection ... ok
+test test_editor_panel_effect_creates_tabs ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.52s
+     Running tests/file_tree_expand_test.rs (/Users/kyosukeishizu/oracleberry/berrcode/target/wasm32-unknown-unknown/debug/deps/file_tree_expand_test-f1b5f40de7b556e6.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:62296/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+[2025-12-26T06:43:29Z ERROR wasm_bindgen_cli::wasm_bindgen_test_runner::server] Failed to save benchmark: No such file or directory (os error 2)
+running 2 tests
+test test_file_tree_structure_renders ... ok
+test test_file_tree_click_behavior ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.62s
+     Running tests/integration_test.rs (/Users/kyosukeishizu/oracleberry/berrcode/target/wasm32-unknown-unknown/debug/deps/integration_test-af9876e5bbbcd7f1.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:62324/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+[2025-12-26T06:43:31Z ERROR wasm_bindgen_cli::wasm_bindgen_test_runner::server] Failed to save benchmark: No such file or directory (os error 2)
+running 7 tests
+test test_status_bar_renders ... ok
+test test_root_element_not_found ... ok
+test test_init_berry_editor_mounts_ui ... ok
+test test_file_tree_renders ... ok
+test test_file_tree_has_icons ... ok
+test test_file_tree_contains_mock_files ... ok
+test test_editor_panel_renders ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s
+     Running tests/phase3_wasm_tests.rs (/Users/kyosukeishizu/oracleberry/berrcode/target/wasm32-unknown-unknown/debug/deps/phase3_wasm_tests-c5410d03c38f4c59.wasm)
+Running headless tests in Chrome on `http://127.0.0.1:62348/`
+Try find `webdriver.json` for configure browser's capabilities:
+Not found
+[2025-12-26T06:43:33Z ERROR wasm_bindgen_cli::wasm_bindgen_test_runner::server] Failed to save benchmark: No such file or directory (os error 2)
+running 27 tests
+test test_workspace_edit_with_many_files ... ok
+test test_workspace_edit_single_file ... ok
+test test_workspace_edit_serialization ... ok
+test test_workspace_edit_multiple_files ... ok
+test test_workspace_edit_multiple_edits_same_file ... ok
+test test_workspace_edit_empty ... ok
+test test_wasm_coverage_summary ... ok
+test test_very_long_text_edit ... ok
+test test_text_edit_serialization ... ok
+test test_text_edit_empty_text ... ok
+test test_text_edit_creation ... ok
+test test_text_edit_clone ... ok
+test test_refactor_operation_shortcut ... ok
+test test_refactor_operation_label ... ok
+test test_refactor_operation_equality ... ok
+test test_refactor_operation_debug ... ok
+test test_refactor_operation_clone ... ok
+test test_range_single_line ... ok
+test test_range_serialization ... ok
+test test_range_creation ... ok
+test test_range_clone ... ok
+test test_position_zero ... ok
+test test_position_serialization ... ok
+test test_position_debug ... ok
+test test_position_creation ... ok
+test test_position_clone ... ok
+test test_large_line_numbers ... ok
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 filtered out; finished in 0.01s
+   Doc-tests berry_editor
+running 0 tests
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

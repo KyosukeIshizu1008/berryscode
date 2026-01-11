@@ -1,0 +1,54 @@
+{
+    "log": {
+        "prefix": "log",
+        "body": [
+            "console.log(${1:message});"
+        ],
+        "description": "Log to console"
+    },
+    "function": {
+        "prefix": "fn",
+        "body": [
+            "function ${1:name}(${2:params}) {",
+            "\t${0}",
+            "}"
+        ],
+        "description": "Function declaration"
+    },
+    "arrow_function": {
+        "prefix": "af",
+        "body": [
+            "const ${1:name} = (${2:params}) => {",
+            "\t${0}",
+            "};"
+        ],
+        "description": "Arrow function"
+    },
+    "class": {
+        "prefix": "class",
+        "body": [
+            "class ${1:ClassName} {",
+            "\tconstructor(${2:params}) {",
+            "\t\t${0}",
+            "\t}",
+            "}"
+        ],
+        "description": "Class declaration"
+    },
+    "import": {
+        "prefix": "import",
+        "body": [
+            "import ${1:module} from '${2:path}';"
+        ],
+        "description": "Import module"
+    },
+    "promise": {
+        "prefix": "promise",
+        "body": [
+            "return new Promise((resolve, reject) => {",
+            "\t${0}",
+            "});"
+        ],
+        "description": "Create Promise"
+    }
+}

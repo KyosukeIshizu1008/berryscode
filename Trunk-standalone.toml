@@ -1,0 +1,18 @@
+[build]
+target = "index.html"
+dist = "dist-standalone"
+public_url = "/"
+release = true
+filehash = false
+
+[tools]
+wasm-opt = false
+
+[watch]
+watch = ["src", "index.html"]
+ignore = ["dist-standalone"]
+
+[serve]
+address = "127.0.0.1"
+port = 8082
+open = true

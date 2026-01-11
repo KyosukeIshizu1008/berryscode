@@ -1,0 +1,159 @@
+syntax = "proto3";
+
+package berry.llm;
+
+option go_package = "github.com/berry-api/gen/llm;llm";
+
+import "google/api/annotations.proto";
+
+// ===============================================
+// Unified LLM Service
+// すべてのLLMプロバイダー（OpenAI, Anthropic, Ollama）を統一的に扱う
+// ===============================================
+
+service UnifiedLLMService {
+  // チャット（ストリーミング対応）
+  rpc Chat(ChatRequest) returns (stream ChatChunk) {
+    option (google.api.http) = {
+      post: "/v1/llm/chat"
+      body: "*"
+    };
+  }
+
+  // Tool Calling付きチャット
+  rpc ChatWithTools(ChatWithToolsRequest) returns (stream ChatChunk) {
+    option (google.api.http) = {
+      post: "/v1/llm/chat/tools"
+      body: "*"
+    };
+  }
+
+  // 利用可能なプロバイダー一覧
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse) {
+    option (google.api.http) = {
+      get: "/v1/llm/providers"
+    };
+  }
+
+  // モデル一覧
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse) {
+    option (google.api.http) = {
+      get: "/v1/llm/models"
+    };
+  }
+}
+
+// ===============================================
+// Request/Response Messages
+// ===============================================
+
+message ChatRequest {
+  string provider = 1;           // "openai", "anthropic", "ollama", "custom"
+  string model = 2;              // "gpt-4o", "claude-3-5-sonnet-20240620", "llama4:scout"
+  repeated Message messages = 3;
+  optional float temperature = 4; // Default: 0.1
+  optional int32 max_tokens = 5;  // Default: 8192
+  optional string api_key = 6;    // Optional: Override default API key
+  optional string api_base = 7;   // Optional: Custom endpoint (e.g., "http://localhost:11434/v1")
+  optional bool stream = 8;       // Default: true
+
+  // Anthropic専用オプション
+  optional string prefill = 9;    // Prefill for Anthropic (forces response to start with this text)
+}
+
+message ChatWithToolsRequest {
+  ChatRequest chat_request = 1;
+  repeated Tool tools = 2;
+}
+
+message Message {
+  string role = 1;                       // "user", "assistant", "system"
+  optional string content = 2;
+  repeated ToolCall tool_calls = 3;
+  optional string tool_call_id = 4;
+}
+
+message Tool {
+  string type = 1;                       // "function"
+  FunctionDefinition function = 2;
+}
+
+message FunctionDefinition {
+  string name = 1;
+  string description = 2;
+  string parameters = 3;                 // JSON schema as string
+}
+
+message ToolCall {
+  string id = 1;
+  string type = 2;                       // "function"
+  FunctionCall function = 3;
+}
+
+message FunctionCall {
+  string name = 1;
+  string arguments = 2;                  // JSON string
+}
+
+message ChatChunk {
+  oneof response_type {
+    string text = 1;
+    ToolCallList tool_calls = 2;
+  }
+  bool is_final = 3;
+  optional ChatMetadata metadata = 4;
+}
+
+message ToolCallList {
+  repeated ToolCall calls = 1;
+}
+
+message ChatMetadata {
+  string model_used = 1;
+  int32 input_tokens = 2;
+  int32 output_tokens = 3;
+  optional int32 cache_creation_tokens = 4;  // Anthropic prompt caching
+  optional int32 cache_read_tokens = 5;      // Anthropic prompt caching
+  string finish_reason = 6;                   // "stop", "length", "tool_calls"
+}
+
+// ===============================================
+// Provider Management
+// ===============================================
+
+message ListProvidersRequest {}
+
+message ListProvidersResponse {
+  repeated Provider providers = 1;
+}
+
+message Provider {
+  string name = 1;                       // "openai", "anthropic", "ollama"
+  bool available = 2;                    // API key configured and reachable
+  string status = 3;                     // "ready", "missing_api_key", "unreachable"
+  repeated string supported_features = 4; // ["streaming", "tools", "vision", "caching"]
+  optional string endpoint = 5;          // Base URL
+}
+
+// ===============================================
+// Model Management
+// ===============================================
+
+message ListModelsRequest {
+  optional string provider = 1;          // Filter by provider
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}
+
+message ModelInfo {
+  string name = 1;                       // "gpt-4o", "claude-3-5-sonnet-20240620"
+  string provider = 2;                   // "openai", "anthropic", "ollama"
+  int32 context_window = 3;              // Max context tokens
+  bool supports_tools = 4;
+  bool supports_vision = 5;
+  optional float cost_per_1m_input_tokens = 6;  // USD per 1M tokens
+  optional float cost_per_1m_output_tokens = 7;
+  optional string description = 8;
+}

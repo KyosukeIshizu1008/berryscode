@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="2">
+    <title>BerryCode Artifacts</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 3rem;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            font-size: 1.1rem;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: #f0f4ff;
+            color: #667eea;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        .code {
+            background: #f5f5f5;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #333;
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status.connected {
+            background: #e6ffe6;
+            color: #2d7a2d;
+            animation: pulse 2s infinite;
+        }
+
+        .instructions {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f9fafb;
+            border-radius: 8px;
+            text-align: left;
+        }
+
+        .instructions h2 {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .instructions ol {
+            margin-left: 1.5rem;
+            color: #666;
+        }
+
+        .instructions li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎨</div>
+        <h1>BerryCode Artifacts</h1>
+        <p>Your local preview server is ready!</p>
+
+        <div class="status" id="status">
+            ⚡ Live Preview Active
+        </div>
+
+        <div class="instructions">
+            <h2>How to use:</h2>
+            <ol>
+                <li>Ask BerryCode to create a web artifact (HTML, React, Vue, etc.)</li>
+                <li>The AI will use the <code>create_artifact</code> tool</li>
+                <li>Your browser will automatically update with the preview</li>
+                <li>Make changes and see them instantly with hot reload!</li>
+            </ol>
+        </div>
+
+        <div class="code">
+            Example prompt:<br><br>
+            "Create a simple todo app in vanilla JavaScript"<br>
+            "Build a React calculator component"<br>
+            "Make a colorful landing page with CSS animations"
+        </div>
+    </div>
+
+    <script>
+        // WebSocket for hot reload
+        let ws;
+        const statusEl = document.getElementById('status');
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('🔗 Connected to BerryCode Artifacts server');
+                statusEl.textContent = '🟢 Connected - Live Preview Active';
+                statusEl.classList.add('connected');
+            };
+
+            ws.onmessage = (event) => {
+                if (event.data === 'reload') {
+                    console.log('♻️  Reloading artifact...');
+                    // Reload the page to show new content
+                    window.location.reload();
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('🔌 Disconnected from server');
+                statusEl.textContent = '🔴 Disconnected - Reconnecting...';
+                statusEl.classList.remove('connected');
+
+                // Try to reconnect after 1 second
+                setTimeout(connect, 1000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Connect on page load
+        connect();
+    </script>
+</body>
+</html>

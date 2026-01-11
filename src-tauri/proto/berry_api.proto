@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package berry_api;
+
+// === CLI Session Management ===
+service BerryCodeCLIService {
+  rpc InitializeCLI(InitCLIRequest) returns (InitCLIResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (stream CommandOutput);
+}
+
+// === CLI Session Management ===
+message InitCLIRequest {
+  string project_root = 1;
+  optional string model = 2;
+  optional bool dangerously_skip_permissions = 3;
+}
+
+message InitCLIResponse {
+  bool success = 1;
+  string session_id = 2;
+  string project_root = 3;
+  optional string error = 4;
+}
+
+message ExecuteCommandRequest {
+  string session_id = 1;
+  string command = 2;
+  repeated string args = 3;
+}
+
+message CommandOutput {
+  string output = 1;
+  bool is_error = 2;
+  bool is_final = 3;
+  optional int32 exit_code = 4;
+}

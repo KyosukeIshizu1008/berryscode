@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BerryEditor DOM Debug</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        pre { background: #f0f0f0; padding: 10px; overflow: auto; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>BerryEditor DOM Debug</h1>
+    <div id="berry-editor-wasm-root">Loading...</div>
+    <hr>
+    <h2>Debug Info:</h2>
+    <div id="debug-info"></div>
+
+    <script type="module">
+        const debugLog = [];
+        function log(msg, data) {
+            console.log(msg, data);
+            debugLog.push({ msg, data });
+            updateDebugInfo();
+        }
+
+        function updateDebugInfo() {
+            const info = document.getElementById('debug-info');
+            info.innerHTML = debugLog.map(item =>
+                `<pre>${item.msg}: ${JSON.stringify(item.data, null, 2)}</pre>`
+            ).join('');
+        }
+
+        try {
+            log('1. Loading module...');
+            const module = await import('/static/berry-editor/berry-editor.js');
+            log('2. Module loaded', Object.keys(module));
+
+            const { default: init, init_berry_editor, get_test_file_tree } = module;
+
+            log('3. Loading WASM...');
+            await init('/static/berry-editor/berry-editor_bg.wasm');
+            log('4. WASM loaded');
+
+            log('5. Getting file tree data...');
+            const fileTree = get_test_file_tree();
+            log('6. File tree data', fileTree);
+
+            log('7. DOM BEFORE init_berry_editor:');
+            const rootBefore = document.getElementById('berry-editor-wasm-root');
+            log('   - innerHTML length', rootBefore.innerHTML.length);
+            log('   - childNodes', rootBefore.childNodes.length);
+
+            log('8. Calling init_berry_editor()...');
+            init_berry_editor();
+
+            // Wait a bit for Leptos to render
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            log('9. DOM AFTER init_berry_editor:');
+            const rootAfter = document.getElementById('berry-editor-wasm-root');
+            log('   - innerHTML length', rootAfter.innerHTML.length);
+            log('   - childNodes', rootAfter.childNodes.length);
+            log('   - HTML preview', rootAfter.innerHTML.substring(0, 500));
+
+            // Check for file tree elements
+            log('10. Searching for file tree elements...');
+            const fileTreeDiv = rootAfter.querySelector('.berry-editor-file-tree');
+            log('   - .berry-editor-file-tree found?', !!fileTreeDiv);
+            if (fileTreeDiv) {
+                log('   - .berry-editor-file-tree innerHTML', fileTreeDiv.innerHTML);
+                log('   - .berry-editor-file-tree childNodes', fileTreeDiv.childNodes.length);
+            }
+
+            const sidebarDiv = rootAfter.querySelector('.berry-editor-sidebar');
+            log('   - .berry-editor-sidebar found?', !!sidebarDiv);
+            if (sidebarDiv) {
+                log('   - .berry-editor-sidebar innerHTML length', sidebarDiv.innerHTML.length);
+            }
+
+            // Check all elements
+            log('11. All elements in root:');
+            const allElements = rootAfter.querySelectorAll('*');
+            log('   - Total elements', allElements.length);
+            const classes = Array.from(allElements).map(el => el.className).filter(c => c);
+            log('   - Classes found', [...new Set(classes)]);
+
+        } catch (error) {
+            log('ERROR', { message: error.message, stack: error.stack });
+        }
+    </script>
+</body>
+</html>

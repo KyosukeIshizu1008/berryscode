@@ -1,0 +1,173 @@
+/**
+ * Berry Editor - Git Staging Area
+ * IntelliJ Darcula Theme
+ */
+
+/* Git Panel Layout */
+.berry-git-panel {
+    padding: var(--spacing-md, 8px);
+}
+
+.berry-git-header {
+    display: flex;
+    gap: var(--spacing-md, 8px);
+    align-items: center;
+    padding: var(--spacing-md, 8px) 0;
+    border-bottom: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+    margin-bottom: var(--spacing-md, 8px);
+}
+
+.berry-git-branch-select {
+    flex: 1;
+    background: var(--color-bg-input, #3c3c3c);
+    color: var(--color-text-secondary, #d4d4d4);
+    border: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+    padding: var(--spacing-sm, 4px) var(--spacing-md, 8px);
+    font-size: var(--font-size-sm, 12px);
+    border-radius: var(--border-radius-sm, 2px);
+}
+
+.berry-git-refresh-btn {
+    background: var(--color-accent-secondary, #0e639c);
+    border: none;
+    color: var(--color-text-primary, white);
+    padding: var(--spacing-sm, 4px) var(--spacing-lg, 12px);
+    cursor: pointer;
+    font-size: var(--font-size-lg, 14px);
+    border-radius: var(--border-radius-sm, 2px);
+    transition: background var(--transition-base, 0.15s ease);
+}
+
+.berry-git-refresh-btn:hover:not(:disabled) {
+    background: var(--color-accent-hover, #1177bb);
+}
+
+.berry-git-refresh-btn:disabled {
+    opacity: var(--opacity-muted, 0.5);
+    cursor: not-allowed;
+}
+
+/* Status Messages */
+.berry-git-error {
+    background: var(--color-bg-error, #5a1d1d);
+    border: var(--border-width-thin, 1px) solid var(--color-border-error, #be1100);
+    color: var(--color-error, #f48771);
+    padding: var(--spacing-md, 8px);
+    margin: var(--spacing-md, 8px) 0;
+    border-radius: var(--border-radius-sm, 2px);
+    font-size: var(--font-size-sm, 12px);
+}
+
+.berry-git-loading {
+    padding: var(--spacing-xl, 16px);
+    text-align: center;
+    color: var(--color-text-disabled, #858585);
+    font-size: var(--font-size-sm, 12px);
+}
+
+.berry-git-empty {
+    padding: var(--spacing-xl, 16px);
+    text-align: center;
+    color: var(--color-text-disabled, #858585);
+    font-size: var(--font-size-sm, 12px);
+    font-style: italic;
+}
+
+/* Section Headers */
+.berry-git-section-title {
+    font-size: var(--font-size-xs, 11px);
+    font-weight: 600;
+    color: var(--color-text-disabled, #858585);
+    padding: var(--spacing-md, 8px) var(--spacing-sm, 4px) var(--spacing-sm, 4px);
+    text-transform: uppercase;
+}
+
+.berry-git-changes,
+.berry-git-staged {
+    margin-bottom: var(--spacing-lg, 12px);
+}
+
+/* File Items */
+.berry-git-file {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md, 8px);
+    padding: var(--spacing-sm, 4px) var(--spacing-md, 8px);
+    font-size: var(--font-size-sm, 12px);
+    cursor: pointer;
+    transition: background var(--transition-base, 0.15s ease);
+}
+
+.berry-git-file:hover {
+    background: var(--color-bg-hover, rgba(255,255,255,0.05));
+}
+
+.berry-git-file-status {
+    width: 16px;
+    font-weight: bold;
+    color: var(--color-git-added, #4ec9b0);
+}
+
+.berry-git-file-path {
+    flex: 1;
+    color: var(--color-text-secondary, #d4d4d4);
+}
+
+.berry-git-stage-btn,
+.berry-git-unstage-btn {
+    background: none;
+    border: var(--border-width-thin, 1px) solid var(--color-text-disabled, #858585);
+    color: var(--color-text-disabled, #858585);
+    padding: var(--spacing-xs, 2px) var(--spacing-md, 8px);
+    cursor: pointer;
+    font-size: var(--font-size-sm, 12px);
+    border-radius: var(--border-radius-sm, 2px);
+    transition: all var(--transition-base, 0.15s ease);
+}
+
+.berry-git-stage-btn:hover,
+.berry-git-unstage-btn:hover {
+    background: var(--color-bg-active, rgba(255,255,255,0.1));
+    color: var(--color-text-secondary, #d4d4d4);
+}
+
+/* Commit Section */
+.berry-git-commit {
+    border-top: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+    padding-top: var(--spacing-md, 8px);
+}
+
+.berry-git-commit-message {
+    width: 100%;
+    background: var(--color-bg-input, #3c3c3c);
+    color: var(--color-text-secondary, #d4d4d4);
+    border: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+    padding: var(--spacing-md, 8px);
+    font-size: var(--font-size-sm, 12px);
+    font-family: var(--font-family-mono, 'Consolas', 'Monaco', 'Courier New', monospace);
+    resize: vertical;
+    min-height: 60px;
+    margin-bottom: var(--spacing-md, 8px);
+    border-radius: var(--border-radius-sm, 2px);
+}
+
+.berry-git-commit-btn {
+    width: 100%;
+    background: var(--color-accent-secondary, #0e639c);
+    border: none;
+    color: var(--color-text-primary, white);
+    padding: var(--spacing-md, 8px);
+    cursor: pointer;
+    font-size: var(--font-size-sm, 12px);
+    border-radius: var(--border-radius-sm, 2px);
+    transition: background var(--transition-base, 0.15s ease);
+}
+
+.berry-git-commit-btn:hover:not(:disabled) {
+    background: var(--color-accent-hover, #1177bb);
+}
+
+.berry-git-commit-btn:disabled {
+    opacity: var(--opacity-muted, 0.5);
+    cursor: not-allowed;
+}

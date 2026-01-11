@@ -1,0 +1,567 @@
+/**
+ * BerryCode Extensions UI Styles
+ */
+
+/* Extensions Container */
+.extensions-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-primary);
+}
+
+.extensions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.extensions-tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.extensions-tab {
+    padding: 6px 12px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.extensions-tab:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.extensions-tab.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.extensions-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.extensions-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+/* Marketplace */
+.extensions-marketplace {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.extensions-search {
+    margin-bottom: 20px;
+}
+
+.extensions-search-input {
+    width: 100%;
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.extensions-search-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.extensions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.extension-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.2s;
+}
+
+.extension-card:hover {
+    border-color: var(--accent-blue);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.extension-icon {
+    font-size: 48px;
+    line-height: 1;
+}
+
+.extension-info {
+    flex: 1;
+}
+
+.extension-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.extension-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+}
+
+.extension-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 8px;
+}
+
+.extension-author::before {
+    content: "👤 ";
+}
+
+.extension-version::before {
+    content: "📦 ";
+}
+
+.extension-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.extension-category {
+    font-size: 11px;
+    padding: 2px 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 12px;
+}
+
+.extension-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Installed Extensions */
+.extensions-installed {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.extensions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.extension-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    transition: all 0.2s;
+}
+
+.extension-item.disabled {
+    opacity: 0.6;
+}
+
+.extension-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.extension-item-info {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+}
+
+.extension-item-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.extension-item-details {
+    flex: 1;
+}
+
+.extension-item-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.extension-status {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.extension-status.active {
+    background: var(--success-bg);
+    color: var(--success-text);
+}
+
+.extension-item-description {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 8px 0;
+}
+
+.extension-item-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.extension-item-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.extension-item-commands {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.extension-item-commands h5 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+}
+
+.extension-commands-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.extension-command {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-primary);
+    padding: 4px 0;
+}
+
+.extension-command kbd {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+}
+
+/* Empty State */
+.extensions-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.extensions-empty svg {
+    opacity: 0.3;
+    margin-bottom: 20px;
+}
+
+.extensions-empty h3 {
+    font-size: 18px;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.extensions-empty p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 20px 0;
+}
+
+/* Create Extension */
+.extensions-create {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+}
+
+.extensions-create-form {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.extensions-create-form h3 {
+    font-size: 18px;
+    color: var(--text-primary);
+    margin: 0 0 20px 0;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.form-group small {
+    display: block;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+}
+
+.form-control.code-editor {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.form-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: normal;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.form-checkboxes input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+}
+
+/* Help Panel */
+.extensions-create-help {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.extensions-create-help h4 {
+    font-size: 15px;
+    color: var(--text-primary);
+    margin: 0 0 16px 0;
+}
+
+.api-reference details {
+    margin-bottom: 12px;
+}
+
+.api-reference summary {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 8px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+}
+
+.api-reference summary:hover {
+    background: var(--bg-tertiary);
+}
+
+.api-reference pre {
+    margin: 8px 0 0 0;
+    padding: 12px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.api-reference code {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--bg-tertiary);
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--accent-blue);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Notifications */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s;
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.notification-success {
+    border-left: 4px solid var(--success-text);
+}
+
+.notification-error {
+    border-left: 4px solid var(--error-text);
+}
+
+.notification-warning {
+    border-left: 4px solid var(--warning-text);
+}
+
+.notification-info {
+    border-left: 4px solid var(--accent-blue);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .extensions-create {
+        grid-template-columns: 1fr;
+    }
+
+    .extensions-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .extensions-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .extensions-tabs {
+        justify-content: space-between;
+    }
+
+    .extension-item-header {
+        flex-direction: column;
+    }
+
+    .extension-item-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

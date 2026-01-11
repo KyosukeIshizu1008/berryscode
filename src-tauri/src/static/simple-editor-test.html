@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BerryEditor - Simple Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; }
+        .container { display: flex; height: 100vh; }
+        .sidebar { width: 250px; background: #252526; border-right: 1px solid #3e3e3e; overflow-y: auto; }
+        .sidebar-header { padding: 8px; background: #2d2d2d; color: #858585; font-size: 11px; font-weight: bold; }
+        .file-item { padding: 6px 12px; cursor: pointer; }
+        .file-item:hover { background: rgba(255,255,255,0.1); }
+        .folder { font-weight: bold; }
+        .folder-icon { margin-right: 4px; }
+        .children { padding-left: 16px; display: none; }
+        .children.expanded { display: block; }
+        .main { flex: 1; display: flex; flex-direction: column; }
+        .editor-area { flex: 1; background: #1e1e1e; padding: 20px; overflow-y: auto; }
+        .code { white-space: pre; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5; }
+        .status { padding: 8px; background: #007acc; color: white; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">FILE EXPLORER</div>
+            <div id="file-tree"></div>
+        </div>
+        <div class="main">
+            <div class="editor-area">
+                <div id="editor-content" class="code">// Click a file to view its content...</div>
+            </div>
+            <div class="status" id="status">Ready</div>
+        </div>
+    </div>
+
+    <script>
+        // Simple file tree data
+        const fileTree = [
+            {
+                name: "src",
+                type: "folder",
+                children: [
+                    { name: "lib.rs", type: "file", content: "// lib.rs\npub fn hello() {\n    println!(\"Hello from lib!\");\n}\n" },
+                    { name: "main.rs", type: "file", content: "// main.rs\nfn main() {\n    println!(\"Hello, world!\");\n}\n" },
+                    {
+                        name: "components",
+                        type: "folder",
+                        children: [
+                            { name: "button.rs", type: "file", content: "// button.rs\npub struct Button {\n    text: String,\n}\n" },
+                            { name: "input.rs", type: "file", content: "// input.rs\npub struct Input {\n    value: String,\n}\n" }
+                        ]
+                    }
+                ]
+            },
+            { name: "Cargo.toml", type: "file", content: "[package]\nname = \"myproject\"\nversion = \"0.1.0\"\n" },
+            { name: "README.md", type: "file", content: "# My Project\n\nThis is a test project.\n" }
+        ];
+
+        // Render file tree
+        function renderTree(nodes, container, level = 0) {
+            nodes.forEach(node => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                item.style.paddingLeft = `${level * 16 + 12}px`;
+
+                if (node.type === 'folder') {
+                    const icon = document.createElement('span');
+                    icon.className = 'folder-icon';
+                    icon.textContent = '📁';
+                    item.appendChild(icon);
+
+                    const name = document.createElement('span');
+                    name.className = 'folder';
+                    name.textContent = node.name;
+                    item.appendChild(name);
+
+                    const children = document.createElement('div');
+                    children.className = 'children';
+
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        children.classList.toggle('expanded');
+                        icon.textContent = children.classList.contains('expanded') ? '📂' : '📁';
+                        updateStatus(`Toggled folder: ${node.name}`);
+                    });
+
+                    container.appendChild(item);
+
+                    if (node.children) {
+                        renderTree(node.children, children, level + 1);
+                        container.appendChild(children);
+                    }
+                } else {
+                    const icon = document.createElement('span');
+                    icon.textContent = node.name.endsWith('.rs') ? '🦀' : '📄';
+                    item.appendChild(icon);
+
+                    const name = document.createElement('span');
+                    name.textContent = node.name;
+                    item.appendChild(name);
+
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        document.getElementById('editor-content').textContent = node.content || `// ${node.name}\n// No content available`;
+                        updateStatus(`Opened: ${node.name}`);
+                    });
+
+                    container.appendChild(item);
+                }
+            });
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('[Status]', message);
+        }
+
+        // Initialize
+        const treeContainer = document.getElementById('file-tree');
+        renderTree(fileTree, treeContainer);
+        updateStatus('File tree loaded. Click folders to expand, files to view.');
+        console.log('[Init] Simple editor test loaded successfully');
+    </script>
+</body>
+</html>

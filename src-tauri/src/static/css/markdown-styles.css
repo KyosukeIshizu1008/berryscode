@@ -1,0 +1,319 @@
+/* BerryCode Markdown Styles */
+
+/* ========== Code Blocks ========== */
+
+.code-block-wrapper {
+    margin: 12px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-tertiary, #1a1a1a);
+    border: 1px solid var(--border-color, #333);
+}
+
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-secondary, #1e1e1e);
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.code-language {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #b0b0b0);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.code-copy-btn {
+    background: var(--bg-tertiary, #252525);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text-secondary, #b0b0b0);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.code-copy-btn:hover {
+    background: var(--bg-hover, #2a2a2a);
+    color: var(--text-primary, #e0e0e0);
+    border-color: var(--accent-blue, #3b82f6);
+}
+
+.code-block-wrapper pre {
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    background: var(--bg-tertiary, #1a1a1a);
+}
+
+.code-block-wrapper code {
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary, #e0e0e0);
+}
+
+/* Inline code */
+.inline-code {
+    background: var(--bg-tertiary, #2a2a2a);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--accent-blue, #3b82f6);
+    border: 1px solid var(--border-color, #333);
+}
+
+/* ========== Syntax Highlighting ========== */
+
+.hl-keyword {
+    color: #c586c0; /* Purple for keywords */
+    font-weight: 600;
+}
+
+.hl-string {
+    color: #ce9178; /* Orange for strings */
+}
+
+.hl-comment {
+    color: #6a9955; /* Green for comments */
+    font-style: italic;
+}
+
+.hl-number {
+    color: #b5cea8; /* Light green for numbers */
+}
+
+.hl-function {
+    color: #dcdcaa; /* Yellow for functions */
+}
+
+.hl-macro {
+    color: #4ec9b0; /* Cyan for macros (Rust) */
+}
+
+.hl-tag {
+    color: #569cd6; /* Blue for HTML tags */
+}
+
+.hl-selector {
+    color: #d7ba7d; /* Gold for CSS selectors */
+}
+
+.hl-property {
+    color: #9cdcfe; /* Light blue for CSS properties */
+}
+
+/* ========== Markdown Elements ========== */
+
+.message-text h1,
+.message-text h2,
+.message-text h3 {
+    margin: 16px 0 8px 0;
+    color: var(--text-primary, #e0e0e0);
+}
+
+.message-text h1 {
+    font-size: 24px;
+    border-bottom: 2px solid var(--border-color, #333);
+    padding-bottom: 8px;
+}
+
+.message-text h2 {
+    font-size: 20px;
+    border-bottom: 1px solid var(--border-color, #333);
+    padding-bottom: 6px;
+}
+
+.message-text h3 {
+    font-size: 16px;
+}
+
+.message-text p {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.message-text ul,
+.message-text ol {
+    margin: 8px 0;
+    padding-left: 24px;
+}
+
+.message-text li {
+    margin: 4px 0;
+    line-height: 1.6;
+}
+
+.message-text a {
+    color: var(--accent-blue, #3b82f6);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.message-text a:hover {
+    border-bottom-color: var(--accent-blue, #3b82f6);
+}
+
+.message-text strong {
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+}
+
+.message-text em {
+    font-style: italic;
+    color: var(--text-secondary, #b0b0b0);
+}
+
+/* ========== Thinking Process ========== */
+
+.thinking-block {
+    margin: 12px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-tertiary, #1a1a1a);
+    border: 1px solid var(--border-color, #333);
+    border-left: 3px solid var(--accent-yellow, #fbbf24);
+}
+
+.thinking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-secondary, #1e1e1e);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.thinking-header:hover {
+    background: var(--bg-hover, #2a2a2a);
+}
+
+.thinking-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-yellow, #fbbf24);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.thinking-toggle {
+    font-size: 12px;
+    color: var(--text-tertiary, #888);
+    transition: transform 0.2s;
+}
+
+.thinking-toggle.expanded {
+    transform: rotate(90deg);
+}
+
+.thinking-content {
+    padding: 12px;
+    font-size: 13px;
+    color: var(--text-secondary, #b0b0b0);
+    line-height: 1.6;
+    display: none;
+    border-top: 1px solid var(--border-color, #333);
+}
+
+.thinking-content.visible {
+    display: block;
+}
+
+/* ========== Streaming Indicator ========== */
+
+.streaming-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.streaming-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-blue, #3b82f6);
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+.streaming-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.streaming-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes pulse {
+    0%, 80%, 100% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+    40% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.message.streaming .message-text {
+    position: relative;
+}
+
+.message.streaming .message-text::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    margin-left: 2px;
+    background: var(--text-primary, #e0e0e0);
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 50% {
+        opacity: 1;
+    }
+    51%, 100% {
+        opacity: 0;
+    }
+}
+
+/* ========== File Edit Indicator ========== */
+
+.file-edit-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--bg-tertiary, #252525);
+    border-radius: 4px;
+    border-left: 3px solid var(--accent-green, #10b981);
+    font-size: 12px;
+    color: var(--text-secondary, #b0b0b0);
+    margin-top: 8px;
+}
+
+.file-edit-indicator:hover {
+    background: var(--bg-hover, #2a2a2a);
+    cursor: pointer;
+}
+
+.file-edit-path {
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    color: var(--accent-blue, #3b82f6);
+}
+
+.file-edit-action {
+    color: var(--accent-green, #10b981);
+    font-weight: 600;
+}

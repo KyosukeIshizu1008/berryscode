@@ -1,0 +1,35 @@
+[build]
+target = "index.html"
+dist = "dist"
+public_url = "/"
+release = true
+filehash = true
+rustup = "/Users/kyosukeishizu/.cargo/bin/rustup"
+cargo = "/Users/kyosukeishizu/.cargo/bin/cargo"
+minify = "on_release"  # Minify CSS and HTML in release builds
+
+[tools]
+wasm-opt = false
+
+# CSS minification settings
+[minify]
+css = true
+html = true
+
+[watch]
+watch = ["src", "index.html", "assets/tailwind.input.css"]
+ignore = ["dist", "assets/tailwind.output.css"]
+
+[serve]
+address = "127.0.0.1"
+port = 8081
+open = false
+
+# Tailwind CSS build hook
+[[hooks]]
+stage = "pre_build"
+command = "sh"
+command_arguments = [
+  "-c",
+  "./tools/tailwindcss -i assets/tailwind.input.css -o assets/tailwind.output.css --minify"
+]

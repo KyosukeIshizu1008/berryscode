@@ -1,0 +1,10 @@
+# WASM build configuration
+# 🚀 Modern Editor Memory Settings (2025)
+# - Initial: 64MB (comfortable for startup + initial syntax highlighting)
+# - Max: 512MB (allows large files + undo history + syntax cache)
+# - Note: Browser typically allows 1-2GB for WASM, 512MB is conservative
+[target.wasm32-unknown-unknown]
+rustflags = [
+    '-C', 'link-arg=--initial-memory=67108864',   # 64MB initial (1024 pages × 64KB)
+    '-C', 'link-arg=--max-memory=536870912',      # 512MB max (8192 pages × 64KB)
+]

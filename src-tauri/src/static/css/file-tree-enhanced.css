@@ -1,0 +1,307 @@
+/**
+ * Enhanced File Tree Styles for BerryCode
+ * Phase 4 Implementation
+ */
+
+/* File Tree Container */
+.file-tree {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+    user-select: none;
+}
+
+/* File Tree Node */
+.file-tree-node {
+    position: relative;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.file-tree-node:hover {
+    background-color: var(--bg-hover, rgba(255, 255, 255, 0.05));
+}
+
+.file-tree-node.selected {
+    background-color: var(--bg-selected, rgba(255, 255, 255, 0.1));
+}
+
+/* Node Content */
+.node-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* Icons */
+.expand-icon {
+    width: 16px;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.folder-node.expanded .expand-icon {
+    transform: rotate(90deg);
+}
+
+.folder-icon,
+.file-icon {
+    flex-shrink: 0;
+    font-size: 16px;
+}
+
+.folder-icon {
+    color: var(--folder-color, #dcb67a);
+}
+
+.file-icon {
+    color: var(--file-icon-color, #cccccc);
+}
+
+/* Node Label */
+.node-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* File Count Badge */
+.node-count {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: auto;
+}
+
+/* Indent Spacer */
+.indent-spacer {
+    width: 16px;
+    flex-shrink: 0;
+}
+
+/* Git Status */
+.git-status-indicator {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.git-status-indicator.git-modified {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.git-status-indicator.git-staged {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.git-status-indicator.git-untracked {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.git-status-indicator.git-conflict {
+    color: #f97316;
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.node-content.git-modified .node-label {
+    color: #fbbf24;
+}
+
+.node-content.git-staged .node-label {
+    color: #22c55e;
+}
+
+.node-content.git-untracked .node-label {
+    color: #ef4444;
+}
+
+.node-content.git-conflict .node-label {
+    color: #f97316;
+}
+
+/* Context Menu */
+.file-tree-context-menu {
+    position: fixed;
+    z-index: 10000;
+    background: var(--bg-secondary, #252526);
+    border: 1px solid var(--border-color, #454545);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    padding: 4px 0;
+    min-width: 200px;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: background-color 0.1s ease;
+}
+
+.context-menu-item:hover {
+    background-color: var(--bg-hover, rgba(255, 255, 255, 0.1));
+}
+
+.context-menu-item.danger {
+    color: #ef4444;
+}
+
+.context-menu-item.danger:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.context-menu-item i {
+    flex-shrink: 0;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background: var(--border-color, #454545);
+    margin: 4px 0;
+}
+
+/* Drag & Drop */
+.file-tree-node[draggable="true"] {
+    cursor: grab;
+}
+
+.file-tree-node[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+.file-tree-node.drag-over {
+    background-color: var(--bg-selected, rgba(255, 255, 255, 0.15));
+    border-left: 2px solid var(--accent-color, #007acc);
+}
+
+/* Loading State */
+.file-tree-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    color: var(--text-tertiary);
+    gap: 12px;
+}
+
+.file-tree-loading .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-color, #007acc);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.file-tree-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    color: var(--text-tertiary);
+    text-align: center;
+    gap: 12px;
+}
+
+.file-tree-empty i {
+    font-size: 48px;
+    opacity: 0.5;
+}
+
+/* Scrollbar Styling */
+.file-tree::-webkit-scrollbar {
+    width: 10px;
+}
+
+.file-tree::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.file-tree::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+}
+
+.file-tree::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .file-tree-node {
+        padding: 6px 8px;
+    }
+
+    .node-content {
+        font-size: 14px;
+    }
+
+    .file-tree-context-menu {
+        min-width: 180px;
+    }
+}
+
+/* Accessibility */
+.file-tree-node:focus {
+    outline: 2px solid var(--accent-color, #007acc);
+    outline-offset: -2px;
+}
+
+.file-tree-node[aria-selected="true"] {
+    background-color: var(--bg-selected, rgba(255, 255, 255, 0.15));
+}
+
+/* Animation */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Disabled to prevent bouncing effect on folder toggle
+.file-tree-node {
+    animation: slideIn 0.15s ease;
+}
+*/
+
+/* Folder Expand/Collapse Animation */
+.folder-node .node-content {
+    transition: all 0.2s ease;
+}
+
+.folder-node.expanded {
+    transition: all 0.2s ease;
+}

@@ -1,0 +1,450 @@
+/* BerryCode Web - Modern CSS */
+
+:root {
+    --primary-color: #ff69b4;
+    --secondary-color: #9370db;
+    --background: #1e1e2e;
+    --surface: #2a2a3e;
+    --surface-light: #3a3a4e;
+    --text: #f8f8f2;
+    --text-dim: #9ca3af;
+    --border: #44475a;
+    --success: #50fa7b;
+    --error: #ff5555;
+    --warning: #ffb86c;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    background: var(--background);
+    color: var(--text);
+    line-height: 1.6;
+}
+
+/* Welcome Page */
+.container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.welcome-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    padding: 3rem 2rem;
+    text-align: center;
+    position: relative;
+}
+
+.logo h1 {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+.version {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.9rem;
+}
+
+.welcome-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.welcome-card {
+    background: var(--surface);
+    padding: 2.5rem;
+    border-radius: 1rem;
+    max-width: 600px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.welcome-card h2 {
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+}
+
+.session-form {
+    margin: 2rem 0;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-dim);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--surface-light);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    color: var(--text);
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.btn-primary, .btn-save, .btn-send, .btn-share {
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover, .btn-save:hover, .btn-send:hover, .btn-share:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 105, 180, 0.4);
+}
+
+.features {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border);
+}
+
+.features h3 {
+    margin-bottom: 1rem;
+    color: var(--secondary-color);
+}
+
+.features ul {
+    list-style: none;
+    padding: 0;
+}
+
+.features li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.features strong {
+    color: var(--primary-color);
+}
+
+.welcome-footer {
+    padding: 1.5rem;
+    text-align: center;
+    background: var(--surface);
+    color: var(--text-dim);
+}
+
+/* App Layout */
+.app-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    background: var(--surface);
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-left h1 {
+    font-size: 1.5rem;
+}
+
+.project-name {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.session-id {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+
+/* Main Layout */
+.main-layout {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 250px 1fr 400px;
+    overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header h3 {
+    font-size: 1rem;
+    color: var(--text-dim);
+}
+
+.file-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.file-item {
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    transition: background 0.2s;
+}
+
+.file-item:hover {
+    background: var(--surface-light);
+}
+
+/* Editor */
+.editor-container {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.editor-header {
+    background: var(--surface);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.current-file {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+}
+
+.editor {
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Chat Panel */
+.chat-panel {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chat-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.chat-header h3 {
+    font-size: 1rem;
+    color: var(--text-dim);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.user-message, .ai-message, .system-message, .error-message {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    max-width: 85%;
+}
+
+.user-message {
+    background: var(--primary-color);
+    align-self: flex-end;
+    color: white;
+}
+
+.ai-message {
+    background: var(--surface-light);
+    align-self: flex-start;
+}
+
+.system-message {
+    background: var(--surface-light);
+    align-self: center;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-align: center;
+}
+
+.error-message {
+    background: var(--error);
+    align-self: center;
+    color: white;
+    font-size: 0.85rem;
+}
+
+.diff-message {
+    background: var(--bg-card, #1e1e1e);
+    border: 1px solid var(--border-color, #2a2a2a);
+    border-radius: 0.5rem;
+    align-self: flex-start;
+    max-width: 95%;
+    overflow: hidden;
+}
+
+.diff-header {
+    background: var(--bg-tertiary, #242424);
+    padding: 0.5rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border-color, #2a2a2a);
+    color: var(--text-primary, #ffffff);
+}
+
+.diff-content {
+    margin: 0;
+    padding: 0.75rem;
+    background: var(--bg-secondary, #1a1a1a);
+    overflow-x: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.diff-content code {
+    color: var(--text-primary, #ffffff);
+}
+
+.diff-content .language-diff {
+    white-space: pre;
+}
+
+.chat-input-container {
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.chat-input {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+    resize: none;
+    margin-bottom: 0.5rem;
+}
+
+.chat-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.btn-send {
+    width: 100%;
+}
+
+.read-only-notice {
+    padding: 1rem;
+    background: var(--warning);
+    color: var(--background);
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .main-layout {
+        grid-template-columns: 200px 1fr 350px;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+    }
+
+    .sidebar {
+        display: none;
+    }
+
+    .chat-panel {
+        border-left: none;
+        border-top: 1px solid var(--border);
+    }
+}

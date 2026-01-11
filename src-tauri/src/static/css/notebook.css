@@ -1,0 +1,486 @@
+/**
+ * Jupyter Notebook Styles for BerryCode
+ */
+
+/* Notebook Container */
+.notebook-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background: var(--bg-primary, #1e1e1e);
+}
+
+/* Header */
+.notebook-header {
+    background: var(--bg-secondary, #252526);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color, #3e3e42);
+}
+
+.notebook-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+    color: var(--text-primary, #ffffff);
+}
+
+/* Toolbar */
+.notebook-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--bg-secondary, #252526);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color, #3e3e42);
+}
+
+/* Kernel Status Indicator */
+.kernel-status {
+    padding: 8px 16px;
+    background: #007acc;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 14px;
+    color: white;
+    transition: background 0.3s ease;
+}
+
+.kernel-status.idle {
+    background: #4caf50;
+}
+
+.kernel-status.busy {
+    background: #ff9800;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.kernel-status.dead {
+    background: #f44336;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Buttons */
+.btn {
+    padding: 8px 16px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+    font-weight: 500;
+}
+
+.btn:hover {
+    background: #1177bb;
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn-add-cell {
+    width: 100%;
+    padding: 12px;
+    margin-top: 20px;
+    background: #0e639c;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-add-cell:hover {
+    background: #1177bb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(14, 99, 156, 0.3);
+}
+
+/* Cells Container */
+.notebook-cells {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Individual Cell */
+.notebook-cell {
+    background: var(--bg-secondary, #252526);
+    border: 1px solid var(--border-color, #3e3e42);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s;
+}
+
+.notebook-cell:hover {
+    border-color: #007acc;
+    box-shadow: 0 2px 8px rgba(0, 122, 204, 0.2);
+}
+
+/* Cell Toolbar */
+.cell-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-tertiary, #2d2d30);
+    border-bottom: 1px solid var(--border-color, #3e3e42);
+}
+
+.cell-type-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #858585;
+    letter-spacing: 0.5px;
+}
+
+.cell-code .cell-type-label {
+    color: #4ec9b0;
+}
+
+.cell-markdown .cell-type-label {
+    color: #ce9178;
+}
+
+.cell-raw .cell-type-label {
+    color: #858585;
+}
+
+/* Cell Action Buttons */
+.btn-cell-run,
+.btn-cell-delete {
+    padding: 4px 12px;
+    background: transparent;
+    color: #cccccc;
+    border: 1px solid var(--border-color, #3e3e42);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    margin-left: 8px;
+}
+
+.btn-cell-run:hover {
+    background: #0e639c;
+    border-color: #0e639c;
+    color: white;
+}
+
+.btn-cell-delete:hover {
+    background: #f44336;
+    border-color: #f44336;
+    color: white;
+}
+
+/* Cell Content */
+.cell-content {
+    padding: 0;
+}
+
+.cell-editor {
+    min-height: 100px;
+    border-bottom: 1px solid var(--border-color, #3e3e42);
+}
+
+/* Cell Outputs */
+.cell-outputs {
+    padding: 12px;
+    background: var(--bg-primary, #1e1e1e);
+}
+
+.cell-outputs:empty {
+    display: none;
+}
+
+.output {
+    margin-bottom: 10px;
+}
+
+.output:last-child {
+    margin-bottom: 0;
+}
+
+.output pre {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg-primary, #1e1e1e);
+    border: 1px solid var(--border-color, #3e3e42);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary, #d4d4d4);
+}
+
+.output img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    display: block;
+    margin: 8px 0;
+}
+
+.output svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 8px 0;
+}
+
+/* Error Output */
+.output-error {
+    padding: 12px;
+    background: #5a1d1d;
+    border: 1px solid #f48771;
+    border-radius: 4px;
+    margin: 8px 0;
+}
+
+.error-name {
+    font-weight: 600;
+    color: #f48771;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.error-value {
+    color: #d4d4d4;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.error-traceback {
+    margin: 8px 0 0 0;
+    padding: 12px;
+    background: var(--bg-primary, #1e1e1e);
+    border: 1px solid var(--border-color, #3e3e42);
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12px;
+    overflow-x: auto;
+    color: #f48771;
+    line-height: 1.5;
+}
+
+/* Markdown Cells */
+.markdown-editor {
+    width: 100%;
+    min-height: 100px;
+    padding: 12px;
+    background: var(--bg-primary, #1e1e1e);
+    color: var(--text-primary, #d4d4d4);
+    border: none;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    resize: vertical;
+    outline: none;
+}
+
+.markdown-rendered {
+    padding: 12px;
+    cursor: text;
+    line-height: 1.6;
+}
+
+.markdown-rendered:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-rendered h1 {
+    font-size: 32px;
+    font-weight: 600;
+    margin: 20px 0 16px 0;
+    color: var(--text-primary, #ffffff);
+    border-bottom: 1px solid var(--border-color, #3e3e42);
+    padding-bottom: 8px;
+}
+
+.markdown-rendered h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 16px 0 12px 0;
+    color: var(--text-primary, #ffffff);
+}
+
+.markdown-rendered h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 12px 0 8px 0;
+    color: var(--text-primary, #ffffff);
+}
+
+.markdown-rendered p {
+    margin: 8px 0;
+    color: var(--text-secondary, #cccccc);
+}
+
+.markdown-rendered code {
+    background: var(--bg-tertiary, #2d2d30);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    color: #ce9178;
+}
+
+.markdown-rendered pre {
+    background: var(--bg-primary, #1e1e1e);
+    padding: 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border-color, #3e3e42);
+}
+
+.markdown-rendered pre code {
+    background: none;
+    padding: 0;
+    color: var(--text-primary, #d4d4d4);
+}
+
+.markdown-rendered ul,
+.markdown-rendered ol {
+    margin: 8px 0;
+    padding-left: 24px;
+}
+
+.markdown-rendered li {
+    margin: 4px 0;
+    color: var(--text-secondary, #cccccc);
+}
+
+.markdown-rendered blockquote {
+    border-left: 4px solid #007acc;
+    padding-left: 12px;
+    margin: 12px 0;
+    color: #858585;
+}
+
+.markdown-rendered a {
+    color: #007acc;
+    text-decoration: none;
+}
+
+.markdown-rendered a:hover {
+    text-decoration: underline;
+}
+
+/* Loading State */
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #858585;
+    font-size: 16px;
+}
+
+.loading::after {
+    content: '...';
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% {
+        content: '.';
+    }
+    40% {
+        content: '..';
+    }
+    60%, 100% {
+        content: '...';
+    }
+}
+
+/* Error Message */
+.error-message {
+    padding: 20px;
+    background: #5a1d1d;
+    border: 1px solid #f48771;
+    border-radius: 8px;
+    color: #f48771;
+    margin: 20px 0;
+    font-size: 14px;
+}
+
+.error-message strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+/* Execution Count */
+.execution-count {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 11px;
+    color: #858585;
+    padding: 4px 8px;
+}
+
+/* Cell Focus State */
+.notebook-cell.focused {
+    border-color: #007acc;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .notebook-container {
+        padding: 10px;
+    }
+
+    .notebook-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .notebook-toolbar .btn {
+        width: 100%;
+    }
+
+    .cell-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+/* Scrollbar Styling */
+.cell-outputs::-webkit-scrollbar,
+.output pre::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.cell-outputs::-webkit-scrollbar-track,
+.output pre::-webkit-scrollbar-track {
+    background: var(--bg-primary, #1e1e1e);
+}
+
+.cell-outputs::-webkit-scrollbar-thumb,
+.output pre::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+}
+
+.cell-outputs::-webkit-scrollbar-thumb:hover,
+.output pre::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}

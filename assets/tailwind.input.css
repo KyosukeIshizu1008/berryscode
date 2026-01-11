@@ -1,0 +1,442 @@
+/* Tailwind CSS Input File - BerryCode GUI Editor */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom component classes that can't be replaced with utilities */
+@layer components {
+  /* ===== Canvas Editor ===== */
+  /* 📝 Note: Canvas のスタイルは virtual_editor.rs で直接指定しています */
+  /* クラス: "w-full h-full block touch-none outline-none cursor-text" */
+  /* スタイル: "image-rendering: crisp-edges;" で滲み防止 */
+  .berry-editor-pane canvas {
+    /* 念のため基本スタイルを保持（Rust側のクラスが優先されます） */
+    @apply block outline-none cursor-text;
+  }
+
+  /* ===== Codicon Icon Font ===== */
+  .codicon {
+    font-family: 'codicon';
+    font-style: normal;
+    font-weight: normal;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ===== Custom Scrollbar (WebKit-specific, can't use utilities) ===== */
+  ::-webkit-scrollbar {
+    @apply w-[10px] h-[10px] bg-berry-scrollbar-track;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-berry-scrollbar-track;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-berry-scrollbar-thumb;
+    border: 2px solid #2b2d30;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-berry-scrollbar-thumb-hover;
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    @apply bg-berry-scrollbar-thumb-active;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #4e5254 #2b2d30;
+  }
+
+  /* ===== File Tree Component ===== */
+  .berry-editor-file-item {
+    @apply h-[22px] text-berry-text cursor-pointer bg-transparent flex items-center select-none whitespace-nowrap transition-colors;
+  }
+
+  .berry-editor-file-item:hover {
+    @apply bg-berry-hover-bg;
+  }
+
+  .berry-editor-file-item.selected {
+    @apply bg-berry-selection-bg text-berry-selection-fg;
+  }
+
+  /* ===== Tab Bar Component ===== */
+  .berry-editor-tab {
+    @apply bg-berry-bg-tab-inactive text-berry-text border-r border-berry-bg-main text-xs px-3 py-1 cursor-pointer flex items-center gap-2;
+  }
+
+  .berry-editor-tab.active {
+    @apply bg-berry-bg-main text-berry-text-active;
+  }
+
+  .berry-editor-tab:hover {
+    @apply bg-berry-bg-tab-hover;
+  }
+
+  .berry-editor-tab-close {
+    @apply text-berry-text-muted hover:text-berry-text-active;
+  }
+
+  /* ===== Command Palette ===== */
+  .berry-command-palette-backdrop {
+    @apply fixed inset-0 bg-black/60 flex items-start justify-center z-overlay;
+  }
+
+  .berry-command-palette-dialog {
+    @apply w-[600px] max-w-[800px] mt-20 bg-[#252526] border border-[#454545] shadow-berry-lg;
+  }
+
+  .berry-command-palette-input {
+    @apply w-full bg-[#3c3c3c] text-berry-text-primary px-4 py-2 outline-none border-b-2 border-transparent focus:border-berry-accent;
+  }
+
+  .berry-palette-item {
+    @apply flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors;
+  }
+
+  .berry-palette-item:hover,
+  .berry-palette-item-selected {
+    @apply bg-[#094771];
+  }
+
+  /* ===== Completion Widget ===== */
+  .berry-completion-widget {
+    @apply absolute bg-[#252526] border border-[#454545] shadow-berry-md min-w-[300px] max-w-[500px] max-h-[300px] overflow-y-auto;
+  }
+
+  .berry-completion-item {
+    @apply flex items-center gap-2 px-2 py-1 cursor-pointer transition-colors;
+  }
+
+  .berry-completion-item:hover,
+  .berry-completion-item.selected {
+    @apply bg-[#094771];
+  }
+
+  /* ===== Diagnostics Panel ===== */
+  .berry-diagnostic {
+    @apply pl-3 border-l-[3px] py-1;
+  }
+
+  .berry-diagnostic-error {
+    @apply border-berry-error;
+  }
+
+  .berry-diagnostic-warning {
+    @apply border-berry-warning;
+  }
+
+  .berry-diagnostic-info {
+    @apply border-berry-info;
+  }
+
+  /* ===== Git UI ===== */
+  .berry-git-status-added {
+    @apply text-berry-git-added;
+  }
+
+  .berry-git-status-modified {
+    @apply text-berry-git-modified;
+  }
+
+  .berry-git-status-deleted {
+    @apply text-berry-git-deleted;
+  }
+
+  /* ===== Modal Dialogs ===== */
+  .berry-dialog-overlay {
+    @apply fixed inset-0 bg-black/60 flex items-center justify-center z-modal;
+  }
+
+  .berry-dialog {
+    @apply bg-berry-bg-sidebar border border-berry-border shadow-berry-lg max-w-2xl w-full mx-4;
+  }
+
+  .berry-dialog-header {
+    @apply flex items-center justify-between px-4 py-3 border-b border-berry-border;
+  }
+
+  .berry-dialog-body {
+    @apply px-4 py-4;
+  }
+
+  .berry-dialog-footer {
+    @apply flex items-center justify-end gap-2 px-4 py-3 border-t border-berry-border;
+  }
+
+  /* ===== Buttons ===== */
+  .berry-button {
+    @apply px-3 py-1.5 rounded-berry-sm text-xs cursor-pointer transition-colors;
+  }
+
+  .berry-button-primary {
+    @apply bg-berry-accent text-white hover:bg-berry-accent-hover;
+  }
+
+  .berry-button-secondary {
+    @apply bg-berry-bg-tab-hover border border-berry-border text-berry-text-active hover:bg-berry-bg-active;
+  }
+
+  .berry-button-danger {
+    @apply bg-berry-error text-white hover:bg-berry-error/90;
+  }
+
+  /* ===== Input Fields ===== */
+  .berry-input-field {
+    @apply w-full bg-berry-bg-input text-berry-text px-3 py-1.5 border border-berry-border rounded-berry-sm outline-none focus:border-berry-accent;
+  }
+
+  .berry-textarea-field {
+    @apply w-full bg-berry-bg-input text-berry-text px-3 py-2 border border-berry-border rounded-berry-sm outline-none focus:border-berry-accent resize-none;
+  }
+
+  /* ===== Git UI Components ===== */
+  .berry-git-panel {
+    @apply p-2;
+  }
+
+  .berry-git-header {
+    @apply flex gap-2 items-center py-2 border-b border-[#3e3e3e] mb-2;
+  }
+
+  .berry-git-branch-select {
+    @apply flex-1 bg-[#3c3c3c] text-[#d4d4d4] border border-[#3e3e3e] px-2 py-1 text-xs rounded-berry-sm;
+  }
+
+  .berry-git-refresh-btn {
+    @apply bg-berry-accent-secondary border-0 text-white px-3 py-1 cursor-pointer text-sm rounded-berry-sm hover:bg-berry-accent-hover disabled:opacity-muted disabled:cursor-not-allowed;
+  }
+
+  .berry-git-error {
+    @apply bg-berry-bg-error border border-berry-border-error text-berry-error p-2 my-2 rounded-berry-sm text-xs;
+  }
+
+  .berry-git-loading,
+  .berry-git-empty {
+    @apply p-4 text-center text-berry-icon-muted text-xs;
+  }
+
+  .berry-git-empty {
+    @apply italic;
+  }
+
+  .berry-git-section-title {
+    @apply text-[11px] font-semibold text-berry-icon-muted px-1 pt-2 pb-1 uppercase;
+  }
+
+  .berry-git-changes,
+  .berry-git-staged {
+    @apply mb-3;
+  }
+
+  .berry-git-file {
+    @apply flex items-center gap-2 px-2 py-1 text-xs cursor-pointer hover:bg-berry-bg-hover;
+  }
+
+  .berry-git-file-status {
+    @apply w-4 font-bold text-berry-git-added;
+  }
+
+  .berry-git-file-path {
+    @apply flex-1 text-[#d4d4d4];
+  }
+
+  .berry-git-stage-btn,
+  .berry-git-unstage-btn {
+    @apply bg-transparent border border-berry-icon-muted text-berry-icon-muted px-2 py-0.5 cursor-pointer text-xs rounded-berry-sm hover:bg-berry-bg-active hover:text-[#d4d4d4];
+  }
+
+  .berry-git-commit {
+    @apply border-t border-[#3e3e3e] pt-2;
+  }
+
+  .berry-git-commit-message {
+    @apply w-full bg-[#3c3c3c] text-[#d4d4d4] border border-[#3e3e3e] p-2 text-xs font-mono resize-y min-h-[60px] mb-2 rounded-berry-sm;
+  }
+
+  .berry-git-commit-btn {
+    @apply w-full bg-berry-accent-secondary border-0 text-white p-2 cursor-pointer text-xs rounded-berry-sm hover:bg-berry-accent-hover disabled:opacity-muted disabled:cursor-not-allowed;
+  }
+
+  /* Commit History */
+  .berry-commit-history {
+    @apply max-h-[400px] overflow-y-auto;
+  }
+
+  .berry-commit-item {
+    @apply p-2 border-b border-[#3e3e3e] cursor-pointer hover:bg-berry-bg-hover;
+  }
+
+  .berry-commit-item-selected {
+    @apply bg-berry-selection-active;
+  }
+
+  .berry-commit-header {
+    @apply flex justify-between mb-1;
+  }
+
+  .berry-commit-hash {
+    @apply font-mono text-[11px] text-berry-git-added;
+  }
+
+  .berry-commit-time {
+    @apply text-[11px] text-berry-icon-muted;
+  }
+
+  .berry-commit-message {
+    @apply text-xs text-[#d4d4d4] mb-0.5;
+  }
+
+  .berry-commit-author {
+    @apply text-[11px] text-berry-icon-muted;
+  }
+
+  /* Branch Manager */
+  .berry-branch-manager {
+    @apply p-2;
+  }
+
+  .berry-branch-header {
+    @apply py-2 border-b border-[#3e3e3e] mb-2;
+  }
+
+  .berry-branch-create-dialog {
+    @apply bg-[#2d2d2d] border border-[#3e3e3e] p-3 mb-2 rounded-berry-sm;
+  }
+
+  .berry-input {
+    @apply w-full bg-[#3c3c3c] text-[#d4d4d4] border border-[#3e3e3e] px-2 py-1.5 text-xs mb-2 rounded-berry-sm;
+  }
+
+  .berry-dialog-buttons {
+    @apply flex gap-2 justify-end;
+  }
+
+  .berry-branch-list {
+    @apply max-h-[300px] overflow-y-auto;
+  }
+
+  .berry-branch-item {
+    @apply flex items-center gap-2 px-2 py-1.5 border-b border-[#3e3e3e] hover:bg-berry-bg-hover;
+  }
+
+  .berry-branch-name {
+    @apply flex-1 font-mono text-xs text-[#d4d4d4];
+  }
+
+  .berry-branch-checkout-btn,
+  .berry-branch-delete-btn {
+    @apply bg-berry-accent-secondary border-0 text-white px-3 py-1 cursor-pointer text-[11px] rounded-berry-sm hover:bg-berry-accent-hover;
+  }
+
+  .berry-branch-delete-btn {
+    @apply bg-[#a1260d] hover:bg-[#c72e0d];
+  }
+}
+
+/* ===== Layout & Structure ===== */
+@layer base {
+  /* Global Reset */
+  * {
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+  }
+
+  html, body {
+    @apply m-0 p-0 overflow-hidden h-screen w-screen bg-berry-bg-main text-berry-text;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Main container */
+  #berry-editor-wasm-root {
+    @apply h-full w-full flex;
+  }
+
+  /* Layout components */
+  .berry-editor-container {
+    @apply flex flex-col h-full w-full;
+  }
+
+  .berry-editor-main-area {
+    @apply flex-1 flex flex-row min-h-0 overflow-hidden;
+  }
+
+  .berry-editor-sidebar {
+    @apply w-[300px] min-w-[300px] max-w-[300px] h-full overflow-hidden flex flex-col flex-shrink-0;
+  }
+
+  /* Activity Bar */
+  .activity-bar {
+    @apply w-12 min-w-[48px] h-full flex flex-col items-center py-2;
+  }
+
+  .activity-icon {
+    @apply w-12 h-10 flex items-center justify-center cursor-pointer relative transition-colors;
+    font-size: 20px;
+  }
+
+  /* Main Editor Area (contains VirtualEditorPanel and TerminalPanel) */
+  .berry-main-editor-area {
+    @apply flex-1 flex flex-col min-h-0 overflow-hidden;
+  }
+
+  /* Canvas & Editor Pane */
+  .berry-editor-pane {
+    @apply flex-1 relative overflow-hidden min-h-0 w-full flex;
+  }
+
+  .berry-editor-pane canvas {
+    @apply block outline-none cursor-text;
+  }
+
+  /* Hidden IME Input */
+  input[type="text"] {
+    @apply absolute opacity-0 pointer-events-none z-[1];
+  }
+
+  /* Icons */
+  .berry-editor-folder-icon,
+  .berry-editor-file-icon {
+    @apply mr-1 w-[14px] h-[14px] inline-flex justify-center items-center text-xs flex-shrink-0;
+  }
+
+  .berry-editor-folder-icon {
+    @apply transition-transform text-berry-icon-muted;
+    opacity: 0.7;
+  }
+
+  .berry-editor-folder-icon.expanded {
+    @apply rotate-90;
+  }
+
+  .berry-editor-file-icon {
+    opacity: 0.9;
+  }
+
+  /* IntelliJ/RustRover Style Toolbar Buttons */
+  .intellij-toolbar-btn {
+    @apply p-0 opacity-70 transition flex items-center justify-center cursor-pointer;
+    width: 20px;
+    height: 20px;
+    background-color: transparent;
+    border: none;
+  }
+
+  .intellij-toolbar-btn:hover:not(:disabled) {
+    @apply opacity-100;
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .intellij-toolbar-btn:disabled {
+    @apply opacity-30 cursor-not-allowed;
+  }
+}

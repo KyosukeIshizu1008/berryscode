@@ -1,0 +1,64 @@
+{
+    "function": {
+        "prefix": "fn",
+        "body": [
+            "fn ${1:name}(${2:params}) ${3:-> ${4:ReturnType}} {",
+            "\t${0}",
+            "}"
+        ],
+        "description": "Function definition"
+    },
+    "struct": {
+        "prefix": "struct",
+        "body": [
+            "struct ${1:Name} {",
+            "\t${2:field}: ${3:Type},",
+            "}"
+        ],
+        "description": "Struct definition"
+    },
+    "enum": {
+        "prefix": "enum",
+        "body": [
+            "enum ${1:Name} {",
+            "\t${2:Variant},",
+            "}"
+        ],
+        "description": "Enum definition"
+    },
+    "impl": {
+        "prefix": "impl",
+        "body": [
+            "impl ${1:Name} {",
+            "\t${0}",
+            "}"
+        ],
+        "description": "Implementation block"
+    },
+    "trait": {
+        "prefix": "trait",
+        "body": [
+            "trait ${1:Name} {",
+            "\t${0}",
+            "}"
+        ],
+        "description": "Trait definition"
+    },
+    "println": {
+        "prefix": "println",
+        "body": [
+            "println!(\"${1:message}\");"
+        ],
+        "description": "Print to console"
+    },
+    "match": {
+        "prefix": "match",
+        "body": [
+            "match ${1:expression} {",
+            "\t${2:pattern} => ${3:result},",
+            "\t_ => ${4:default},",
+            "}"
+        ],
+        "description": "Match expression"
+    }
+}

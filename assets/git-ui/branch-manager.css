@@ -1,0 +1,71 @@
+/**
+ * Berry Editor - Git Branch Manager
+ * IntelliJ Darcula Theme
+ */
+
+/* Branch Manager */
+.berry-branch-manager {
+    padding: var(--spacing-md, 8px);
+}
+
+.berry-branch-header {
+    padding: var(--spacing-md, 8px) 0;
+    border-bottom: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+    margin-bottom: var(--spacing-md, 8px);
+}
+
+.berry-branch-create-dialog {
+    background: var(--color-bg-elevated, #2d2d2d);
+    border: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+    padding: var(--spacing-lg, 12px);
+    margin-bottom: var(--spacing-md, 8px);
+    border-radius: var(--border-radius-sm, 2px);
+}
+
+.berry-branch-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.berry-branch-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md, 8px);
+    padding: 6px var(--spacing-md, 8px);
+    border-bottom: var(--border-width-thin, 1px) solid var(--color-border-strong, #3e3e3e);
+}
+
+.berry-branch-item:hover {
+    background: var(--color-bg-hover, rgba(255,255,255,0.05));
+}
+
+.berry-branch-name {
+    flex: 1;
+    font-family: var(--font-family-mono, 'Consolas', 'Monaco', 'Courier New', monospace);
+    font-size: var(--font-size-sm, 12px);
+    color: var(--color-text-secondary, #d4d4d4);
+}
+
+.berry-branch-checkout-btn,
+.berry-branch-delete-btn {
+    background: var(--color-accent-secondary, #0e639c);
+    border: none;
+    color: var(--color-text-primary, white);
+    padding: var(--spacing-sm, 4px) var(--spacing-lg, 12px);
+    cursor: pointer;
+    font-size: var(--font-size-xs, 11px);
+    border-radius: var(--border-radius-sm, 2px);
+    transition: background var(--transition-base, 0.15s ease);
+}
+
+.berry-branch-checkout-btn:hover {
+    background: var(--color-accent-hover, #1177bb);
+}
+
+.berry-branch-delete-btn {
+    background: #a1260d;
+}
+
+.berry-branch-delete-btn:hover {
+    background: #c72e0d;
+}

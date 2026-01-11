@@ -1,0 +1,81 @@
+[package]
+name = "berry-editor"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+leptos = { version = "0.7", features = ["csr"] }
+console_error_panic_hook = "0.1"
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlInputElement",
+    "HtmlDivElement",
+    # ❌ "HtmlTextAreaElement" removed - using ContentEditable div instead
+    "InputEvent",  # ✅ Added for on:beforeinput
+    "Event",
+    "KeyboardEvent",
+    "KeyboardEventInit",  # ✅ Added for creating keyboard events in tests
+    "MouseEvent",
+    "WheelEvent",
+    "CompositionEvent",
+    "Node",  # ✅ Added for DOM manipulation
+    "NodeList",  # ✅ Added for child_nodes()
+    "ResizeObserver",
+    "ResizeObserverEntry",
+    "DomRect",
+    "CanvasRenderingContext2d",  # ✅ Canvas API
+    "HtmlCanvasElement",
+    "TextMetrics",  # ✅ Canvas text measurement
+    "CssStyleDeclaration",
+    "EventTarget",
+    "Navigator",
+    "Clipboard",
+    "Storage",
+    "Worker",
+    "MessageEvent",
+    "GpuDevice",
+    "GpuQueue",
+    "GpuRenderPipeline",
+    "GpuBuffer",
+    "GpuTexture",
+    "GpuTextureView",
+    "GpuCommandEncoder",
+] }
+wasm-bindgen-futures = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde-wasm-bindgen = "0.6"
+ropey = "1.6"
+unicode-segmentation = "1.11"
+unicode-width = "0.1"
+indexmap = "2.0"
+regex = "1.10"
+anyhow = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde", "js"] }
+chrono = "0.4"
+urlencoding = "2.1"
+gloo-timers = { version = "0.3", features = ["futures"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# E2E testing dependencies (only for native target)
+tokio = { version = "1", features = ["full"] }
+fantoccini = "0.21"
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+panic = 'abort'

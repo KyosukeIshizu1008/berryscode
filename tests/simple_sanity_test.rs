@@ -1,0 +1,10 @@
+//! Simplest possible test to verify test runner works
+
+use wasm_bindgen_test::*;
+
+wasm_bindgen_test_configure!(run_in_browser);
+
+#[wasm_bindgen_test]
+fn test_basic_math() {
+    assert_eq!(2 + 2, 4);
+}
