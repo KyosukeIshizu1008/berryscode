@@ -1,246 +1,259 @@
 //! Dialog Components
 //! Reusable dialog components for confirmations, inputs, etc.
 
-use leptos::prelude::*;
-use wasm_bindgen::JsCast;
+use dioxus::prelude::*;
+
+/// Confirmation Dialog props
+#[derive(Props, Clone, PartialEq)]
+pub struct ConfirmDialogProps {
+    is_open: Signal<bool>,
+    title: String,
+    message: String,
+    on_confirm: EventHandler<()>,
+    on_cancel: EventHandler<()>,
+}
 
 /// Confirmation Dialog
 #[component]
-pub fn ConfirmDialog(
-    is_open: RwSignal<bool>,
-    title: String,
-    message: String,
-    on_confirm: impl Fn() + 'static + Clone + Send + Sync,
-    on_cancel: impl Fn() + 'static + Clone + Send + Sync,
-) -> impl IntoView {
-    let on_confirm = StoredValue::new(on_confirm);
-    let on_cancel = StoredValue::new(on_cancel);
+pub fn ConfirmDialog(props: ConfirmDialogProps) -> Element {
+    let is_open = props.is_open;
+    let title = props.title;
+    let message = props.message;
+    let on_confirm = props.on_confirm;
+    let on_cancel = props.on_cancel;
 
-    view! {
-        {move || {
-            if is_open.get() {
-                view! {
-                    <div class="berry-dialog-overlay">
-                        <div class="berry-dialog">
-                            <div class="berry-dialog-header">
-                                <h3>{title.clone()}</h3>
-                            </div>
-                            <div class="berry-dialog-body">
-                                <p>{message.clone()}</p>
-                            </div>
-                            <div class="berry-dialog-footer">
-                                <button
-                                    class="berry-dialog-button berry-dialog-button-cancel"
-                                    on:click=move |_| {
-                                        on_cancel.with_value(|f| f());
-                                        is_open.set(false);
-                                    }
-                                >
+    rsx! {
+        {
+            if *is_open.read() {
+                rsx! {
+                    div { class: "berry-dialog-overlay",
+                        div { class: "berry-dialog",
+                            div { class: "berry-dialog-header",
+                                h3 { "{title}" }
+                            }
+                            div { class: "berry-dialog-body",
+                                p { "{message}" }
+                            }
+                            div { class: "berry-dialog-footer",
+                                button {
+                                    class: "berry-dialog-button berry-dialog-button-cancel",
+                                    onclick: move |_| {
+                                        on_cancel.call(());
+                                        *is_open.write() = false;
+                                    },
                                     "Cancel"
-                                </button>
-                                <button
-                                    class="berry-dialog-button berry-dialog-button-confirm"
-                                    on:click=move |_| {
-                                        on_confirm.with_value(|f| f());
-                                        is_open.set(false);
-                                    }
-                                >
+                                }
+                                button {
+                                    class: "berry-dialog-button berry-dialog-button-confirm",
+                                    onclick: move |_| {
+                                        on_confirm.call(());
+                                        *is_open.write() = false;
+                                    },
                                     "Confirm"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }.into_any()
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
-                view! { <></> }.into_any()
+                rsx! {}
             }
-        }}
+        }
     }
+}
+
+/// Input Dialog props
+#[derive(Props, Clone, PartialEq)]
+pub struct InputDialogProps {
+    is_open: Signal<bool>,
+    title: String,
+    placeholder: String,
+    initial_value: String,
+    on_submit: EventHandler<String>,
+    on_cancel: EventHandler<()>,
 }
 
 /// Input Dialog
 #[component]
-pub fn InputDialog(
-    is_open: RwSignal<bool>,
-    title: String,
-    placeholder: String,
-    initial_value: String,
-    on_submit: impl Fn(String) + 'static + Clone + Send + Sync,
-    on_cancel: impl Fn() + 'static + Clone + Send + Sync,
-) -> impl IntoView {
-    let on_submit = StoredValue::new(on_submit);
-    let on_cancel = StoredValue::new(on_cancel);
-    let input_value = RwSignal::new(initial_value.clone());
+pub fn InputDialog(props: InputDialogProps) -> Element {
+    let is_open = props.is_open;
+    let title = props.title;
+    let placeholder = props.placeholder;
+    let initial_value = props.initial_value.clone();
+    let on_submit = props.on_submit;
+    let on_cancel = props.on_cancel;
+
+    let mut input_value = use_signal(|| initial_value.clone());
 
     // Reset input value when dialog opens
-    Effect::new(move |_| {
-        if is_open.get() {
-            input_value.set(initial_value.clone());
+    use_effect(move || {
+        if *is_open.read() {
+            *input_value.write() = initial_value.clone();
         }
     });
 
-    view! {
-        {move || {
-            if is_open.get() {
-                view! {
-                    <div class="berry-dialog-overlay">
-                        <div class="berry-dialog">
-                            <div class="berry-dialog-header">
-                                <h3>{title.clone()}</h3>
-                            </div>
-                            <div class="berry-dialog-body">
-                                <input
-                                    type="text"
-                                    class="berry-dialog-input"
-                                    placeholder=placeholder.clone()
-                                    prop:value=move || input_value.get()
-                                    on:input=move |ev| {
-                                        input_value.set(event_target_value(&ev));
-                                    }
-                                    on:keydown=move |ev| {
-                                        if ev.key() == "Enter" {
-                                            let value = input_value.get();
+    rsx! {
+        {
+            if *is_open.read() {
+                rsx! {
+                    div { class: "berry-dialog-overlay",
+                        div { class: "berry-dialog",
+                            div { class: "berry-dialog-header",
+                                h3 { "{title}" }
+                            }
+                            div { class: "berry-dialog-body",
+                                input {
+                                    r#type: "text",
+                                    class: "berry-dialog-input",
+                                    placeholder: "{placeholder}",
+                                    value: "{input_value.read()}",
+                                    oninput: move |ev| *input_value.write() = ev.value(),
+                                    onkeydown: move |ev| {
+                                        if ev.key() == Key::Enter {
+                                            let value = input_value.read().clone();
                                             if !value.trim().is_empty() {
-                                                on_submit.with_value(|f| f(value));
-                                                is_open.set(false);
+                                                on_submit.call(value);
+                                                *is_open.write() = false;
                                             }
-                                        } else if ev.key() == "Escape" {
-                                            on_cancel.with_value(|f| f());
-                                            is_open.set(false);
+                                        } else if ev.key() == Key::Escape {
+                                            on_cancel.call(());
+                                            *is_open.write() = false;
                                         }
-                                    }
-                                />
-                            </div>
-                            <div class="berry-dialog-footer">
-                                <button
-                                    class="berry-dialog-button berry-dialog-button-cancel"
-                                    on:click=move |_| {
-                                        on_cancel.with_value(|f| f());
-                                        is_open.set(false);
-                                    }
-                                >
+                                    },
+                                }
+                            }
+                            div { class: "berry-dialog-footer",
+                                button {
+                                    class: "berry-dialog-button berry-dialog-button-cancel",
+                                    onclick: move |_| {
+                                        on_cancel.call(());
+                                        *is_open.write() = false;
+                                    },
                                     "Cancel"
-                                </button>
-                                <button
-                                    class="berry-dialog-button berry-dialog-button-confirm"
-                                    on:click=move |_| {
-                                        let value = input_value.get();
+                                }
+                                button {
+                                    class: "berry-dialog-button berry-dialog-button-confirm",
+                                    onclick: move |_| {
+                                        let value = input_value.read().clone();
                                         if !value.trim().is_empty() {
-                                            on_submit.with_value(|f| f(value));
-                                            is_open.set(false);
+                                            on_submit.call(value);
+                                            *is_open.write() = false;
                                         }
-                                    }
-                                >
+                                    },
                                     "OK"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }.into_any()
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
-                view! { <></> }.into_any()
+                rsx! {}
             }
-        }}
+        }
     }
+}
+
+/// File/Folder Creation Dialog props
+#[derive(Props, Clone, PartialEq)]
+pub struct CreateFileDialogProps {
+    is_open: Signal<bool>,
+    is_folder: bool,
+    parent_path: String,
+    on_create: EventHandler<(String, bool)>,
 }
 
 /// File/Folder Creation Dialog
 #[component]
-pub fn CreateFileDialog(
-    is_open: RwSignal<bool>,
-    is_folder: bool,
-    parent_path: String,
-    on_create: impl Fn(String, bool) + 'static + Clone + Send + Sync,
-) -> impl IntoView {
-    let on_create = StoredValue::new(on_create);
-    let filename = RwSignal::new(String::new());
-    let error_message = RwSignal::new(None::<String>);
+pub fn CreateFileDialog(props: CreateFileDialogProps) -> Element {
+    let is_open = props.is_open;
+    let is_folder = props.is_folder;
+    let parent_path = props.parent_path;
+    let on_create = props.on_create;
+
+    let mut filename = use_signal(|| String::new());
+    let mut error_message = use_signal(|| None::<String>);
 
     let title = if is_folder { "New Folder" } else { "New File" };
     let placeholder = if is_folder { "Folder name" } else { "File name" };
 
-    view! {
-        {move || {
-            if is_open.get() {
-                view! {
-                    <div class="berry-dialog-overlay">
-                        <div class="berry-dialog">
-                            <div class="berry-dialog-header">
-                                <h3>{title}</h3>
-                            </div>
-                            <div class="berry-dialog-body">
-                                <p class="berry-dialog-parent-path">
-                                    "Parent: " {parent_path.clone()}
-                                </p>
-                                <input
-                                    type="text"
-                                    class="berry-dialog-input"
-                                    placeholder=placeholder
-                                    prop:value=move || filename.get()
-                                    on:input=move |ev| {
-                                        filename.set(event_target_value(&ev));
-                                        error_message.set(None);
-                                    }
-                                    on:keydown=move |ev| {
-                                        if ev.key() == "Enter" {
-                                            let name = filename.get();
+    rsx! {
+        {
+            if *is_open.read() {
+                rsx! {
+                    div { class: "berry-dialog-overlay",
+                        div { class: "berry-dialog",
+                            div { class: "berry-dialog-header",
+                                h3 { "{title}" }
+                            }
+                            div { class: "berry-dialog-body",
+                                p { class: "berry-dialog-parent-path",
+                                    "Parent: {parent_path}"
+                                }
+                                input {
+                                    r#type: "text",
+                                    class: "berry-dialog-input",
+                                    placeholder: "{placeholder}",
+                                    value: "{filename.read()}",
+                                    oninput: move |ev| {
+                                        *filename.write() = ev.value();
+                                        *error_message.write() = None;
+                                    },
+                                    onkeydown: move |ev| {
+                                        if ev.key() == Key::Enter {
+                                            let name = filename.read().clone();
                                             if validate_filename(&name) {
-                                                on_create.with_value(|f| f(name, is_folder));
-                                                is_open.set(false);
-                                                filename.set(String::new());
+                                                on_create.call((name, is_folder));
+                                                *is_open.write() = false;
+                                                *filename.write() = String::new();
                                             } else {
-                                                error_message.set(Some("Invalid filename".to_string()));
+                                                *error_message.write() = Some("Invalid filename".to_string());
                                             }
-                                        } else if ev.key() == "Escape" {
-                                            is_open.set(false);
-                                            filename.set(String::new());
+                                        } else if ev.key() == Key::Escape {
+                                            *is_open.write() = false;
+                                            *filename.write() = String::new();
                                         }
-                                    }
-                                />
-                                {move || {
-                                    if let Some(ref err) = error_message.get() {
-                                        view! {
-                                            <p class="berry-dialog-error">{err.clone()}</p>
-                                        }.into_any()
-                                    } else {
-                                        view! { <></> }.into_any()
-                                    }
-                                }}
-                            </div>
-                            <div class="berry-dialog-footer">
-                                <button
-                                    class="berry-dialog-button berry-dialog-button-cancel"
-                                    on:click=move |_| {
-                                        is_open.set(false);
-                                        filename.set(String::new());
-                                        error_message.set(None);
-                                    }
-                                >
+                                    },
+                                }
+                                {
+                                    error_message.read().as_ref().map(|err| {
+                                        rsx! {
+                                            p { class: "berry-dialog-error", "{err}" }
+                                        }
+                                    })
+                                }
+                            }
+                            div { class: "berry-dialog-footer",
+                                button {
+                                    class: "berry-dialog-button berry-dialog-button-cancel",
+                                    onclick: move |_| {
+                                        *is_open.write() = false;
+                                        *filename.write() = String::new();
+                                        *error_message.write() = None;
+                                    },
                                     "Cancel"
-                                </button>
-                                <button
-                                    class="berry-dialog-button berry-dialog-button-confirm"
-                                    on:click=move |_| {
-                                        let name = filename.get();
+                                }
+                                button {
+                                    class: "berry-dialog-button berry-dialog-button-confirm",
+                                    onclick: move |_| {
+                                        let name = filename.read().clone();
                                         if validate_filename(&name) {
-                                            on_create.with_value(|f| f(name, is_folder));
-                                            is_open.set(false);
-                                            filename.set(String::new());
+                                            on_create.call((name, is_folder));
+                                            *is_open.write() = false;
+                                            *filename.write() = String::new();
                                         } else {
-                                            error_message.set(Some("Invalid filename".to_string()));
+                                            *error_message.write() = Some("Invalid filename".to_string());
                                         }
-                                    }
-                                >
+                                    },
                                     "Create"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                }.into_any()
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
-                view! { <></> }.into_any()
+                rsx! {}
             }
-        }}
+        }
     }
 }
 
