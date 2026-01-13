@@ -2,8 +2,7 @@
 //!
 //! Displays watch expressions and their evaluated values.
 
-use leptos::prelude::*;
-use leptos::task::spawn_local;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::common::ui_components::Panel;
 use super::session::DebugSession;
@@ -17,19 +16,26 @@ pub struct WatchExpression {
     pub error: Option<String>,
 }
 
-/// Watch panel component
-#[component]
-pub fn WatchPanel(
+/// Watch panel component props
+#[derive(Props, Clone, PartialEq)]
+pub struct WatchPanelProps {
     /// Watch expressions
-    watches: RwSignal<Vec<WatchExpression>>,
+    watches: Signal<Vec<WatchExpression>>,
     /// Debug session for evaluation
     session: DebugSession,
-) -> impl IntoView {
-    let new_expression = RwSignal::new(String::new());
+}
+
+/// Watch panel component
+#[component]
+pub fn WatchPanel(props: WatchPanelProps) -> Element {
+    let watches = props.watches;
+    let session = props.session;
+
+    let mut new_expression = use_signal(|| String::new());
 
     // Add new watch expression
     let add_watch = move || {
-        let expr = new_expression.get_untracked();
+        let expr = new_expression.read().clone();
         if !expr.is_empty() {
             let watch = WatchExpression {
                 id: uuid::Uuid::new_v4().to_string(),
@@ -38,29 +44,27 @@ pub fn WatchPanel(
                 error: None,
             };
 
-            watches.update(|w| w.push(watch.clone()));
-            new_expression.set(String::new());
+            watches.write().push(watch.clone());
+            *new_expression.write() = String::new();
 
             // Evaluate immediately if debugging
             let watch_clone = watch.clone();
-            spawn_local(async move {
-                if session.session_id.get_untracked().is_some() {
+            spawn(async move {
+                if session.session_id.read().is_some() {
                     match session.evaluate(watch_clone.expression.clone(), None).await {
                         Ok(result) => {
-                            watches.update(|w| {
-                                if let Some(w) = w.iter_mut().find(|w| w.id == watch_clone.id) {
-                                    w.value = Some(result);
-                                    w.error = None;
-                                }
-                            });
+                            let mut w = watches.write();
+                            if let Some(watch) = w.iter_mut().find(|w| w.id == watch_clone.id) {
+                                watch.value = Some(result);
+                                watch.error = None;
+                            }
                         }
                         Err(e) => {
-                            watches.update(|w| {
-                                if let Some(w) = w.iter_mut().find(|w| w.id == watch_clone.id) {
-                                    w.value = None;
-                                    w.error = Some(e);
-                                }
-                            });
+                            let mut w = watches.write();
+                            if let Some(watch) = w.iter_mut().find(|w| w.id == watch_clone.id) {
+                                watch.value = None;
+                                watch.error = Some(e);
+                            }
                         }
                     }
                 }
@@ -68,95 +72,109 @@ pub fn WatchPanel(
         }
     };
 
-    view! {
-        <Panel title="Watch">
-            <div class="berry-watch-panel">
-                <div class="berry-watch-add">
-                    <input
-                        type="text"
-                        class="berry-input"
-                        prop:value=move || new_expression.get()
-                        on:input=move |ev| {
-                            new_expression.set(event_target_value(&ev));
-                        }
-                        on:keydown=move |ev| {
-                            if ev.key() == "Enter" {
+    rsx! {
+        Panel { title: "Watch",
+            div { class: "berry-watch-panel",
+                div { class: "berry-watch-add",
+                    input {
+                        r#type: "text",
+                        class: "berry-input",
+                        value: "{new_expression.read()}",
+                        oninput: move |ev| *new_expression.write() = ev.value(),
+                        onkeydown: move |ev| {
+                            if ev.key() == Key::Enter {
                                 add_watch();
                             }
-                        }
-                        placeholder="Add watch expression..."
-                    />
-                    <button class="berry-button" on:click=move |_| add_watch()>"+"</button>
-                </div>
-                <div class="berry-watch-list">
-                    {move || {
-                        let current_watches = watches.get();
+                        },
+                        placeholder: "Add watch expression...",
+                    }
+                    button {
+                        class: "berry-button",
+                        onclick: move |_| add_watch(),
+                        "+"
+                    }
+                }
+                div { class: "berry-watch-list",
+                    {
+                        let current_watches = watches.read().clone();
 
                         if current_watches.is_empty() {
-                            view! {
-                                <div class="berry-watch-empty">
+                            rsx! {
+                                div { class: "berry-watch-empty",
                                     "No watch expressions"
-                                </div>
-                            }.into_any()
-                        } else {
-                            current_watches.iter().map(|watch| {
-                                let watch_clone = watch.clone();
-                                view! {
-                                    <WatchExpressionView
-                                        watch=watch.clone()
-                                        on_remove=move || {
-                                            let id = watch_clone.id.clone();
-                                            watches.update(|w| w.retain(|w| w.id != id));
-                                        }
-                                    />
                                 }
-                            }).collect::<Vec<_>>().into_any()
+                            }
+                        } else {
+                            rsx! {
+                                for watch in current_watches {
+                                    {
+                                        let watch_clone = watch.clone();
+                                        rsx! {
+                                            WatchExpressionView {
+                                                watch: watch.clone(),
+                                                on_remove: move |_| {
+                                                    let id = watch_clone.id.clone();
+                                                    watches.write().retain(|w| w.id != id);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }}
-                </div>
-            </div>
-        </Panel>
+                    }
+                }
+            }
+        }
     }
+}
+
+/// Single watch expression view props
+#[derive(Props, Clone, PartialEq)]
+struct WatchExpressionViewProps {
+    /// The watch expression
+    watch: WatchExpression,
+    /// Remove callback
+    on_remove: EventHandler<()>,
 }
 
 /// Single watch expression view
 #[component]
-fn WatchExpressionView(
-    /// The watch expression
-    watch: WatchExpression,
-    /// Remove callback
-    on_remove: impl Fn() + 'static,
-) -> impl IntoView {
+fn WatchExpressionView(props: WatchExpressionViewProps) -> Element {
+    let watch = props.watch;
+    let on_remove = props.on_remove;
+
     let expression = watch.expression.clone();
     let value_text = watch.value.clone();
     let error_text = watch.error.clone();
 
-    view! {
-        <div class="berry-watch-expression">
-            <div class="berry-watch-expr-name">{expression}</div>
-            <div class="berry-watch-expr-value">
-                {if let Some(value) = value_text {
-                    view! {
-                        <span class="berry-watch-value">{value}</span>
-                    }.into_any()
-                } else if let Some(error) = error_text {
-                    view! {
-                        <span class="berry-watch-error">{error}</span>
-                    }.into_any()
-                } else {
-                    view! {
-                        <span class="berry-watch-not-evaluated">"not evaluated"</span>
-                    }.into_any()
-                }}
-            </div>
-            <button
-                class="berry-watch-remove"
-                on:click=move |_| on_remove()
-                title="Remove watch"
-            >
+    rsx! {
+        div { class: "berry-watch-expression",
+            div { class: "berry-watch-expr-name", "{expression}" }
+            div { class: "berry-watch-expr-value",
+                {
+                    if let Some(value) = value_text {
+                        rsx! {
+                            span { class: "berry-watch-value", "{value}" }
+                        }
+                    } else if let Some(error) = error_text {
+                        rsx! {
+                            span { class: "berry-watch-error", "{error}" }
+                        }
+                    } else {
+                        rsx! {
+                            span { class: "berry-watch-not-evaluated", "not evaluated" }
+                        }
+                    }
+                }
+            }
+            button {
+                class: "berry-watch-remove",
+                onclick: move |_| on_remove.call(()),
+                title: "Remove watch",
                 "×"
-            </button>
-        </div>
+            }
+        }
     }
 }
 
