@@ -2,54 +2,71 @@
 //!
 //! Displays errors, warnings, and information from LSP.
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use crate::lsp_ui::Diagnostic;
 use crate::common::ui_components::Panel;
 
+/// Diagnostics panel props
+#[derive(Props, Clone, PartialEq)]
+pub struct DiagnosticsPanelProps {
+    /// Diagnostics to display
+    diagnostics: Signal<Vec<Diagnostic>>,
+    /// Callback when a diagnostic is clicked (to jump to location)
+    on_click: EventHandler<(u32, u32)>,
+}
+
 /// Diagnostics panel component
 #[component]
-pub fn DiagnosticsPanel(
-    /// Diagnostics to display
-    diagnostics: RwSignal<Vec<Diagnostic>>,
-    /// Callback when a diagnostic is clicked (to jump to location)
-    on_click: impl Fn(u32, u32) + 'static + Clone + Send,
-) -> impl IntoView {
-    view! {
-        <Panel title="Problems">
-            <div class="berry-diagnostics-list">
-                {move || {
-                    let diags = diagnostics.get();
+pub fn DiagnosticsPanel(props: DiagnosticsPanelProps) -> Element {
+    let diagnostics = props.diagnostics;
+    let on_click = props.on_click;
+
+    rsx! {
+        Panel { title: "Problems",
+            div { class: "berry-diagnostics-list",
+                {
+                    let diags = diagnostics.read().clone();
 
                     if diags.is_empty() {
-                        view! { <></> }.into_any()
+                        rsx! {}
                     } else {
-                        diags.iter().map(|diagnostic| {
-                            let on_click_clone = on_click.clone();
-                            let line = diagnostic.range.start.line;
-                            let character = diagnostic.range.start.character;
+                        rsx! {
+                            for diagnostic in diags {
+                                {
+                                    let line = diagnostic.range.start.line;
+                                    let character = diagnostic.range.start.character;
 
-                            view! {
-                                <DiagnosticItem
-                                    diagnostic=diagnostic.clone()
-                                    on_click=move || on_click_clone(line, character)
-                                />
+                                    rsx! {
+                                        DiagnosticItem {
+                                            diagnostic: diagnostic.clone(),
+                                            on_click: move |_| on_click.call((line, character))
+                                        }
+                                    }
+                                }
                             }
-                        }).collect::<Vec<_>>().into_any()
+                        }
                     }
-                }}
-            </div>
-        </Panel>
+                }
+            }
+        }
     }
+}
+
+/// Diagnostic item props
+#[derive(Props, Clone, PartialEq)]
+struct DiagnosticItemProps {
+    /// The diagnostic
+    diagnostic: Diagnostic,
+    /// Click handler
+    on_click: EventHandler<()>,
 }
 
 /// Single diagnostic item
 #[component]
-fn DiagnosticItem(
-    /// The diagnostic
-    diagnostic: Diagnostic,
-    /// Click handler
-    on_click: impl Fn() + 'static,
-) -> impl IntoView {
+fn DiagnosticItem(props: DiagnosticItemProps) -> Element {
+    let diagnostic = props.diagnostic;
+    let on_click = props.on_click;
+
     // Severity: 1=Error, 2=Warning, 3=Info, 4=Hint
     let (severity_class, severity_icon) = match diagnostic.severity {
         1 => ("error", "E"),
@@ -63,22 +80,19 @@ fn DiagnosticItem(
     let location = format!("[{}:{}]", diagnostic.range.start.line + 1, diagnostic.range.start.character + 1);
     let source_text = diagnostic.source.clone();
 
-    view! {
-        <div
-            class=class
-            on:click=move |_| on_click()
-        >
-            <span class="berry-diagnostic-icon">{severity_icon}</span>
-            <span class="berry-diagnostic-message">{message}</span>
-            <span class="berry-diagnostic-location">
-                {location}
-            </span>
-            {source_text.map(|source| {
-                view! {
-                    <span class="berry-diagnostic-source">{source}</span>
-                }
-            })}
-        </div>
+    rsx! {
+        div {
+            class: "{class}",
+            onclick: move |_| on_click.call(()),
+
+            span { class: "berry-diagnostic-icon", "{severity_icon}" }
+            span { class: "berry-diagnostic-message", "{message}" }
+            span { class: "berry-diagnostic-location", "{location}" }
+
+            if let Some(source) = source_text {
+                span { class: "berry-diagnostic-source", "{source}" }
+            }
+        }
     }
 }
 
