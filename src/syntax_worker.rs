@@ -3,7 +3,7 @@
 //! Web Worker wrapper for non-blocking syntax analysis
 //! Guarantees 144fps UI by isolating parsing to separate thread
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use crate::core::bridge;
@@ -79,8 +79,8 @@ impl SyntaxWorker {
     /// This function sets up the worker through the bridge abstraction,
     /// keeping web_sys usage isolated to the bridge module.
     pub fn new(
-        on_result: RwSignal<Option<HashMap<usize, String>>>,
-        on_error: RwSignal<Option<String>>,
+        on_result: Signal<Option<HashMap<usize, String>>>,
+        on_error: Signal<Option<String>>,
     ) -> Result<Self, wasm_bindgen::JsValue> {
         // ✅ Use bridge to spawn worker - web_sys is hidden
         let worker = bridge::spawn_worker::<SyntaxWorkerMessage>(
@@ -89,31 +89,31 @@ impl SyntaxWorker {
                 if let Ok(response) = serde_wasm_bindgen::from_value::<SyntaxWorkerResponse>(data) {
                     match response {
                         SyntaxWorkerResponse::Ready => {
-                            leptos::logging::log!("Syntax worker ready");
+                            tracing::info!("Syntax worker ready");
                         }
                         SyntaxWorkerResponse::HighlightResult { results } => {
                             let mut map = HashMap::new();
                             for line in results {
                                 map.insert(line.line_number, line.html);
                             }
-                            on_result.set(Some(map));
+                            *on_result.write() = Some(map);
                         }
                         SyntaxWorkerResponse::SingleLineResult { line_number, html } => {
                             let mut map = HashMap::new();
                             map.insert(line_number, html);
-                            on_result.set(Some(map));
+                            *on_result.write() = Some(map);
                         }
                         SyntaxWorkerResponse::CacheCleared => {
-                            leptos::logging::log!("Cache cleared");
+                            tracing::debug!("Cache cleared");
                         }
                         SyntaxWorkerResponse::LanguageSet { language } => {
-                            leptos::logging::log!("Language set to: {}", language);
+                            tracing::debug!("Language set to: {}", language);
                         }
                         SyntaxWorkerResponse::CacheStats { size, is_analyzing } => {
-                            leptos::logging::log!("Cache: {} items, analyzing: {}", size, is_analyzing);
+                            tracing::debug!("Cache: {} items, analyzing: {}", size, is_analyzing);
                         }
                         SyntaxWorkerResponse::Error { error } => {
-                            on_error.set(Some(error));
+                            *on_error.write() = Some(error);
                         }
                     }
                 }
