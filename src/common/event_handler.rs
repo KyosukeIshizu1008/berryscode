@@ -2,7 +2,7 @@
 //!
 //! Provides reusable event handling patterns to avoid duplication.
 
-use leptos::ev::{KeyboardEvent, MouseEvent};
+use dioxus::events::{KeyboardEvent, MouseEvent};
 
 /// Key combination for shortcuts
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
