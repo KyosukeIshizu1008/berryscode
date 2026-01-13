@@ -11,7 +11,8 @@ pub use crate::lsp_core::{LspClient, LspMessage, LspNotification, LspRequest, Ls
 pub use commands::register_lsp_commands;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Global LSP manager
 pub struct LspManager {
@@ -26,44 +27,48 @@ impl LspManager {
     }
 
     /// Get or create LSP client for a language
-    pub fn get_client(&self, language: &str) -> Option<Arc<Mutex<LspClient>>> {
-        let clients = self.clients.lock().unwrap();
+    pub async fn get_client(&self, language: &str) -> Option<Arc<Mutex<LspClient>>> {
+        let clients = self.clients.lock().await;
         clients.get(language).cloned()
     }
 
     /// Initialize LSP client for a language
-    pub fn initialize_client(&self, language: String, root_uri: String) -> Result<(), String> {
-        let mut clients = self.clients.lock().unwrap();
-
-        if clients.contains_key(&language) {
-            return Ok(()); // Already initialized
+    pub async fn initialize_client(&self, language: String, root_uri: String) -> Result<(), String> {
+        {
+            let clients = self.clients.lock().await;
+            if clients.contains_key(&language) {
+                return Ok(()); // Already initialized
+            }
         }
 
-        let client = LspClient::new(&language, &root_uri)?;
+        let client = LspClient::new(&language, &root_uri).await?;
+
+        // Re-acquire lock to insert
+        let mut clients = self.clients.lock().await;
         clients.insert(language, Arc::new(Mutex::new(client)));
 
         Ok(())
     }
 
     /// Shutdown LSP client for a language
-    pub fn shutdown_client(&self, language: &str) -> Result<(), String> {
-        let mut clients = self.clients.lock().unwrap();
+    pub async fn shutdown_client(&self, language: &str) -> Result<(), String> {
+        let mut clients = self.clients.lock().await;
 
         if let Some(client_arc) = clients.remove(language) {
-            let mut client = client_arc.lock().unwrap();
-            client.shutdown()?;
+            let client = client_arc.lock().await;
+            client.shutdown().await?;
         }
 
         Ok(())
     }
 
     /// Shutdown all LSP clients
-    pub fn shutdown_all(&self) -> Result<(), String> {
-        let mut clients = self.clients.lock().unwrap();
+    pub async fn shutdown_all(&self) -> Result<(), String> {
+        let mut clients = self.clients.lock().await;
 
         for (_lang, client_arc) in clients.drain() {
-            let mut client = client_arc.lock().unwrap();
-            if let Err(e) = client.shutdown() {
+            let client = client_arc.lock().await;
+            if let Err(e) = client.shutdown().await {
                 eprintln!("Error shutting down LSP client: {}", e);
             }
         }

@@ -1,9 +1,9 @@
 //! BerryEditor - 100% Rust Code Editor
 //!
-//! A fully-featured code editor built entirely in Rust using Leptos and WASM.
+//! A fully-featured code editor built entirely in Rust using Dioxus and WASM.
 //! No JavaScript required!
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -12,10 +12,8 @@ pub mod components_tauri;
 mod cursor;
 pub mod css_classes;  // CSS class name constants
 pub mod editor;
-pub mod editor_lsp;
 pub mod file_tree_tauri;
 mod git;
-mod lsp;
 mod search;
 pub mod search_provider;  // Search provider abstraction
 mod syntax;
@@ -114,33 +112,10 @@ pub fn init_berry_editor() {
             if !font_ready_val.is_undefined() {
                 let promise = js_sys::Promise::from(font_ready_val);
                 let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
-                web_sys::console::log_1(&"✅ Fonts ready (JetBrains Mono & Codicon), starting BerryEditor render".into());
             }
         }
 
-        // Font is ready - now mount the app
-        let document = web_sys::window()
-            .expect("no window")
-            .document()
-            .expect("no document");
-
-        // Get and clear the root element
-        if let Some(root) = document.get_element_by_id("berry-editor-wasm-root") {
-            root.set_inner_html("");
-
-            // ✅ Convert Element to HtmlElement using JsCast (no web_sys import needed)
-            let html_root: web_sys::HtmlElement = root
-                .dyn_into()
-                .expect("berry-editor-wasm-root is not an HtmlElement");
-
-            // ✅ Mount the Leptos app
-            let mount_handle = leptos::mount::mount_to(html_root, || {
-                view! { <EditorAppTauri/> }
-            });
-
-            mount_handle.forget();
-        } else {
-            leptos::logging::error!("berry-editor-wasm-root element not found");
-        }
+        // ✅ Launch Dioxus app
+        dioxus_web::launch(EditorAppTauri);
     });
 }

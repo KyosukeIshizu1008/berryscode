@@ -741,6 +741,49 @@ fn find_column_from_x_position(renderer: &CanvasRenderer, line_text: &str, targe
     chars.len()
 }
 
+/// Helper: Find symbol boundaries at given position
+/// Returns (start_col, end_col) if cursor is on a symbol
+fn find_symbol_at_position(line_text: &str, col: usize) -> Option<(usize, usize)> {
+    let chars: Vec<char> = line_text.chars().collect();
+
+    if col >= chars.len() {
+        return None;
+    }
+
+    let ch = chars[col];
+
+    // Check if current character is part of an identifier
+    if !ch.is_alphanumeric() && ch != '_' {
+        return None;
+    }
+
+    // Find start of symbol
+    let mut start = col;
+    while start > 0 {
+        let prev_ch = chars[start - 1];
+        if !prev_ch.is_alphanumeric() && prev_ch != '_' {
+            break;
+        }
+        start -= 1;
+    }
+
+    // Find end of symbol
+    let mut end = col;
+    while end < chars.len() {
+        let curr_ch = chars[end];
+        if !curr_ch.is_alphanumeric() && curr_ch != '_' {
+            break;
+        }
+        end += 1;
+    }
+
+    if start < end {
+        Some((start, end))
+    } else {
+        None
+    }
+}
+
 /// ✅ LSP Integration: Canvas pixel → LSP position (line, column)
 fn canvas_pixel_to_lsp_position(
     renderer: &CanvasRenderer,
@@ -854,16 +897,23 @@ pub fn VirtualEditorPanel(
     let hover_info = RwSignal::new(Option::<HoverInfo>::None);
     let hover_pixel_position = RwSignal::new(Option::<(f64, f64)>::None);
 
+    // ✅ LSP Integration: Cmd+Hover symbol underline (line, start_col, end_col)
+    let hover_symbol_underline = RwSignal::new(Option::<(usize, usize, usize)>::None);
+
     // ✅ LSP Integration: Diagnostics state
     let diagnostics = RwSignal::new(Vec::<Diagnostic>::new());
 
-    // ✅ LSP Integration: LSP client
-    let lsp = RwSignal::new(LspIntegration::new());
-
-    // 🚀 PERFORMANCE: LSP task tracking to prevent zombie tasks
-    // Track LSP initialization ID - increment on each file open
-    // Old tasks check if they're still relevant before updating UI
-    let lsp_task_id = RwSignal::new(0u32);
+    // ✅ PERFORMANCE: Use global LSP from context (initialized once at startup)
+    let lsp = use_context::<RwSignal<LspIntegration>>()
+        .unwrap_or_else(|| {
+            leptos::logging::warn!("⚠️  Global LSP context not found, using new instance (this is a bug!)");
+            RwSignal::new(LspIntegration::new())
+        });
+    let lsp_initialized = use_context::<RwSignal<bool>>()
+        .unwrap_or_else(|| {
+            leptos::logging::warn!("⚠️  Global lsp_initialized context not found (this is a bug!)");
+            RwSignal::new(false)
+        });
 
     // ファイルが選択されたらタブを作成または切り替え
     Effect::new(move |_| {
@@ -901,82 +951,40 @@ pub fn VirtualEditorPanel(
                 active_tab_index.set(Some(new_index));
             }
 
-            // 🚀 PERFORMANCE: LSP task tracking to prevent zombie accumulation
-            // Increment task ID - old tasks will discard their results
+            // ✅ PERFORMANCE: Use global LSP (initialized once at startup)
+            // Only update file path, add to context, and request diagnostics
             untrack(move || {
-                let current_task_id = lsp_task_id.get_untracked() + 1;
-                lsp_task_id.set(current_task_id);
-
-                // ✅ LSP: Initialize LSP for the file and request diagnostics
                 let lsp_client = lsp.get_untracked();
+                let is_init = lsp_initialized.get_untracked();
 
-                spawn_local(async move {
-                    leptos::logging::log!("🔍 LSP: Initializing for file: {} (task ID: {})", path, current_task_id);
+                // Update LSP with the current file path
+                lsp_client.set_file_path(path.clone());
 
-                    // ✅ FIX: Extract workspace root and convert to proper file:// URI
-                    let root_uri = if let Some(parent) = std::path::Path::new(&path).parent() {
-                        let abs_path = if parent.is_absolute() {
-                            parent.to_string_lossy().to_string()
-                        } else {
-                            // Convert relative path to absolute
-                            std::env::current_dir()
-                                .ok()
-                                .and_then(|cwd| cwd.join(parent).canonicalize().ok())
-                                .map(|p| p.to_string_lossy().to_string())
-                                .unwrap_or_else(|| parent.to_string_lossy().to_string())
-                        };
-                        // Convert to file:// URI format (LSP standard)
-                        format!("file://{}", abs_path)
-                    } else {
-                        // Fallback to current directory
-                        std::env::current_dir()
-                            .ok()
-                            .map(|p| format!("file://{}", p.to_string_lossy()))
-                            .unwrap_or_else(|| "file://.".to_string())
-                    };
+                if is_init {
+                    leptos::logging::log!("📂 LSP: File opened: {}", path);
 
-                    leptos::logging::log!("🔍 LSP: Using root_uri: {}", root_uri);
+                    // Add file to LSP context and request diagnostics
+                    spawn_local(async move {
+                        // 1. Add file to berry_api context for LSP
+                        if let Err(e) = lsp_client.add_file_to_context(path.clone()).await {
+                            leptos::logging::log!("⚠️  LSP: Failed to add file to context: {:?}", e);
+                        }
 
-                    // 🚀 Check if this task is still relevant before expensive operation
-                    if lsp_task_id.get_untracked() != current_task_id {
-                        leptos::logging::log!("🚫 LSP: Task {} cancelled (tab switched)", current_task_id);
-                        return;
-                    }
-
-                    // Initialize LSP server
-                    match lsp_client.initialize(path.clone(), root_uri).await {
-                        Ok(_) => {
-                            // 🚀 Check again after async operation
-                            if lsp_task_id.get_untracked() != current_task_id {
-                                leptos::logging::log!("🚫 LSP: Task {} discarding init results (tab switched)", current_task_id);
-                                return;
+                        // 2. Request diagnostics for this file
+                        match lsp_client.request_diagnostics().await {
+                            Ok(diags) => {
+                                let count = diags.len();
+                                diagnostics.set(diags);
+                                leptos::logging::log!("✅ LSP: Diagnostics loaded: {} items for {}", count, path);
                             }
-
-                            leptos::logging::log!("✅ LSP: Initialized successfully (task ID: {})", current_task_id);
-
-                            // Request initial diagnostics
-                            match lsp_client.request_diagnostics().await {
-                                Ok(diags) => {
-                                    // 🚀 Final check before updating UI
-                                    if lsp_task_id.get_untracked() != current_task_id {
-                                        leptos::logging::log!("🚫 LSP: Task {} discarding diagnostics (tab switched)", current_task_id);
-                                        return;
-                                    }
-
-                                    let count = diags.len();
-                                    diagnostics.set(diags);
-                                    leptos::logging::log!("✅ LSP: Diagnostics loaded: {} items (task ID: {})", count, current_task_id);
-                                }
-                                Err(e) => {
-                                    leptos::logging::log!("❌ LSP: Diagnostics error: {:?}", e);
-                                }
+                            Err(e) => {
+                                leptos::logging::log!("❌ LSP: Diagnostics error: {:?}", e);
                             }
                         }
-                        Err(e) => {
-                            leptos::logging::log!("❌ LSP: Initialization error: {:?}", e);
-                        }
-                    }
-                });
+                    });
+                } else {
+                    leptos::logging::log!("⚠️  LSP: Not initialized, skipping diagnostics for {}", path);
+                }
 
                 render_trigger.set(0);
             });
@@ -1228,6 +1236,10 @@ pub fn VirtualEditorPanel(
 
         // ✅ LSP: Ctrl/Cmd + Space (Trigger Code Completion)
         if (ev.ctrl_key() || ev.meta_key()) && key.as_str() == " " {
+            ev.prevent_default(); // Prevent default space behavior
+
+            leptos::logging::log!("🎯 Ctrl/Cmd+Space pressed - requesting completions");
+
             let position = Position::new(tab.cursor_line, tab.cursor_col);
             let lsp_client = lsp.get_untracked();
 
@@ -1235,44 +1247,15 @@ pub fn VirtualEditorPanel(
                 leptos::logging::log!("🔍 LSP: Requesting completions at {:?}", position);
                 match lsp_client.request_completions(position).await {
                     Ok(items) if !items.is_empty() => {
-                        completion_items.set(items);
+                        completion_items.set(items.clone());
                         show_completion.set(true);
-                        leptos::logging::log!("✅ LSP: Completion widget shown");
+                        leptos::logging::log!("✅ LSP: Completion widget shown with {} items", items.len());
                     }
                     Ok(_) => {
                         leptos::logging::log!("⚠️ LSP: No completions available");
                     }
                     Err(e) => {
                         leptos::logging::log!("❌ LSP: Completion error: {:?}", e);
-                    }
-                }
-            });
-            return;
-        }
-
-        // ✅ LSP: Cmd+B (Goto Definition - same as IntelliJ/RustRover)
-        if (ev.ctrl_key() || ev.meta_key()) && key.as_str() == "b" {
-            let position = Position::new(tab.cursor_line, tab.cursor_col);
-            let lsp_client = lsp.get_untracked();
-
-            spawn_local(async move {
-                leptos::logging::log!("🔍 LSP: Goto definition at {:?}", position);
-                match lsp_client.goto_definition(position).await {
-                    Ok(def_position) => {
-                        // Jump to definition location
-                        tabs.update(|tabs_vec| {
-                            if let Some(active_idx) = active_tab_index.get_untracked() {
-                                if let Some(tab) = tabs_vec.get_mut(active_idx) {
-                                    tab.cursor_line = def_position.line;
-                                    tab.cursor_col = def_position.column;
-                                    leptos::logging::log!("✅ LSP: Jumped to {:?}", def_position);
-                                }
-                            }
-                        });
-                        render_trigger.update(|v| *v += 1);
-                    }
-                    Err(e) => {
-                        leptos::logging::log!("❌ LSP: Goto definition error: {:?}", e);
                     }
                 }
             });
@@ -1779,6 +1762,17 @@ pub fn VirtualEditorPanel(
                 if ev.meta_key() || ev.ctrl_key() {
                     leptos::logging::log!("🔍 Cmd/Ctrl+Click detected at line={}, col={}", line, col);
 
+                    // ✅ FIX: Check global LSP initialization status first
+                    let global_lsp_init = lsp_initialized.get();
+                    leptos::logging::log!("🔍 DEBUG: lsp_initialized={}", global_lsp_init);
+
+                    if !global_lsp_init {
+                        leptos::logging::log!("❌ LSP: Not initialized yet, please wait for project to load");
+                        return;
+                    }
+
+                    leptos::logging::log!("✅ LSP: Initialized, proceeding with goto_definition");
+
                     // Update cursor position first
                     tab.cursor_line = line;
                     tab.cursor_col = col.min(line_len);
@@ -1787,26 +1781,86 @@ pub fn VirtualEditorPanel(
 
                     // Call LSP goto_definition
                     let lsp_client = lsp.get_untracked();
+                    let current_file = tab.file_path.clone();
+
                     let position = Position::new(line, col);
 
                     spawn_local(async move {
-                        leptos::logging::log!("🔍 LSP: Goto definition at {:?}", position);
+                        leptos::logging::log!("🔍 LSP: Spawned async task, calling goto_definition at {:?}", position);
+                        leptos::logging::log!("🔍 LSP: About to call lsp_client.goto_definition()...");
+
                         match lsp_client.goto_definition(position).await {
                             Ok(location) => {
                                 leptos::logging::log!("✅ LSP: Definition found at {}:{}:{}", location.uri, location.line, location.column);
 
-                                // Jump to definition location
-                                tabs.update(|tabs_vec| {
-                                    if let Some(active_idx) = active_tab_index.get_untracked() {
-                                        if let Some(tab) = tabs_vec.get_mut(active_idx) {
-                                            tab.cursor_line = location.line;
-                                            tab.cursor_col = location.column;
-                                            tab.scroll_into_view(canvas.client_height() as f64);
-                                            leptos::logging::log!("✅ LSP: Jumped to {:?}", location);
+                                // Check if we need to open a different file
+                                if location.uri != current_file {
+                                    leptos::logging::log!("📂 LSP: Opening different file: {}", location.uri);
+
+                                    // Read the target file content
+                                    match crate::tauri_bindings::read_file(&location.uri).await {
+                                        Ok(content) => {
+                                            // Check if tab already exists
+                                            let existing_tab_index = tabs.with_untracked(|tabs_vec| {
+                                                tabs_vec.iter().position(|t| t.file_path == location.uri)
+                                            });
+
+                                            if let Some(existing_idx) = existing_tab_index {
+                                                // Switch to existing tab
+                                                leptos::logging::log!("🔍 LSP: Switching to existing tab at index: {}", existing_idx);
+                                                active_tab_index.set(Some(existing_idx));
+
+                                                // Update cursor position
+                                                tabs.update(|tabs_vec| {
+                                                    if let Some(tab) = tabs_vec.get_mut(existing_idx) {
+                                                        tab.cursor_line = location.line;
+                                                        tab.cursor_col = location.column;
+                                                        tab.scroll_into_view(canvas.client_height() as f64);
+                                                    }
+                                                });
+                                            } else {
+                                                // Create new tab
+                                                leptos::logging::log!("🔍 LSP: Creating new tab for: {}", location.uri);
+                                                let new_index = tabs.with_untracked(|tabs_vec| tabs_vec.len());
+
+                                                tabs.update(|tabs_vec| {
+                                                    let mut new_tab = EditorTab::new(location.uri.clone(), content);
+                                                    new_tab.cursor_line = location.line;
+                                                    new_tab.cursor_col = location.column;
+                                                    tabs_vec.push(new_tab);
+                                                });
+
+                                                active_tab_index.set(Some(new_index));
+
+                                                // Scroll to cursor after tab is created
+                                                tabs.update(|tabs_vec| {
+                                                    if let Some(tab) = tabs_vec.get_mut(new_index) {
+                                                        tab.scroll_into_view(canvas.client_height() as f64);
+                                                    }
+                                                });
+                                            }
+
+                                            render_trigger.update(|v| *v += 1);
+                                            leptos::logging::log!("✅ LSP: Jumped to {}:{}:{}", location.uri, location.line, location.column);
+                                        }
+                                        Err(e) => {
+                                            leptos::logging::error!("❌ LSP: Failed to read file {}: {}", location.uri, e);
                                         }
                                     }
-                                });
-                                render_trigger.update(|v| *v += 1);
+                                } else {
+                                    // Same file, just move cursor
+                                    tabs.update(|tabs_vec| {
+                                        if let Some(active_idx) = active_tab_index.get_untracked() {
+                                            if let Some(tab) = tabs_vec.get_mut(active_idx) {
+                                                tab.cursor_line = location.line;
+                                                tab.cursor_col = location.column;
+                                                tab.scroll_into_view(canvas.client_height() as f64);
+                                                leptos::logging::log!("✅ LSP: Jumped to same file at {}:{}", location.line, location.column);
+                                            }
+                                        }
+                                    });
+                                    render_trigger.update(|v| *v += 1);
+                                }
                             }
                             Err(e) => {
                                 leptos::logging::error!("❌ LSP: Goto definition failed: {}", e);
@@ -1864,6 +1918,39 @@ pub fn VirtualEditorPanel(
 
                 // 列位置を計算（measureText()を使って正確に）
                 let col = find_column_from_x_position(&renderer, &line_text, text_x);
+
+                // ✅ LSP: Cmd+Hover underline
+                // PERFORMANCE: Only update render_trigger when underline state changes
+                // This prevents unnecessary redraws when Cmd is pressed/released without movement
+                let is_cmd_pressed = ev.meta_key() || ev.ctrl_key();
+
+                if is_cmd_pressed && !is_dragging.get() {
+                    // Find symbol boundaries at cursor position
+                    let new_underline = find_symbol_at_position(&line_text, col)
+                        .map(|(start_col, end_col)| (line, start_col, end_col));
+
+                    // Only update if underline position/state changed
+                    let current_underline = hover_symbol_underline.get_untracked();
+                    if current_underline != new_underline {
+                        hover_symbol_underline.set(new_underline);
+                        render_trigger.update(|v| *v += 1);
+                    }
+                } else {
+                    // Clear underline when Cmd is released, but only if it was set
+                    // Use update() to check and clear atomically
+                    let was_set = hover_symbol_underline.try_update(|underline| {
+                        if underline.is_some() {
+                            *underline = None;
+                            true
+                        } else {
+                            false
+                        }
+                    }).unwrap_or(false);
+
+                    if was_set {
+                        render_trigger.update(|v| *v += 1);
+                    }
+                }
 
                 // ✅ LSP: Handle dragging vs hovering
                 if is_dragging.get() {
@@ -1959,6 +2046,9 @@ pub fn VirtualEditorPanel(
 
     // ダブルクリックで単語選択
     let on_dblclick = move |ev: leptos::ev::MouseEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+
         leptos::logging::log!("🖱️ DOUBLE CLICK EVENT FIRED");
 
         let Some(canvas) = canvas_ref.get() else {
@@ -2290,6 +2380,19 @@ pub fn VirtualEditorPanel(
                     &prev_line_text
                 );
 
+                // ✅ LSP: Cmd+Hover underline
+                if let Some((line, start_col, end_col)) = hover_symbol_underline.get() {
+                    if let Some(line_text) = tab.buffer.line(line) {
+                        renderer.draw_symbol_underline(
+                            line,
+                            start_col,
+                            end_col,
+                            tab.scroll_top,
+                            &line_text.trim_end_matches('\n')
+                        );
+                    }
+                }
+
                 // IME未確定文字列を描画（あれば）
                 if !composing.is_empty() {
                     // 全角文字を考慮してカーソル位置までの実際の幅を測定
@@ -2519,25 +2622,49 @@ pub fn VirtualEditorPanel(
                             leptos::logging::log!("⏸️  Not re-focusing (editor inactive or composing/dragging)");
                         }
                     }
-                    style=move || format!(
-                        "position: absolute; \
-                         left: {}px; \
-                         top: {}px; \
-                         width: 2px; \
-                         height: {}px; \
-                         opacity: 0; \
-                         z-index: 999; \
-                         color: transparent; \
-                         background: transparent; \
-                         border: none; \
-                         outline: none; \
-                         padding: 0; \
-                         margin: 0; \
-                         caret-color: transparent;",
-                        cursor_x.get(),
-                        cursor_y.get(),
-                        LINE_HEIGHT
-                    )
+                    style=move || {
+                        // ✅ During IME composition, position at cursor for IME candidate window
+                        // Otherwise, position off-screen to avoid capturing mouse events
+                        if is_composing.get() {
+                            format!(
+                                "position: absolute; \
+                                 left: {}px; \
+                                 top: {}px; \
+                                 width: 2px; \
+                                 height: {}px; \
+                                 opacity: 0; \
+                                 z-index: 999; \
+                                 color: transparent; \
+                                 background: transparent; \
+                                 border: none; \
+                                 outline: none; \
+                                 padding: 0; \
+                                 margin: 0; \
+                                 caret-color: transparent;",
+                                cursor_x.get(),
+                                cursor_y.get(),
+                                LINE_HEIGHT
+                            )
+                        } else {
+                            // Position off-screen so mouse clicks go to Canvas
+                            format!(
+                                "position: absolute; \
+                                 left: -9999px; \
+                                 top: -9999px; \
+                                 width: 1px; \
+                                 height: 1px; \
+                                 opacity: 0; \
+                                 z-index: -1; \
+                                 color: transparent; \
+                                 background: transparent; \
+                                 border: none; \
+                                 outline: none; \
+                                 padding: 0; \
+                                 margin: 0; \
+                                 caret-color: transparent;"
+                            )
+                        }
+                    }
                 />
 
                 // ✅ LSP: Completion Widget Overlay

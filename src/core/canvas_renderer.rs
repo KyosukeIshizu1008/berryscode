@@ -138,7 +138,7 @@ pub const COLOR_GUTTER_FG: &str = "#4B5059";   // Line numbers (pixel-perfect)
 pub const COLOR_LINE_HIGHLIGHT: &str = "#26282E"; // Current line (pixel-perfect)
 
 /// フォント設定
-pub const FONT_FAMILY: &str = "JetBrains Mono";
+pub const FONT_FAMILY: &str = "'JetBrains Mono', Monaco, Consolas, 'Courier New', monospace";
 pub const FONT_SIZE: f64 = 13.0;  // RustRover actual size (smaller and crisper)
 pub const LINE_HEIGHT: f64 = 20.0; // RustRover standard line height
 pub const LETTER_SPACING: f64 = 0.0; // No extra spacing for sharp rendering
@@ -267,9 +267,6 @@ impl CanvasRenderer {
         let window = web_sys::window().ok_or("no global window")?;
         let dpr = window.device_pixel_ratio();
 
-        #[cfg(debug_assertions)]
-        web_sys::console::log_1(&format!("🎨 CanvasRenderer: DPR = {}, applying transform", dpr).into());
-
         // ✅ setTransform() で描画コンテキストをスケール
         // これが「黄金の組み合わせ」の核心部分：
         // 1. Tailwind (CSS) が「表示サイズ」を制御 → 例: 1000px × 600px
@@ -284,19 +281,9 @@ impl CanvasRenderer {
 
         // フォント品質設定（DPR適用後に設定）
         // Weight 300 (Light) - RustRoverの見本に合わせた軽量なフォント
-        let font_string = format!("300 {}px '{}'", FONT_SIZE, FONT_FAMILY);
-
-        #[cfg(debug_assertions)]
-        web_sys::console::log_1(&format!("🎨 CanvasRenderer::new() - Setting font: {}", font_string).into());
+        let font_string = format!("300 {}px {}", FONT_SIZE, FONT_FAMILY);
 
         context.set_font(&font_string);
-
-        // ✅ 設定直後にフォントを読み取って確認
-        #[cfg(debug_assertions)]
-        {
-            let actual_font = context.font();
-            web_sys::console::log_1(&format!("🎨 CanvasRenderer::new() - Font after set_font(): {}", actual_font).into());
-        }
 
         // 高品質なテキストレンダリングを有効化
         context.set_image_smoothing_enabled(false); // Disable for sharper edges
@@ -487,11 +474,11 @@ impl CanvasRenderer {
             if is_active {
                 // 🚀 RustRover: アクティブ行も Light (300) で統一、シャープで美しく
                 self.context.set_fill_style(&"#A9B7C6".into());
-                let _ = self.context.set_font("300 12px 'JetBrains Mono'");
+                let _ = self.context.set_font("300 12px 'JetBrains Mono', Monaco, Consolas, monospace");
             } else {
                 // 🚀 RustRover: 非アクティブ行も Light (300)、半透明
                 self.context.set_fill_style(&"rgba(96, 103, 112, 0.5)".into());
-                let _ = self.context.set_font("300 11px 'JetBrains Mono'");
+                let _ = self.context.set_font("300 11px 'JetBrains Mono', Monaco, Consolas, monospace");
             }
 
             let _ = self.context.fill_text(
@@ -504,7 +491,7 @@ impl CanvasRenderer {
         self.context.set_text_align("left");
 
         // 🚀 RustRover: 行番号描画後、エディタのメインフォントに戻す
-        let _ = self.context.set_font(&format!("300 {}px '{}'", FONT_SIZE, FONT_FAMILY));
+        let _ = self.context.set_font(&format!("300 {}px {}", FONT_SIZE, FONT_FAMILY));
 
         // 🎨 最後に影を重ねて奥行きを出す
         self.draw_elevation_shadow(height);
@@ -588,7 +575,8 @@ impl CanvasRenderer {
     /// テキスト行を描画 (IntelliJ-style baseline and spacing)
     pub fn draw_line(&self, _line_num: usize, y_offset: f64, text: &str, color: &str) {
         // 🚀 RUSTROVER: 300(Light) を指定することで、暗い背景でも文字が太らずクッキリします
-        let _ = self.context.set_font("300 13px 'JetBrains Mono'");
+        // フォールバックチェーンを追加: JetBrains Mono → Monaco → Consolas → monospace
+        let _ = self.context.set_font("300 13px 'JetBrains Mono', Monaco, Consolas, monospace");
 
         // ✅ IntelliJ風: Gutterとテキストの間に明確なセパレータ空間を作る（20.0px）
         let x = (self.gutter_width + 20.0).round();
@@ -888,12 +876,7 @@ impl CanvasRenderer {
             // Safety: Ensure current_pos advanced to prevent infinite loop
             #[cfg(debug_assertions)]
             if current_pos == pos_before {
-                web_sys::console::error_1(&format!(
-                    "⚠️ INFINITE LOOP DETECTED in tokenize_rust at pos {} char '{}'",
-                    current_pos,
-                    chars.get(current_pos).unwrap_or(&'?')
-                ).into());
-                current_pos += 1; // Force advance
+                current_pos += 1; // Force advance to prevent infinite loop
             }
         }
 
@@ -952,6 +935,28 @@ impl CanvasRenderer {
         self.context.begin_path();
         self.context.move_to(x, y);
         self.context.line_to(x, y + self.line_height);
+        self.context.stroke();
+    }
+
+    /// Cmd+Hover: Draw underline under symbol for goto definition
+    pub fn draw_symbol_underline(&self, line: usize, start_col: usize, end_col: usize, scroll_top: f64, line_text: &str) {
+        let y = (line as f64 * self.line_height - scroll_top).round();
+
+        // Calculate start and end x positions
+        let text_before_start: String = line_text.chars().take(start_col).collect();
+        let text_before_end: String = line_text.chars().take(end_col).collect();
+
+        let start_x = (self.gutter_width + 20.0 + self.calculate_x_offset_from_text(&text_before_start, start_col)).round();
+        let end_x = (self.gutter_width + 20.0 + self.calculate_x_offset_from_text(&text_before_end, end_col)).round();
+
+        // Draw blue underline (IntelliJ style)
+        let underline_y = y + self.line_height - 2.0;
+
+        self.context.set_stroke_style(&"#4B6EAF".into()); // IntelliJ link color
+        self.context.set_line_width(1.0);
+        self.context.begin_path();
+        self.context.move_to(start_x, underline_y);
+        self.context.line_to(end_x, underline_y);
         self.context.stroke();
     }
 
@@ -1169,12 +1174,7 @@ impl CanvasRenderer {
             // Safety: Ensure current_pos advanced to prevent infinite loop
             #[cfg(debug_assertions)]
             if current_pos == pos_before {
-                web_sys::console::error_1(&format!(
-                    "⚠️ INFINITE LOOP DETECTED in tokenize_html at pos {} char '{}'",
-                    current_pos,
-                    chars.get(current_pos).unwrap_or(&'?')
-                ).into());
-                current_pos += 1; // Force advance
+                current_pos += 1; // Force advance to prevent infinite loop
             }
         }
 
@@ -1324,12 +1324,7 @@ impl CanvasRenderer {
             // Safety: Ensure current_pos advanced to prevent infinite loop
             #[cfg(debug_assertions)]
             if current_pos == pos_before {
-                web_sys::console::error_1(&format!(
-                    "⚠️ INFINITE LOOP DETECTED in tokenize_css at pos {} char '{}'",
-                    current_pos,
-                    chars.get(current_pos).unwrap_or(&'?')
-                ).into());
-                current_pos += 1; // Force advance
+                current_pos += 1; // Force advance to prevent infinite loop
             }
         }
 
@@ -1493,12 +1488,7 @@ impl CanvasRenderer {
             // Safety: Ensure current_pos advanced to prevent infinite loop
             #[cfg(debug_assertions)]
             if current_pos == pos_before {
-                web_sys::console::error_1(&format!(
-                    "⚠️ INFINITE LOOP DETECTED in tokenize_javascript at pos {} char '{}'",
-                    current_pos,
-                    chars.get(current_pos).unwrap_or(&'?')
-                ).into());
-                current_pos += 1; // Force advance
+                current_pos += 1; // Force advance to prevent infinite loop
             }
         }
 

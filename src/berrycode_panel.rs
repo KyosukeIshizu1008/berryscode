@@ -1,11 +1,162 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use leptos::html::Textarea;
+use leptos::html::{Textarea, Div};
 use crate::tauri_bindings_berrycode::*;
 use crate::focus_stack::{FocusStack, FocusLayer};
+use wasm_bindgen::JsCast;
 
 // Re-export for use in this module
 pub use crate::tauri_bindings_berrycode::{ChatSessionData, ChatMessage};
+
+/// Render diff lines with color coding (GitHub/VSCode style)
+fn render_diff_lines(code: String) -> Vec<AnyView> {
+    code.lines()
+        .filter(|line| !line.trim().is_empty()) // Skip empty lines
+        .map(|line| {
+            let trimmed = line.trim_start();
+            let (bg_color, text_color) = if trimmed.starts_with('+') && !trimmed.starts_with("+++") {
+                // Added line (but not +++ header) - bright green on dark green
+                ("#1f4d1f", "#a8f5a8")
+            } else if trimmed.starts_with('-') && !trimmed.starts_with("---") {
+                // Removed line (but not --- header) - bright red on dark red
+                ("#5a1f1f", "#ffa8a8")
+            } else if trimmed.starts_with("@@") {
+                // Hunk header - blue
+                ("#1a2a3d", "#89b4fa")
+            } else if trimmed.starts_with("---") || trimmed.starts_with("+++") {
+                // File headers - gray
+                ("#1a1a1a", "#9ca3af")
+            } else {
+                // Context line - dark background
+                ("#1e1e1e", "#d4d4d4")
+            };
+
+            let line_text = if line.is_empty() { " ".to_string() } else { line.to_string() };
+            let style_str = format!(
+                "background-color: {}; color: {}; font-family: 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 13px; line-height: 1.5; padding: 2px 12px; margin: 0;",
+                bg_color, text_color
+            );
+            view! {
+                <div style=style_str>
+                    {line_text}
+                </div>
+            }.into_any()
+        })
+        .collect()
+}
+
+/// Render text with bold markdown support
+fn render_text_with_markdown(text: String) -> AnyView {
+    let parts: Vec<&str> = text.split("**").collect();
+    let mut elements = Vec::new();
+
+    for (i, part) in parts.iter().enumerate() {
+        if i % 2 == 0 {
+            // Normal text
+            if !part.is_empty() {
+                elements.push(view! {
+                    <span>{part.to_string()}</span>
+                }.into_any());
+            }
+        } else {
+            // Bold text
+            elements.push(view! {
+                <strong style="color: #fff; font-weight: 600;">{part.to_string()}</strong>
+            }.into_any());
+        }
+    }
+
+    view! {
+        <div class="whitespace-pre-wrap" style="color: #cccccc; line-height: 1.6;">
+            {elements}
+        </div>
+    }.into_any()
+}
+
+/// Simple Markdown-like renderer for chat messages
+fn render_message_content(content: String) -> Vec<AnyView> {
+    let mut views = Vec::new();
+    let mut remaining = content.as_str();
+
+    leptos::logging::log!("📝 Rendering content: {}", &content[..content.len().min(100)]);
+
+    while !remaining.is_empty() {
+        // Check for code blocks (```...```)
+        if let Some(start_idx) = remaining.find("```") {
+            // Add text before code block with markdown support
+            if start_idx > 0 {
+                let text = remaining[..start_idx].to_string();
+                views.push(render_text_with_markdown(text));
+            }
+
+            // Find end of code block
+            let after_start = &remaining[start_idx + 3..];
+            if let Some(end_idx) = after_start.find("```") {
+                // Extract language hint (first line)
+                let code_content = &after_start[..end_idx];
+                let (lang, code) = if let Some(newline_idx) = code_content.find('\n') {
+                    (code_content[..newline_idx].trim().to_string(), code_content[newline_idx + 1..].to_string())
+                } else {
+                    (String::new(), code_content.to_string())
+                };
+
+                leptos::logging::log!("📦 Code block found - lang: '{}', has_diff_markers: {}",
+                    &lang,
+                    code.contains("---") && code.contains("+++"));
+
+                // Check if this is a diff block (check both lang tag and content)
+                let is_diff = lang.to_lowercase() == "diff"
+                    || (code.contains("---") && code.contains("+++") && code.contains("@@"));
+
+                views.push(view! {
+                    <div class="my-2">
+                        {if !lang.is_empty() && !is_diff {
+                            view! {
+                                <div class="text-xs px-3 py-1 rounded-t" style="background: #2d2d2d; color: #858585; font-family: monospace;">
+                                    {lang.clone()}
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <></> }.into_any()
+                        }}
+                        {if is_diff {
+                            // Render diff with colored lines
+                            let diff_lines = render_diff_lines(code.clone());
+                            view! {
+                                <div class="overflow-x-auto" style="background: #0d0d0d; border: 1px solid #3e3e3e; border-radius: 4px; padding: 0;">
+                                    {diff_lines}
+                                </div>
+                            }.into_any()
+                        } else {
+                            // Regular code block
+                            view! {
+                                <pre class="p-3 rounded overflow-x-auto" style="background: #1e1e1e; border: 1px solid #3e3e3e;">
+                                    <code class="text-sm" style="color: #d4d4d4; font-family: 'Monaco', 'Menlo', 'Consolas', monospace;">
+                                        {code}
+                                    </code>
+                                </pre>
+                            }.into_any()
+                        }}
+                    </div>
+                }.into_any());
+
+                remaining = &after_start[end_idx + 3..];
+            } else {
+                // No closing ```, treat as regular text with markdown
+                let text = remaining.to_string();
+                views.push(render_text_with_markdown(text));
+                break;
+            }
+        } else {
+            // No code blocks, add remaining text with markdown
+            let text = remaining.to_string();
+            views.push(render_text_with_markdown(text));
+            break;
+        }
+    }
+
+    views
+}
 
 #[component]
 pub fn BerryCodePanel(
@@ -30,19 +181,35 @@ pub fn BerryCodePanel(
     let is_connected = RwSignal::new(false);
     let connection_error = RwSignal::new(Option::<String>::None);
 
+    // Mode management: autonomous vs interactive
+    let autonomous_mode = RwSignal::new(true); // Default to autonomous (auto-continue)
+
     // Input element reference for focus
     let input_ref = NodeRef::<Textarea>::new();
+
+    // Chat messages area reference for auto-scroll
+    let chat_area_ref = NodeRef::<Div>::new();
+
+    // Helper function to scroll to bottom
+    let scroll_to_bottom = move || {
+        if let Some(element) = chat_area_ref.get() {
+            let element = element.unchecked_into::<web_sys::HtmlElement>();
+            element.set_scroll_top(element.scroll_height());
+        }
+    };
 
     // Initialize BerryCode session on mount
     create_effect(move |_| {
         let path = project_path.get();
-        leptos::logging::log!("🔧 Initializing BerryCode session for: {}", path);
+        let autonomous = autonomous_mode.get();
+        leptos::logging::log!("🔧 Initializing BerryCode session for: {} (autonomous: {})", path, autonomous);
         spawn_local(async move {
             // 1. Initialize BerryCode gRPC session
             match berrycode_init(
-                Some("gpt-4o".to_string()),
+                Some("qwen3-coder:30b".to_string()),  // プログラミング特化モデル
                 Some("code".to_string()),
-                Some(path.clone())
+                Some(path.clone()),
+                Some(autonomous)
             ).await {
                 Ok(msg) => {
                     leptos::logging::log!("✅ BerryCode initialized: {}", msg);
@@ -83,7 +250,11 @@ pub fn BerryCodePanel(
         });
     });
 
-    // Send message logic
+    // Signal to accumulate streaming response
+    let streaming_content = RwSignal::new(String::new());
+    let is_streaming = RwSignal::new(false);
+
+    // Send message logic with real-time streaming
     let do_send_message = move || {
         let message = user_input.get();
         if message.trim().is_empty() {
@@ -104,6 +275,9 @@ pub fn BerryCodePanel(
             });
         });
 
+        // Auto-scroll to bottom after adding message
+        request_animation_frame(move || scroll_to_bottom());
+
         // Save user message to database
         let chat_id_clone = chat_id.clone();
         let message_clone = message.clone();
@@ -120,41 +294,108 @@ pub fn BerryCodePanel(
 
         user_input.set(String::new());
         is_loading.set(true);
+        is_streaming.set(true);
+        streaming_content.set(String::new());
 
+        // Add placeholder for assistant message
+        chat_messages.update(|msgs| {
+            msgs.push(ChatMessage {
+                role: "assistant".to_string(),
+                content: String::new(),
+            });
+        });
+
+        // Setup event listeners for streaming
+        use wasm_bindgen::prelude::*;
+        use crate::tauri_bindings_berrycode::{listen_stream_chunk, listen_stream_end, listen_stream_error};
+
+        // Chunk handler - updates last message in real-time
+        let chunk_callback = Closure::wrap(Box::new(move |chunk: String| {
+            leptos::logging::log!("📡 Stream chunk: {}", chunk);
+            streaming_content.update(|content| content.push_str(&chunk));
+
+            // Update the last message (assistant) in place
+            chat_messages.update(|msgs| {
+                if let Some(last_msg) = msgs.last_mut() {
+                    if last_msg.role == "assistant" {
+                        last_msg.content = streaming_content.get();
+                    }
+                }
+            });
+
+            // Auto-scroll to bottom as content arrives
+            request_animation_frame(move || scroll_to_bottom());
+        }) as Box<dyn Fn(String)>);
+
+        // End handler - finalize and save
+        let end_callback = Closure::wrap(Box::new(move || {
+            leptos::logging::log!("✅ Stream completed");
+            is_loading.set(false);
+            is_streaming.set(false);
+
+            let final_content = streaming_content.get();
+            let save_chat_id = chat_id.clone();
+
+            // Save completed assistant message to database
+            spawn_local(async move {
+                match berrycode_save_message(save_chat_id, "assistant".to_string(), final_content).await {
+                    Ok(msg_id) => {
+                        leptos::logging::log!("✅ Saved assistant message (ID: {})", msg_id);
+                    }
+                    Err(e) => {
+                        leptos::logging::error!("❌ Failed to save assistant message: {}", e);
+                    }
+                }
+            });
+        }) as Box<dyn Fn()>);
+
+        // Error handler
+        let error_callback = Closure::wrap(Box::new(move |error: String| {
+            leptos::logging::error!("❌ Stream error: {}", error);
+            is_loading.set(false);
+            is_streaming.set(false);
+
+            chat_messages.update(|msgs| {
+                if let Some(last_msg) = msgs.last_mut() {
+                    if last_msg.role == "assistant" && last_msg.content.is_empty() {
+                        last_msg.content = format!("Error: {}", error);
+                    }
+                }
+            });
+
+            request_animation_frame(move || scroll_to_bottom());
+        }) as Box<dyn Fn(String)>);
+
+        // Register event listeners
+        let _ = listen_stream_chunk(&chunk_callback);
+        let _ = listen_stream_end(&end_callback);
+        let _ = listen_stream_error(&error_callback);
+
+        // Keep closures alive
+        chunk_callback.forget();
+        end_callback.forget();
+        error_callback.forget();
+
+        // Invoke berrycode_chat command (streams via events)
         spawn_local(async move {
             match berrycode_chat(message).await {
-                Ok(response) => {
-                    chat_messages.update(|msgs| {
-                        msgs.push(ChatMessage {
-                            role: "assistant".to_string(),
-                            content: response.clone(),
-                        });
-                    });
+                Ok(_) => {
+                    leptos::logging::log!("✅ Chat command invoked successfully");
+                }
+                Err(e) => {
+                    leptos::logging::error!("❌ Chat command failed: {}", e);
+                    is_loading.set(false);
+                    is_streaming.set(false);
 
-                    // Save AI response to database
-                    let save_chat_id = chat_id.clone();
-                    spawn_local(async move {
-                        match berrycode_save_message(save_chat_id, "assistant".to_string(), response).await {
-                            Ok(msg_id) => {
-                                leptos::logging::log!("✅ Saved assistant message (ID: {})", msg_id);
-                            }
-                            Err(e) => {
-                                leptos::logging::error!("❌ Failed to save assistant message: {}", e);
+                    chat_messages.update(|msgs| {
+                        if let Some(last_msg) = msgs.last_mut() {
+                            if last_msg.role == "assistant" && last_msg.content.is_empty() {
+                                last_msg.content = format!("Error: {}", e);
                             }
                         }
                     });
                 }
-                Err(e) => {
-                    leptos::logging::error!("❌ Chat error: {}", e);
-                    chat_messages.update(|msgs| {
-                        msgs.push(ChatMessage {
-                            role: "assistant".to_string(),
-                            content: format!("Error: {}", e),
-                        });
-                    });
-                }
             }
-            is_loading.set(false);
         });
     };
 
@@ -177,6 +418,46 @@ pub fn BerryCodePanel(
 
                 // 右側: アクションボタン
                 <div class="flex flex-row items-center gap-2">
+                    // Mode toggle button: Autonomous vs Interactive
+                    <button
+                        class="flex items-center gap-1 px-2 py-1 rounded hover:bg-berry-bg-tab-hover transition-colors"
+                        style=move || format!(
+                            "border: 1px solid #3e3e3e; background: {}; color: #cccccc; font-size: 11px;",
+                            if autonomous_mode.get() { "#2a5a2a" } else { "#5a2a2a" }
+                        )
+                        title=move || if autonomous_mode.get() {
+                            "自律型モード: AIが自動でタスクを完了します"
+                        } else {
+                            "対話型モード: ツール実行ごとに確認します"
+                        }
+                        on:click=move |_| {
+                            autonomous_mode.update(|v| *v = !*v);
+                            let new_mode = autonomous_mode.get();
+                            leptos::logging::log!("🔄 Mode switched to: {}", if new_mode { "Autonomous" } else { "Interactive" });
+
+                            // Re-initialize session with new mode
+                            let path = project_path.get();
+                            spawn_local(async move {
+                                match berrycode_init(
+                                    Some("qwen3-coder:30b".to_string()),
+                                    Some("code".to_string()),
+                                    Some(path.clone()),
+                                    Some(new_mode)
+                                ).await {
+                                    Ok(msg) => leptos::logging::log!("✅ Session reinitialized: {}", msg),
+                                    Err(e) => leptos::logging::error!("❌ Failed to reinitialize: {}", e),
+                                }
+                            });
+                        }
+                    >
+                        <i class=move || if autonomous_mode.get() {
+                            "codicon codicon-debug-start"
+                        } else {
+                            "codicon codicon-debug-step-over"
+                        } style="font-size: 13px;"></i>
+                        <span>{move || if autonomous_mode.get() { "自律型" } else { "対話型" }}</span>
+                    </button>
+
                     <button
                         class="flex items-center gap-1 px-2 py-1 rounded hover:bg-berry-bg-tab-hover transition-colors"
                         style="border: 1px solid #3e3e3e; background: transparent; color: #cccccc; font-size: 12px;"
@@ -234,7 +515,11 @@ pub fn BerryCodePanel(
             </div>
 
             // Chat messages area (Cursor風)
-            <div class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4" style="background: #1e1e1e;">
+            <div
+                node_ref=chat_area_ref
+                class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4"
+                style="background: #1e1e1e;"
+            >
                 // Connection error banner
                 {move || {
                     if let Some(error) = connection_error.get() {
@@ -272,7 +557,8 @@ pub fn BerryCodePanel(
                                 </div>
                             }.into_any()
                         } else {
-                            // AIメッセージ（背景なし、アイコン付き）
+                            // AIメッセージ（背景なし、アイコン付き、Markdown風）
+                            let content_views = render_message_content(msg.content.clone());
                             view! {
                                 <div class="flex flex-row gap-3">
                                     <div class="flex-shrink-0">
@@ -282,8 +568,8 @@ pub fn BerryCodePanel(
                                         <div class="text-xs font-semibold" style="color: #858585;">
                                             "AI Assistant"
                                         </div>
-                                        <div class="text-sm whitespace-pre-wrap" style="color: #cccccc; line-height: 1.6;">
-                                            {msg.content.clone()}
+                                        <div class="text-sm">
+                                            {content_views}
                                         </div>
                                         <div class="flex flex-row gap-2 mt-1">
                                             <button class="p-1 rounded hover:bg-berry-bg-tab-hover" style="background: transparent; border: none; color: #858585;">

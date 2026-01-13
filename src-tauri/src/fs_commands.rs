@@ -126,8 +126,18 @@ pub async fn read_file_chunk(path: String, offset: u64, length: usize) -> Result
 
 /// Write file contents
 #[tauri::command]
-pub async fn write_file(path: String, contents: String) -> Result<(), String> {
-    fs::write(&path, contents).map_err(|e| format!("Failed to write file: {}", e))
+pub async fn write_file(
+    path: String,
+    contents: String,
+) -> Result<(), String> {
+    fs::write(&path, &contents).map_err(|e| format!("Failed to write file: {}", e))?;
+
+    // TODO: Emit file changed event for file tree refresh
+    // Tauri 2.0 event system needs to be implemented differently
+    // app.emit("file-changed", &path)?;
+    eprintln!("[FS] File written: {}", path);
+
+    Ok(())
 }
 
 /// Read directory contents recursively
@@ -242,9 +252,19 @@ fn read_dir_recursive(path: &std::path::Path, max_depth: usize) -> Result<Vec<Fi
 
 /// Create a new file
 #[tauri::command]
-pub async fn create_file(path: String, contents: Option<String>) -> Result<(), String> {
+pub async fn create_file(
+    path: String,
+    contents: Option<String>,
+) -> Result<(), String> {
     let content = contents.unwrap_or_default();
-    fs::write(&path, content).map_err(|e| format!("Failed to create file: {}", e))
+    fs::write(&path, &content).map_err(|e| format!("Failed to create file: {}", e))?;
+
+    // TODO: Emit file changed event for file tree refresh
+    // Tauri 2.0 event system needs to be implemented differently
+    // app.emit("file-changed", &path)?;
+    eprintln!("[FS] File created: {}", path);
+
+    Ok(())
 }
 
 /// Delete a file or directory

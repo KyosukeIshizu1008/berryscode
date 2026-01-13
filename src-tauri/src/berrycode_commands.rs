@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{Emitter, State};
 use crate::app_database::{AppDatabase, ChatSessionData, ChatMessageData};
 
 // Include generated gRPC client code (only for native/Tauri, not WASM)
@@ -18,6 +18,8 @@ pub mod berry_api {
 
 #[cfg(not(target_arch = "wasm32"))]
 use berry_api::berry_code_cli_service_client::BerryCodeCliServiceClient;
+#[cfg(not(target_arch = "wasm32"))]
+use berry_api::berry_code_service_client::BerryCodeServiceClient;
 #[cfg(not(target_arch = "wasm32"))]
 use tonic::transport::Channel;
 
@@ -150,6 +152,7 @@ pub async fn berrycode_init(
     model: Option<String>,
     mode: Option<String>,
     project_root: Option<String>,
+    autonomous: Option<bool>,
     state: State<'_, BerryCodeState>,
     app_db: State<'_, Arc<AppDatabase>>,
 ) -> Result<String, String> {
@@ -179,30 +182,35 @@ pub async fn berrycode_init(
         .await
         .map_err(|e| format!("Failed to connect to BerryCode gRPC server: {}", e))?;
 
-    let mut client = BerryCodeCliServiceClient::new(channel);
+    let mut client = BerryCodeServiceClient::new(channel);
 
-    // Prepare request
-    let request = tonic::Request::new(berry_api::InitCliRequest {
-        project_root: root_path,
-        model,
-        dangerously_skip_permissions: Some(state.dangerously_skip_permissions),
+    // Prepare request (use StartSession for BerryCodeService instead of InitializeCLI)
+    let request = tonic::Request::new(berry_api::StartSessionRequest {
+        model: model.clone(),
+        mode: mode.clone(),
+        files: vec![], // Empty files list initially
+        project_path: Some(root_path.clone()),
+        git_enabled: Some(true),
+        api_key: None, // Will use environment variable
+        api_base: None, // Will use default
+        autonomous: autonomous, // Pass through the autonomous mode flag
     });
 
-    eprintln!("[BerryCode Init] Calling InitializeCLI gRPC method...");
+    eprintln!("[BerryCode Init] Calling StartSession gRPC method...");
 
-    // Call InitializeCLI
-    let response = client.initialize_cli(request)
+    // Call StartSession (for BerryCodeService, not CLI)
+    let response = client.start_session(request)
         .await
-        .map_err(|e| format!("gRPC InitializeCLI failed: {}", e))?
+        .map_err(|e| format!("gRPC StartSession failed: {}", e))?
         .into_inner();
 
-    if !response.success {
-        return Err(response.error.unwrap_or_else(|| "Unknown error".to_string()));
-    }
+    eprintln!("[BerryCode Init] Session started: {}", response.session_id);
 
     // Store session ID in memory
     *state.session_id.lock()
         .map_err(|e| format!("Failed to lock session_id: {}", e))? = Some(response.session_id.clone());
+
+    eprintln!("[BerryCode Init] ✅ Session ID stored in state: {}", response.session_id);
 
     // Store session in database (for foreign key constraint)
     app_db.create_session(&response.session_id, &root_path_buf)
@@ -219,6 +227,7 @@ pub async fn berrycode_init(
     _model: Option<String>,
     _mode: Option<String>,
     _project_root: Option<String>,
+    _autonomous: Option<bool>,
     _state: State<'_, BerryCodeState>,
     _app_db: State<'_, Arc<AppDatabase>>,
 ) -> Result<String, String> {
@@ -226,78 +235,89 @@ pub async fn berrycode_init(
 }
 
 /// Send a chat message to the AI via gRPC streaming (Native only)
+/// Streams chunks in real-time via Tauri events
 #[cfg(not(target_arch = "wasm32"))]
 #[tauri::command]
 pub async fn berrycode_chat(
     message: String,
     state: State<'_, BerryCodeState>,
-) -> Result<String, String> {
+    window: tauri::Window,
+) -> Result<(), String> {
     use futures_util::StreamExt;
 
     eprintln!("[BerryCode Chat] Sending message: {}", message);
 
     // Get session ID
-    let session_id = state.session_id.lock()
-        .map_err(|e| format!("Failed to lock session_id: {}", e))?
-        .clone()
-        .ok_or_else(|| "No active BerryCode session. Call berrycode_init first.".to_string())?;
+    let session_id = {
+        let locked = state.session_id.lock()
+            .map_err(|e| format!("Failed to lock session_id: {}", e))?;
+        eprintln!("[BerryCode Chat] Locked state, session_id = {:?}", *locked);
+        locked.clone()
+            .ok_or_else(|| {
+                eprintln!("[BerryCode Chat] ❌ No session ID in state!");
+                "No active BerryCode session. Call berrycode_init first.".to_string()
+            })?
+    };
 
-    eprintln!("[BerryCode Chat] Using session: {}", session_id);
+    eprintln!("[BerryCode Chat] ✅ Using session: {}", session_id);
 
-    // Connect to gRPC server (use localhost which resolves to both IPv4 and IPv6)
+    // Connect to gRPC server
     let channel = Channel::from_static("http://localhost:50051")
         .connect()
         .await
         .map_err(|e| format!("Failed to connect to BerryCode gRPC server: {}", e))?;
 
-    let mut client = BerryCodeCliServiceClient::new(channel);
+    let mut client = BerryCodeServiceClient::new(channel);
 
-    // Prepare request
-    let request = tonic::Request::new(berry_api::ExecuteCommandRequest {
+    // Prepare ChatRequest
+    let request = tonic::Request::new(berry_api::ChatRequest {
         session_id,
-        command: message.clone(),
-        args: vec![],
+        message: message.clone(),
+        stream: Some(true),
     });
 
-    eprintln!("[BerryCode Chat] Calling ExecuteCommand gRPC method...");
+    eprintln!("[BerryCode Chat] Calling Chat gRPC method...");
 
-    // Call ExecuteCommand (streaming response)
-    let mut stream = client.execute_command(request)
+    // Call Chat (streaming response)
+    let mut stream = client.chat(request)
         .await
-        .map_err(|e| format!("gRPC ExecuteCommand failed: {}", e))?
+        .map_err(|e| format!("gRPC Chat failed: {}", e))?
         .into_inner();
 
-    // Collect streaming responses
-    let mut output_buffer = String::new();
+    // Stream chunks in real-time via Tauri events
     while let Some(result) = stream.next().await {
         match result {
-            Ok(command_output) => {
-                if !command_output.output.is_empty() {
-                    output_buffer.push_str(&command_output.output);
-                    eprintln!("[BerryCode Chat] Stream output: {}", command_output.output);
+            Ok(chat_chunk) => {
+                if !chat_chunk.content.is_empty() {
+                    eprintln!("[BerryCode Chat] Stream chunk: {}", chat_chunk.content);
+
+                    // Emit chunk to frontend
+                    window.emit("berrycode-stream-chunk", &chat_chunk.content)
+                        .map_err(|e| format!("Failed to emit event: {}", e))?;
                 }
 
-                if command_output.is_final {
+                if chat_chunk.is_final {
                     eprintln!("[BerryCode Chat] ✅ Stream completed");
-                    break;
-                }
 
-                if command_output.is_error {
-                    eprintln!("[BerryCode Chat] ⚠️ Error in output");
+                    // Emit completion event
+                    window.emit("berrycode-stream-end", ())
+                        .map_err(|e| format!("Failed to emit end event: {}", e))?;
+                    break;
                 }
             }
             Err(e) => {
                 eprintln!("[BerryCode Chat] ❌ Stream error: {}", e);
+
+                // Emit error event
+                window.emit("berrycode-stream-error", format!("Stream error: {}", e))
+                    .map_err(|e2| format!("Failed to emit error event: {}", e2))?;
+
                 return Err(format!("Stream error: {}", e));
             }
         }
     }
 
-    if output_buffer.is_empty() {
-        output_buffer = format!("No output received for message: \"{}\"", message);
-    }
-
-    Ok(output_buffer)
+    Ok(())
 }
 
 /// Send a chat message to the AI (WASM stub - not supported)

@@ -7,10 +7,17 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-leptos = { version = "0.7", features = ["csr"] }
+# ===== Dioxus UI Framework =====
+dioxus = { version = "0.5", features = ["web"] }
+dioxus-web = "0.5"
+
+# ===== WASM Bindings (still needed for WebView) =====
 console_error_panic_hook = "0.1"
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
+
+# ===== Web APIs (for Canvas and DOM) =====
 web-sys = { version = "0.3", features = [
     "Window",
     "Document",
@@ -18,38 +25,27 @@ web-sys = { version = "0.3", features = [
     "HtmlElement",
     "HtmlInputElement",
     "HtmlDivElement",
-    # ❌ "HtmlTextAreaElement" removed - using ContentEditable div instead
-    "InputEvent",  # ✅ Added for on:beforeinput
+    "InputEvent",
     "Event",
     "KeyboardEvent",
-    "KeyboardEventInit",  # ✅ Added for creating keyboard events in tests
+    "KeyboardEventInit",
     "MouseEvent",
     "WheelEvent",
     "CompositionEvent",
-    "Node",  # ✅ Added for DOM manipulation
-    "NodeList",  # ✅ Added for child_nodes()
+    "Node",
+    "NodeList",
     "ResizeObserver",
     "ResizeObserverEntry",
     "DomRect",
-    "CanvasRenderingContext2d",  # ✅ Canvas API
+    "CanvasRenderingContext2d",  # Canvas API
     "HtmlCanvasElement",
-    "TextMetrics",  # ✅ Canvas text measurement
+    "TextMetrics",
     "CssStyleDeclaration",
     "EventTarget",
     "Navigator",
     "Clipboard",
     "Storage",
-    "Worker",
-    "MessageEvent",
-    "GpuDevice",
-    "GpuQueue",
-    "GpuRenderPipeline",
-    "GpuBuffer",
-    "GpuTexture",
-    "GpuTextureView",
-    "GpuCommandEncoder",
 ] }
-wasm-bindgen-futures = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde-wasm-bindgen = "0.6"

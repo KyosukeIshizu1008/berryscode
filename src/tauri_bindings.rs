@@ -643,3 +643,43 @@ pub async fn read_file_auto(file_path: &str) -> Result<String, String> {
 pub async fn read_file_auto(_file_path: &str) -> Result<String, String> {
     Err("read_file_auto only available in WASM context".to_string())
 }
+
+/// Listen for file change events from Tauri backend
+#[cfg(target_arch = "wasm32")]
+pub async fn listen_file_changed<F>(mut callback: F) -> Result<(), String>
+where
+    F: FnMut(String) + 'static,
+{
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "event"], catch)]
+        async fn listen(event: &str, handler: &js_sys::Function) -> Result<JsValue, JsValue>;
+    }
+
+    let closure = Closure::wrap(Box::new(move |event: JsValue| {
+        // Extract payload from event object
+        if let Ok(event_obj) = event.dyn_into::<js_sys::Object>() {
+            if let Some(payload) = js_sys::Reflect::get(&event_obj, &"payload".into()).ok() {
+                if let Some(path) = payload.as_string() {
+                    callback(path);
+                }
+            }
+        }
+    }) as Box<dyn FnMut(JsValue)>);
+
+    let _ = listen("file-changed", closure.as_ref().unchecked_ref())
+        .await
+        .map_err(|e| format!("Failed to listen for file-changed event: {:?}", e))?;
+
+    closure.forget(); // Keep closure alive
+
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn listen_file_changed<F>(_callback: F) -> Result<(), String>
+where
+    F: FnMut(String) + 'static,
+{
+    Err("listen_file_changed only available in WASM context".to_string())
+}

@@ -7,6 +7,7 @@ mod database; // ✅ Database Tools: Connection management
 mod fs_commands;
 mod git_core; // ✅ Unified Git operations
 mod git;
+mod grpc_client; // ✅ gRPC client for berry_api integration
 mod lsp_core; // ✅ Unified LSP operations
 mod hyper_search;
 mod indexer; // ✅ IntelliJ Pro: Background symbol indexing
@@ -31,7 +32,7 @@ use tauri::Manager;
 
 fn main() {
     // Create LSP manager
-    let lsp_manager = Arc::new(Mutex::new(LspManager::new()));
+    let lsp_manager = Arc::new(LspManager::new());
 
     // Create Git manager
     let git_manager = GitManager::new();
@@ -68,6 +69,7 @@ fn main() {
             lsp::commands::lsp_get_diagnostics,
             lsp::commands::lsp_find_references,
             lsp::commands::lsp_shutdown,
+            lsp::commands::lsp_add_file_to_context,
             git::commands::git_set_repo_path,
             git::commands::git_status,
             git::commands::git_list_branches,

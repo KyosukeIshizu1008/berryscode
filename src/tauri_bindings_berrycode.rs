@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -107,6 +108,7 @@ pub async fn berrycode_init(
     model: Option<String>,
     mode: Option<String>,
     project_root: Option<String>,
+    autonomous: Option<bool>,
 ) -> Result<String, String> {
     #[wasm_bindgen]
     extern "C" {
@@ -118,6 +120,7 @@ pub async fn berrycode_init(
         "model": model,
         "mode": mode,
         "projectRoot": project_root,
+        "autonomous": autonomous,
     }))
     .map_err(|e| format!("Serialization error: {}", e))?;
 
@@ -127,8 +130,8 @@ pub async fn berrycode_init(
         .map_err(|e| format!("Deserialization error: {}", e))
 }
 
-/// Send chat message
-pub async fn berrycode_chat(message: String) -> Result<String, String> {
+/// Send chat message (streams chunks via Tauri events: berrycode-stream-chunk, berrycode-stream-end, berrycode-stream-error)
+pub async fn berrycode_chat(message: String) -> Result<(), String> {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
@@ -392,4 +395,38 @@ pub async fn berrycode_update_chat_title(chat_session_id: String, title: String)
 
     serde_wasm_bindgen::from_value(result)
         .map_err(|e| format!("Deserialization error: {}", e))
+}
+
+// Event listener bindings for streaming
+#[wasm_bindgen(inline_js = r#"
+export function listen_berrycode_stream_chunk(callback) {
+    const listen = window.__TAURI__.event.listen;
+    return listen('berrycode-stream-chunk', (event) => {
+        callback(event.payload);
+    });
+}
+
+export function listen_berrycode_stream_end(callback) {
+    const listen = window.__TAURI__.event.listen;
+    return listen('berrycode-stream-end', () => {
+        callback();
+    });
+}
+
+export function listen_berrycode_stream_error(callback) {
+    const listen = window.__TAURI__.event.listen;
+    return listen('berrycode-stream-error', (event) => {
+        callback(event.payload);
+    });
+}
+"#)]
+extern "C" {
+    #[wasm_bindgen(js_name = "listen_berrycode_stream_chunk")]
+    pub fn listen_stream_chunk(callback: &Closure<dyn Fn(String)>) -> js_sys::Promise;
+
+    #[wasm_bindgen(js_name = "listen_berrycode_stream_end")]
+    pub fn listen_stream_end(callback: &Closure<dyn Fn()>) -> js_sys::Promise;
+
+    #[wasm_bindgen(js_name = "listen_berrycode_stream_error")]
+    pub fn listen_stream_error(callback: &Closure<dyn Fn(String)>) -> js_sys::Promise;
 }

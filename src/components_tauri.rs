@@ -11,7 +11,7 @@ use crate::berrycode_panel::BerryCodePanel;
 use crate::settings::EditorSettings;
 use crate::tauri_bindings;
 use crate::common::icons::*;
-use leptos::prelude::*;
+use dioxus::prelude::*;
 
 /// Active panel in the sidebar
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -51,17 +51,17 @@ const BOTTOM_PANELS: &[SidebarPanel] = &[
 
 /// Status Bar component with branding
 #[component]
-pub fn StatusBar() -> impl IntoView {
-    view! {
-        <div class="berry-editor-status-bar">
-            <div class="berry-editor-status-left">
-                <span class="title">"BerryEditor"</span>
-                <span class="subtitle">"100% Rust"</span>
-            </div>
-            <div class="berry-editor-status-right">
-                <span>"WASM"</span>
-            </div>
-        </div>
+pub fn StatusBar() -> Element {
+    rsx! {
+        div { class: "berry-editor-status-bar",
+            div { class: "berry-editor-status-left",
+                span { class: "title", "BerryEditor" }
+                span { class: "subtitle", "100% Rust" }
+            }
+            div { class: "berry-editor-status-right",
+                span { "Dioxus + Native" }
+            }
+        }
     }
 }
 
@@ -95,21 +95,95 @@ pub fn EditorAppTauri() -> impl IntoView {
     // In test environment, get_current_dir() will return "." due to is_tauri_context() check
     let root_path = RwSignal::new(String::new());
 
+    // ✅ PERFORMANCE: Global LSP Manager - initialize once at startup
+    let global_lsp = RwSignal::new(crate::lsp_ui::LspIntegration::new());
+    let lsp_initialized = RwSignal::new(false);
+
     // Load current directory on mount
+    leptos::logging::log!("🔍 Setting up project root detection...");
     Effect::new(move |_| {
+        leptos::logging::log!("🔍 Effect triggered for project root detection");
         leptos::task::spawn_local(async move {
+            leptos::logging::log!("🔍 Calling get_current_dir()...");
             match tauri_bindings::get_current_dir().await {
                 Ok(path) => {
+                    leptos::logging::log!("📁 Project root detected: {}", path);
                     root_path.set(path);
                 }
                 Err(_e) => {
                     // Fallback to current working directory
-                    leptos::logging::warn!("Failed to get current directory: {}", _e);
+                    leptos::logging::warn!("⚠️  Failed to get current directory: {}, using fallback", _e);
                     root_path.set(".".to_string());
                 }
             }
         });
     });
+
+    // ✅ PERFORMANCE: Initialize LSP once when project root is available
+    // ✅ FIX: Use get_untracked() for lsp_initialized to avoid creating a reactive dependency
+    // that would cause the Effect to re-run when we set it to true
+    leptos::logging::log!("🔍 Setting up LSP initialization Effect...");
+    Effect::new(move |_| {
+        leptos::logging::log!("🔍 LSP Effect triggered");
+        let project_root = root_path.get(); // Track root_path changes
+        let is_initialized = lsp_initialized.get_untracked(); // Don't track, just check current value
+
+        leptos::logging::log!("🔍 LSP Effect: project_root={}, is_initialized={}",
+            if project_root.is_empty() { "(empty)" } else { &project_root },
+            is_initialized);
+
+        if project_root.is_empty() {
+            leptos::logging::log!("⏸️  LSP: Waiting for project root...");
+            return; // Skip if no project
+        }
+
+        if is_initialized {
+            leptos::logging::log!("⏸️  LSP: Already initialized, skipping");
+            return; // Already initialized
+        }
+
+        leptos::logging::log!("🚀 Global LSP: Initializing for project: {}", project_root);
+
+        // ✅ FIX: Capture signals before async closure
+        let lsp_init_signal = lsp_initialized;
+        let lsp_client = global_lsp;
+
+        leptos::task::spawn_local(async move {
+            // Detect language from project structure (default to rust for berrycode)
+            let language = "rust".to_string();
+
+            // Convert project root to file:// URI
+            let root_uri = if project_root.starts_with("file://") {
+                project_root.clone()
+            } else {
+                format!("file://{}", project_root)
+            };
+
+            leptos::logging::log!("🔍 Calling lsp_client.initialize()...");
+            leptos::logging::log!("🔍 Parameters: project_root={}, root_uri={}", project_root, root_uri);
+
+            match lsp_client.get_untracked().initialize(project_root.clone(), root_uri).await {
+                Ok(_) => {
+                    leptos::logging::log!("🔍 lsp.initialize() succeeded, setting lsp_initialized=true");
+                    lsp_init_signal.set(true);
+                    leptos::logging::log!("✅ Global LSP: Initialized successfully for {}, lsp_initialized={}", language, lsp_init_signal.get_untracked());
+                }
+                Err(e) => {
+                    leptos::logging::error!("❌ Global LSP: Initialization failed: {}", e);
+                    leptos::logging::error!("❌ This means either:");
+                    leptos::logging::error!("   1. berry_api server is not running (check: ps aux | grep berry-api-server)");
+                    leptos::logging::error!("   2. berry_api failed to start rust-analyzer");
+                    leptos::logging::error!("   3. rust-analyzer initialization timed out (>30 seconds)");
+                    // Don't set initialized flag - allow retries
+                    lsp_init_signal.set(false);
+                }
+            }
+        });
+    });
+
+    // ✅ Provide global LSP context for child components
+    provide_context(global_lsp);
+    provide_context(lsp_initialized);
 
     // Apply theme on mount
     Effect::new(move |_| {

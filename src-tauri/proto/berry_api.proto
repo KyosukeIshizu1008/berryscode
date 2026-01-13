@@ -2,11 +2,777 @@ syntax = "proto3";
 
 package berry_api;
 
-// === CLI Session Management ===
-service BerryCodeCLIService {
-  rpc InitializeCLI(InitCLIRequest) returns (InitCLIResponse);
-  rpc ExecuteCommand(ExecuteCommandRequest) returns (stream CommandOutput);
+option go_package = "github.com/berry-api/gen/berry;berry";
+
+import "google/api/annotations.proto";
+
+// ===============================================
+// BerryCode CLI Integration Service
+// ===============================================
+
+service BerryCodeService {
+  // Start a new AI conversation session
+  rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
+
+  // Send a message to the AI and get streaming response
+  rpc Chat(ChatRequest) returns (stream ChatChunk);
+
+  // Edit files using AI
+  rpc EditFiles(EditFilesRequest) returns (stream EditProgress);
+
+  // Generate code from description
+  rpc GenerateCode(GenerateCodeRequest) returns (stream CodeGenerationChunk);
+
+  // Perform git operations
+  rpc GitOperation(GitOperationRequest) returns (GitOperationResponse);
+
+  // List available AI models
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+
+  // Get session status and history
+  rpc GetSessionInfo(SessionInfoRequest) returns (SessionInfoResponse);
+
+  // Close a session
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
 }
+
+// ===============================================
+// BerryCode CLI Extended Service
+// ===============================================
+// Complete CLI functionality including LSP, Git, and file system operations
+
+service BerryCodeCLIService {
+  // === CLI Session Management ===
+  rpc InitializeCLI(InitCLIRequest) returns (InitCLIResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/init"
+      body: "*"
+    };
+  }
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (stream CommandOutput) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/execute"
+      body: "*"
+    };
+  }
+  rpc GetCommandHistory(CommandHistoryRequest) returns (CommandHistoryResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/history"
+    };
+  }
+  rpc ClearCommandHistory(ClearHistoryRequest) returns (ClearHistoryResponse) {
+    option (google.api.http) = {
+      delete: "/v1/cli/sessions/{session_id}/history"
+    };
+  }
+
+  // === File Context Management ===
+  rpc AddFileToContext(AddFileRequest) returns (AddFileResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/context/files"
+      body: "*"
+    };
+  }
+  rpc DropFileFromContext(DropFileRequest) returns (DropFileResponse) {
+    option (google.api.http) = {
+      delete: "/v1/cli/sessions/{session_id}/context/files/{file_path}"
+    };
+  }
+  rpc ListContextFiles(ListFilesRequest) returns (ListFilesResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/context/files"
+    };
+  }
+  rpc GetFileContent(GetFileRequest) returns (GetFileResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/files/{file_path}"
+    };
+  }
+
+  // === LSP Integration ===
+  rpc InitializeLSP(InitLSPRequest) returns (InitLSPResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/lsp/init"
+      body: "*"
+    };
+  }
+  rpc GetCompletions(CompletionsRequest) returns (CompletionsResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/lsp/completions"
+      body: "*"
+    };
+  }
+  rpc GetHover(HoverRequest) returns (HoverResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/lsp/hover"
+      body: "*"
+    };
+  }
+  rpc GotoDefinitionCLI(GotoDefRequest) returns (GotoDefResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/lsp/definition"
+      body: "*"
+    };
+  }
+  rpc FindReferencesCLI(FindRefsRequest) returns (FindRefsResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/lsp/references"
+      body: "*"
+    };
+  }
+  rpc GetDiagnosticsCLI(DiagnosticsReq) returns (DiagnosticsResp) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/lsp/diagnostics"
+    };
+  }
+  rpc ShutdownLSP(ShutdownLSPRequest) returns (ShutdownLSPResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/lsp/shutdown"
+      body: "*"
+    };
+  }
+
+  // === Git Operations ===
+  rpc GitStatus(GitStatusRequest) returns (GitStatusResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/git/status"
+    };
+  }
+  rpc GitCommit(GitCommitRequest) returns (GitCommitResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/git/commit"
+      body: "*"
+    };
+  }
+  rpc GitDiff(GitDiffRequest) returns (GitDiffResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/git/diff"
+    };
+  }
+  rpc GitUndo(GitUndoRequest) returns (GitUndoResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/git/undo"
+      body: "*"
+    };
+  }
+  rpc GitLog(GitLogRequest) returns (GitLogResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/git/log"
+    };
+  }
+
+  // === File System Operations ===
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/fs/files/{file_path}"
+    };
+  }
+  rpc WriteFile(WriteFileRequest) returns (WriteFileResponse) {
+    option (google.api.http) = {
+      put: "/v1/cli/sessions/{session_id}/fs/files/{file_path}"
+      body: "*"
+    };
+  }
+  rpc CreateFile(CreateFileRequest) returns (CreateFileResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/fs/files"
+      body: "*"
+    };
+  }
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse) {
+    option (google.api.http) = {
+      delete: "/v1/cli/sessions/{session_id}/fs/files/{file_path}"
+    };
+  }
+  rpc ListDirectory(ListDirRequest) returns (ListDirResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/fs/directories/{directory_path}"
+    };
+  }
+  rpc RenameFile(RenameFileRequest) returns (RenameFileResponse) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/fs/files:rename"
+      body: "*"
+    };
+  }
+
+  // === Cargo/Build Operations ===
+  rpc CargoCheck(CargoCheckRequest) returns (stream CargoCheckOutput) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/cargo/check"
+      body: "*"
+    };
+  }
+  rpc CargoTest(CargoTestRequest) returns (stream CargoTestOutput) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/cargo/test"
+      body: "*"
+    };
+  }
+  rpc CargoBuild(CargoBuildRequest) returns (stream CargoBuildOutput) {
+    option (google.api.http) = {
+      post: "/v1/cli/sessions/{session_id}/cargo/build"
+      body: "*"
+    };
+  }
+
+  // === Model Management ===
+  rpc SetModel(SetModelRequest) returns (SetModelResponse) {
+    option (google.api.http) = {
+      put: "/v1/cli/sessions/{session_id}/model"
+      body: "*"
+    };
+  }
+  rpc ListAvailableModels(ListModelsReq) returns (ListModelsResp) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/models"
+    };
+  }
+
+  // === Project Context ===
+  rpc GetProjectContext(ProjectContextRequest) returns (ProjectContextResponse) {
+    option (google.api.http) = {
+      get: "/v1/cli/sessions/{session_id}/project"
+    };
+  }
+}
+
+// Session Management
+message StartSessionRequest {
+  optional string model = 1;          // AI model to use (e.g., "deepseek-chat", "gpt-4")
+  optional string mode = 2;           // Mode: "code", "architect", "ask"
+  repeated string files = 3;          // Files to include in session
+  optional string project_path = 4;   // Project root path
+  optional bool git_enabled = 5;      // Enable git integration
+  optional string api_key = 6;        // API key for the model
+  optional string api_base = 7;       // Custom API base URL
+  optional bool autonomous = 8;       // true = auto-continue with tools, false = stop after each tool execution
+}
+
+message StartSessionResponse {
+  string session_id = 1;
+  string model = 2;
+  string mode = 3;
+  repeated string files = 4;
+  optional string git_root = 5;
+}
+
+// Chat
+message ChatRequest {
+  string session_id = 1;
+  string message = 2;
+  optional bool stream = 3;           // Enable streaming response
+}
+
+message ChatChunk {
+  string content = 1;
+  bool is_final = 2;
+  optional string thinking = 3;       // Reasoning/thinking content
+  optional ChatMetadata metadata = 4;
+}
+
+message ChatMetadata {
+  uint32 tokens_used = 1;
+  string model = 2;
+  optional string finish_reason = 3;
+}
+
+// File Editing
+message EditFilesRequest {
+  string session_id = 1;
+  repeated string files = 2;
+  string instruction = 3;
+  optional string edit_format = 4;    // "whole", "diff", "editor-diff"
+  optional bool auto_commit = 5;
+}
+
+message EditProgress {
+  string file_path = 1;
+  string status = 2;                  // "analyzing", "editing", "completed", "failed"
+  optional string diff = 3;
+  optional string error = 4;
+  uint32 progress_percent = 5;
+  bool completed = 6;
+}
+
+// Code Generation
+message GenerateCodeRequest {
+  string session_id = 1;
+  string description = 2;
+  optional string language = 3;
+  optional string file_path = 4;      // Target file path
+  repeated string context_files = 5;  // Related files for context
+}
+
+message CodeGenerationChunk {
+  string code = 1;
+  bool is_final = 2;
+  optional string explanation = 3;
+}
+
+// Git Operations
+message GitOperationRequest {
+  string session_id = 1;
+  string operation = 2;               // "commit", "status", "diff", "log"
+  optional string commit_message = 3;
+  repeated string files = 4;
+}
+
+message GitOperationResponse {
+  bool success = 1;
+  string output = 2;
+  optional string error = 3;
+}
+
+// Model Listing
+message ListModelsRequest {
+  optional string filter = 1;         // Filter models by name
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}
+
+message ModelInfo {
+  string name = 1;
+  string provider = 2;                // "openai", "anthropic", "deepseek"
+  optional string description = 3;
+  optional uint32 context_window = 4;
+  optional float cost_per_1k_tokens = 5;
+}
+
+// Session Info
+message SessionInfoRequest {
+  string session_id = 1;
+}
+
+message SessionInfoResponse {
+  string session_id = 1;
+  string model = 2;
+  string mode = 3;
+  repeated string files = 4;
+  repeated ChatMessage history = 5;
+  uint32 total_tokens_used = 6;
+  string created_at = 7;
+}
+
+message ChatMessage {
+  string role = 1;                    // "user", "assistant", "system"
+  string content = 2;
+  string timestamp = 3;
+}
+
+// Session Closure
+message CloseSessionRequest {
+  string session_id = 1;
+  optional bool save_history = 2;
+}
+
+message CloseSessionResponse {
+  bool success = 1;
+  optional string history_file = 2;
+}
+
+// ===============================================
+// Existing Services
+// ===============================================
+
+// ==================== Code Analysis Service ====================
+// Tree-sitterによる構造解析とプロジェクトインデックス管理
+
+service CodeAnalysisService {
+  // ファイルを解析してシンボルを抽出
+  rpc AnalyzeFile(AnalyzeFileRequest) returns (AnalyzeFileResponse);
+
+  // プロジェクト全体をインデックス化
+  rpc IndexProject(IndexProjectRequest) returns (stream IndexProgress);
+
+  // シンボルを検索
+  rpc FindSymbol(FindSymbolRequest) returns (FindSymbolResponse);
+
+  // 定義にジャンプ
+  rpc GotoDefinition(GotoDefinitionRequest) returns (GotoDefinitionResponse);
+
+  // 診断情報を取得
+  rpc GetDiagnostics(DiagnosticsRequest) returns (DiagnosticsResponse);
+}
+
+message AnalyzeFileRequest {
+  string uri = 1;
+  string language_id = 2;
+  string content = 3;
+}
+
+message AnalyzeFileResponse {
+  repeated Symbol symbols = 1;
+  repeated Diagnostic diagnostics = 2;
+}
+
+message IndexProjectRequest {
+  string root_path = 1;
+  repeated string include_patterns = 2;
+  repeated string exclude_patterns = 3;
+}
+
+message IndexProgress {
+  uint64 total_files = 1;
+  uint64 processed_files = 2;
+  string current_file = 3;
+  bool completed = 4;
+}
+
+message FindSymbolRequest {
+  string name = 1;
+  optional string language = 2;
+}
+
+message FindSymbolResponse {
+  repeated Symbol symbols = 1;
+}
+
+message GotoDefinitionRequest {
+  string uri = 1;
+  Position position = 2;
+}
+
+message GotoDefinitionResponse {
+  repeated Location locations = 1;
+}
+
+message DiagnosticsRequest {
+  string uri = 1;
+}
+
+message DiagnosticsResponse {
+  repeated Diagnostic diagnostics = 1;
+}
+
+// ==================== AI Inference Service ====================
+// 自宅サーバーLLMによる高度な推論とコード生成
+
+service AIInferenceService {
+  // コード補完（ストリーミング）
+  rpc CompleteCode(CompleteCodeRequest) returns (stream CodeCompletionChunk);
+
+  // コード説明
+  rpc ExplainCode(ExplainCodeRequest) returns (stream ExplanationChunk);
+
+  // リファクタリング提案
+  rpc SuggestRefactoring(RefactoringRequest) returns (stream RefactoringSuggestion);
+
+  // プロジェクト相談（アーキテクチャ）
+  rpc ConsultArchitecture(ArchitectureConsultRequest) returns (stream ConsultationResponse);
+
+  // モデル選択（オーケストレーション）
+  rpc SelectModel(ModelSelectionRequest) returns (ModelSelectionResponse);
+}
+
+message CompleteCodeRequest {
+  string uri = 1;
+  Position position = 2;
+  string context_before = 3;
+  string context_after = 4;
+  optional string preferred_model = 5;
+  CodeContext project_context = 6;
+}
+
+message CodeCompletionChunk {
+  string text = 1;
+  bool is_final = 2;
+  optional CompletionMetadata metadata = 3;
+}
+
+message CompletionMetadata {
+  string model_used = 1;
+  float confidence = 2;
+  uint64 tokens_generated = 3;
+}
+
+message ExplainCodeRequest {
+  string code = 1;
+  string language = 2;
+  optional string focus_area = 3;
+}
+
+message ExplanationChunk {
+  string text = 1;
+  bool is_final = 2;
+}
+
+message RefactoringRequest {
+  string uri = 1;
+  Range range = 2;
+  string code = 3;
+  string language = 4;
+}
+
+message RefactoringSuggestion {
+  string description = 1;
+  string refactored_code = 2;
+  float confidence = 3;
+  bool is_final = 4;
+}
+
+message ArchitectureConsultRequest {
+  string project_path = 1;
+  string question = 2;
+  repeated string relevant_files = 3;
+}
+
+message ConsultationResponse {
+  string answer = 1;
+  repeated string suggested_files = 2;
+  bool is_final = 3;
+}
+
+message ModelSelectionRequest {
+  string task_type = 1; // "completion", "explanation", "refactoring", "architecture"
+  uint64 estimated_complexity = 2;
+  bool prefer_speed = 3;
+}
+
+message ModelSelectionResponse {
+  string selected_model = 1;
+  string reason = 2;
+  uint64 estimated_latency_ms = 3;
+}
+
+// ==================== Indexing Service ====================
+// 非同期インデックス更新とキャッシュ管理
+
+service IndexingService {
+  // ファイル変更の通知
+  rpc NotifyFileChange(FileChangeNotification) returns (FileChangeResponse);
+
+  // インデックスステータスの取得
+  rpc GetIndexStatus(IndexStatusRequest) returns (IndexStatusResponse);
+
+  // インデックスのリビルド
+  rpc RebuildIndex(RebuildIndexRequest) returns (stream IndexProgress);
+
+  // プリフェッチ（先読み）の要求
+  rpc PrefetchContext(PrefetchRequest) returns (PrefetchResponse);
+}
+
+message FileChangeNotification {
+  string uri = 1;
+  FileChangeType change_type = 2;
+  optional string new_content = 3;
+}
+
+enum FileChangeType {
+  CREATED = 0;
+  MODIFIED = 1;
+  DELETED = 2;
+}
+
+message FileChangeResponse {
+  bool accepted = 1;
+  optional string error = 2;
+}
+
+message IndexStatusRequest {
+  optional string project_path = 1;
+}
+
+message IndexStatusResponse {
+  uint64 total_files = 1;
+  uint64 indexed_files = 2;
+  bool is_indexing = 3;
+  repeated string pending_files = 4;
+}
+
+message RebuildIndexRequest {
+  string project_path = 1;
+  bool full_rebuild = 2;
+}
+
+message PrefetchRequest {
+  string uri = 1;
+  Position position = 2;
+  string user_intent = 3; // "typing", "navigating", "refactoring"
+}
+
+message PrefetchResponse {
+  bool prefetched = 1;
+  repeated string cached_contexts = 2;
+}
+
+// ==================== Common Data Types ====================
+
+message Symbol {
+  string name = 1;
+  SymbolKind kind = 2;
+  Location location = 3;
+}
+
+enum SymbolKind {
+  UNKNOWN = 0;
+  KEY = 1;
+  TABLE = 2;
+  FUNCTION = 3;
+  CLASS = 4;
+  TAURI_COMMAND = 5;
+  TAURI_INVOKE = 6;
+  LEPTOS_COMPONENT = 7;
+  LEPTOS_SERVER_FUNCTION = 8;
+}
+
+message Location {
+  string uri = 1;
+  Range range = 2;
+}
+
+message Range {
+  Position start = 1;
+  Position end = 2;
+}
+
+message Position {
+  uint32 line = 1;
+  uint32 character = 2;
+}
+
+message Diagnostic {
+  Range range = 1;
+  DiagnosticSeverity severity = 2;
+  string message = 3;
+  optional string source = 4;
+}
+
+enum DiagnosticSeverity {
+  ERROR = 0;
+  WARNING = 1;
+  INFORMATION = 2;
+  HINT = 3;
+}
+
+message CodeContext {
+  string project_type = 1; // "tauri", "leptos", "general"
+  repeated string dependencies = 2;
+  repeated Symbol nearby_symbols = 3;
+  optional string framework_version = 4;
+}
+
+// ===============================================
+// Project Sync Service (高速プロジェクト同期)
+// ===============================================
+
+service ProjectSyncService {
+  // Initialize project with streaming upload (tar.gz)
+  rpc InitializeProject(stream ProjectChunk) returns (InitializeProjectResponse);
+
+  // Sync project with hash-based diff (2回目以降の高速同期)
+  rpc SyncProject(stream SyncChunk) returns (SyncProjectResponse);
+
+  // Get project file hashes for diff calculation
+  rpc GetProjectHashes(GetProjectHashesRequest) returns (GetProjectHashesResponse);
+
+  // Check sync status
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (SyncStatusResponse);
+}
+
+// Project initialization with tar.gz streaming
+message ProjectChunk {
+  string project_id = 1;
+  bytes data = 2;              // tar.gz chunk (max 1MB per chunk)
+  uint64 total_size = 3;       // Total size of tar.gz
+  uint64 chunk_index = 4;      // Current chunk index
+  bool is_final = 5;           // Last chunk flag
+  optional string git_commit = 6;  // Current git commit hash
+}
+
+message InitializeProjectResponse {
+  string project_id = 1;
+  bool success = 2;
+  string message = 3;
+  uint64 files_extracted = 4;
+  uint64 bytes_processed = 5;
+  string index_job_id = 6;     // Background indexing job ID
+}
+
+// Hash-based differential sync
+message SyncChunk {
+  string project_id = 1;
+  oneof chunk_type {
+    FileHashList hash_list = 2;      // クライアントからのハッシュリスト
+    FileData file_data = 3;          // 変更されたファイルデータ
+  }
+}
+
+message FileHashList {
+  repeated FileHash hashes = 1;
+  optional string git_commit = 2;
+}
+
+message FileHash {
+  string path = 1;                   // Relative path from project root
+  string hash = 2;                   // SHA-256 hash
+  uint64 size = 3;
+  uint64 modified_time = 4;          // Unix timestamp
+}
+
+message FileData {
+  string path = 1;
+  bytes content = 2;
+  bool is_deleted = 3;               // Deletion flag
+  optional string hash = 4;
+}
+
+message SyncProjectResponse {
+  string project_id = 1;
+  bool success = 2;
+  string message = 3;
+  uint64 files_updated = 4;
+  uint64 files_deleted = 5;
+  repeated string changed_paths = 6;
+  string index_job_id = 7;
+}
+
+// Get server-side file hashes
+message GetProjectHashesRequest {
+  string project_id = 1;
+  repeated string paths = 2;         // Empty = all files
+}
+
+message GetProjectHashesResponse {
+  string project_id = 1;
+  repeated FileHash hashes = 2;
+  optional string git_commit = 3;
+}
+
+// Sync status
+message GetSyncStatusRequest {
+  string project_id = 1;
+}
+
+message SyncStatusResponse {
+  string project_id = 1;
+  SyncState state = 2;
+  optional string index_job_id = 3;
+  optional SyncIndexProgress index_progress = 4;
+  uint64 last_sync_timestamp = 5;
+  optional string git_commit = 6;
+}
+
+enum SyncState {
+  NOT_SYNCED = 0;
+  SYNCING = 1;
+  SYNCED = 2;
+  INDEXING = 3;
+  READY = 4;
+  SYNC_ERROR = 5;
+}
+
+message SyncIndexProgress {
+  uint64 total_files = 1;
+  uint64 indexed_files = 2;
+  uint32 progress_percent = 3;
+}
+
+// ===============================================
+// BerryCode CLI Messages
+// ===============================================
 
 // === CLI Session Management ===
 message InitCLIRequest {
@@ -33,4 +799,424 @@ message CommandOutput {
   bool is_error = 2;
   bool is_final = 3;
   optional int32 exit_code = 4;
+}
+
+message CommandHistoryRequest {
+  string session_id = 1;
+  optional uint32 limit = 2;
+}
+
+message CommandHistoryResponse {
+  repeated CommandHistoryEntry entries = 1;
+}
+
+message CommandHistoryEntry {
+  string command = 1;
+  string timestamp = 2;
+  bool success = 3;
+}
+
+message ClearHistoryRequest {
+  string session_id = 1;
+}
+
+message ClearHistoryResponse {
+  bool success = 1;
+}
+
+// === File Context Management ===
+message AddFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+}
+
+message AddFileResponse {
+  bool success = 1;
+  string file_path = 2;
+  optional string error = 3;
+}
+
+message DropFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+}
+
+message DropFileResponse {
+  bool success = 1;
+  string file_path = 2;
+}
+
+message ListFilesRequest {
+  string session_id = 1;
+}
+
+message ListFilesResponse {
+  repeated string files = 1;
+}
+
+message GetFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+}
+
+message GetFileResponse {
+  string file_path = 1;
+  string content = 2;
+  optional string language = 3;
+}
+
+// === LSP Integration ===
+message InitLSPRequest {
+  string session_id = 1;
+  string language = 2;
+  string root_uri = 3;
+}
+
+message InitLSPResponse {
+  bool success = 1;
+  string language = 2;
+  optional string error = 3;
+}
+
+message CompletionsRequest {
+  string session_id = 1;
+  string file_uri = 2;
+  Position position = 3;
+  optional string trigger_character = 4;
+}
+
+message CompletionsResponse {
+  repeated CompletionItem items = 1;
+}
+
+message CompletionItem {
+  string label = 1;
+  string kind = 2;
+  optional string detail = 3;
+  optional string documentation = 4;
+  optional string insert_text = 5;
+}
+
+message HoverRequest {
+  string session_id = 1;
+  string file_uri = 2;
+  Position position = 3;
+}
+
+message HoverResponse {
+  optional string contents = 1;
+  optional Range range = 2;
+}
+
+message GotoDefRequest {
+  string session_id = 1;
+  string file_uri = 2;
+  Position position = 3;
+}
+
+message GotoDefResponse {
+  repeated Location locations = 1;
+}
+
+message FindRefsRequest {
+  string session_id = 1;
+  string file_uri = 2;
+  Position position = 3;
+  bool include_declaration = 4;
+}
+
+message FindRefsResponse {
+  repeated Location locations = 1;
+}
+
+message DiagnosticsReq {
+  string session_id = 1;
+  string file_uri = 2;
+}
+
+message DiagnosticsResp {
+  repeated Diagnostic diagnostics = 1;
+}
+
+message ShutdownLSPRequest {
+  string session_id = 1;
+  string language = 2;
+}
+
+message ShutdownLSPResponse {
+  bool success = 1;
+}
+
+// === Git Operations ===
+message GitStatusRequest {
+  string session_id = 1;
+}
+
+message GitStatusResponse {
+  string branch = 1;
+  repeated GitFileStatus files = 2;
+  uint32 ahead = 3;
+  uint32 behind = 4;
+}
+
+message GitFileStatus {
+  string path = 1;
+  string status = 2; // "modified", "added", "deleted", "untracked"
+}
+
+message GitCommitRequest {
+  string session_id = 1;
+  string message = 2;
+  repeated string files = 3;
+}
+
+message GitCommitResponse {
+  bool success = 1;
+  string commit_hash = 2;
+  optional string error = 3;
+}
+
+message GitDiffRequest {
+  string session_id = 1;
+  optional string file_path = 2;
+  optional bool staged = 3;
+}
+
+message GitDiffResponse {
+  string diff = 1;
+}
+
+message GitUndoRequest {
+  string session_id = 1;
+  optional string file_path = 2;
+}
+
+message GitUndoResponse {
+  bool success = 1;
+  repeated string reverted_files = 2;
+}
+
+message GitLogRequest {
+  string session_id = 1;
+  optional uint32 limit = 2;
+  optional string file_path = 3;
+}
+
+message GitLogResponse {
+  repeated GitCommitEntry entries = 1;
+}
+
+message GitCommitEntry {
+  string hash = 1;
+  string author = 2;
+  string message = 3;
+  string timestamp = 4;
+}
+
+// === File System Operations ===
+message ReadFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+}
+
+message ReadFileResponse {
+  string content = 1;
+  optional string encoding = 2;
+  optional uint64 modified_time = 3;  // Unix timestamp
+}
+
+message WriteFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+  string content = 3;
+  optional bool create_dirs = 4;
+  // AI metadata for tracking changes
+  optional string ai_reasoning_id = 5;  // AI推論セッションID
+  optional string change_reason = 6;     // なぜこの変更を行ったか
+  optional string ai_context = 7;        // AIが使用したコンテキスト情報
+}
+
+message WriteFileResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message CreateFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+  optional string initial_content = 3;
+}
+
+message CreateFileResponse {
+  bool success = 1;
+  string file_path = 2;
+  optional string error = 3;
+}
+
+message DeleteFileRequest {
+  string session_id = 1;
+  string file_path = 2;
+}
+
+message DeleteFileResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+message ListDirRequest {
+  string session_id = 1;
+  string directory_path = 2;
+  optional bool recursive = 3;
+}
+
+message ListDirResponse {
+  repeated FileEntry entries = 1;
+}
+
+message FileEntry {
+  string name = 1;
+  string path = 2;
+  bool is_directory = 3;
+  optional uint64 size = 4;
+  optional string modified_time = 5;
+  optional string language = 6;  // Detected programming language
+}
+
+message RenameFileRequest {
+  string session_id = 1;
+  string old_path = 2;
+  string new_path = 3;
+}
+
+message RenameFileResponse {
+  bool success = 1;
+  optional string error = 2;
+}
+
+// === Cargo/Build Operations ===
+message CargoCheckRequest {
+  string session_id = 1;
+  optional string manifest_path = 2;
+}
+
+message CargoCheckOutput {
+  string output = 1;
+  bool is_error = 2;
+  bool is_final = 3;
+  repeated CargoDiagnostic diagnostics = 4;
+}
+
+message CargoDiagnostic {
+  string message = 1;
+  string level = 2; // "error", "warning", "note"
+  optional string file_path = 3;
+  optional uint32 line = 4;
+  optional uint32 column = 5;
+}
+
+message CargoTestRequest {
+  string session_id = 1;
+  optional string test_name = 2;
+  optional string manifest_path = 3;
+}
+
+message CargoTestOutput {
+  string output = 1;
+  bool is_error = 2;
+  bool is_final = 3;
+  optional CargoTestSummary summary = 4;
+}
+
+message CargoTestSummary {
+  uint32 total = 1;
+  uint32 passed = 2;
+  uint32 failed = 3;
+  uint32 ignored = 4;
+}
+
+message CargoBuildRequest {
+  string session_id = 1;
+  optional string manifest_path = 2;
+  optional bool release = 3;
+}
+
+message CargoBuildOutput {
+  string output = 1;
+  bool is_error = 2;
+  bool is_final = 3;
+  optional string artifact_path = 4;
+}
+
+// === Model Management ===
+message SetModelRequest {
+  string session_id = 1;
+  string model = 2;
+}
+
+message SetModelResponse {
+  bool success = 1;
+  string model = 2;
+}
+
+message ListModelsReq {
+  string session_id = 1;
+}
+
+message ListModelsResp {
+  repeated CLIModelInfo models = 1;
+}
+
+message CLIModelInfo {
+  string name = 1;
+  string provider = 2;
+  optional string description = 3;
+  bool available = 4;
+}
+
+// === Project Context ===
+message ProjectContextRequest {
+  string session_id = 1;
+  optional bool include_git = 2;
+  optional bool include_diagnostics = 3;
+  optional bool include_symbols = 4;
+}
+
+message ProjectContextResponse {
+  string project_root = 1;
+  repeated string files = 2;
+  optional CLIGitStatus git_status = 3;
+  repeated CLIDiagnostic diagnostics = 4;
+  repeated CLISymbol symbols = 5;
+  optional FileStatistics file_stats = 6;
+}
+
+message CLIGitStatus {
+  string branch = 1;
+  uint32 uncommitted_changes = 2;
+  uint32 untracked_files = 3;
+  uint32 ahead = 4;
+  uint32 behind = 5;
+}
+
+message CLIDiagnostic {
+  string file_path = 1;
+  uint32 line = 2;
+  uint32 column = 3;
+  string severity = 4;
+  string message = 5;
+  string source = 6;
+}
+
+message CLISymbol {
+  string name = 1;
+  string kind = 2;
+  string file_path = 3;
+  uint32 line = 4;
+  uint32 column = 5;
+}
+
+message FileStatistics {
+  uint64 total_files = 1;
+  uint64 total_lines = 2;
+  map<string, uint64> files_by_language = 3;
 }

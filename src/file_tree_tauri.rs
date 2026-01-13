@@ -124,6 +124,7 @@ pub fn FileTreePanelTauri(
     let tree = RwSignal::new(Vec::<FileNode>::new());
     let is_loading = RwSignal::new(true);
     let selected_project_index = RwSignal::new(Option::<usize>::None); // Track selected project
+    let refresh_trigger = RwSignal::new(0); // Trigger for manual refresh
 
 
     // CRITICAL: Load immediately in component body, not in Effect
@@ -138,6 +139,7 @@ pub fn FileTreePanelTauri(
     // ✅ Only call Tauri backend in non-test environment
     #[cfg(not(test))]
     {
+        // Initial load
         let root_for_tree = root_path.clone();
         spawn_local(async move {
             // ✅ IntelliJ Design: Lazy Loading - load only first level initially
@@ -162,6 +164,51 @@ pub fn FileTreePanelTauri(
                     is_loading.set(false);
                 }
             }
+        });
+
+        // Listen for file-changed events from backend
+        spawn_local({
+            let refresh_trigger = refresh_trigger.clone();
+            async move {
+                if let Err(e) = tauri_bindings::listen_file_changed(move |path| {
+                    leptos::logging::log!("📁 File changed event received: {}", path);
+                    // Trigger tree refresh
+                    refresh_trigger.update(|v| *v += 1);
+                }).await {
+                    leptos::logging::error!("Failed to setup file change listener: {}", e);
+                }
+            }
+        });
+
+        // Refresh effect - reload tree when refresh_trigger changes
+        create_effect(move |_| {
+            let _ = refresh_trigger.get(); // Track changes
+            let root_for_refresh = root_path.clone();
+
+            leptos::logging::log!("🔄 Refreshing file tree for: {}", root_for_refresh);
+            is_loading.set(true);
+
+            spawn_local(async move {
+                match tauri_bindings::read_dir(&root_for_refresh, Some(1)).await {
+                    Ok(nodes) => {
+                        let root_name = root_for_refresh.split('/').last().unwrap_or(&root_for_refresh).to_string();
+                        let root_node = FileNode {
+                            name: root_name,
+                            path: root_for_refresh.clone(),
+                            is_dir: true,
+                            children: Some(nodes),
+                        };
+                        tree.set(vec![root_node]);
+                        is_loading.set(false);
+                        leptos::logging::log!("✅ File tree refreshed");
+                    }
+                    Err(e) => {
+                        leptos::logging::log!("❌ Failed to refresh file tree: {}", e);
+                        tree.set(Vec::new());
+                        is_loading.set(false);
+                    }
+                }
+            });
         });
     }
 
@@ -265,6 +312,18 @@ pub fn FileTreePanelTauri(
                             title="Collapse All"
                         >
                             <i class="codicon codicon-chevron-up" style="font-size: 12px;"></i>
+                        </button>
+
+                        // 5. リフレッシュアイコン（↻）
+                        <button
+                            class="intellij-toolbar-btn"
+                            on:click=move |_| {
+                                leptos::logging::log!("🔄 Refreshing file tree...");
+                                refresh_trigger.update(|v| *v += 1);
+                            }
+                            title="Refresh File Tree"
+                        >
+                            <i class="codicon codicon-refresh" style="font-size: 12px;"></i>
                         </button>
 
                         // 5. X（閉じる）

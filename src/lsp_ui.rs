@@ -118,18 +118,26 @@ impl LspIntegration {
         };
 
         match TauriBridge::invoke::<_, bool>("lsp_initialize", request).await {
-            Ok(_result) => {
+            Ok(success) => {
+                // ✅ PERFORMANCE FIX: backend returns false if init failed
+                // Don't fail the UI, just mark as uninitialized
                 self.language.set(language.clone());
                 self.file_path.set(file_path.clone());
-                self.initialized.set(true);
+                self.initialized.set(success);
 
-                leptos::logging::log!("✅ LSP initialized successfully: file={}, language={}, initialized={}",
-                    file_path, language, self.initialized.get_untracked());
-
-                Ok(())
+                if success {
+                    leptos::logging::log!("✅ LSP initialized successfully: file={}, language={}",
+                        file_path, language);
+                    Ok(())
+                } else {
+                    leptos::logging::warn!("⚠️  LSP initialization failed for {}, editor will work without LSP", file_path);
+                    Err(anyhow::anyhow!("LSP initialization returned false"))
+                }
             }
             Err(e) => {
-                leptos::logging::error!("❌ LSP initialization failed: {}", e);
+                leptos::logging::error!("❌ LSP initialization error: {}", e);
+                // Don't propagate error - allow editor to work
+                self.initialized.set(false);
                 Err(e)
             }
         }
@@ -144,8 +152,20 @@ impl LspIntegration {
 
     /// Request completions at a specific position
     pub async fn request_completions(&self, position: Position) -> anyhow::Result<Vec<CompletionItem>> {
-        if !self.initialized.get_untracked() {
-            return Ok(Vec::new()); // Not initialized, return empty
+        let is_init = self.initialized.get_untracked();
+        let file_path = self.file_path.get_untracked();
+        let language = self.language.get_untracked();
+
+        leptos::logging::log!("🔍 LSP request_completions: initialized={}, file={}, language={}, pos={}:{}",
+            is_init, file_path, language, position.line, position.column);
+
+        if !is_init {
+            let err_msg = format!(
+                "LSP not initialized for file: {}. Please wait for file to load completely.",
+                if file_path.is_empty() { "(no file)" } else { &file_path }
+            );
+            leptos::logging::log!("❌ LSP: {}", err_msg);
+            return Err(anyhow::anyhow!(err_msg));
         }
 
         #[derive(Serialize)]
@@ -157,13 +177,17 @@ impl LspIntegration {
         }
 
         let request = CompletionRequest {
-            language: self.language.get_untracked(),
-            file_path: self.file_path.get_untracked(),
+            language,
+            file_path,
             line: position.line as u32,
             character: position.column as u32,
         };
 
+        leptos::logging::log!("📡 LSP: Invoking lsp_get_completions via Tauri IPC");
+
         let items: Vec<CompletionItem> = TauriBridge::invoke("lsp_get_completions", request).await?;
+
+        leptos::logging::log!("✅ LSP: Received {} completion items", items.len());
 
         // Update cache
         self.completion_cache.set(items.clone());
@@ -207,6 +231,7 @@ impl LspIntegration {
         }
 
         #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
         struct DiagnosticsRequest {
             language: String,
             file_path: String,
@@ -278,10 +303,21 @@ impl LspIntegration {
         leptos::logging::log!("🔍 LSP: Sending goto_definition request: language={}, file={}, line={}, char={}",
             request.language, request.file_path, request.line, request.character);
 
-        let location: LocationResponse = TauriBridge::invoke("lsp_goto_definition", request).await?;
+        leptos::logging::log!("🔍 LSP: Calling TauriBridge::invoke(\"lsp_goto_definition\")...");
+        let result = TauriBridge::invoke::<_, LocationResponse>("lsp_goto_definition", request).await;
+        leptos::logging::log!("🔍 LSP: TauriBridge::invoke returned");
 
-        leptos::logging::log!("🔍 LSP: Received response: uri={}, line={}, char={}",
-            location.uri, location.range.start.line, location.range.start.character);
+        let location = match result {
+            Ok(location) => {
+                leptos::logging::log!("🔍 LSP: Received response: uri={}, line={}, char={}",
+                    location.uri, location.range.start.line, location.range.start.character);
+                location
+            }
+            Err(e) => {
+                leptos::logging::error!("❌ LSP: TauriBridge::invoke failed: {}", e);
+                return Err(e);
+            }
+        };
 
         // Convert file:// URI to regular file path
         let file_path = if location.uri.starts_with("file://") {
@@ -336,6 +372,42 @@ impl LspIntegration {
         Ok(locations.into_iter().map(|loc| {
             Position::new(loc.line as usize, loc.character as usize)
         }).collect())
+    }
+
+    /// Add file to LSP context for better code intelligence
+    pub async fn add_file_to_context(&self, file_path: String) -> anyhow::Result<()> {
+        if !self.initialized.get_untracked() {
+            leptos::logging::log!("⚠️  LSP: Not initialized, skipping add_file_to_context");
+            return Ok(()); // Not initialized, silently skip
+        }
+
+        #[derive(Serialize)]
+        struct AddFileRequest {
+            language: String,
+            file_path: String,
+        }
+
+        let request = AddFileRequest {
+            language: self.language.get_untracked(),
+            file_path,
+        };
+
+        leptos::logging::log!("📂 LSP: Adding file to context via Tauri IPC");
+
+        match TauriBridge::invoke::<_, bool>("lsp_add_file_to_context", request).await {
+            Ok(success) => {
+                if success {
+                    leptos::logging::log!("✅ LSP: File added to context successfully");
+                } else {
+                    leptos::logging::log!("⚠️  LSP: Failed to add file to context, continuing anyway");
+                }
+                Ok(())
+            }
+            Err(e) => {
+                leptos::logging::log!("⚠️  LSP: Error adding file to context: {}, continuing anyway", e);
+                Ok(()) // Don't propagate error - LSP will still work
+            }
+        }
     }
 
     /// Get cached completions
