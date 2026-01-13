@@ -1,14 +1,23 @@
 //! File Tree Panel - Tauri Version
 //! Uses native file system access via Tauri commands
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use crate::tauri_bindings::{self, FileNode};
-use leptos::task::spawn_local;
 use crate::web_worker::{IndexerWorker, ProgressData};
 
 /// ✅ IntelliJ Pattern: Detailed file/folder icons with special folder recognition
+#[derive(Props, Clone, PartialEq)]
+struct FileIconProps {
+    is_dir: bool,
+    expanded: bool,
+    name: String,
+}
+
 #[component]
-fn FileIcon(is_dir: bool, expanded: bool, name: String) -> impl IntoView {
+fn FileIcon(props: FileIconProps) -> Element {
+    let is_dir = props.is_dir;
+    let expanded = props.expanded;
+    let name = props.name;
     if is_dir {
         // Special folder icons (RustRover style)
         let (icon_class, color) = match name.as_str() {
@@ -30,9 +39,12 @@ fn FileIcon(is_dir: bool, expanded: bool, name: String) -> impl IntoView {
             }
         };
 
-        view! {
-            <i class=format!("codicon codicon-{}", icon_class) style=format!("font-family: 'codicon' !important; margin-right: 4px; flex-shrink: 0; font-size: 14px; color: {};", color)></i>
-        }.into_any()
+        rsx! {
+            i {
+                class: "codicon codicon-{icon_class}",
+                style: "font-family: 'codicon' !important; margin-right: 4px; flex-shrink: 0; font-size: 14px; color: {color};"
+            }
+        }
     } else {
         // Detailed file icons (IntelliJ style)
         let extension = name.split('.').last().unwrap_or("");
@@ -103,28 +115,38 @@ fn FileIcon(is_dir: bool, expanded: bool, name: String) -> impl IntoView {
             }
         };
 
-        view! {
-            <i class=format!("codicon codicon-{}", icon_class) style=format!("font-family: 'codicon' !important; margin-right: 4px; flex-shrink: 0; font-size: 14px; color: {};", color)></i>
-        }.into_any()
+        rsx! {
+            i {
+                class: "codicon codicon-{icon_class}",
+                style: "font-family: 'codicon' !important; margin-right: 4px; flex-shrink: 0; font-size: 14px; color: {color};"
+            }
+        }
     }
 }
 
-#[component]
-pub fn FileTreePanelTauri(
+/// File Tree Panel props
+#[derive(Props, Clone, PartialEq)]
+pub struct FileTreePanelTauriProps {
     /// ✅ FIX: Make on_file_select optional - if not provided, use context
-    #[prop(into, optional)] on_file_select: Option<RwSignal<Option<(String, String)>>>,
+    #[props(optional)]
+    on_file_select: Option<Signal<Option<(String, String)>>>,
     root_path: String,
-) -> impl IntoView {
+}
+
+#[component]
+pub fn FileTreePanelTauri(props: FileTreePanelTauriProps) -> Element {
+    let root_path = props.root_path;
+
     // ✅ FIX: Use context if not provided as prop
-    let on_file_select = on_file_select.unwrap_or_else(|| {
-        use_context::<RwSignal<Option<(String, String)>>>()
+    let on_file_select = props.on_file_select.unwrap_or_else(|| {
+        use_context::<Signal<Option<(String, String)>>>()
             .expect("on_file_select must be provided via context")
     });
 
-    let tree = RwSignal::new(Vec::<FileNode>::new());
-    let is_loading = RwSignal::new(true);
-    let selected_project_index = RwSignal::new(Option::<usize>::None); // Track selected project
-    let refresh_trigger = RwSignal::new(0); // Trigger for manual refresh
+    let mut tree = use_signal(|| Vec::<FileNode>::new());
+    let mut is_loading = use_signal(|| true);
+    let mut selected_project_index = use_signal(|| Option::<usize>::None); // Track selected project
+    let mut refresh_trigger = use_signal(|| 0); // Trigger for manual refresh
 
 
     // CRITICAL: Load immediately in component body, not in Effect
@@ -132,8 +154,8 @@ pub fn FileTreePanelTauri(
     // ✅ In test environment, skip Tauri backend calls and show empty tree
     #[cfg(test)]
     {
-        tree.set(Vec::new());
-        is_loading.set(false);
+        *tree.write() = Vec::new();
+        *is_loading.write() = false;
     }
 
     // ✅ Only call Tauri backend in non-test environment
@@ -141,7 +163,7 @@ pub fn FileTreePanelTauri(
     {
         // Initial load
         let root_for_tree = root_path.clone();
-        spawn_local(async move {
+        spawn(async move {
             // ✅ IntelliJ Design: Lazy Loading - load only first level initially
             // Further levels are loaded on-demand when folders are expanded
             match tauri_bindings::read_dir(&root_for_tree, Some(1)).await {
@@ -155,40 +177,42 @@ pub fn FileTreePanelTauri(
                         children: Some(nodes),
                     };
                     // ✅ Safe: Use .set() to trigger reactivity and update UI
-                    tree.set(vec![root_node]);
-                    is_loading.set(false);
+                    *tree.write() = vec![root_node];
+                    *is_loading.write() = false;
                 }
                 Err(_e) => {
                     // ✅ Safe: set empty on error
-                    tree.set(Vec::new());
-                    is_loading.set(false);
+                    *tree.write() = Vec::new();
+                    *is_loading.write() = false;
                 }
             }
         });
 
         // Listen for file-changed events from backend
-        spawn_local({
-            let refresh_trigger = refresh_trigger.clone();
+        spawn({
             async move {
                 if let Err(e) = tauri_bindings::listen_file_changed(move |path| {
-                    leptos::logging::log!("📁 File changed event received: {}", path);
+                    #[cfg(debug_assertions)]
+                    tracing::debug!("📁 File changed event received: {}", path);
                     // Trigger tree refresh
-                    refresh_trigger.update(|v| *v += 1);
+                    refresh_trigger.write().update(|v| *v += 1);
                 }).await {
-                    leptos::logging::error!("Failed to setup file change listener: {}", e);
+                    #[cfg(debug_assertions)]
+                    tracing::error!("Failed to setup file change listener: {}", e);
                 }
             }
         });
 
         // Refresh effect - reload tree when refresh_trigger changes
-        create_effect(move |_| {
-            let _ = refresh_trigger.get(); // Track changes
+        use_effect(move || {
+            let _ = *refresh_trigger.read(); // Track changes
             let root_for_refresh = root_path.clone();
 
-            leptos::logging::log!("🔄 Refreshing file tree for: {}", root_for_refresh);
-            is_loading.set(true);
+            #[cfg(debug_assertions)]
+            tracing::debug!("🔄 Refreshing file tree for: {}", root_for_refresh);
+            *is_loading.write() = true;
 
-            spawn_local(async move {
+            spawn(async move {
                 match tauri_bindings::read_dir(&root_for_refresh, Some(1)).await {
                     Ok(nodes) => {
                         let root_name = root_for_refresh.split('/').last().unwrap_or(&root_for_refresh).to_string();
@@ -198,14 +222,16 @@ pub fn FileTreePanelTauri(
                             is_dir: true,
                             children: Some(nodes),
                         };
-                        tree.set(vec![root_node]);
-                        is_loading.set(false);
-                        leptos::logging::log!("✅ File tree refreshed");
+                        *tree.write() = vec![root_node];
+                        *is_loading.write() = false;
+                        #[cfg(debug_assertions)]
+                        tracing::debug!("✅ File tree refreshed");
                     }
                     Err(e) => {
-                        leptos::logging::log!("❌ Failed to refresh file tree: {}", e);
-                        tree.set(Vec::new());
-                        is_loading.set(false);
+                        #[cfg(debug_assertions)]
+                        tracing::debug!("❌ Failed to refresh file tree: {}", e);
+                        *tree.write() = Vec::new();
+                        *is_loading.write() = false;
                     }
                 }
             });
