@@ -2,7 +2,7 @@
 //!
 //! This module manages all editor settings with localStorage persistence.
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 
@@ -134,14 +134,14 @@ impl EditorSettings {
 }
 
 /// Global settings signal
-pub fn use_settings() -> (ReadSignal<EditorSettings>, WriteSignal<EditorSettings>) {
-    use_context::<(ReadSignal<EditorSettings>, WriteSignal<EditorSettings>)>()
+pub fn use_settings() -> Signal<EditorSettings> {
+    use_context::<Signal<EditorSettings>>()
         .expect("Settings context not provided")
 }
 
 /// Provide settings context
 pub fn provide_settings() {
     let settings = EditorSettings::load();
-    let (read, write) = signal(settings);
-    provide_context((read, write));
+    let signal = Signal::new(settings);
+    provide_context(signal);
 }
