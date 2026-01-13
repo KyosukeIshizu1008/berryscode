@@ -2,8 +2,7 @@
 //!
 //! Displays debug output and provides REPL-style expression evaluation.
 
-use leptos::prelude::*;
-use leptos::task::spawn_local;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::common::ui_components::Panel;
 use super::session::DebugSession;
@@ -39,42 +38,43 @@ impl ConsoleMessage {
     }
 }
 
-/// Debug console component
-#[component]
-pub fn DebugConsole(
+/// Debug console component props
+#[derive(Props, Clone, PartialEq)]
+pub struct DebugConsoleProps {
     /// Console messages
-    messages: RwSignal<Vec<ConsoleMessage>>,
+    messages: Signal<Vec<ConsoleMessage>>,
     /// Debug session for evaluation
     session: DebugSession,
-) -> impl IntoView {
-    let input = RwSignal::new(String::new());
+}
+
+/// Debug console component
+#[component]
+pub fn DebugConsole(props: DebugConsoleProps) -> Element {
+    let messages = props.messages;
+    let session = props.session;
+
+    let mut input = use_signal(|| String::new());
 
     // Execute command/expression
     let execute = move || {
-        let expr = input.get_untracked();
+        let expr = input.read().clone();
         if expr.is_empty() {
             return;
         }
 
         // Add input message
-        messages.update(|msgs| {
-            msgs.push(ConsoleMessage::new(MessageType::Input, expr.clone()));
-        });
+        messages.write().push(ConsoleMessage::new(MessageType::Input, expr.clone()));
 
-        input.set(String::new());
+        *input.write() = String::new();
 
         // Evaluate expression
-        spawn_local(async move {
+        spawn(async move {
             match session.evaluate(expr.clone(), None).await {
                 Ok(result) => {
-                    messages.update(|msgs| {
-                        msgs.push(ConsoleMessage::new(MessageType::Output, result));
-                    });
+                    messages.write().push(ConsoleMessage::new(MessageType::Output, result));
                 }
                 Err(e) => {
-                    messages.update(|msgs| {
-                        msgs.push(ConsoleMessage::new(MessageType::Error, e));
-                    });
+                    messages.write().push(ConsoleMessage::new(MessageType::Error, e));
                 }
             }
         });
@@ -82,52 +82,61 @@ pub fn DebugConsole(
 
     // Clear console
     let clear_console = move || {
-        messages.set(Vec::new());
+        *messages.write() = Vec::new();
     };
 
-    view! {
-        <Panel title="Debug Console">
-            <div class="berry-debug-console">
-                <div class="berry-console-toolbar">
-                    <button class="berry-button" on:click=move |_| clear_console()>"Clear"</button>
-                </div>
-                <div class="berry-console-messages">
-                    {move || {
-                        messages.get().iter().map(|msg| {
-                            view! {
-                                <ConsoleMessageView message=msg.clone() />
+    rsx! {
+        Panel { title: "Debug Console",
+            div { class: "berry-debug-console",
+                div { class: "berry-console-toolbar",
+                    button {
+                        class: "berry-button",
+                        onclick: move |_| clear_console(),
+                        "Clear"
+                    }
+                }
+                div { class: "berry-console-messages",
+                    {
+                        let msg_list = messages.read().clone();
+                        rsx! {
+                            for msg in msg_list {
+                                ConsoleMessageView { message: msg }
                             }
-                        }).collect::<Vec<_>>()
-                    }}
-                </div>
-                <div class="berry-console-input">
-                    <span class="berry-console-prompt">">"</span>
-                    <input
-                        type="text"
-                        class="berry-input"
-                        prop:value=move || input.get()
-                        on:input=move |ev| {
-                            input.set(event_target_value(&ev));
                         }
-                        on:keydown=move |ev| {
-                            if ev.key() == "Enter" {
+                    }
+                }
+                div { class: "berry-console-input",
+                    span { class: "berry-console-prompt", ">" }
+                    input {
+                        r#type: "text",
+                        class: "berry-input",
+                        value: "{input.read()}",
+                        oninput: move |ev| *input.write() = ev.value(),
+                        onkeydown: move |ev| {
+                            if ev.key() == Key::Enter {
                                 execute();
                             }
-                        }
-                        placeholder="Evaluate expression..."
-                    />
-                </div>
-            </div>
-        </Panel>
+                        },
+                        placeholder: "Evaluate expression...",
+                    }
+                }
+            }
+        }
     }
+}
+
+/// Single console message view props
+#[derive(Props, Clone, PartialEq)]
+struct ConsoleMessageViewProps {
+    /// The message
+    message: ConsoleMessage,
 }
 
 /// Single console message view
 #[component]
-fn ConsoleMessageView(
-    /// The message
-    message: ConsoleMessage,
-) -> impl IntoView {
+fn ConsoleMessageView(props: ConsoleMessageViewProps) -> Element {
+    let message = props.message;
+
     let class = match message.message_type {
         MessageType::Output => "berry-console-message berry-console-output",
         MessageType::Input => "berry-console-message berry-console-input",
@@ -142,11 +151,11 @@ fn ConsoleMessageView(
         MessageType::Info => "Info: ",
     };
 
-    view! {
-        <div class=class>
-            <span class="berry-console-timestamp">{format!("[{}]", message.timestamp)}</span>
-            <span class="berry-console-content">{format!("{}{}", prefix, message.content)}</span>
-        </div>
+    rsx! {
+        div { class: "{class}",
+            span { class: "berry-console-timestamp", "[{message.timestamp}]" }
+            span { class: "berry-console-content", "{prefix}{message.content}" }
+        }
     }
 }
 
