@@ -2,8 +2,7 @@
 //!
 //! Create, delete, and switch branches
 
-use leptos::prelude::*;
-use leptos::task::spawn_local;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::common::async_bridge::TauriBridge;
 use crate::common::ui_components::{Panel, Button};
@@ -19,53 +18,53 @@ pub struct BranchInfo {
 
 /// Branch Manager Panel
 #[component]
-pub fn BranchManagerPanel() -> impl IntoView {
-    let branches = RwSignal::new(Vec::<BranchInfo>::new());
-    let new_branch_name = RwSignal::new(String::new());
-    let show_create_dialog = RwSignal::new(false);
-    let loading = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+pub fn BranchManagerPanel() -> Element {
+    let mut branches = use_signal(|| Vec::<BranchInfo>::new());
+    let mut new_branch_name = use_signal(|| String::new());
+    let mut show_create_dialog = use_signal(|| false);
+    let mut loading = use_signal(|| false);
+    let mut error = use_signal(|| None::<String>);
 
     // Load branches
     let load_branches = move || {
-        spawn_local(async move {
-            loading.set(true);
+        spawn(async move {
+            *loading.write() = true;
             match fetch_branches().await {
                 Ok(branch_list) => {
-                    branches.set(branch_list);
-                    error.set(None);
+                    *branches.write() = branch_list;
+                    *error.write() = None;
                 }
                 Err(e) => {
-                    error.set(Some(format!("Failed to load branches: {}", e)));
+                    *error.write() = Some(format!("Failed to load branches: {}", e));
                 }
             }
-            loading.set(false);
+            *loading.write() = false;
         });
     };
 
     // Initial load
-    Effect::new(move || {
+    use_effect(move || {
         load_branches();
     });
 
     // Create branch handler
     let handle_create_branch = move || {
-        let name = new_branch_name.get_untracked();
+        let name = new_branch_name.read().clone();
         if name.is_empty() {
-            error.set(Some("Branch name cannot be empty".to_string()));
+            *error.write() = Some("Branch name cannot be empty".to_string());
             return;
         }
 
-        spawn_local(async move {
+        spawn(async move {
             match create_branch(&name).await {
                 Ok(_) => {
-                    new_branch_name.set(String::new());
-                    show_create_dialog.set(false);
-                    error.set(None);
+                    *new_branch_name.write() = String::new();
+                    *show_create_dialog.write() = false;
+                    *error.write() = None;
                     load_branches();
                 }
                 Err(e) => {
-                    error.set(Some(format!("Failed to create branch: {}", e)));
+                    *error.write() = Some(format!("Failed to create branch: {}", e));
                 }
             }
         });
@@ -73,14 +72,14 @@ pub fn BranchManagerPanel() -> impl IntoView {
 
     // Checkout branch handler
     let handle_checkout = move |branch_name: String| {
-        spawn_local(async move {
+        spawn(async move {
             match checkout_branch(&branch_name).await {
                 Ok(_) => {
-                    error.set(None);
+                    *error.write() = None;
                     load_branches();
                 }
                 Err(e) => {
-                    error.set(Some(format!("Failed to checkout branch: {}", e)));
+                    *error.write() = Some(format!("Failed to checkout branch: {}", e));
                 }
             }
         });
@@ -88,140 +87,137 @@ pub fn BranchManagerPanel() -> impl IntoView {
 
     // Delete branch handler
     let handle_delete = move |branch_name: String| {
-        spawn_local(async move {
+        spawn(async move {
             match delete_branch(&branch_name).await {
                 Ok(_) => {
-                    error.set(None);
+                    *error.write() = None;
                     load_branches();
                 }
                 Err(e) => {
-                    error.set(Some(format!("Failed to delete branch: {}", e)));
+                    *error.write() = Some(format!("Failed to delete branch: {}", e));
                 }
             }
         });
     };
 
-    view! {
-        <Panel title="Branches">
-            <div class="berry-branch-manager">
+    rsx! {
+        Panel { title: "Branches",
+            div { class: "berry-branch-manager",
                 // Header with create button
-                <div class="berry-branch-header">
-                    <button
-                        class="berry-button"
-                        on:click=move |_| show_create_dialog.set(true)
-                    >
+                div { class: "berry-branch-header",
+                    button {
+                        class: "berry-button",
+                        onclick: move |_| *show_create_dialog.write() = true,
                         "New Branch"
-                    </button>
-                </div>
+                    }
+                }
 
                 // Create branch dialog
-                {move || {
-                    if show_create_dialog.get() {
-                        view! {
-                            <div class="berry-branch-create-dialog">
-                                <input
-                                    type="text"
-                                    class="berry-input"
-                                    placeholder="Branch name..."
-                                    prop:value=move || new_branch_name.get()
-                                    on:input=move |ev| {
-                                        new_branch_name.set(event_target_value(&ev));
-                                    }
-                                    on:keydown=move |ev| {
-                                        if ev.key() == "Enter" {
+                {
+                    if *show_create_dialog.read() {
+                        rsx! {
+                            div { class: "berry-branch-create-dialog",
+                                input {
+                                    r#type: "text",
+                                    class: "berry-input",
+                                    placeholder: "Branch name...",
+                                    value: "{new_branch_name.read()}",
+                                    oninput: move |ev| *new_branch_name.write() = ev.value(),
+                                    onkeydown: move |ev| {
+                                        if ev.key() == Key::Enter {
                                             handle_create_branch();
-                                        } else if ev.key() == "Escape" {
-                                            show_create_dialog.set(false);
+                                        } else if ev.key() == Key::Escape {
+                                            *show_create_dialog.write() = false;
                                         }
-                                    }
-                                />
-                                <div class="berry-dialog-buttons">
-                                    <button
-                                        class="berry-button"
-                                        on:click=move |_| handle_create_branch()
-                                    >
+                                    },
+                                }
+                                div { class: "berry-dialog-buttons",
+                                    button {
+                                        class: "berry-button",
+                                        onclick: move |_| handle_create_branch(),
                                         "Create"
-                                    </button>
-                                    <button
-                                        class="berry-button"
-                                        on:click=move |_| show_create_dialog.set(false)
-                                    >
-                                        "Cancel"
-                                    </button>
-                                </div>
-                            </div>
-                        }.into_any()
-                    } else {
-                        view! { <></> }.into_any()
-                    }
-                }}
-
-                // Error display
-                {move || {
-                    error.get().map(|err| {
-                        view! {
-                            <div class="berry-git-error">{err}</div>
-                        }
-                    })
-                }}
-
-                // Branch list
-                <div class="berry-branch-list">
-                    {move || {
-                        if loading.get() {
-                            view! {
-                                <div class="berry-git-loading">"Loading..."</div>
-                            }.into_any()
-                        } else {
-                            let branch_list = branches.get();
-
-                            if branch_list.is_empty() {
-                                view! {
-                                    <div class="berry-git-empty">"No branches"</div>
-                                }.into_any()
-                            } else {
-                                branch_list.iter().map(|branch| {
-                                    let name = branch.name.clone();
-                                    let is_head = branch.is_head;
-                                    let name_for_checkout = name.clone();
-                                    let name_for_delete = name.clone();
-
-                                    view! {
-                                        <div class="berry-branch-item">
-                                            <span class="berry-branch-name">
-                                                {if is_head { "* " } else { "  " }}
-                                                {name}
-                                            </span>
-
-                                            {if !is_head {
-                                                view! {
-                                                    <>
-                                                        <button
-                                                            class="berry-branch-checkout-btn"
-                                                            on:click=move |_| handle_checkout(name_for_checkout.clone())
-                                                        >
-                                                            "Checkout"
-                                                        </button>
-                                                        <button
-                                                            class="berry-branch-delete-btn"
-                                                            on:click=move |_| handle_delete(name_for_delete.clone())
-                                                        >
-                                                            "Delete"
-                                                        </button>
-                                                    </>
-                                                }.into_any()
-                                            } else {
-                                                view! { <></> }.into_any()
-                                            }}
-                                        </div>
                                     }
-                                }).collect::<Vec<_>>().into_any()
+                                    button {
+                                        class: "berry-button",
+                                        onclick: move |_| *show_create_dialog.write() = false,
+                                        "Cancel"
+                                    }
+                                }
                             }
                         }
-                    }}
-                </div>
-            </div>
-        </Panel>
+                    } else {
+                        rsx! {}
+                    }
+                }
+
+                // Error display
+                {
+                    error.read().as_ref().map(|err| {
+                        rsx! {
+                            div { class: "berry-git-error", "{err}" }
+                        }
+                    })
+                }
+
+                // Branch list
+                div { class: "berry-branch-list",
+                    {
+                        if *loading.read() {
+                            rsx! {
+                                div { class: "berry-git-loading", "Loading..." }
+                            }
+                        } else {
+                            let branch_list = branches.read().clone();
+
+                            if branch_list.is_empty() {
+                                rsx! {
+                                    div { class: "berry-git-empty", "No branches" }
+                                }
+                            } else {
+                                rsx! {
+                                    for branch in branch_list {
+                                        {
+                                            let name = branch.name.clone();
+                                            let is_head = branch.is_head;
+                                            let name_for_checkout = name.clone();
+                                            let name_for_delete = name.clone();
+
+                                            rsx! {
+                                                div { class: "berry-branch-item",
+                                                    span { class: "berry-branch-name",
+                                                        { if is_head { "* " } else { "  " } }
+                                                        "{name}"
+                                                    }
+
+                                                    {
+                                                        if !is_head {
+                                                            rsx! {
+                                                                button {
+                                                                    class: "berry-branch-checkout-btn",
+                                                                    onclick: move |_| handle_checkout(name_for_checkout.clone()),
+                                                                    "Checkout"
+                                                                }
+                                                                button {
+                                                                    class: "berry-branch-delete-btn",
+                                                                    onclick: move |_| handle_delete(name_for_delete.clone()),
+                                                                    "Delete"
+                                                                }
+                                                            }
+                                                        } else {
+                                                            rsx! {}
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
