@@ -3,7 +3,7 @@
 //! Prevents keyboard event conflicts between multiple UI layers
 //! (Editor, Command Palette, Dialogs, etc.)
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 
 /// UI layers that can receive keyboard focus
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -17,33 +17,33 @@ pub enum FocusLayer {
 /// Global focus stack for managing keyboard event routing
 #[derive(Clone, Copy)]
 pub struct FocusStack {
-    active_layer: RwSignal<FocusLayer>,
+    active_layer: Signal<FocusLayer>,
 }
 
 impl FocusStack {
     /// Create a new focus stack with Editor as the default active layer
     pub fn new() -> Self {
         Self {
-            active_layer: RwSignal::new(FocusLayer::Editor),
+            active_layer: Signal::new(FocusLayer::Editor),
         }
     }
 
     /// Check if the given layer should handle keyboard events
     pub fn should_handle_keys(&self, layer: FocusLayer) -> bool {
-        self.active_layer.get() == layer
+        *self.active_layer.read() == layer
     }
 
     /// Set the active layer (e.g., when opening Command Palette)
     pub fn set_active(&self, layer: FocusLayer) {
         #[cfg(debug_assertions)]
-        leptos::logging::log!("🎯 FocusStack: Switching to {:?}", layer);
+        tracing::debug!("🎯 FocusStack: Switching to {:?}", layer);
 
-        self.active_layer.set(layer);
+        *self.active_layer.write() = layer;
     }
 
     /// Get the current active layer
     pub fn get_active(&self) -> FocusLayer {
-        self.active_layer.get()
+        *self.active_layer.read()
     }
 
     /// Push a layer onto the stack (set as active)
