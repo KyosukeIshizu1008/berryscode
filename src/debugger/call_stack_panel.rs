@@ -2,71 +2,90 @@
 //!
 //! Displays the call stack with clickable frames to navigate.
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use super::session::StackFrame;
 use crate::common::ui_components::Panel;
 
+/// Call stack panel props
+#[derive(Props, Clone, PartialEq)]
+pub struct CallStackPanelProps {
+    /// Stack frames to display
+    frames: Signal<Vec<StackFrame>>,
+    /// Currently selected frame ID
+    selected_frame: Signal<Option<i64>>,
+    /// Callback when a frame is clicked
+    on_frame_click: EventHandler<i64>,
+}
+
 /// Call stack panel component
 #[component]
-pub fn CallStackPanel(
-    /// Stack frames to display
-    frames: RwSignal<Vec<StackFrame>>,
-    /// Currently selected frame ID
-    selected_frame: RwSignal<Option<i64>>,
-    /// Callback when a frame is clicked
-    on_frame_click: impl Fn(i64) + 'static + Clone + Send,
-) -> impl IntoView {
-    view! {
-        <Panel title="Call Stack">
-            <div class="berry-call-stack-panel">
-                {move || {
-                    let current_frames = frames.get();
+pub fn CallStackPanel(props: CallStackPanelProps) -> Element {
+    let frames = props.frames;
+    let selected_frame = props.selected_frame;
+    let on_frame_click = props.on_frame_click;
+
+    rsx! {
+        Panel { title: "Call Stack",
+            div { class: "berry-call-stack-panel",
+                {
+                    let current_frames = frames.read().clone();
 
                     if current_frames.is_empty() {
-                        view! {
-                            <div class="berry-call-stack-empty">
+                        rsx! {
+                            div { class: "berry-call-stack-empty",
                                 "No call stack (not paused in debugger)"
-                            </div>
-                        }.into_any()
-                    } else {
-                        current_frames.iter().enumerate().map(|(index, frame)| {
-                            let on_frame_click_clone = on_frame_click.clone();
-                            let frame_id = frame.id;
-
-                            view! {
-                                <StackFrameView
-                                    frame=frame.clone()
-                                    index=index
-                                    selected=move || selected_frame.get() == Some(frame_id)
-                                    on_click=move || on_frame_click_clone(frame_id)
-                                />
                             }
-                        }).collect::<Vec<_>>().into_any()
+                        }
+                    } else {
+                        rsx! {
+                            for (index , frame) in current_frames.iter().enumerate() {
+                                {
+                                    let frame_id = frame.id;
+                                    let is_selected = *selected_frame.read() == Some(frame_id);
+
+                                    rsx! {
+                                        StackFrameView {
+                                            frame: frame.clone(),
+                                            index: index,
+                                            selected: is_selected,
+                                            on_click: move |_| on_frame_click.call(frame_id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                }}
-            </div>
-        </Panel>
+                }
+            }
+        }
     }
 }
 
-/// Single stack frame view
-#[component]
-fn StackFrameView(
+/// Stack frame view props
+#[derive(Props, Clone, PartialEq)]
+struct StackFrameViewProps {
     /// The stack frame
     frame: StackFrame,
     /// Frame index (0 = top of stack)
     index: usize,
     /// Whether this frame is selected
-    selected: impl Fn() -> bool + 'static + Send,
+    selected: bool,
     /// Click handler
-    on_click: impl Fn() + 'static,
-) -> impl IntoView {
-    let class = move || {
-        if selected() {
-            "berry-stack-frame berry-stack-frame-selected"
-        } else {
-            "berry-stack-frame"
-        }
+    on_click: EventHandler<()>,
+}
+
+/// Single stack frame view
+#[component]
+fn StackFrameView(props: StackFrameViewProps) -> Element {
+    let frame = props.frame;
+    let index = props.index;
+    let selected = props.selected;
+    let on_click = props.on_click;
+
+    let class = if selected {
+        "berry-stack-frame berry-stack-frame-selected"
+    } else {
+        "berry-stack-frame"
     };
 
     // Format location string
@@ -90,15 +109,15 @@ fn StackFrameView(
 
     let frame_name = frame.name.clone();
 
-    view! {
-        <div
-            class=class
-            on:click=move |_| on_click()
-        >
-            <span class="berry-stack-frame-index">{format!("#{}", index)}</span>
-            <span class="berry-stack-frame-name">{frame_name}</span>
-            <span class="berry-stack-frame-location">{location}</span>
-        </div>
+    rsx! {
+        div {
+            class: "{class}",
+            onclick: move |_| on_click.call(()),
+
+            span { class: "berry-stack-frame-index", "#{index}" }
+            span { class: "berry-stack-frame-name", "{frame_name}" }
+            span { class: "berry-stack-frame-location", "{location}" }
+        }
     }
 }
 
