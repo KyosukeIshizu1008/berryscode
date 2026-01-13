@@ -1,40 +1,48 @@
 //! Search Panel Component
 //! Project-wide search functionality
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
+use std::collections::HashMap;
 
 // Re-export search types from tauri_bindings_search
 pub use crate::tauri_bindings_search::{SearchOptions, SearchResult};
 
-#[component]
-pub fn SearchPanel(
-    is_open: RwSignal<bool>,
+/// Search Panel component props
+#[derive(Props, Clone, PartialEq)]
+pub struct SearchPanelProps {
+    is_open: Signal<bool>,
     root_path: String,
-    on_result_click: impl Fn(String, usize) + 'static + Clone + Send + Sync,
-) -> impl IntoView {
-    let on_result_click = StoredValue::new(on_result_click);
-    let search_query = RwSignal::new(String::new());
-    let search_results = RwSignal::new(Vec::<SearchResult>::new());
-    let is_searching = RwSignal::new(false);
-    let case_sensitive = RwSignal::new(false);
-    let use_regex = RwSignal::new(false);
-    let error_message = RwSignal::new(None::<String>);
+    on_result_click: EventHandler<(String, usize)>,
+}
 
-    // Perform search function - stored as a signal to allow multiple uses
-    let perform_search = StoredValue::new(move || {
-        let query = search_query.get();
+#[component]
+pub fn SearchPanel(props: SearchPanelProps) -> Element {
+    let is_open = props.is_open;
+    let root_path = props.root_path;
+    let on_result_click = props.on_result_click;
+
+    let mut search_query = use_signal(|| String::new());
+    let mut search_results = use_signal(|| Vec::<SearchResult>::new());
+    let mut is_searching = use_signal(|| false);
+    let mut case_sensitive = use_signal(|| false);
+    let mut use_regex = use_signal(|| false);
+    let mut error_message = use_signal(|| None::<String>);
+
+    // Perform search function
+    let perform_search = move || {
+        let query = search_query.read().clone();
         if query.is_empty() {
-            search_results.set(vec![]);
+            *search_results.write() = vec![];
             return;
         }
 
-        is_searching.set(true);
-        error_message.set(None);
+        *is_searching.write() = true;
+        *error_message.write() = None;
 
         let root = root_path.clone();
-        let options = SearchOptions {
-            case_sensitive: case_sensitive.get(),
-            use_regex: use_regex.get(),
+        let _options = SearchOptions {
+            case_sensitive: *case_sensitive.read(),
+            use_regex: *use_regex.read(),
             ..Default::default()
         };
 
@@ -61,137 +69,139 @@ pub fn SearchPanel(
             },
         ];
 
-        search_results.set(demo_results);
-        is_searching.set(false);
-    });
+        *search_results.write() = demo_results;
+        *is_searching.write() = false;
+    };
 
-    view! {
-        {move || {
-            if is_open.get() {
-                view! {
-                    <div class="berry-search-panel">
-                        <div class="berry-search-header">
-                            <h3>"SEARCH"</h3>
-                            <button
-                                class="berry-search-close"
-                                on:click=move |_| is_open.set(false)
-                            >
+    rsx! {
+        {
+            if *is_open.read() {
+                rsx! {
+                    div { class: "berry-search-panel",
+                        div { class: "berry-search-header",
+                            h3 { "SEARCH" }
+                            button {
+                                class: "berry-search-close",
+                                onclick: move |_| *is_open.write() = false,
                                 "×"
-                            </button>
-                        </div>
-
-                        <div class="berry-search-input-section">
-                            <input
-                                type="text"
-                                class="berry-search-input"
-                                placeholder="Search..."
-                                prop:value=move || search_query.get()
-                                on:input=move |ev| {
-                                    search_query.set(event_target_value(&ev));
-                                }
-                                on:keydown=move |ev| {
-                                    if ev.key() == "Enter" {
-                                        perform_search.with_value(|f| f());
-                                    }
-                                }
-                            />
-                            <button
-                                class="berry-search-button"
-                                on:click=move |_| perform_search.with_value(|f| f())
-                                disabled=move || is_searching.get()
-                            >
-                                {move || if is_searching.get() { "Searching..." } else { "Search" }}
-                            </button>
-                        </div>
-
-                        <div class="berry-search-options">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    prop:checked=move || case_sensitive.get()
-                                    on:change=move |ev| case_sensitive.set(event_target_checked(&ev))
-                                />
-                                " Match Case"
-                            </label>
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    prop:checked=move || use_regex.get()
-                                    on:change=move |ev| use_regex.set(event_target_checked(&ev))
-                                />
-                                " Use Regex"
-                            </label>
-                        </div>
-
-                        {move || {
-                            if let Some(ref err) = error_message.get() {
-                                view! {
-                                    <div class="berry-search-error">{err.clone()}</div>
-                                }.into_any()
-                            } else {
-                                view! { <></> }.into_any()
                             }
-                        }}
+                        }
 
-                        <div class="berry-search-results">
-                            {move || {
-                                let results = search_results.get();
-                                if results.is_empty() && !search_query.get().is_empty() {
-                                    view! {
-                                        <div class="berry-search-no-results">"No results found"</div>
-                                    }.into_any()
+                        div { class: "berry-search-input-section",
+                            input {
+                                r#type: "text",
+                                class: "berry-search-input",
+                                placeholder: "Search...",
+                                value: "{search_query.read()}",
+                                oninput: move |ev| *search_query.write() = ev.value(),
+                                onkeydown: move |ev: Event<KeyboardData>| {
+                                    if ev.key() == Key::Enter {
+                                        perform_search();
+                                    }
+                                },
+                            }
+                            button {
+                                class: "berry-search-button",
+                                onclick: move |_| perform_search(),
+                                disabled: *is_searching.read(),
+                                { if *is_searching.read() { "Searching..." } else { "Search" } }
+                            }
+                        }
+
+                        div { class: "berry-search-options",
+                            label {
+                                input {
+                                    r#type: "checkbox",
+                                    checked: *case_sensitive.read(),
+                                    onchange: move |ev| *case_sensitive.write() = ev.checked(),
+                                }
+                                " Match Case"
+                            }
+                            label {
+                                input {
+                                    r#type: "checkbox",
+                                    checked: *use_regex.read(),
+                                    onchange: move |ev| *use_regex.write() = ev.checked(),
+                                }
+                                " Use Regex"
+                            }
+                        }
+
+                        {
+                            if let Some(ref err) = *error_message.read() {
+                                rsx! {
+                                    div { class: "berry-search-error", "{err}" }
+                                }
+                            } else {
+                                rsx! {}
+                            }
+                        }
+
+                        div { class: "berry-search-results",
+                            {
+                                let results = search_results.read().clone();
+                                let query = search_query.read().clone();
+
+                                if results.is_empty() && !query.is_empty() {
+                                    rsx! {
+                                        div { class: "berry-search-no-results", "No results found" }
+                                    }
                                 } else {
                                     // Group results by file
-                                    let mut grouped: std::collections::HashMap<String, Vec<SearchResult>> = std::collections::HashMap::new();
+                                    let mut grouped: HashMap<String, Vec<SearchResult>> = HashMap::new();
                                     for result in results {
                                         grouped.entry(result.path.clone()).or_insert_with(Vec::new).push(result);
                                     }
 
-                                    view! {
-                                        <div>
-                                            {grouped.into_iter().map(|(path, results)| {
+                                    rsx! {
+                                        for (path , file_results) in grouped {
+                                            {
                                                 let filename = path.split('/').last().unwrap_or(&path).to_string();
-                                                let result_count = results.len();
+                                                let result_count = file_results.len();
 
-                                                view! {
-                                                    <div class="berry-search-file-group">
-                                                        <div class="berry-search-file-header">
-                                                            <i class="codicon codicon-file"></i>
-                                                            " " {filename.clone()} " (" {result_count} " results)"
-                                                        </div>
-                                                        <div class="berry-search-file-results">
-                                                            {results.into_iter().map(|result| {
-                                                                let path_clone = result.path.clone();
-                                                                let line_num = result.line_number;
+                                                rsx! {
+                                                    div { class: "berry-search-file-group",
+                                                        div { class: "berry-search-file-header",
+                                                            i { class: "codicon codicon-file" }
+                                                            " {filename} ({result_count} results)"
+                                                        }
+                                                        div { class: "berry-search-file-results",
+                                                            for result in file_results {
+                                                                {
+                                                                    let path_clone = result.path.clone();
+                                                                    let line_num = result.line_number;
 
-                                                                view! {
-                                                                    <div
-                                                                        class="berry-search-result-item"
-                                                                        on:click=move |_| on_result_click.with_value(|f| f(path_clone.clone(), line_num))
-                                                                    >
-                                                                        <span class="berry-search-result-line-num">
-                                                                            {result.line_number}":"
-                                                                        </span>
-                                                                        <span class="berry-search-result-text">
-                                                                            {result.line_text.clone()}
-                                                                        </span>
-                                                                    </div>
+                                                                    rsx! {
+                                                                        div {
+                                                                            class: "berry-search-result-item",
+                                                                            onclick: move |_| on_result_click.call((path_clone.clone(), line_num)),
+
+                                                                            span {
+                                                                                class: "berry-search-result-line-num",
+                                                                                "{result.line_number}:"
+                                                                            }
+                                                                            span {
+                                                                                class: "berry-search-result-text",
+                                                                                "{result.line_text}"
+                                                                            }
+                                                                        }
+                                                                    }
                                                                 }
-                                                            }).collect::<Vec<_>>()}
-                                                        </div>
-                                                    </div>
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            }).collect::<Vec<_>>()}
-                                        </div>
-                                    }.into_any()
+                                            }
+                                        }
+                                    }
                                 }
-                            }}
-                        </div>
-                    </div>
-                }.into_any()
+                            }
+                        }
+                    }
+                }
             } else {
-                view! { <></> }.into_any()
+                rsx! {}
             }
-        }}
+        }
     }
 }
