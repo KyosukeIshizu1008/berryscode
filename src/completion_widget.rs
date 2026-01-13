@@ -2,57 +2,55 @@
 //!
 //! IntelliJ-style completion popup with keyboard navigation.
 
-use leptos::prelude::*;
-use leptos::ev::KeyboardEvent;
+use dioxus::prelude::*;
+use dioxus::events::KeyboardEvent;
 use crate::lsp_ui::CompletionItem;
 use crate::types::Position;
-use crate::common::ui_components::ListView;
-use crate::common::event_handler::KeyCombo;
 
-/// Completion widget component
-#[component]
-pub fn CompletionWidget(
+/// Completion widget props
+#[derive(Props, Clone, PartialEq)]
+pub struct CompletionWidgetProps {
     /// Completion items to display
-    items: RwSignal<Vec<CompletionItem>>,
+    items: Signal<Vec<CompletionItem>>,
     /// Position to show the widget
     position: Position,
     /// Callback when an item is selected
-    on_select: impl Fn(CompletionItem) + 'static + Clone + Send,
-) -> impl IntoView {
-    let selected_index = RwSignal::new(0usize);
+    on_select: EventHandler<CompletionItem>,
+}
 
-    // Clone on_select for use in handle_keydown
-    let on_select_keydown = on_select.clone();
+/// Completion widget component
+#[component]
+pub fn CompletionWidget(props: CompletionWidgetProps) -> Element {
+    let items = props.items;
+    let position = props.position;
+    let on_select = props.on_select;
+
+    let mut selected_index = use_signal(|| 0usize);
 
     // Keyboard navigation
-    let handle_keydown = move |event: KeyboardEvent| {
+    let handle_keydown = move |event: Event<KeyboardData>| {
         let key = event.key();
-        let items_count = items.get_untracked().len();
+        let items_count = items.read().len();
 
-        match key.as_str() {
-            "ArrowDown" => {
-                event.prevent_default();
-                selected_index.update(|idx| {
+        match key {
+            Key::ArrowDown => {
+                selected_index.write().update(|idx| {
                     *idx = (*idx + 1).min(items_count.saturating_sub(1));
                 });
             }
-            "ArrowUp" => {
-                event.prevent_default();
-                selected_index.update(|idx| {
+            Key::ArrowUp => {
+                selected_index.write().update(|idx| {
                     *idx = idx.saturating_sub(1);
                 });
             }
-            "Enter" | "Tab" => {
-                event.prevent_default();
-                let idx = selected_index.get_untracked();
-                if let Some(item) = items.get_untracked().get(idx) {
-                    on_select_keydown(item.clone());
+            Key::Enter | Key::Tab => {
+                let idx = *selected_index.read();
+                if let Some(item) = items.read().get(idx) {
+                    on_select.call(item.clone());
                 }
             }
-            "Escape" => {
-                event.prevent_default();
-                // Close widget (clear items)
-                items.set(Vec::new());
+            Key::Escape => {
+                // Close widget (handled externally)
             }
             _ => {}
         }
@@ -65,47 +63,58 @@ pub fn CompletionWidget(
         position.line * 20 + 20
     );
 
-    view! {
-        <div
-            class="berry-completion-widget"
-            style=style
-            tabindex="0"
-            on:keydown=handle_keydown
-        >
-            <div class="berry-completion-list">
-                {move || {
-                    let current_items = items.get();
-                    let selected = selected_index.get();
+    rsx! {
+        div {
+            class: "berry-completion-widget",
+            style: "{style}",
+            tabindex: "0",
+            onkeydown: handle_keydown,
 
-                    current_items.iter().enumerate().map(|(idx, item)| {
-                        let is_selected = idx == selected;
-                        let on_select_clone = on_select.clone();
-                        let item_clone = item.clone();
+            div { class: "berry-completion-list",
+                {
+                    let current_items = items.read().clone();
+                    let selected = *selected_index.read();
 
-                        view! {
-                            <CompletionItemView
-                                item=item.clone()
-                                selected=is_selected
-                                on_click=move || on_select_clone(item_clone.clone())
-                            />
+                    rsx! {
+                        for (idx , item) in current_items.iter().enumerate() {
+                            {
+                                let is_selected = idx == selected;
+                                let item_clone = item.clone();
+
+                                rsx! {
+                                    CompletionItemView {
+                                        item: item.clone(),
+                                        selected: is_selected,
+                                        on_click: move |_| on_select.call(item_clone.clone())
+                                    }
+                                }
+                            }
                         }
-                    }).collect::<Vec<_>>()
-                }}
-            </div>
-        </div>
+                    }
+                }
+            }
+        }
     }
 }
 
-/// Single completion item view
-#[component]
-fn CompletionItemView(
+/// Completion item view props
+#[derive(Props, Clone, PartialEq)]
+struct CompletionItemViewProps {
     /// The completion item
     item: CompletionItem,
     /// Whether this item is selected
     selected: bool,
     /// Click handler
-    on_click: impl Fn() + 'static,
-) -> impl IntoView {
+    on_click: EventHandler<()>,
+}
+
+/// Single completion item view
+#[component]
+fn CompletionItemView(props: CompletionItemViewProps) -> Element {
+    let item = props.item;
+    let selected = props.selected;
+    let on_click = props.on_click;
+
     let class = if selected {
         "berry-completion-item berry-completion-item-selected"
     } else {
@@ -129,19 +138,18 @@ fn CompletionItemView(
     let label = item.label.clone();
     let detail_text = item.detail.clone();
 
-    view! {
-        <div
-            class=class
-            on:click=move |_| on_click()
-        >
-            <span class="berry-completion-kind">{kind_text}</span>
-            <span class="berry-completion-label">{label}</span>
-            {detail_text.map(|detail| {
-                view! {
-                    <span class="berry-completion-detail">{detail}</span>
-                }
-            })}
-        </div>
+    rsx! {
+        div {
+            class: "{class}",
+            onclick: move |_| on_click.call(()),
+
+            span { class: "berry-completion-kind", "{kind_text}" }
+            span { class: "berry-completion-label", "{label}" }
+
+            if let Some(detail) = detail_text {
+                span { class: "berry-completion-detail", "{detail}" }
+            }
+        }
     }
 }
 
