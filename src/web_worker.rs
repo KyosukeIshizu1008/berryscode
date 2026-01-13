@@ -3,7 +3,7 @@
 //! Runs heavy computations (indexing, parsing) in background threads
 //! without blocking the UI
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 use crate::core::bridge;
@@ -65,8 +65,8 @@ impl IndexerWorker {
     /// This function sets up the worker through the bridge abstraction,
     /// keeping web_sys usage isolated to the bridge module.
     pub fn new(
-        on_progress: RwSignal<Option<ProgressData>>,
-        on_error: RwSignal<Option<String>>,
+        on_progress: Signal<Option<ProgressData>>,
+        on_error: Signal<Option<String>>,
     ) -> Result<Self, JsValue> {
         // ✅ Use bridge to spawn worker - web_sys is hidden
         let worker = bridge::spawn_worker::<WorkerMessage>(
@@ -75,10 +75,10 @@ impl IndexerWorker {
                 if let Ok(response) = serde_wasm_bindgen::from_value::<WorkerResponse>(data) {
                     match response {
                         WorkerResponse::Ready => {
-                            leptos::logging::log!("Worker ready");
+                            tracing::info!("Worker ready");
                         }
                         WorkerResponse::Progress { data } => {
-                            on_progress.set(Some(data));
+                            *on_progress.write() = Some(data);
                         }
                         WorkerResponse::Status { .. } => {
                             // Handle status if needed
@@ -88,10 +88,10 @@ impl IndexerWorker {
                         }
                         WorkerResponse::CallTauri { command: _, args: _ } => {
                             // Note: Tauri calls handled separately via events
-                            leptos::logging::log!("Tauri call requested");
+                            tracing::info!("Tauri call requested");
                         }
                         WorkerResponse::Error { error } => {
-                            on_error.set(Some(error));
+                            *on_error.write() = Some(error);
                         }
                     }
                 }
