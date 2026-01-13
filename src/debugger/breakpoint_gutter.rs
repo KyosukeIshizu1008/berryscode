@@ -2,28 +2,34 @@
 //!
 //! Displays breakpoints in the editor gutter with click-to-toggle functionality.
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use super::session::Breakpoint;
 
-/// Breakpoint gutter component for a single line
-#[component]
-pub fn BreakpointGutter(
+/// Breakpoint gutter component props
+#[derive(Props, Clone, PartialEq)]
+pub struct BreakpointGutterProps {
     /// Line number (1-indexed)
     line_number: usize,
     /// Current breakpoint state for this line
-    breakpoint: RwSignal<Option<Breakpoint>>,
+    breakpoint: Signal<Option<Breakpoint>>,
     /// Callback when breakpoint is toggled
-    on_toggle: impl Fn(usize) + 'static + Clone,
-) -> impl IntoView {
-    let on_toggle_clone = on_toggle.clone();
+    on_toggle: EventHandler<usize>,
+}
 
-    view! {
-        <div
-            class="berry-breakpoint-gutter"
-            on:click=move |_| on_toggle_clone(line_number)
-        >
-            {move || {
-                let bp = breakpoint.get();
+/// Breakpoint gutter component for a single line
+#[component]
+pub fn BreakpointGutter(props: BreakpointGutterProps) -> Element {
+    let line_number = props.line_number;
+    let breakpoint = props.breakpoint;
+    let on_toggle = props.on_toggle;
+
+    rsx! {
+        div {
+            class: "berry-breakpoint-gutter",
+            onclick: move |_| on_toggle.call(line_number),
+
+            {
+                let bp = breakpoint.read().clone();
                 if let Some(breakpoint) = bp {
                     let class = if breakpoint.verified {
                         "berry-breakpoint-icon berry-breakpoint-verified"
@@ -31,92 +37,107 @@ pub fn BreakpointGutter(
                         "berry-breakpoint-icon berry-breakpoint-unverified"
                     };
 
-                    view! {
-                        <span
-                            class=class
-                            title=move || {
-                                if let Some(ref cond) = breakpoint.condition {
-                                    format!("Conditional: {}", cond)
-                                } else {
-                                    "Breakpoint".to_string()
-                                }
-                            }
-                        >
+                    let title = if let Some(ref cond) = breakpoint.condition {
+                        format!("Conditional: {}", cond)
+                    } else {
+                        "Breakpoint".to_string()
+                    };
+
+                    rsx! {
+                        span {
+                            class: "{class}",
+                            title: "{title}",
                             "●"
-                        </span>
-                    }.into_any()
+                        }
+                    }
                 } else {
-                    view! {
-                        <span class="berry-breakpoint-placeholder"></span>
-                    }.into_any()
+                    rsx! {
+                        span { class: "berry-breakpoint-placeholder" }
+                    }
                 }
-            }}
-        </div>
+            }
+        }
     }
+}
+
+/// Conditional breakpoint editor dialog props
+#[derive(Props, Clone, PartialEq)]
+pub struct ConditionalBreakpointDialogProps {
+    /// Whether the dialog is visible
+    visible: Signal<bool>,
+    /// Current condition (if any)
+    current_condition: Signal<Option<String>>,
+    /// Callback when condition is set
+    on_set: EventHandler<Option<String>>,
 }
 
 /// Conditional breakpoint editor dialog
 #[component]
-pub fn ConditionalBreakpointDialog(
-    /// Whether the dialog is visible
-    visible: RwSignal<bool>,
-    /// Current condition (if any)
-    current_condition: RwSignal<Option<String>>,
-    /// Callback when condition is set
-    on_set: impl Fn(Option<String>) + 'static + Clone,
-) -> impl IntoView {
-    let condition_input = RwSignal::new(String::new());
+pub fn ConditionalBreakpointDialog(props: ConditionalBreakpointDialogProps) -> Element {
+    let visible = props.visible;
+    let current_condition = props.current_condition;
+    let on_set = props.on_set;
+
+    let mut condition_input = use_signal(|| String::new());
 
     // Initialize condition input when dialog becomes visible
-    Effect::new(move || {
-        if visible.get() {
-            condition_input.set(current_condition.get().unwrap_or_default());
+    use_effect(move || {
+        if *visible.read() {
+            *condition_input.write() = current_condition.read().clone().unwrap_or_default();
         }
     });
 
-    let on_set_clone = on_set.clone();
     let handle_ok = move |_| {
-        let condition = condition_input.get_untracked();
+        let condition = condition_input.read().clone();
         let final_condition = if condition.is_empty() {
             None
         } else {
             Some(condition)
         };
-        on_set_clone(final_condition);
-        visible.set(false);
+        on_set.call(final_condition);
+        *visible.write() = false;
     };
 
     let handle_cancel = move |_| {
-        visible.set(false);
+        *visible.write() = false;
     };
 
-    view! {
-        <div
-            class="berry-dialog-overlay"
-            class:berry-dialog-visible=move || visible.get()
-        >
-            <div class="berry-dialog berry-conditional-breakpoint-dialog">
-                <h3>"Conditional Breakpoint"</h3>
-                <div class="berry-dialog-content">
-                    <label>
+    let overlay_class = if *visible.read() {
+        "berry-dialog-overlay berry-dialog-visible"
+    } else {
+        "berry-dialog-overlay"
+    };
+
+    rsx! {
+        div { class: "{overlay_class}",
+            div { class: "berry-dialog berry-conditional-breakpoint-dialog",
+                h3 { "Conditional Breakpoint" }
+                div { class: "berry-dialog-content",
+                    label {
                         "Break when expression is true:"
-                        <input
-                            type="text"
-                            class="berry-input"
-                            prop:value=move || condition_input.get()
-                            on:input=move |ev| {
-                                condition_input.set(event_target_value(&ev));
-                            }
-                            placeholder="e.g., x > 10"
-                        />
-                    </label>
-                </div>
-                <div class="berry-dialog-actions">
-                    <button class="berry-button" on:click=handle_ok>"OK"</button>
-                    <button class="berry-button" on:click=handle_cancel>"Cancel"</button>
-                </div>
-            </div>
-        </div>
+                        input {
+                            r#type: "text",
+                            class: "berry-input",
+                            value: "{condition_input.read()}",
+                            oninput: move |ev| *condition_input.write() = ev.value(),
+                            placeholder: "e.g., x > 10",
+                        }
+                    }
+                }
+                div { class: "berry-dialog-actions",
+                    button {
+                        class: "berry-button",
+                        onclick: handle_ok,
+                        "OK"
+                    }
+                    button {
+                        class: "berry-button",
+                        onclick: handle_cancel,
+                        "Cancel"
+                    }
+                }
+            }
+        }
     }
 }
 
