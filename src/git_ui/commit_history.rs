@@ -2,13 +2,12 @@
 //!
 //! Display commit log with details
 
-use leptos::prelude::*;
-use leptos::task::spawn_local;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::common::async_bridge::TauriBridge;
 use crate::common::ui_components::Panel;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CommitInfo {
     pub hash: String,
     pub short_hash: String,
@@ -21,76 +20,88 @@ pub struct CommitInfo {
 
 /// Commit History Panel
 #[component]
-pub fn CommitHistoryPanel() -> impl IntoView {
-    let commits = RwSignal::new(Vec::<CommitInfo>::new());
-    let selected_commit = RwSignal::new(Option::<String>::None);
-    let loading = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+pub fn CommitHistoryPanel() -> Element {
+    let mut commits = use_signal(|| Vec::<CommitInfo>::new());
+    let mut selected_commit = use_signal(|| Option::<String>::None);
+    let mut loading = use_signal(|| false);
+    let mut error = use_signal(|| None::<String>);
 
     // Load commits on mount
-    Effect::new(move || {
-        spawn_local(async move {
-            loading.set(true);
+    use_effect(move || {
+        spawn(async move {
+            *loading.write() = true;
             match load_commits().await {
                 Ok(commit_list) => {
-                    commits.set(commit_list);
-                    error.set(None);
+                    *commits.write() = commit_list;
+                    *error.write() = None;
                 }
                 Err(e) => {
-                    error.set(Some(format!("Failed to load commits: {}", e)));
+                    *error.write() = Some(format!("Failed to load commits: {}", e));
                 }
             }
-            loading.set(false);
+            *loading.write() = false;
         });
     });
 
-    view! {
-        <Panel title="Commit History">
-            <div class="berry-commit-history">
-                {move || {
-                    if loading.get() {
-                        view! {
-                            <div class="berry-git-loading">"Loading..."</div>
-                        }.into_any()
-                    } else if let Some(err) = error.get() {
-                        view! {
-                            <div class="berry-git-error">{err}</div>
-                        }.into_any()
+    rsx! {
+        Panel { title: "Commit History",
+            div { class: "berry-commit-history",
+                {
+                    if *loading.read() {
+                        rsx! {
+                            div { class: "berry-git-loading", "Loading..." }
+                        }
+                    } else if let Some(ref err) = *error.read() {
+                        rsx! {
+                            div { class: "berry-git-error", "{err}" }
+                        }
                     } else {
-                        let commit_list = commits.get();
+                        let commit_list = commits.read().clone();
 
                         if commit_list.is_empty() {
-                            view! {
-                                <div class="berry-git-empty">"No commits"</div>
-                            }.into_any()
+                            rsx! {
+                                div { class: "berry-git-empty", "No commits" }
+                            }
                         } else {
-                            commit_list.iter().map(|commit| {
-                                let hash = commit.hash.clone();
-                                let is_selected = selected_commit.get().as_ref() == Some(&hash);
+                            rsx! {
+                                for commit in commit_list {
+                                    {
+                                        let hash = commit.hash.clone();
+                                        let is_selected = selected_commit.read().as_ref() == Some(&hash);
 
-                                view! {
-                                    <CommitItem
-                                        commit=commit.clone()
-                                        selected=is_selected
-                                        on_select=move || selected_commit.set(Some(hash.clone()))
-                                    />
+                                        rsx! {
+                                            CommitItem {
+                                                commit: commit.clone(),
+                                                selected: is_selected,
+                                                on_select: move |_| *selected_commit.write() = Some(hash.clone())
+                                            }
+                                        }
+                                    }
                                 }
-                            }).collect::<Vec<_>>().into_any()
+                            }
                         }
                     }
-                }}
-            </div>
-        </Panel>
+                }
+            }
+        }
     }
+}
+
+/// Single commit item props
+#[derive(Props, Clone, PartialEq)]
+struct CommitItemProps {
+    commit: CommitInfo,
+    selected: bool,
+    on_select: EventHandler<()>,
 }
 
 /// Single commit item
 #[component]
-fn CommitItem(
-    commit: CommitInfo,
-    selected: bool,
-    on_select: impl Fn() + 'static,
-) -> impl IntoView {
+fn CommitItem(props: CommitItemProps) -> Element {
+    let commit = props.commit;
+    let selected = props.selected;
+    let on_select = props.on_select;
+
     let class = if selected {
         "berry-commit-item berry-commit-item-selected"
     } else {
@@ -106,15 +117,18 @@ fn CommitItem(
     // Extract first line of commit message
     let first_line = commit.message.lines().next().unwrap_or("").to_string();
 
-    view! {
-        <div class=class on:click=move |_| on_select()>
-            <div class="berry-commit-header">
-                <span class="berry-commit-hash">{commit.short_hash}</span>
-                <span class="berry-commit-time">{time_str}</span>
-            </div>
-            <div class="berry-commit-message">{first_line}</div>
-            <div class="berry-commit-author">{commit.author}</div>
-        </div>
+    rsx! {
+        div {
+            class: "{class}",
+            onclick: move |_| on_select.call(()),
+
+            div { class: "berry-commit-header",
+                span { class: "berry-commit-hash", "{commit.short_hash}" }
+                span { class: "berry-commit-time", "{time_str}" }
+            }
+            div { class: "berry-commit-message", "{first_line}" }
+            div { class: "berry-commit-author", "{commit.author}" }
+        }
     }
 }
 
