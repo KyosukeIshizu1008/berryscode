@@ -6,9 +6,7 @@
 //! This module uses a plugin-based SearchProvider architecture for extensibility.
 //! See `search_provider.rs` for provider implementations.
 
-use leptos::prelude::*;
-use leptos::ev::{KeyboardEvent, MouseEvent};
-use leptos::task::spawn_local;
+use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::search_provider::*;
 use crate::focus_stack::{FocusStack, FocusLayer};
@@ -55,8 +53,8 @@ pub struct PaletteItem {
 async fn search_with_providers(
     providers: &[SearchProvider],
     query: &str,
-    results_signal: RwSignal<Vec<PaletteItem>>,
-    search_id_signal: RwSignal<u32>,
+    results_signal: Signal<Vec<PaletteItem>>,
+    search_id_signal: Signal<u32>,
 ) {
     let query = query.to_string();
 
@@ -85,12 +83,12 @@ async fn search_with_providers(
 
     for provider in immediate_providers {
         #[cfg(debug_assertions)]
-        leptos::logging::log!("🔍 Searching provider: {}", provider.provider_name());
+        tracing::debug!("🔍 Searching provider: {}", provider.provider_name());
 
         let items = provider.search(&query).await;
 
         #[cfg(debug_assertions)]
-        leptos::logging::log!(
+        tracing::debug!(
             "✅ Provider {} returned {} items",
             provider.provider_name(),
             items.len()
@@ -114,7 +112,7 @@ async fn search_with_providers(
         .collect();
 
     // Update results with immediate items
-    results_signal.set(immediate_items);
+    *results_signal.write() = immediate_items;
 
     // Execute debounced providers (symbols)
     for provider in debounced_providers {
@@ -127,262 +125,264 @@ async fn search_with_providers(
         // 🚀 RACE CONDITION PROTECTION:
         // Capture current search_id before scheduling debounced search
         // If user types again, search_id will increment and this search will be discarded
-        let current_search_id = search_id_signal.get_untracked();
+        let current_search_id = *search_id_signal.read();
 
         #[cfg(debug_assertions)]
-        leptos::logging::log!(
+        tracing::debug!(
             "⏱️  Scheduling debounced search for provider: {} ({}ms)",
             provider_name,
             debounce_ms
         );
 
-        leptos::prelude::set_timeout(
-            move || {
-                // Only execute if this is still the latest search
-                if search_id_signal.get_untracked() != current_search_id {
-                    #[cfg(debug_assertions)]
-                    leptos::logging::log!("🚫 Search cancelled (query changed): {}", provider_name);
-                    return;
-                }
+        // Spawn async task with delay
+        spawn(async move {
+            // Wait for debounce period
+            gloo_timers::future::sleep(std::time::Duration::from_millis(debounce_ms)).await;
 
-                spawn_local(async move {
-                    // Check again if search is still relevant
-                    if search_id_signal.get_untracked() != current_search_id {
-                        #[cfg(debug_assertions)]
-                        leptos::logging::log!("🚫 Results discarded (query changed)");
-                        return;
-                    }
+            // Only execute if this is still the latest search
+            if *search_id_signal.read() != current_search_id {
+                #[cfg(debug_assertions)]
+                tracing::debug!("🚫 Search cancelled (query changed): {}", provider_name);
+                return;
+            }
 
-                    #[cfg(debug_assertions)]
-                    leptos::logging::log!("🔍 Executing debounced search: {}", provider_name);
+            #[cfg(debug_assertions)]
+            tracing::debug!("🔍 Executing debounced search: {}", provider_name);
 
-                    let new_items = provider_clone.search(&query_for_search).await;
+            let new_items = provider_clone.search(&query_for_search).await;
 
-                    #[cfg(debug_assertions)]
-                    leptos::logging::log!(
-                        "✅ Provider {} returned {} items",
-                        provider_name,
-                        new_items.len()
-                    );
+            #[cfg(debug_assertions)]
+            tracing::debug!(
+                "✅ Provider {} returned {} items",
+                provider_name,
+                new_items.len()
+            );
 
-                    // Merge with existing results
-                    let mut combined = results_signal.get_untracked();
+            // Check again if search is still relevant
+            if *search_id_signal.read() != current_search_id {
+                #[cfg(debug_assertions)]
+                tracing::debug!("🚫 Results discarded (query changed)");
+                return;
+            }
 
-                    for item in new_items {
-                        combined.push(item);
-                    }
+            // Merge with existing results
+            let mut combined = results_signal.read().clone();
 
-                    // Re-sort by priority using ActionType::priority()
-                    let mut scored: Vec<(PaletteItem, u32)> = combined
-                        .into_iter()
-                        .map(|item| {
-                            // Use ActionType's priority method for consistency
-                            // For Symbol types, use provider-specific priority if available
-                            let item_priority = if item.action_type == ActionType::Symbol {
-                                priority // Provider-specific priority for symbols
-                            } else {
-                                item.action_type.priority()
-                            };
-                            (item, item_priority)
-                        })
-                        .collect();
+            for item in new_items {
+                combined.push(item);
+            }
 
-                    scored.sort_by(|a, b| {
-                        a.1.cmp(&b.1)
-                            .then_with(|| a.0.label.cmp(&b.0.label))
-                    });
+            // Re-sort by priority using ActionType::priority()
+            let mut scored: Vec<(PaletteItem, u32)> = combined
+                .into_iter()
+                .map(|item| {
+                    // Use ActionType's priority method for consistency
+                    // For Symbol types, use provider-specific priority if available
+                    let item_priority = if item.action_type == ActionType::Symbol {
+                        priority // Provider-specific priority for symbols
+                    } else {
+                        item.action_type.priority()
+                    };
+                    (item, item_priority)
+                })
+                .collect();
 
-                    let sorted_items: Vec<PaletteItem> = scored
-                        .into_iter()
-                        .map(|(item, _)| item)
-                        .take(100) // Limit total results
-                        .collect();
+            scored.sort_by(|a, b| {
+                a.1.cmp(&b.1)
+                    .then_with(|| a.0.label.cmp(&b.0.label))
+            });
 
-                    results_signal.set(sorted_items);
-                });
-            },
-            std::time::Duration::from_millis(debounce_ms),
-        );
+            let sorted_items: Vec<PaletteItem> = scored
+                .into_iter()
+                .map(|(item, _)| item)
+                .take(100) // Limit total results
+                .collect();
+
+            *results_signal.write() = sorted_items;
+        });
     }
+}
+
+/// Command Palette Component props
+#[derive(Props, Clone, PartialEq)]
+pub struct CommandPaletteProps {
+    show: Signal<bool>,
+    on_select: EventHandler<PaletteItem>,
+    #[props(optional)] focus_stack: Option<FocusStack>,
 }
 
 /// Command Palette Component
 #[component]
-pub fn CommandPalette(
-    show: RwSignal<bool>,
-    on_select: impl Fn(PaletteItem) + 'static + Clone + Send,
-    #[prop(optional)] focus_stack: Option<FocusStack>,
-) -> impl IntoView {
-    // Use provided focus_stack or create a local one for backwards compatibility
-    let focus_stack = focus_stack.unwrap_or_else(FocusStack::new);
-    let query = RwSignal::new(String::new());
-    let filtered_items = RwSignal::new(Vec::<PaletteItem>::new());
-    let selected_index = RwSignal::new(0usize);
-    let search_id = RwSignal::new(0u32);
+pub fn CommandPalette(props: CommandPaletteProps) -> Element {
+    let show = props.show;
+    let on_select = props.on_select;
 
-    // Initialize providers (stored as signal for reactivity)
-    let providers = StoredValue::new(vec![
+    // Use provided focus_stack or create a local one for backwards compatibility
+    let focus_stack = props.focus_stack.unwrap_or_else(FocusStack::new);
+
+    let mut query = use_signal(|| String::new());
+    let mut filtered_items = use_signal(|| Vec::<PaletteItem>::new());
+    let mut selected_index = use_signal(|| 0usize);
+    let mut search_id = use_signal(|| 0u32);
+
+    // Initialize providers (stored as constant for this component)
+    let providers = vec![
         SearchProvider::FileSearch(FileSearchProvider::new()),
         SearchProvider::GitActions,
         SearchProvider::EditorActions,
         SearchProvider::Settings,
         SearchProvider::SymbolSearch,
-    ]);
+    ];
 
     // Load items when palette opens
-    Effect::new(move || {
-        if show.get() {
-            // 🎯 FOCUS MANAGEMENT: Take focus when palette opens
-            // ✅ FIX: Use untrack to prevent reactive graph explosion
-            // This ensures focus_stack operations don't trigger cascading effects
-            untrack(|| focus_stack.push(FocusLayer::CommandPalette));
+    use_effect(move || {
+        let is_shown = *show.read();
 
-            query.set(String::new());
-            selected_index.set(0);
-            search_id.set(0);
+        if is_shown {
+            // 🎯 FOCUS MANAGEMENT: Take focus when palette opens
+            focus_stack.push(FocusLayer::CommandPalette);
+
+            *query.write() = String::new();
+            *selected_index.write() = 0;
+            *search_id.write() = 0;
 
             // Initial load with empty query
-            let provs = providers.get_value();
-            spawn_local(async move {
+            let provs = providers.clone();
+            spawn(async move {
                 search_with_providers(&provs, "", filtered_items, search_id).await;
             });
         } else {
             // 🎯 FOCUS MANAGEMENT: Return focus to editor when palette closes
-            // ✅ FIX: Use untrack to prevent reactive graph explosion
-            untrack(|| focus_stack.pop());
+            focus_stack.pop();
         }
     });
 
     // Search when query changes
     // 🚀 RACE CONDITION MITIGATION:
     // - Each query change spawns a new async task
-    // - Old tasks cannot be directly cancelled in Leptos/WASM
+    // - Old tasks cannot be directly cancelled in Dioxus/WASM
     // - search_id mechanism discards stale results (checked in search_with_providers)
     // - This prevents old results from overwriting newer ones
-    Effect::new(move || {
-        let q = query.get();
-        let provs = providers.get_value();
+    use_effect(move || {
+        let q = query.read().clone();
+        let provs = providers.clone();
 
         // Increment search_id to invalidate any in-flight searches
-        search_id.update(|id| *id += 1);
+        search_id.write().update(|id| *id += 1);
 
-        spawn_local(async move {
+        spawn(async move {
             search_with_providers(&provs, &q, filtered_items, search_id).await;
         });
 
-        selected_index.set(0); // Reset selection on query change
+        *selected_index.write() = 0; // Reset selection on query change
     });
 
-    // Clone on_select before the view to avoid FnOnce issues
-    let on_select_for_view = on_select.clone();
+    rsx! {
+        {
+            let is_shown = *show.read();
 
-    view! {
-        {move || {
-            if show.get() {
-                // Clone on_select inside the reactive closure
-                let on_select_for_keydown = on_select_for_view.clone();
-                let on_select_for_items = on_select_for_view.clone();
+            if is_shown {
+                let handle_keydown = move |event: Event<KeyboardData>| {
+                    let items_count = filtered_items.read().len();
 
-                let handle_keydown = move |event: KeyboardEvent| {
-                    let key = event.key();
-                    let items_count = filtered_items.get_untracked().len();
-
-                    match key.as_str() {
-                        "ArrowDown" => {
+                    match event.key() {
+                        Key::ArrowDown => {
                             event.prevent_default();
-                            selected_index.update(|idx| {
+                            selected_index.write().update(|idx| {
                                 *idx = (*idx + 1).min(items_count.saturating_sub(1));
                             });
                         }
-                        "ArrowUp" => {
+                        Key::ArrowUp => {
                             event.prevent_default();
-                            selected_index.update(|idx| {
+                            selected_index.write().update(|idx| {
                                 *idx = idx.saturating_sub(1);
                             });
                         }
-                        "Enter" => {
+                        Key::Enter => {
                             event.prevent_default();
-                            let idx = selected_index.get_untracked();
-                            if let Some(item) = filtered_items.get_untracked().get(idx) {
-                                on_select_for_keydown(item.clone());
-                                show.set(false);
+                            let idx = *selected_index.read();
+                            if let Some(item) = filtered_items.read().get(idx) {
+                                on_select.call(item.clone());
+                                *show.write() = false;
                             }
                         }
-                        "Escape" => {
+                        Key::Escape => {
                             event.prevent_default();
-                            show.set(false);
+                            *show.write() = false;
                         }
                         _ => {}
                     }
                 };
 
-                view! {
-                    <div class="berry-command-palette-backdrop" on:click=move |_| show.set(false)>
-                        <div class="berry-command-palette" on:click=move |e: MouseEvent| e.stop_propagation()>
-                            <input
-                                type="text"
-                                class="berry-command-palette-input"
-                                placeholder="Type a command or search..."
-                                prop:value=move || query.get()
-                                on:input=move |ev| {
-                                    query.set(event_target_value(&ev));
-                                }
-                                on:keydown=handle_keydown
-                                autofocus
-                            />
+                rsx! {
+                    div { class: "berry-command-palette-backdrop",
+                        onclick: move |_| *show.write() = false,
 
-                            <div class="berry-command-palette-results">
-                                {move || {
-                                    let current_items = filtered_items.get();
-                                    let selected = selected_index.get();
+                        div { class: "berry-command-palette",
+                            onclick: move |e: Event<MouseData>| e.stop_propagation(),
+
+                            input {
+                                r#type: "text",
+                                class: "berry-command-palette-input",
+                                placeholder: "Type a command or search...",
+                                value: "{query.read()}",
+                                oninput: move |evt| *query.write() = evt.value(),
+                                onkeydown: handle_keydown,
+                                autofocus: true,
+                            }
+
+                            div { class: "berry-command-palette-results",
+                                {
+                                    let current_items = filtered_items.read().clone();
+                                    let selected = *selected_index.read();
 
                                     if current_items.is_empty() {
-                                        view! {
-                                            <div class="berry-palette-empty">
+                                        rsx! {
+                                            div { class: "berry-palette-empty",
                                                 "No results found"
-                                            </div>
-                                        }.into_any()
+                                            }
+                                        }
                                     } else {
-                                        current_items
-                                            .into_iter()
-                                            .enumerate()
-                                            .map(|(idx, item)| {
-                                                let is_selected = idx == selected;
-                                                let item_clone = item.clone();
-                                                let on_select_clone = on_select_for_items.clone();
+                                        rsx! {
+                                            for (idx , item) in current_items.iter().enumerate() {
+                                                {
+                                                    let is_selected = idx == selected;
+                                                    let item_clone = item.clone();
+                                                    let class_name = if is_selected {
+                                                        "berry-palette-item berry-palette-item-selected"
+                                                    } else {
+                                                        "berry-palette-item"
+                                                    };
 
-                                                view! {
-                                                    <div
-                                                        class:berry-palette-item=true
-                                                        class:berry-palette-item-selected=is_selected
-                                                        on:click=move |_| {
-                                                            on_select_clone(item_clone.clone());
-                                                            show.set(false);
-                                                        }
-                                                    >
-                                                        <i class=format!("codicon codicon-{}", item.icon)></i>
-                                                        <div class="berry-palette-item-content">
-                                                            <div class="berry-palette-item-label">{item.label.clone()}</div>
-                                                            {item.description.clone().map(|desc| {
-                                                                view! {
-                                                                    <div class="berry-palette-item-description">{desc}</div>
+                                                    rsx! {
+                                                        div {
+                                                            class: "{class_name}",
+                                                            onclick: move |_| {
+                                                                on_select.call(item_clone.clone());
+                                                                *show.write() = false;
+                                                            },
+
+                                                            i { class: "codicon codicon-{item.icon}" }
+                                                            div { class: "berry-palette-item-content",
+                                                                div { class: "berry-palette-item-label", "{item.label}" }
+                                                                if let Some(desc) = &item.description {
+                                                                    div { class: "berry-palette-item-description", "{desc}" }
                                                                 }
-                                                            })}
-                                                        </div>
-                                                    </div>
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            })
-                                            .collect_view()
-                                            .into_any()
+                                            }
+                                        }
                                     }
-                                }}
-                            </div>
-                        </div>
-                    </div>
-                }.into_any()
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
-                view! {}.into_any()
+                rsx! {}
             }
-        }}
+        }
     }
 }
