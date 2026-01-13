@@ -2,137 +2,162 @@
 //!
 //! Common UI components to ensure consistent styling and eliminate duplication.
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 
 /// Generic panel component with title and children
-#[component]
-pub fn Panel(
+#[derive(Props, Clone, PartialEq)]
+pub struct PanelProps {
     /// Panel title
     title: &'static str,
     /// Child content
-    children: Children,
-) -> impl IntoView
-{
-    view! {
-        <div class="berry-panel">
-            <div class="berry-panel-header">{title}</div>
-            <div class="berry-panel-content">{children()}</div>
-        </div>
+    children: Element,
+}
+
+#[component]
+pub fn Panel(props: PanelProps) -> Element {
+    let title = props.title;
+    let children = props.children;
+
+    rsx! {
+        div { class: "berry-panel",
+            div { class: "berry-panel-header", "{title}" }
+            div { class: "berry-panel-content", {children} }
+        }
     }
 }
 
 /// Standard button component
-#[component]
-pub fn Button(
+#[derive(Props, Clone, PartialEq)]
+pub struct ButtonProps {
     /// Button label
     label: &'static str,
     /// Click handler
-    on_click: impl Fn() + 'static,
-) -> impl IntoView {
-    view! {
-        <button
-            class="berry-button"
-            on:click=move |_| on_click()
-        >
-            {label}
-        </button>
+    on_click: EventHandler<()>,
+}
+
+#[component]
+pub fn Button(props: ButtonProps) -> Element {
+    let label = props.label;
+    let on_click = props.on_click;
+
+    rsx! {
+        button {
+            class: "berry-button",
+            onclick: move |_| on_click.call(()),
+            "{label}"
+        }
     }
 }
 
 /// Icon button with tooltip
-#[component]
-pub fn IconButton(
+#[derive(Props, Clone, PartialEq)]
+pub struct IconButtonProps {
     /// Icon character or emoji
     icon: &'static str,
     /// Tooltip text
     tooltip: &'static str,
     /// Click handler
-    on_click: impl Fn() + 'static,
+    on_click: EventHandler<()>,
     /// Disabled state
-    #[prop(optional, default = false)]
+    #[props(default = false)]
     disabled: bool,
-) -> impl IntoView {
-    view! {
-        <button
-            class="berry-icon-button"
-            title=tooltip
-            disabled=disabled
-            on:click=move |_| on_click()
-        >
-            {icon}
-        </button>
+}
+
+#[component]
+pub fn IconButton(props: IconButtonProps) -> Element {
+    let icon = props.icon;
+    let tooltip = props.tooltip;
+    let on_click = props.on_click;
+    let disabled = props.disabled;
+
+    rsx! {
+        button {
+            class: "berry-icon-button",
+            title: "{tooltip}",
+            disabled: disabled,
+            onclick: move |_| on_click.call(()),
+            "{icon}"
+        }
     }
 }
 
 /// SVG Icon button with tooltip (IntelliJ-style flat icons)
-#[component]
-pub fn SvgIconButton<IV>(
-    /// SVG icon view
-    icon: IV,
+#[derive(Props, Clone, PartialEq)]
+pub struct SvgIconButtonProps {
+    /// SVG icon element
+    icon: Element,
     /// Tooltip text
     tooltip: &'static str,
     /// Click handler
-    on_click: impl Fn() + 'static,
+    on_click: EventHandler<()>,
     /// Disabled state
-    #[prop(optional, default = false)]
+    #[props(default = false)]
     disabled: bool,
-) -> impl IntoView
-where
-    IV: IntoView + 'static,
-{
-    view! {
-        <button
-            class="berry-icon-button"
-            title=tooltip
-            disabled=disabled
-            on:click=move |_| on_click()
-        >
+}
+
+#[component]
+pub fn SvgIconButton(props: SvgIconButtonProps) -> Element {
+    let icon = props.icon;
+    let tooltip = props.tooltip;
+    let on_click = props.on_click;
+    let disabled = props.disabled;
+
+    rsx! {
+        button {
+            class: "berry-icon-button",
+            title: "{tooltip}",
+            disabled: disabled,
+            onclick: move |_| on_click.call(()),
             {icon}
-        </button>
+        }
     }
 }
 
 /// Generic list view component
-#[component]
-pub fn ListView<T, F, IV>(
+#[derive(Props)]
+pub struct ListViewProps<T: Clone + PartialEq + 'static> {
     /// List items
-    #[prop(into)]
     items: Vec<T>,
     /// Item renderer
-    render_item: F,
-) -> impl IntoView
-where
-    T: Clone + 'static,
-    F: Fn(T) -> IV + 'static,
-    IV: IntoView,
-{
-    view! {
-        <div class="berry-list-view">
-            {items.into_iter().map(|item| {
-                render_item(item)
-            }).collect::<Vec<_>>()}
-        </div>
+    render_item: Callback<T, Element>,
+}
+
+#[component]
+pub fn ListView<T: Clone + PartialEq + 'static>(props: ListViewProps<T>) -> Element {
+    let items = props.items;
+    let render_item = props.render_item;
+
+    rsx! {
+        div { class: "berry-list-view",
+            for item in items {
+                {render_item.call(item)}
+            }
+        }
     }
 }
 
 /// Text input component
-#[component]
-pub fn TextInput(
+#[derive(Props, Clone, PartialEq)]
+pub struct TextInputProps {
     /// Input value signal
-    value: RwSignal<String>,
+    value: Signal<String>,
     /// Placeholder text
     placeholder: &'static str,
-) -> impl IntoView {
-    view! {
-        <input
-            type="text"
-            class="berry-text-input"
-            placeholder=placeholder
-            prop:value=move || value.get()
-            on:input=move |ev| {
-                value.set(event_target_value(&ev));
-            }
-        />
+}
+
+#[component]
+pub fn TextInput(props: TextInputProps) -> Element {
+    let value = props.value;
+    let placeholder = props.placeholder;
+
+    rsx! {
+        input {
+            r#type: "text",
+            class: "berry-text-input",
+            placeholder: "{placeholder}",
+            value: "{value.read()}",
+            oninput: move |ev| *value.write() = ev.value(),
+        }
     }
 }
 
