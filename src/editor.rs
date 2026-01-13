@@ -1,13 +1,19 @@
 //! Editor Panel Component
 //! 100% Canvas + 100% Rust Architecture
 
-use leptos::prelude::*;
+use dioxus::prelude::*;
 use crate::core::virtual_editor::VirtualEditorPanel;
 
+/// Editor Panel props
+#[derive(Props, Clone, PartialEq)]
+pub struct EditorPanelProps {
+    selected_file: Signal<Option<(String, String)>>,
+}
+
 #[component]
-pub fn EditorPanel(
-    selected_file: RwSignal<Option<(String, String)>>,
-) -> impl IntoView {
+pub fn EditorPanel(props: EditorPanelProps) -> Element {
+    let selected_file = props.selected_file;
+
     // ✅ Canvas Architecture: Use VirtualEditorPanel directly
     // VirtualEditorPanel handles:
     // - Canvas rendering
@@ -16,7 +22,7 @@ pub fn EditorPanel(
     // - Mouse/keyboard events
     // - IME support
     // - Undo/Redo
-    view! {
-        <VirtualEditorPanel selected_file=selected_file />
+    rsx! {
+        VirtualEditorPanel { selected_file: selected_file }
     }
 }
