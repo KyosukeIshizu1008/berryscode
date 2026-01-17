@@ -2302,57 +2302,95 @@ impl BerryCodeApp {
         if !self.slack_authenticated {
             // Show Slack connection UI
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 26, 28)))
+                .frame(egui::Frame::none().fill(egui::Color32::from_rgb(30, 30, 30)))
                 .show(ctx, |ui| {
+                    // Add padding from top and center content
+                    ui.add_space(80.0);
+
                     ui.vertical_centered(|ui| {
-                        ui.add_space(100.0);
-                        ui.heading(egui::RichText::new("Connect to Slack")
-                            .size(24.0)
-                            .color(egui::Color32::from_rgb(212, 212, 212)));
+                        ui.heading(egui::RichText::new("📱 Connect to Slack")
+                            .size(28.0)
+                            .color(egui::Color32::from_rgb(255, 255, 255)));
 
-                        ui.add_space(20.0);
+                        ui.add_space(30.0);
 
-                        ui.label(egui::RichText::new("Enter your Slack Bot Token:")
-                            .size(14.0)
-                            .color(egui::Color32::from_rgb(180, 180, 180)));
+                        ui.label(egui::RichText::new("Enter your Slack Bot Token to get started")
+                            .size(15.0)
+                            .color(egui::Color32::from_rgb(200, 200, 200)));
 
-                        ui.add_space(10.0);
+                        ui.add_space(25.0);
 
+                        // Token input
                         ui.horizontal(|ui| {
-                            ui.add(
+                            ui.add_space(50.0);
+                            let response = ui.add(
                                 egui::TextEdit::singleline(&mut self.slack_token_input)
-                                    .desired_width(400.0)
+                                    .desired_width(500.0)
                                     .password(true)
                                     .hint_text("xoxb-your-slack-bot-token")
+                                    .font(egui::TextStyle::Monospace)
                             );
 
-                            if ui.button("Connect").clicked() && !self.slack_token_input.is_empty() {
+                            if ui.add_sized([100.0, 30.0], egui::Button::new("🔗 Connect")).clicked()
+                                && !self.slack_token_input.is_empty() {
                                 let token = self.slack_token_input.clone();
                                 self.set_slack_token(token);
                                 self.load_slack_channels();
                             }
                         });
 
+                        ui.add_space(40.0);
+                        ui.separator();
                         ui.add_space(20.0);
 
                         ui.label(egui::RichText::new("How to get a Slack Bot Token:")
-                            .size(12.0)
-                            .color(egui::Color32::from_rgb(150, 150, 150)));
-                        ui.label(egui::RichText::new("1. Go to https://api.slack.com/apps")
-                            .size(11.0)
-                            .color(egui::Color32::from_rgb(120, 120, 120)));
-                        ui.label(egui::RichText::new("2. Create a new app or select an existing one")
-                            .size(11.0)
-                            .color(egui::Color32::from_rgb(120, 120, 120)));
-                        ui.label(egui::RichText::new("3. Go to 'OAuth & Permissions'")
-                            .size(11.0)
-                            .color(egui::Color32::from_rgb(120, 120, 120)));
-                        ui.label(egui::RichText::new("4. Add scopes: channels:read, chat:write, channels:history")
-                            .size(11.0)
-                            .color(egui::Color32::from_rgb(120, 120, 120)));
-                        ui.label(egui::RichText::new("5. Install to workspace and copy the Bot Token")
-                            .size(11.0)
-                            .color(egui::Color32::from_rgb(120, 120, 120)));
+                            .size(14.0)
+                            .strong()
+                            .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                        ui.add_space(10.0);
+
+                        ui.horizontal(|ui| {
+                            ui.add_space(100.0);
+                            ui.vertical(|ui| {
+                                ui.label(egui::RichText::new("1. Visit https://api.slack.com/apps")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                                ui.label(egui::RichText::new("2. Create a new app or select existing")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                                ui.label(egui::RichText::new("3. Navigate to 'OAuth & Permissions'")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                                ui.label(egui::RichText::new("4. Add Bot Token Scopes:")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                                ui.horizontal(|ui| {
+                                    ui.add_space(20.0);
+                                    ui.label(egui::RichText::new("• channels:read")
+                                        .size(11.0)
+                                        .color(egui::Color32::from_rgb(120, 200, 255)));
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.add_space(20.0);
+                                    ui.label(egui::RichText::new("• chat:write")
+                                        .size(11.0)
+                                        .color(egui::Color32::from_rgb(120, 200, 255)));
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.add_space(20.0);
+                                    ui.label(egui::RichText::new("• channels:history")
+                                        .size(11.0)
+                                        .color(egui::Color32::from_rgb(120, 200, 255)));
+                                });
+                                ui.label(egui::RichText::new("5. Install app to workspace")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                                ui.label(egui::RichText::new("6. Copy the 'Bot User OAuth Token'")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                            });
+                        });
                     });
                 });
             return;
