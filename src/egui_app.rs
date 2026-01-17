@@ -370,6 +370,16 @@ pub enum GrpcResponse {
     ChatStreamCompleted,  // Stream finished
 }
 
+/// Slack API responses
+#[derive(Debug, Clone)]
+pub enum SlackResponse {
+    Authenticated,
+    ChannelsList(Vec<native::slack::SlackChannel>),
+    MessagesList(Vec<native::slack::SlackMessage>),
+    MessageSent,
+    Error(String),
+}
+
 /// Simplified LSP diagnostic
 #[derive(Debug, Clone)]
 pub struct LspDiagnostic {
@@ -495,6 +505,16 @@ pub struct BerryCodeApp {
     pub new_channel_name: String,
     pub current_user_id: String, // Current user ID
     pub current_user_name: String, // Current user name
+
+    // === Slack Integration ===
+    slack_client: native::slack::SlackClient,
+    slack_token_input: String,
+    slack_authenticated: bool,
+    slack_channels: Vec<native::slack::SlackChannel>,
+    slack_messages: Vec<native::slack::SlackMessage>,
+    slack_response_tx: Option<mpsc::UnboundedSender<SlackResponse>>,
+    slack_response_rx: Option<mpsc::UnboundedReceiver<SlackResponse>>,
+    show_slack_settings: bool,
 
     // gRPC for AI integration (optional)
     grpc_client: native::grpc::GrpcClient,
@@ -629,6 +649,9 @@ impl BerryCodeApp {
 
         // Create Theme response channel
         let (theme_tx, theme_rx) = mpsc::unbounded_channel();
+
+        // Create Slack response channel
+        let (slack_tx, slack_rx) = mpsc::unbounded_channel();
 
         // Spawn LSP connection task
         let client_clone = lsp_client.clone();
@@ -830,6 +853,16 @@ impl BerryCodeApp {
             wiki_editing: false,
             wiki_search_query: String::new(),
             new_wiki_title: String::new(),
+
+            // === Slack Integration ===
+            slack_client: native::slack::SlackClient::new(),
+            slack_token_input: String::new(),
+            slack_authenticated: false,
+            slack_channels: Vec::new(),
+            slack_messages: Vec::new(),
+            slack_response_tx: Some(slack_tx),
+            slack_response_rx: Some(slack_rx),
+            show_slack_settings: false,
         }
     }
 
@@ -2265,12 +2298,69 @@ impl BerryCodeApp {
 
     /// Render Slack-like Chat panel (takes full center panel)
     fn render_chat_panel(&mut self, ctx: &egui::Context) {
-        // Center panel with 3-column Slack layout
+        // Check Slack authentication
+        if !self.slack_authenticated {
+            // Show Slack connection UI
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 26, 28)))
+                .show(ctx, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(100.0);
+                        ui.heading(egui::RichText::new("Connect to Slack")
+                            .size(24.0)
+                            .color(egui::Color32::from_rgb(212, 212, 212)));
+
+                        ui.add_space(20.0);
+
+                        ui.label(egui::RichText::new("Enter your Slack Bot Token:")
+                            .size(14.0)
+                            .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                        ui.add_space(10.0);
+
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.slack_token_input)
+                                    .desired_width(400.0)
+                                    .password(true)
+                                    .hint_text("xoxb-your-slack-bot-token")
+                            );
+
+                            if ui.button("Connect").clicked() && !self.slack_token_input.is_empty() {
+                                let token = self.slack_token_input.clone();
+                                self.set_slack_token(token);
+                                self.load_slack_channels();
+                            }
+                        });
+
+                        ui.add_space(20.0);
+
+                        ui.label(egui::RichText::new("How to get a Slack Bot Token:")
+                            .size(12.0)
+                            .color(egui::Color32::from_rgb(150, 150, 150)));
+                        ui.label(egui::RichText::new("1. Go to https://api.slack.com/apps")
+                            .size(11.0)
+                            .color(egui::Color32::from_rgb(120, 120, 120)));
+                        ui.label(egui::RichText::new("2. Create a new app or select an existing one")
+                            .size(11.0)
+                            .color(egui::Color32::from_rgb(120, 120, 120)));
+                        ui.label(egui::RichText::new("3. Go to 'OAuth & Permissions'")
+                            .size(11.0)
+                            .color(egui::Color32::from_rgb(120, 120, 120)));
+                        ui.label(egui::RichText::new("4. Add scopes: channels:read, chat:write, channels:history")
+                            .size(11.0)
+                            .color(egui::Color32::from_rgb(120, 120, 120)));
+                        ui.label(egui::RichText::new("5. Install to workspace and copy the Bot Token")
+                            .size(11.0)
+                            .color(egui::Color32::from_rgb(120, 120, 120)));
+                    });
+                });
+            return;
+        }
+
+        // Slack connected - show 3-column layout
         egui::CentralPanel::default()
-            .frame(
-                egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28))
-            )
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 26, 28)))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     // Left: Channel list (200px)
@@ -2279,25 +2369,74 @@ impl BerryCodeApp {
                         .resizable(false)
                         .frame(egui::Frame::none().fill(egui::Color32::from_rgb(30, 31, 33)))
                         .show_inside(ui, |ui| {
-                            self.render_channel_list(ui);
-                        });
+                            ui.heading("📋 Channels");
+                            ui.separator();
 
-                    // Right: Thread panel (if open)
-                    if self.show_thread_panel {
-                        egui::SidePanel::right("thread_panel")
-                            .exact_width(350.0)
-                            .resizable(true)
-                            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(20, 21, 23)))
-                            .show_inside(ui, |ui| {
-                                self.render_thread_panel(ui);
+                            egui::ScrollArea::vertical().show(ui, |ui| {
+                                for channel in &self.slack_channels.clone() {
+                                    let is_selected = self.selected_channel_id.as_ref() == Some(&channel.id);
+
+                                    let button = egui::Button::new(format!("# {}", channel.name))
+                                        .fill(if is_selected {
+                                            egui::Color32::from_rgb(45, 50, 80)
+                                        } else {
+                                            egui::Color32::TRANSPARENT
+                                        });
+
+                                    if ui.add(button).clicked() {
+                                        self.selected_channel_id = Some(channel.id.clone());
+                                        self.load_slack_messages(&channel.id);
+                                    }
+                                }
                             });
-                    }
+                        });
 
                     // Center: Message area
                     egui::CentralPanel::default()
                         .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 26, 28)))
                         .show_inside(ui, |ui| {
-                            self.render_message_area(ui);
+                            if let Some(channel_id) = &self.selected_channel_id.clone() {
+                                // Show messages
+                                egui::ScrollArea::vertical()
+                                    .stick_to_bottom(true)
+                                    .show(ui, |ui| {
+                                        for msg in &self.slack_messages {
+                                            ui.horizontal(|ui| {
+                                                ui.label(egui::RichText::new(&msg.user)
+                                                    .strong()
+                                                    .color(egui::Color32::from_rgb(200, 200, 255)));
+                                                ui.label(&msg.text);
+                                            });
+                                            ui.add_space(8.0);
+                                        }
+                                    });
+
+                                ui.separator();
+
+                                // Message input
+                                ui.horizontal(|ui| {
+                                    let text_edit = egui::TextEdit::singleline(&mut self.chat_input)
+                                        .desired_width(ui.available_width() - 80.0)
+                                        .hint_text("Type a message...");
+
+                                    let response = ui.add(text_edit);
+
+                                    if ui.button("📤 Send").clicked()
+                                        || (response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                                        if !self.chat_input.is_empty() {
+                                            let text = self.chat_input.clone();
+                                            self.send_slack_message(channel_id, &text);
+                                        }
+                                    }
+                                });
+                            } else {
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(100.0);
+                                    ui.label(egui::RichText::new("Select a channel to start chatting")
+                                        .size(16.0)
+                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                });
+                            }
                         });
                 });
             });
@@ -3721,6 +3860,9 @@ impl eframe::App for BerryCodeApp {
         // Poll Theme responses (non-blocking)
         self.poll_theme_responses();
 
+        // Poll Slack responses (non-blocking)
+        self.poll_slack_responses();
+
         // Handle keyboard shortcuts
         self.handle_editor_shortcuts(ctx);
         self.handle_goto_definition_shortcut(ctx);
@@ -4967,6 +5109,53 @@ impl BerryCodeApp {
         }
     }
 
+    /// Poll Slack responses (non-blocking)
+    fn poll_slack_responses(&mut self) {
+        let mut should_reload_messages = false;
+        let mut reload_channel_id: Option<String> = None;
+
+        if let Some(rx) = &mut self.slack_response_rx {
+            while let Ok(response) = rx.try_recv() {
+                match response {
+                    SlackResponse::Authenticated => {
+                        tracing::info!("✅ Slack authenticated");
+                        self.slack_authenticated = true;
+                        self.status_message = "✅ Slack connected".to_string();
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                        self.show_slack_settings = false;
+                    }
+                    SlackResponse::ChannelsList(channels) => {
+                        tracing::info!("📋 Loaded {} Slack channels", channels.len());
+                        self.slack_channels = channels;
+                    }
+                    SlackResponse::MessagesList(messages) => {
+                        tracing::info!("💬 Loaded {} Slack messages", messages.len());
+                        self.slack_messages = messages;
+                    }
+                    SlackResponse::MessageSent => {
+                        tracing::info!("✅ Slack message sent");
+                        self.chat_input.clear();
+                        // Schedule message reload
+                        should_reload_messages = true;
+                        reload_channel_id = self.selected_channel_id.clone();
+                    }
+                    SlackResponse::Error(err) => {
+                        tracing::error!("❌ Slack error: {}", err);
+                        self.status_message = format!("❌ Slack error: {}", err);
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                    }
+                }
+            }
+        }
+
+        // Execute deferred actions
+        if should_reload_messages {
+            if let Some(channel_id) = reload_channel_id {
+                self.load_slack_messages(&channel_id);
+            }
+        }
+    }
+
     fn poll_lsp_responses(&mut self) {
         // Deferred actions to perform after releasing rx borrow
         enum DeferredAction {
@@ -5686,6 +5875,93 @@ impl BerryCodeApp {
         }
 
         tracing::info!("✅ Theme '{}' applied successfully", theme_response.theme_name);
+    }
+
+    // ====================================================================
+    // Slack Integration Helper Methods
+    // ====================================================================
+
+    /// Set Slack bot token and authenticate
+    fn set_slack_token(&mut self, token: String) {
+        let slack_client = self.slack_client.clone();
+        let tx = self.slack_response_tx.clone();
+
+        self.lsp_runtime.spawn(async move {
+            slack_client.set_token(token).await;
+
+            if let Some(tx) = tx {
+                let _ = tx.send(SlackResponse::Authenticated);
+            }
+        });
+    }
+
+    /// Load Slack channels
+    fn load_slack_channels(&mut self) {
+        let slack_client = self.slack_client.clone();
+        let tx = self.slack_response_tx.clone();
+
+        self.lsp_runtime.spawn(async move {
+            match slack_client.list_channels().await {
+                Ok(channels) => {
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::ChannelsList(channels));
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to load Slack channels: {}", e);
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::Error(e.to_string()));
+                    }
+                }
+            }
+        });
+    }
+
+    /// Load messages from a Slack channel
+    fn load_slack_messages(&mut self, channel_id: &str) {
+        let slack_client = self.slack_client.clone();
+        let tx = self.slack_response_tx.clone();
+        let channel_id = channel_id.to_string();
+
+        self.lsp_runtime.spawn(async move {
+            match slack_client.get_messages(&channel_id, 50).await {
+                Ok(messages) => {
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::MessagesList(messages));
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to load Slack messages: {}", e);
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::Error(e.to_string()));
+                    }
+                }
+            }
+        });
+    }
+
+    /// Send a message to a Slack channel
+    fn send_slack_message(&mut self, channel_id: &str, text: &str) {
+        let slack_client = self.slack_client.clone();
+        let tx = self.slack_response_tx.clone();
+        let channel_id = channel_id.to_string();
+        let text = text.to_string();
+
+        self.lsp_runtime.spawn(async move {
+            match slack_client.send_message(&channel_id, &text, None).await {
+                Ok(_) => {
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::MessageSent);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to send Slack message: {}", e);
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::Error(e.to_string()));
+                    }
+                }
+            }
+        });
     }
 }
 

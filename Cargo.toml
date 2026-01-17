@@ -79,6 +79,9 @@ tonic = "0.12"
 prost = "0.13"
 prost-types = "0.13"
 
+# ===== HTTP Client for Slack API =====
+reqwest = { version = "0.12", features = ["json"] }
+
 [profile.release]
 opt-level = 3
 lto = "fat"
