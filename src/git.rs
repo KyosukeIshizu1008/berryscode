@@ -1,9 +1,8 @@
 //! Git Integration - Diff Display
-//! 100% Rust - No JavaScript!
+//! 100% Rust - Native only (no WASM)
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChangeType {
@@ -97,45 +96,8 @@ impl GitDiffTracker {
         }
     }
 
-    pub async fn load_diff(&mut self, file_path: String) -> Result<FileDiff, String> {
-        // Check cache first
-        if let Some(cached) = self.diff_cache.get(&file_path) {
-            return Ok(cached.clone());
-        }
-
-        // Call Tauri backend to get git diff
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
-            async fn tauri_invoke(cmd: &str, args: JsValue) -> JsValue;
-        }
-
-        let args = serde_wasm_bindgen::to_value(&serde_json::json!({
-            "filePath": file_path
-        }))
-        .map_err(|e| format!("Failed to serialize args: {}", e))?;
-
-        let result = tauri_invoke("git_diff", args).await;
-
-        let diff: FileDiff = serde_wasm_bindgen::from_value(result)
-            .map_err(|e| format!("Failed to deserialize git diff: {}", e))?;
-
-        // Cache the result
-        self.diff_cache.insert(file_path.clone(), diff.clone());
-        self.current_file = Some(file_path);
-
-        Ok(diff)
-    }
-
-    pub async fn refresh_current(&mut self) -> Result<Option<FileDiff>, String> {
-        if let Some(file_path) = self.current_file.clone() {
-            // Remove from cache to force refresh
-            self.diff_cache.remove(&file_path);
-            Ok(Some(self.load_diff(file_path).await?))
-        } else {
-            Ok(None)
-        }
-    }
+    // Note: Tauri/WASM async functions removed
+    // Use native::git module instead for git operations
 
     pub fn get_cached_diff(&self, file_path: &str) -> Option<&FileDiff> {
         self.diff_cache.get(file_path)
@@ -198,87 +160,8 @@ impl GitDiffTracker {
         self.diff_cache.keys().cloned().collect()
     }
 
-    /// Check if a file has unsaved changes
-    pub async fn has_unstaged_changes(&self, file_path: String) -> Result<bool, String> {
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
-            async fn tauri_invoke(cmd: &str, args: JsValue) -> JsValue;
-        }
-
-        let args = serde_wasm_bindgen::to_value(&serde_json::json!({
-            "filePath": file_path
-        }))
-        .map_err(|e| format!("Failed to serialize args: {}", e))?;
-
-        let result = tauri_invoke("git_has_unstaged_changes", args).await;
-
-        serde_wasm_bindgen::from_value(result)
-            .map_err(|e| format!("Failed to check unstaged changes: {}", e))
-    }
-
-    /// Stage current file
-    pub async fn stage_file(&self, file_path: String) -> Result<(), String> {
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
-            async fn tauri_invoke(cmd: &str, args: JsValue) -> JsValue;
-        }
-
-        let args = serde_wasm_bindgen::to_value(&serde_json::json!({
-            "filePath": file_path
-        }))
-        .map_err(|e| format!("Failed to serialize args: {}", e))?;
-
-        let result = tauri_invoke("git_stage_file", args).await;
-
-        serde_wasm_bindgen::from_value::<bool>(result)
-            .map(|_| ())
-            .map_err(|e| format!("Failed to stage file: {}", e))
-    }
-
-    /// Unstage current file
-    pub async fn unstage_file(&self, file_path: String) -> Result<(), String> {
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
-            async fn tauri_invoke(cmd: &str, args: JsValue) -> JsValue;
-        }
-
-        let args = serde_wasm_bindgen::to_value(&serde_json::json!({
-            "filePath": file_path
-        }))
-        .map_err(|e| format!("Failed to serialize args: {}", e))?;
-
-        let result = tauri_invoke("git_unstage_file", args).await;
-
-        serde_wasm_bindgen::from_value::<bool>(result)
-            .map(|_| ())
-            .map_err(|e| format!("Failed to unstage file: {}", e))
-    }
-
-    /// Discard changes in file
-    pub async fn discard_changes(&mut self, file_path: String) -> Result<(), String> {
-        #[wasm_bindgen]
-        extern "C" {
-            #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], js_name = invoke)]
-            async fn tauri_invoke(cmd: &str, args: JsValue) -> JsValue;
-        }
-
-        let args = serde_wasm_bindgen::to_value(&serde_json::json!({
-            "filePath": file_path
-        }))
-        .map_err(|e| format!("Failed to serialize args: {}", e))?;
-
-        let result = tauri_invoke("git_discard_changes", args).await;
-
-        serde_wasm_bindgen::from_value::<bool>(result)
-            .map(|_| {
-                // Clear cache for this file
-                self.diff_cache.remove(&file_path);
-            })
-            .map_err(|e| format!("Failed to discard changes: {}", e))
-    }
+    // Note: Tauri/WASM async git operations removed
+    // Use native::git module for actual git operations
 }
 
 impl Default for GitDiffTracker {
@@ -290,11 +173,8 @@ impl Default for GitDiffTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
+    #[test]
     fn test_parse_unified_diff() {
         let diff = r#"@@ -1,3 +1,4 @@
  unchanged line
@@ -309,14 +189,14 @@ mod tests {
         assert_eq!(file_diff.changes.len(), 3);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_change_type_colors() {
         assert_eq!(ChangeType::Added.gutter_color(), "#587c0c");
         assert_eq!(ChangeType::Modified.gutter_color(), "#0c7d9d");
         assert_eq!(ChangeType::Deleted.gutter_color(), "#94151b");
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_line_change_creation() {
         let change = LineChange::new(42, ChangeType::Modified);
         assert_eq!(change.line_number, 42);
@@ -331,7 +211,7 @@ mod tests {
         assert!(change_with_content.old_content.is_some());
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_file_diff_operations() {
         let mut diff = FileDiff::new("test.rs".to_string());
         assert!(!diff.has_changes());

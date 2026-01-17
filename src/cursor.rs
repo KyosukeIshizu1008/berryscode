@@ -1,7 +1,6 @@
 //! Multi-Cursor Support
 //! 100% Rust - No JavaScript!
 
-use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CursorPosition {
@@ -173,8 +172,8 @@ impl MultiCursor {
         }
 
         let mut new_selections = Vec::new();
-        let mut current_line = 0;
-        let mut current_col = 0;
+        let _current_line = 0;
+        let _current_col = 0;
 
         for (idx, line) in text.lines().enumerate() {
             let mut search_start = 0;
@@ -255,18 +254,16 @@ impl Default for MultiCursor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_cursor_position_new() {
         let pos = CursorPosition::new(5, 10);
         assert_eq!(pos.line, 5);
         assert_eq!(pos.column, 10);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_selection_new() {
         let sel = Selection::new(
             CursorPosition::new(1, 5),
@@ -276,7 +273,7 @@ mod tests {
         assert_eq!(sel.cursor, CursorPosition::new(1, 10));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_selection_collapsed() {
         let pos = CursorPosition::new(1, 5);
         let sel = Selection::collapsed(pos);
@@ -285,7 +282,7 @@ mod tests {
         assert_eq!(sel.cursor, pos);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_selection_is_collapsed() {
         let collapsed = Selection::collapsed(CursorPosition::new(1, 5));
         assert!(collapsed.is_collapsed());
@@ -297,7 +294,7 @@ mod tests {
         assert!(!not_collapsed.is_collapsed());
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_selection_start_end() {
         let sel = Selection::new(
             CursorPosition::new(1, 10),
@@ -307,7 +304,7 @@ mod tests {
         assert_eq!(sel.end(), CursorPosition::new(1, 10));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_selection_start_end_multiline() {
         let sel = Selection::new(
             CursorPosition::new(2, 0),
@@ -317,7 +314,7 @@ mod tests {
         assert_eq!(sel.end(), CursorPosition::new(2, 0));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_multi_cursor_add() {
         let mut mc = MultiCursor::new();
         mc.add_cursor(CursorPosition::new(1, 5));
@@ -325,7 +322,7 @@ mod tests {
         assert_eq!(mc.count(), 3);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_multi_cursor_no_duplicate() {
         let mut mc = MultiCursor::new();
         let pos = CursorPosition::new(1, 5);
@@ -334,7 +331,7 @@ mod tests {
         assert_eq!(mc.count(), 2); // Original + one addition
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_selection_contains() {
         let sel = Selection::new(CursorPosition::new(1, 5), CursorPosition::new(1, 10));
         assert!(sel.contains(CursorPosition::new(1, 7)));
@@ -342,7 +339,7 @@ mod tests {
         assert!(!sel.contains(CursorPosition::new(2, 7)));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_multi_cursor_remove() {
         let mut mc = MultiCursor::new();
         let pos = CursorPosition::new(1, 5);
@@ -353,14 +350,14 @@ mod tests {
         assert_eq!(mc.count(), 1);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_multi_cursor_always_keeps_one() {
         let mut mc = MultiCursor::new();
         mc.remove_cursor_at(CursorPosition::new(0, 0));
         assert_eq!(mc.count(), 1); // Should always have at least one cursor
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_has_cursor_at() {
         let mut mc = MultiCursor::new();
         let pos = CursorPosition::new(1, 5);
@@ -370,7 +367,7 @@ mod tests {
         assert!(mc.has_cursor_at(pos));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_get_cursors() {
         let mut mc = MultiCursor::new();
         mc.add_cursor(CursorPosition::new(1, 5));
@@ -380,7 +377,7 @@ mod tests {
         assert_eq!(cursors.len(), 3);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_clear_secondary_cursors() {
         let mut mc = MultiCursor::new();
         mc.add_cursor(CursorPosition::new(1, 5));
@@ -391,7 +388,7 @@ mod tests {
         assert_eq!(mc.count(), 1);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_move_all() {
         let mut mc = MultiCursor::new();
         mc.add_cursor(CursorPosition::new(1, 5));
@@ -402,7 +399,7 @@ mod tests {
         assert!(cursors.iter().any(|c| c.line == 1 && c.column == 2));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_move_all_no_negative() {
         let mut mc = MultiCursor::new();
         mc.move_all(-10, -10);
@@ -411,7 +408,7 @@ mod tests {
         assert!(cursors.iter().all(|c| c.line == 0 && c.column == 0));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_select_all_occurrences() {
         let text = "test test test";
         let mut mc = MultiCursor::new();
@@ -421,7 +418,7 @@ mod tests {
         assert_eq!(mc.count(), 3);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_select_all_occurrences_empty() {
         let text = "test test test";
         let mut mc = MultiCursor::new();
@@ -431,7 +428,7 @@ mod tests {
         assert_eq!(mc.count(), 1); // Should remain unchanged
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_merge_overlapping() {
         let mut mc = MultiCursor::new();
         mc.selections = vec![
@@ -444,7 +441,7 @@ mod tests {
         assert_eq!(mc.selections[0].end(), CursorPosition::new(1, 8));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_merge_non_overlapping() {
         let mut mc = MultiCursor::new();
         mc.selections = vec![
@@ -455,7 +452,7 @@ mod tests {
         assert_eq!(mc.count(), 2); // Should remain separate
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_from_position() {
         let pos = CursorPosition::new(5, 10);
         let mc = MultiCursor::from_position(pos);
@@ -464,7 +461,7 @@ mod tests {
         assert_eq!(mc.primary_selection().cursor, pos);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_primary_selection() {
         let mc = MultiCursor::new();
         let primary = mc.primary_selection();

@@ -1,10 +1,8 @@
 //! Editor Settings Management
 //!
-//! This module manages all editor settings with localStorage persistence.
+//! This module manages all editor settings with file-based persistence.
 
-use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsValue;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EditorSettings {
@@ -52,29 +50,35 @@ impl Default for EditorSettings {
 impl EditorSettings {
     const STORAGE_KEY: &'static str = "berry-editor-settings";
 
-    /// Load settings from localStorage
+    /// Get settings file path
+    fn settings_path() -> std::path::PathBuf {
+        if let Some(config_dir) = dirs::config_dir() {
+            let berry_config = config_dir.join("berrycode");
+            std::fs::create_dir_all(&berry_config).ok();
+            berry_config.join("settings.json")
+        } else {
+            std::path::PathBuf::from("settings.json")
+        }
+    }
+
+    /// Load settings from file
     pub fn load() -> Self {
-        if let Some(window) = web_sys::window() {
-            if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(Some(json)) = storage.get_item(Self::STORAGE_KEY) {
-                    if let Ok(settings) = serde_json::from_str::<EditorSettings>(&json) {
-                        return settings;
-                    }
+        let path = Self::settings_path();
+        if path.exists() {
+            if let Ok(contents) = std::fs::read_to_string(&path) {
+                if let Ok(settings) = serde_json::from_str::<EditorSettings>(&contents) {
+                    return settings;
                 }
             }
         }
         Self::default()
     }
 
-    /// Save settings to localStorage
-    pub fn save(&self) -> Result<(), JsValue> {
-        if let Some(window) = web_sys::window() {
-            if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(json) = serde_json::to_string(self) {
-                    storage.set_item(Self::STORAGE_KEY, &json)?;
-                }
-            }
-        }
+    /// Save settings to file
+    pub fn save(&self) -> Result<(), anyhow::Error> {
+        let path = Self::settings_path();
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(&path, json)?;
         Ok(())
     }
 
@@ -121,27 +125,17 @@ impl EditorSettings {
         ]
     }
 
-    /// Apply theme to DOM by setting data-theme attribute on body
+    /// Apply theme to DOM by setting data-theme attribute on body (WASM only)
     pub fn apply_theme(&self) {
-        if let Some(window) = web_sys::window() {
-            if let Some(document) = window.document() {
-                if let Some(body) = document.body() {
-                    let _ = body.set_attribute("data-theme", &self.color_theme);
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(window) = web_sys::window() {
+                if let Some(document) = window.document() {
+                    if let Some(body) = document.body() {
+                        let _ = body.set_attribute("data-theme", &self.color_theme);
+                    }
                 }
             }
         }
     }
-}
-
-/// Global settings signal
-pub fn use_settings() -> Signal<EditorSettings> {
-    use_context::<Signal<EditorSettings>>()
-        .expect("Settings context not provided")
-}
-
-/// Provide settings context
-pub fn provide_settings() {
-    let settings = EditorSettings::load();
-    let signal = Signal::new(settings);
-    provide_context(signal);
 }

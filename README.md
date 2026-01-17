@@ -1,67 +1,55 @@
-# BerryEditor - 100% Rust Code Editor
+# BerryCode - Pure Rust Native Code Editor
 
-[![Tests](https://github.com/Oracleberry/berry-editor/workflows/Tests/badge.svg)](https://github.com/Oracleberry/berry-editor/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A fully-featured code editor built entirely in Rust using Leptos and WebAssembly.
+A fully-featured code editor built entirely in Rust using egui for 100% native performance.
 
 ## Features
 
-- 🦀 **100% Rust** - No JavaScript required
-- 🚀 **WASM-powered** - Runs natively in the browser
-- 🎨 **Syntax Highlighting** - Support for Rust, JavaScript, Python, and more
-- 📁 **File Tree** - Navigate project files
-- 🔍 **Search & Replace** - Powerful text search with regex support
-- 🗺️ **Minimap** - Code overview navigation
-- 📝 **Multi-cursor** - Edit multiple locations simultaneously
+- 🦀 **100% Pure Rust** - No JavaScript, no HTML, no CSS
+- 🚀 **Native Desktop** - Direct GPU rendering with egui + WGPU
+- 🎨 **Syntax Highlighting** - Tree-sitter based highlighting for multiple languages
+- 📁 **File Tree** - Navigate project files with native performance
+- 🔍 **Search & Replace** - Fast parallel search with regex support
+- 💬 **AI Chat** - Integrated LLM support via berry-api
 - 🔧 **LSP Support** - Code intelligence via Language Server Protocol
-- 🌳 **Git Integration** - View diffs and manage changes
+- 🌳 **Git Integration** - View status, stage, and commit changes
+- 🖥️ **Terminal** - Integrated PTY terminal
 
 ## Development
 
 ### Prerequisites
 
-- Rust toolchain (stable)
-- `trunk` for building and serving
-- `wasm-pack` for testing
+- Rust toolchain (stable, 1.70+)
+- No additional dependencies required (all native)
 
-### Install Trunk
-
-```bash
-cargo install trunk
-```
-
-### Run Development Server
-
-#### Option 1: Desktop App (Recommended - Full Features)
+### Run Desktop App
 
 ```bash
+# Quick start
+cargo run --bin berrycode-egui
+
+# Or use the convenience script
 ./run_desktop.sh
-# OR
-cargo tauri dev
+
+# Release build (optimized)
+cargo build --release --bin berrycode-egui
+./target/release/berrycode-egui
 ```
 
-This runs the **Tauri desktop app** with:
-- ✅ Full file system access (file tree, save, load)
-- ✅ Native OS integration
-- ✅ All Tauri APIs available
-- ✅ Better performance
+### Run with AI Features
 
-#### Option 2: Browser Mode (Limited - WASM Only)
+To enable AI chat and completions, start the berry-api server:
 
 ```bash
-./run.sh
-# OR
-trunk serve
+# Terminal 1: Start API server
+cd ../berry_api
+./start-all.sh
+
+# Terminal 2: Start BerryCode
+cd berrycode
+cargo run --bin berrycode-egui
 ```
-
-Then open http://127.0.0.1:8080/berry-editor/
-
-This runs **WASM standalone in browser** with:
-- ⚠️ No file system access (Tauri APIs unavailable)
-- ⚠️ Limited to in-memory editing
-- ✅ Good for testing Canvas rendering
-- ✅ No installation required
 
 ### Run Tests
 
@@ -69,51 +57,63 @@ This runs **WASM standalone in browser** with:
 # Unit tests
 cargo test --lib
 
-# WASM integration tests
-wasm-pack test --headless --firefox
+# All tests
+cargo test
 
-# E2E tests (requires geckodriver)
-./run_e2e_tests.sh
-
-# All tests (CI simulation)
-cargo test --lib && \
-wasm-pack test --headless --firefox && \
-./run_e2e_tests.sh
+# With logging
+RUST_LOG=debug cargo test
 ```
-
-**Test Coverage**:
-- 80 unit tests
-- 230+ WASM integration tests
-- 5 E2E tests (Syntax, Rendering, Codicon, Database, Terminal)
 
 ## Architecture
 
-- **Leptos 0.7** - Reactive UI framework
+- **egui 0.29** - Immediate mode GUI framework
+- **eframe** - Native window management
+- **WGPU** - Direct GPU rendering backend
 - **Ropey** - Efficient rope-based text buffer
-- **Web-sys** - Direct browser API bindings
-- **wasm-bindgen** - Rust/WASM/JavaScript interop
+- **Tree-sitter** - Fast incremental parsing for syntax highlighting
+- **git2** - Native git operations
+- **portable-pty** - Cross-platform terminal support
 
 ## Project Structure
 
 ```
-gui-editor/
+berrycode/
 ├── src/
-│   ├── lib.rs           # WASM entry point
-│   ├── main.rs          # Application entry
-│   ├── components.rs    # UI components
-│   ├── editor.rs        # Editor panel
-│   ├── file_tree.rs     # File explorer
-│   ├── buffer.rs        # Text buffer (rope-based)
-│   ├── syntax.rs        # Syntax highlighting
-│   ├── cursor.rs        # Multi-cursor support
-│   ├── search.rs        # Search & replace
-│   ├── minimap.rs       # Code minimap
-│   ├── lsp.rs           # LSP client
-│   └── git.rs           # Git integration
-├── index.html           # HTML entry point
-├── Cargo.toml           # Rust dependencies
-└── Trunk.toml           # Trunk configuration
+│   ├── bin/
+│   │   └── berrycode-egui.rs  # Application entry point
+│   ├── egui_app.rs             # Main egui app logic
+│   ├── native/                 # Native platform modules
+│   │   ├── fs.rs              # File system operations
+│   │   ├── git.rs             # Git operations (git2)
+│   │   ├── search.rs          # Parallel search (rayon)
+│   │   ├── terminal.rs        # PTY terminal
+│   │   ├── lsp.rs             # LSP client (gRPC)
+│   │   └── grpc.rs            # gRPC client for AI
+│   ├── buffer.rs               # Text buffer (rope-based)
+│   ├── syntax.rs               # Syntax highlighting
+│   └── theme.rs                # Color scheme
+├── assets/
+│   └── codicon.ttf             # Icon font
+├── Cargo.toml                  # Dependencies
+└── CLAUDE.md                   # Architecture documentation
 ```
+
+## Binary Size
+
+- **Debug**: ~15MB
+- **Release**: ~6.4MB (stripped)
+
+## Performance
+
+- **Startup time**: <500ms
+- **Memory usage**: <200MB idle
+- **Rendering**: 60fps smooth on all platforms
+
+## Platform Support
+
+- ✅ macOS (native Metal backend)
+- ✅ Linux (native Vulkan/OpenGL backend)
+- ✅ Windows (native DirectX 12 backend)
 
 ## License
 

@@ -66,8 +66,8 @@ pub enum PointerButton {
 impl From<web_sys::MouseEvent> for PointerPosition {
     fn from(ev: web_sys::MouseEvent) -> Self {
         Self::with_page(
-            ev.client_x() as f64,
-            ev.client_y() as f64,
+            ev.page_coordinates().x as f64,
+            ev.page_coordinates().y as f64,
             ev.page_x() as f64,
             ev.page_y() as f64,
         )
@@ -87,10 +87,10 @@ impl From<web_sys::MouseEvent> for PointerEvent {
         Self {
             position: PointerPosition::from(ev.clone()),
             button,
-            shift_key: ev.shift_key(),
-            ctrl_key: ev.ctrl_key(),
+            shift_key: ev.modifiers().shift(),
+            ctrl_key: ev.modifiers().ctrl(),
             alt_key: ev.alt_key(),
-            meta_key: ev.meta_key(),
+            meta_key: ev.modifiers().meta(),
         }
     }
 }
@@ -115,10 +115,10 @@ impl PointerEvent {
         Some(Self {
             position,
             button: PointerButton::None, // Touch doesn't have buttons
-            shift_key: ev.shift_key(),
-            ctrl_key: ev.ctrl_key(),
+            shift_key: ev.modifiers().shift(),
+            ctrl_key: ev.modifiers().ctrl(),
             alt_key: ev.alt_key(),
-            meta_key: ev.meta_key(),
+            meta_key: ev.modifiers().meta(),
         })
     }
 }
@@ -145,10 +145,10 @@ impl From<web_sys::KeyboardEvent> for KeyboardEvent {
         Self {
             key: ev.key(),
             code: ev.code(),
-            shift_key: ev.shift_key(),
-            ctrl_key: ev.ctrl_key(),
+            shift_key: ev.modifiers().shift(),
+            ctrl_key: ev.modifiers().ctrl(),
             alt_key: ev.alt_key(),
-            meta_key: ev.meta_key(),
+            meta_key: ev.modifiers().meta(),
             repeat: ev.repeat(),
         }
     }

@@ -1,15 +1,15 @@
 #!/bin/bash
-# Run BerryEditor Desktop App (with Tauri APIs)
+# Run BerryCode Desktop App (egui Native)
 
 set -e
 
-echo "🖥️  BerryEditor Desktop App"
-echo "========================="
+echo "🖥️  BerryCode Desktop App (egui Native)"
+echo "======================================="
 echo ""
-echo "Starting Tauri desktop app..."
-echo "  - Frontend: trunk serve --port 8081"
-echo "  - Backend: Rust + Tauri APIs"
-echo "  - Window: Native desktop app"
+echo "Starting native desktop app..."
+echo "  - Framework: egui + eframe"
+echo "  - Backend: 100% Pure Rust"
+echo "  - Rendering: WGPU (no WebView)"
 echo ""
 echo "Press Ctrl+C to stop"
 echo ""
@@ -19,6 +19,6 @@ export CARGO_HOME="$HOME/.cargo"
 export RUSTUP_HOME="$HOME/.rustup"
 export PATH="$HOME/.cargo/bin:$PATH"
 
-# Run Tauri dev (this will automatically start trunk serve)
+# Run egui desktop app
 cd "$(dirname "$0")"
-cargo tauri dev
+cargo run --bin berrycode-egui

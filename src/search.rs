@@ -296,11 +296,9 @@ impl Default for SearchEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_literal_search() {
         let mut engine = SearchEngine::new();
         engine.set_query("test".to_string());
@@ -313,7 +311,7 @@ mod tests {
         assert_eq!(matches[1].line, 1);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_case_insensitive() {
         let mut engine = SearchEngine::new();
         engine.set_query("TEST".to_string());
@@ -327,7 +325,7 @@ mod tests {
         assert_eq!(matches.len(), 2);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_whole_word() {
         let mut engine = SearchEngine::new();
         engine.set_query("test".to_string());
@@ -341,7 +339,7 @@ mod tests {
         assert_eq!(matches.len(), 2); // Only standalone "test"
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_regex_search() {
         let mut engine = SearchEngine::new();
         engine.set_query(r"\d+".to_string());
@@ -357,7 +355,7 @@ mod tests {
         assert_eq!(matches[1].text, "100");
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_replace_current() {
         let mut engine = SearchEngine::new();
         engine.set_query("old".to_string());
@@ -370,7 +368,7 @@ mod tests {
         assert!(text.contains("new"));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_replace_all() {
         let mut engine = SearchEngine::new();
         engine.set_query("old".to_string());
@@ -384,7 +382,7 @@ mod tests {
         assert_eq!(text.matches("new").count(), 2);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_find_next_previous() {
         let mut engine = SearchEngine::new();
         engine.set_query("test".to_string());

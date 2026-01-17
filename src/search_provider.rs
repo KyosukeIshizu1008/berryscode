@@ -132,6 +132,21 @@ pub fn fuzzy_filter_items(items: Vec<PaletteItem>, query: &str) -> Vec<PaletteIt
 // File Search Provider
 // ============================================================================
 
+/// Helper function to flatten a directory tree into a list of (path, is_dir) tuples
+fn flatten_dir_entries(entries: &[crate::native::fs::DirEntry]) -> Vec<(String, bool)> {
+    let mut result = Vec::new();
+
+    for entry in entries {
+        result.push((entry.path.clone(), entry.is_dir));
+
+        if let Some(children) = &entry.children {
+            result.extend(flatten_dir_entries(children));
+        }
+    }
+
+    result
+}
+
 #[derive(Clone)]
 pub struct FileSearchProvider {
     cache: Arc<Mutex<Option<Vec<String>>>>,
@@ -153,19 +168,25 @@ impl FileSearchProvider {
             let cache_guard = self.cache.lock().unwrap();
             if let Some(cached_files) = cache_guard.as_ref() {
                 #[cfg(debug_assertions)]
-                leptos::logging::log!("📦 File cache HIT ({} files)", cached_files.len());
+                tracing::info!("📦 File cache HIT ({} files)", cached_files.len());
                 return Ok(cached_files.clone());
             }
         }
 
-        // Cache miss - load from Tauri
+        // Cache miss - load from native fs module
         #[cfg(debug_assertions)]
-        leptos::logging::log!("📦 File cache MISS - loading from Tauri");
+        tracing::info!("📦 File cache MISS - loading from native::fs");
 
-        // Use berrycode_list_files for smart filtering (.gitignore-style exclusions)
-        let files = crate::tauri_bindings_berrycode::berrycode_list_files()
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        // Use native::fs::read_dir_recursive to get all files
+        let current_dir = crate::native::fs::get_current_dir()?;
+        let dir_entries = crate::native::fs::read_dir_recursive(&current_dir)?;
+
+        // Flatten directory tree and filter to get only file paths
+        let files = flatten_dir_entries(&dir_entries)
+            .into_iter()
+            .filter(|(_, is_dir)| !is_dir)
+            .map(|(path, _)| path)
+            .collect::<Vec<String>>();
 
         // Update cache
         {
@@ -180,7 +201,7 @@ impl FileSearchProvider {
         let files = match self.load_files().await {
             Ok(files) => files,
             Err(e) => {
-                leptos::logging::error!("Failed to load files: {}", e);
+                tracing::error!("Failed to load files: {}", e);
                 return vec![];
             }
         };
@@ -205,7 +226,7 @@ impl FileSearchProvider {
         let mut cache_guard = self.cache.lock().unwrap();
         *cache_guard = None;
         #[cfg(debug_assertions)]
-        leptos::logging::log!("📦 File cache INVALIDATED");
+        tracing::info!("📦 File cache INVALIDATED");
     }
 }
 
@@ -393,49 +414,20 @@ impl SettingsProvider {
 pub struct SymbolSearchProvider;
 
 impl SymbolSearchProvider {
-    pub async fn search(query: &str) -> Vec<PaletteItem> {
-        if query.len() < 2 {
-            return vec![];
-        }
+    pub async fn search(_query: &str) -> Vec<PaletteItem> {
+        // TODO: Symbol search requires LSP (Language Server Protocol) or tree-sitter integration
+        // to properly parse source code and extract symbols (functions, structs, traits, etc.).
+        // This stub returns empty results until LSP integration is complete.
+        //
+        // Future implementation should:
+        // 1. Query LSP server for workspace symbols matching the query
+        // 2. Parse responses and convert to PaletteItem format
+        // 3. Support multiple languages via their respective language servers
+        // 4. Cache symbol tables for better performance
+        //
+        // Reference: native::search module for potential future implementation
 
-        let symbols = match crate::tauri_bindings::search_symbols(query).await {
-            Ok(symbols) => symbols,
-            Err(e) => {
-                leptos::logging::error!("Symbol search failed: {}", e);
-                return vec![];
-            }
-        };
-
-        symbols
-            .into_iter()
-            .take(50)  // Limit to 50 results
-            .map(|sym| {
-                let kind_icon = match sym.kind {
-                    crate::tauri_bindings::SymbolKind::Function => "symbol-function",
-                    crate::tauri_bindings::SymbolKind::Struct => "symbol-struct",
-                    crate::tauri_bindings::SymbolKind::Enum => "symbol-enum",
-                    crate::tauri_bindings::SymbolKind::Trait => "symbol-interface",
-                    crate::tauri_bindings::SymbolKind::Impl => "gear",
-                    crate::tauri_bindings::SymbolKind::Const => "symbol-constant",
-                    crate::tauri_bindings::SymbolKind::Static => "pin",
-                    crate::tauri_bindings::SymbolKind::Module => "symbol-folder",
-                };
-
-                PaletteItem {
-                    id: format!("symbol:{}:{}", sym.file_path, sym.line_number),
-                    label: sym.name.clone(),
-                    description: Some(format!(
-                        "{} - {}:{}",
-                        sym.signature.unwrap_or_default(),
-                        sym.file_path,
-                        sym.line_number
-                    )),
-                    action_type: ActionType::Symbol,
-                    icon: kind_icon.to_string(),
-                    action: format!("goto:{}:{}", sym.file_path, sym.line_number),
-                }
-            })
-            .collect()
+        vec![]
     }
 }
 

@@ -1,11 +1,10 @@
 use berry_editor::buffer::TextBuffer;
-use wasm_bindgen_test::*;
-
-wasm_bindgen_test_configure!(run_in_browser);
 
 // === Basic Functionality Tests ===
+// Converted from wasm_bindgen_test to standard Rust tests
+// These tests don't require browser/WASM environment
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_from_str() {
     let content = "Line 1\nLine 2\nLine 3";
     let buffer = TextBuffer::from_str(content);
@@ -14,7 +13,7 @@ fn test_buffer_from_str() {
     assert_eq!(buffer.len_lines(), 3);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_empty() {
     let buffer = TextBuffer::from_str("");
 
@@ -22,7 +21,7 @@ fn test_buffer_empty() {
     assert_eq!(buffer.len_lines(), 1); // Empty buffer has 1 line
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_single_line() {
     let buffer = TextBuffer::from_str("Single line");
 
@@ -30,7 +29,7 @@ fn test_buffer_single_line() {
     assert_eq!(buffer.len_lines(), 1);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_multiple_empty_lines() {
     let content = "\n\n\n";
     let buffer = TextBuffer::from_str(content);
@@ -38,7 +37,7 @@ fn test_buffer_multiple_empty_lines() {
     assert_eq!(buffer.len_lines(), 4); // 3 newlines = 4 lines
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_len_lines() {
     let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
     let buffer = TextBuffer::from_str(content);
@@ -46,7 +45,7 @@ fn test_buffer_len_lines() {
     assert_eq!(buffer.len_lines(), 5);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_to_string_preserves_content() {
     let content = "Hello\nWorld\n\nTest\n";
     let buffer = TextBuffer::from_str(content);
@@ -56,7 +55,7 @@ fn test_buffer_to_string_preserves_content() {
 
 // === Unicode and Special Characters ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_unicode() {
     let content = "Hello 世界\nこんにちは\n🦀 Rust";
     let buffer = TextBuffer::from_str(content);
@@ -65,7 +64,7 @@ fn test_buffer_unicode() {
     assert_eq!(buffer.len_lines(), 3);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_emoji() {
     let content = "🔥 Hot\n❄️ Cold\n⚡ Fast";
     let buffer = TextBuffer::from_str(content);
@@ -74,7 +73,7 @@ fn test_buffer_emoji() {
     assert_eq!(buffer.len_lines(), 3);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_mixed_line_endings() {
     // Unix style line endings
     let content_unix = "Line 1\nLine 2\nLine 3";
@@ -87,7 +86,7 @@ fn test_buffer_mixed_line_endings() {
     assert_eq!(buffer.len_lines(), 3);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_tabs() {
     let content = "Tab\there\nAnother\ttab";
     let buffer = TextBuffer::from_str(content);
@@ -97,7 +96,7 @@ fn test_buffer_tabs() {
 
 // === Large Files ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_large_file_100_lines() {
     let content = (0..100)
         .map(|i| format!("Line {}", i))
@@ -111,7 +110,7 @@ fn test_buffer_large_file_100_lines() {
     assert!(buffer.to_string().contains("Line 99"));
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_large_file_1000_lines() {
     let content = (0..1000)
         .map(|i| format!("Line {}", i))
@@ -123,7 +122,7 @@ fn test_buffer_large_file_1000_lines() {
     assert_eq!(buffer.len_lines(), 1000);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_very_long_line() {
     let long_line = "x".repeat(10000);
     let content = format!("{}\nShort line", long_line);
@@ -135,7 +134,7 @@ fn test_buffer_very_long_line() {
 
 // === Edge Cases ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_only_newlines() {
     let content = "\n\n\n\n\n";
     let buffer = TextBuffer::from_str(content);
@@ -143,7 +142,7 @@ fn test_buffer_only_newlines() {
     assert_eq!(buffer.len_lines(), 6);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_trailing_newline() {
     let content = "Line 1\nLine 2\n";
     let buffer = TextBuffer::from_str(content);
@@ -151,7 +150,7 @@ fn test_buffer_trailing_newline() {
     assert_eq!(buffer.len_lines(), 3); // Trailing newline creates empty line
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_no_trailing_newline() {
     let content = "Line 1\nLine 2";
     let buffer = TextBuffer::from_str(content);
@@ -159,7 +158,7 @@ fn test_buffer_no_trailing_newline() {
     assert_eq!(buffer.len_lines(), 2);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_whitespace_only() {
     let content = "   \n  \n    ";
     let buffer = TextBuffer::from_str(content);
@@ -168,7 +167,7 @@ fn test_buffer_whitespace_only() {
     assert_eq!(buffer.to_string(), content);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_special_characters() {
     let content = "!@#$%^&*()\n<>?:\"{}\n[]\\|";
     let buffer = TextBuffer::from_str(content);
@@ -179,7 +178,7 @@ fn test_buffer_special_characters() {
 
 // === Code Examples ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_rust_code() {
     let code = r#"fn main() {
     println!("Hello, world!");
@@ -195,7 +194,7 @@ fn test() {
     assert!(buffer.len_lines() > 5);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_json() {
     let json = r#"{
     "name": "BerryEditor",
@@ -207,7 +206,7 @@ fn test_buffer_json() {
     assert_eq!(buffer.to_string(), json);
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_markdown() {
     let markdown = r#"# Title
 
@@ -224,7 +223,7 @@ fn test_buffer_markdown() {
 
 // === Performance Tests ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_10k_lines_performance() {
     let start = js_sys::Date::now();
 
@@ -247,7 +246,7 @@ fn test_buffer_10k_lines_performance() {
 
 // === Clone and Copy ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_clone() {
     let content = "Original content\nLine 2";
     let buffer1 = TextBuffer::from_str(content);
@@ -259,7 +258,7 @@ fn test_buffer_clone() {
 
 // === Integration with lines() ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_lines_iteration() {
     let content = "Line 1\nLine 2\nLine 3";
     let buffer = TextBuffer::from_str(content);
@@ -277,7 +276,7 @@ fn test_buffer_lines_iteration() {
 
 // === Stress Tests ===
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_50k_lines() {
     let content = (0..50000)
         .map(|i| format!("L{}", i))
@@ -290,7 +289,7 @@ fn test_buffer_50k_lines() {
     leptos::logging::log!("Successfully created 50k line buffer");
 }
 
-#[wasm_bindgen_test]
+#[test]
 fn test_buffer_memory_efficiency() {
     // Create multiple buffers to test memory
     let mut buffers = Vec::new();

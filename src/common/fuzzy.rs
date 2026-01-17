@@ -72,7 +72,7 @@ pub fn fuzzy_match_score(text: &str, pattern: &str) -> i32 {
 
 /// Try acronym matching: "hw" matches "hello_world", "hwrap" matches "hello_world_rust_app"
 fn try_acronym_match(text: &str, pattern: &str) -> Option<i32> {
-    let pattern_chars: Vec<char> = pattern.chars().collect();
+    let _pattern_chars: Vec<char> = pattern.chars().collect();
 
     // Extract acronym from text (first char + chars after underscore/dash/camelCase)
     let mut acronym = String::new();

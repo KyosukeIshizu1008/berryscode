@@ -2,7 +2,6 @@
 //! 100% Rust - No JavaScript!
 //! WASM-compatible without tree-sitter
 
-use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
@@ -14,36 +13,15 @@ pub enum TokenType {
     Comment,
     Operator,
     Identifier,
+    Macro,          // NEW: println!, vec!, derive! etc.
+    Attribute,      // NEW: #[derive(Debug)], #[test] etc.
+    Constant,       // NEW: CONST_VALUE, STATIC_VAR etc.
+    Lifetime,       // NEW: 'a, 'static etc.
+    Namespace,      // NEW: std::collections etc.
+    EscapeSequence, // NEW: \n, \t in strings
 }
 
-impl TokenType {
-    pub fn to_color(&self) -> &'static str {
-        match self {
-            // IntelliJ IDEA / RustRover Darcula color scheme
-            TokenType::Keyword => "#CC7832", // Orange (pub, struct, impl, fn)
-            TokenType::Function => "#FFC66D", // Yellow-orange (function names)
-            TokenType::Type => "#A9B7C6",    // Light gray (Position, usize, Self)
-            TokenType::String => "#6A8759",  // Green (string literals)
-            TokenType::Number => "#6897BB",  // Blue (numeric literals)
-            TokenType::Comment => "#629755", // Green (comments)
-            TokenType::Operator => "#A9B7C6", // Light gray (operators)
-            TokenType::Identifier => "#A9B7C6", // Light gray (identifiers)
-        }
-    }
-
-    pub fn to_class(&self) -> &'static str {
-        match self {
-            TokenType::Keyword => "syntax-keyword",
-            TokenType::Function => "syntax-function",
-            TokenType::Type => "syntax-type",
-            TokenType::String => "syntax-string",
-            TokenType::Number => "syntax-number",
-            TokenType::Comment => "syntax-comment",
-            TokenType::Operator => "syntax-operator",
-            TokenType::Identifier => "syntax-identifier",
-        }
-    }
-}
+// TokenType has no methods - colors are defined in egui_app.rs ColorTheme
 
 #[derive(Debug, Clone)]
 pub struct SyntaxToken {
@@ -94,7 +72,7 @@ impl SyntaxHighlighter {
 
     fn highlight_rust(&self, line: &str) -> Vec<SyntaxToken> {
         let mut tokens = Vec::new();
-        let trimmed = line.trim_start();
+        let _trimmed = line.trim_start();
 
         // Comments
         if let Some(pos) = line.find("//") {
@@ -162,86 +140,171 @@ impl SyntaxHighlighter {
             "type", "if", "else", "match", "for", "while", "loop", "return", "async", "await",
             "move", "self", "Self", "super", "crate", "where", "unsafe", "extern", "static", "ref",
             "dyn", "as", "in", "function", "var", "class", "import", "export", "from", "def",
-            "class", "return", "yield", "lambda", "with", "try", "except", "finally",
+            "yield", "lambda", "with", "try", "except", "finally",
         ];
 
         let types = [
             "String", "str", "Vec", "Option", "Result", "Box", "Rc", "Arc", "i32", "i64", "u32",
-            "u64", "f32", "f64", "bool", "char", "usize",
+            "u64", "f32", "f64", "bool", "char", "usize", "isize", "TextBuffer",
         ];
 
-        let mut current_pos = 0;
-        let words: Vec<&str> = text.split_whitespace().collect();
+        let mut pos = 0;
+        let bytes = text.as_bytes();
 
-        for word in words {
-            if let Some(word_start) = text[current_pos..].find(word) {
-                let absolute_start = current_pos + word_start;
-                let absolute_end = absolute_start + word.len();
+        while pos < bytes.len() {
+            let start = pos;
 
-                // Check if it's a keyword
+            // Skip whitespace
+            if bytes[pos].is_ascii_whitespace() {
+                pos += 1;
+                continue;
+            }
+
+            // String literals
+            if bytes[pos] == b'"' || bytes[pos] == b'\'' {
+                let quote = bytes[pos];
+                pos += 1;
+                while pos < bytes.len() {
+                    if bytes[pos] == b'\\' && pos + 1 < bytes.len() {
+                        pos += 2; // Skip escaped character
+                    } else if bytes[pos] == quote {
+                        pos += 1;
+                        break;
+                    } else {
+                        pos += 1;
+                    }
+                }
+                tokens.push(SyntaxToken {
+                    token_type: TokenType::String,
+                    text: text[start..pos].to_string(),
+                    start: offset + start,
+                    end: offset + pos,
+                });
+                continue;
+            }
+
+            // Numbers
+            if bytes[pos].is_ascii_digit() {
+                while pos < bytes.len() && (bytes[pos].is_ascii_digit() || bytes[pos] == b'.') {
+                    pos += 1;
+                }
+                tokens.push(SyntaxToken {
+                    token_type: TokenType::Number,
+                    text: text[start..pos].to_string(),
+                    start: offset + start,
+                    end: offset + pos,
+                });
+                continue;
+            }
+
+            // Lifetime ('a, 'static)
+            if bytes[pos] == b'\'' && pos + 1 < bytes.len() && bytes[pos + 1].is_ascii_alphabetic() {
+                pos += 1; // Skip '
+                let lifetime_start = pos;
+                while pos < bytes.len() && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_') {
+                    pos += 1;
+                }
+                tokens.push(SyntaxToken {
+                    token_type: TokenType::Lifetime,
+                    text: text[start..pos].to_string(),
+                    start: offset + start,
+                    end: offset + pos,
+                });
+                continue;
+            }
+
+            // Attributes (#[derive(Debug)])
+            if bytes[pos] == b'#' && pos + 1 < bytes.len() && bytes[pos + 1] == b'[' {
+                pos += 2;
+                let mut bracket_depth = 1;
+                while pos < bytes.len() && bracket_depth > 0 {
+                    if bytes[pos] == b'[' {
+                        bracket_depth += 1;
+                    } else if bytes[pos] == b']' {
+                        bracket_depth -= 1;
+                    }
+                    pos += 1;
+                }
+                tokens.push(SyntaxToken {
+                    token_type: TokenType::Attribute,
+                    text: text[start..pos].to_string(),
+                    start: offset + start,
+                    end: offset + pos,
+                });
+                continue;
+            }
+
+            // Identifiers and keywords
+            if bytes[pos].is_ascii_alphabetic() || bytes[pos] == b'_' {
+                while pos < bytes.len() && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_') {
+                    pos += 1;
+                }
+                let word = &text[start..pos];
+
+                // Check if this is a macro (followed by '!')
+                let mut temp_pos = pos;
+                while temp_pos < bytes.len() && bytes[temp_pos].is_ascii_whitespace() {
+                    temp_pos += 1;
+                }
+                let is_macro = temp_pos < bytes.len() && bytes[temp_pos] == b'!';
+
+                // Check if this is a function call (followed by '(')
+                let is_function_call = temp_pos < bytes.len() && bytes[temp_pos] == b'(';
+
+                // Check if this is a constant (all uppercase with optional underscores)
+                let is_constant = word.chars().all(|c| c.is_uppercase() || c == '_') && word.len() > 1;
+
                 if keywords.contains(&word) {
                     tokens.push(SyntaxToken {
                         token_type: TokenType::Keyword,
                         text: word.to_string(),
-                        start: offset + absolute_start,
-                        end: offset + absolute_end,
+                        start: offset + start,
+                        end: offset + pos,
                     });
-                }
-                // Check if it's a type
-                else if types.contains(&word)
-                    || (word.len() > 0 && word.chars().next().unwrap().is_uppercase())
-                {
+                } else if is_macro {
+                    // Macro (followed by '!')
+                    tokens.push(SyntaxToken {
+                        token_type: TokenType::Macro,
+                        text: word.to_string(),
+                        start: offset + start,
+                        end: offset + pos,
+                    });
+                } else if is_constant {
+                    // Constant (ALL_UPPERCASE)
+                    tokens.push(SyntaxToken {
+                        token_type: TokenType::Constant,
+                        text: word.to_string(),
+                        start: offset + start,
+                        end: offset + pos,
+                    });
+                } else if is_function_call {
+                    // Function call (identifier followed by '(')
+                    tokens.push(SyntaxToken {
+                        token_type: TokenType::Function,
+                        text: word.to_string(),
+                        start: offset + start,
+                        end: offset + pos,
+                    });
+                } else if types.contains(&word) || (!word.is_empty() && word.chars().next().unwrap().is_uppercase()) {
                     tokens.push(SyntaxToken {
                         token_type: TokenType::Type,
                         text: word.to_string(),
-                        start: offset + absolute_start,
-                        end: offset + absolute_end,
+                        start: offset + start,
+                        end: offset + pos,
                     });
-                }
-                // Check if it's a string
-                else if word.starts_with('"') || word.starts_with('\'') {
-                    tokens.push(SyntaxToken {
-                        token_type: TokenType::String,
-                        text: word.to_string(),
-                        start: offset + absolute_start,
-                        end: offset + absolute_end,
-                    });
-                }
-                // Check if it's a number (strip trailing punctuation)
-                else if {
-                    let stripped =
-                        word.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '.');
-                    !stripped.is_empty() && stripped.chars().all(|c| c.is_numeric() || c == '.')
-                } {
-                    tokens.push(SyntaxToken {
-                        token_type: TokenType::Number,
-                        text: word.to_string(),
-                        start: offset + absolute_start,
-                        end: offset + absolute_end,
-                    });
-                }
-                // Identifier
-                else {
+                } else {
                     tokens.push(SyntaxToken {
                         token_type: TokenType::Identifier,
                         text: word.to_string(),
-                        start: offset + absolute_start,
-                        end: offset + absolute_end,
+                        start: offset + start,
+                        end: offset + pos,
                     });
                 }
-
-                current_pos = absolute_end;
+                continue;
             }
-        }
 
-        // If no tokens were created, add the whole line as identifier
-        if tokens.is_empty() && !text.is_empty() {
-            tokens.push(SyntaxToken {
-                token_type: TokenType::Identifier,
-                text: text.to_string(),
-                start: offset,
-                end: offset + text.len(),
-            });
+            // Skip other characters (operators, punctuation)
+            pos += 1;
         }
     }
 
@@ -498,11 +561,9 @@ impl Default for SyntaxHighlighter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_bindgen_test::*;
 
-    wasm_bindgen_test_configure!(run_in_browser);
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_highlight_rust_keyword() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("rust").unwrap();
@@ -513,7 +574,7 @@ mod tests {
             .any(|t| t.token_type == TokenType::Keyword && t.text == "fn"));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_highlight_comment() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("rust").unwrap();
@@ -523,7 +584,7 @@ mod tests {
         assert_eq!(tokens[0].token_type, TokenType::Comment);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_highlight_type() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("rust").unwrap();
@@ -534,7 +595,7 @@ mod tests {
             .any(|t| t.token_type == TokenType::Type && t.text == "String"));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_javascript_comment() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("javascript").unwrap();
@@ -544,7 +605,7 @@ mod tests {
         assert_eq!(tokens[0].token_type, TokenType::Comment);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_python_comment() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("python").unwrap();
@@ -554,26 +615,9 @@ mod tests {
         assert_eq!(tokens[0].token_type, TokenType::Comment);
     }
 
-    #[wasm_bindgen_test]
-    fn test_token_type_colors() {
-        // IntelliJ IDEA / RustRover Darcula color scheme
-        assert_eq!(TokenType::Keyword.to_color(), "#CC7832");
-        assert_eq!(TokenType::Function.to_color(), "#FFC66D");
-        assert_eq!(TokenType::Type.to_color(), "#A9B7C6");
-        assert_eq!(TokenType::String.to_color(), "#6A8759");
-        assert_eq!(TokenType::Number.to_color(), "#6897BB");
-        assert_eq!(TokenType::Comment.to_color(), "#629755");
-    }
+    // Color tests removed - colors are now defined in egui_app.rs ColorTheme
 
-    #[wasm_bindgen_test]
-    fn test_token_type_classes() {
-        assert_eq!(TokenType::Keyword.to_class(), "syntax-keyword");
-        assert_eq!(TokenType::Function.to_class(), "syntax-function");
-        assert_eq!(TokenType::Type.to_class(), "syntax-type");
-        assert_eq!(TokenType::String.to_class(), "syntax-string");
-    }
-
-    #[wasm_bindgen_test]
+    #[test]
     fn test_no_language_set() {
         let highlighter = SyntaxHighlighter::new();
         let tokens = highlighter.highlight_line("some text");
@@ -581,7 +625,7 @@ mod tests {
         assert_eq!(tokens[0].token_type, TokenType::Identifier);
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_get_language() {
         let mut highlighter = SyntaxHighlighter::new();
         assert!(highlighter.get_language().is_none());
@@ -590,7 +634,7 @@ mod tests {
         assert_eq!(highlighter.get_language(), Some("rust"));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_partial_line_with_comment() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("rust").unwrap();
@@ -600,7 +644,7 @@ mod tests {
         assert!(tokens.iter().any(|t| t.token_type == TokenType::Comment));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_number_highlighting() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("rust").unwrap();
@@ -609,7 +653,7 @@ mod tests {
         assert!(tokens.iter().any(|t| t.token_type == TokenType::Number));
     }
 
-    #[wasm_bindgen_test]
+    #[test]
     fn test_uppercase_type_detection() {
         let mut highlighter = SyntaxHighlighter::new();
         highlighter.set_language("rust").unwrap();

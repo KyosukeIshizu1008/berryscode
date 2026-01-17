@@ -1,65 +1,39 @@
-# Build artifacts
+# Rust
 /target
-/dist
-pkg/
-.trunk/
+**/*.rs.bk
+*.pdb
 
-# Tailwind CSS generated output (source is tailwind.input.css)
-assets/tailwind.output.css
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Backup files
-*.bak
-*.bak[0-9]
-*.bak[0-9][0-9]
-*~
-*.swp
-*.swo
-
-# Environment and secrets
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.p12
-*.pfx
-secrets/
-credentials/
-
-# IDE
-.vscode/
-.idea/
-*.iml
-
-# Logs
+# Testing
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+/tmp
+*.tmp
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# Build outputs
+/dist
+/build
+*.wasm
+*.js.map
+
+# Dependencies
+node_modules/
 
 # Temporary files
-tmp/
-temp/
-.cache/
+.berrycode/
+.berrycode.input.history
 
-# Node.js
-node_modules/
-*.tsbuildinfo
+# Berry API
+berry_api/target/
 
-# Test coverage
-coverage/
-*.lcov
-.nyc_output/
-
-# Tauri
-src-tauri/target/
-src-tauri/WixTools/
+# Deprecated
+src-tauri/

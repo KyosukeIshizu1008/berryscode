@@ -1,21 +1,16 @@
 //! Common utilities and components for BerryEditor
 //!
-//! This module contains reusable functionality to ensure zero code duplication.
+//! Framework-agnostic utilities (no Dioxus, HTML, CSS, or JS)
 
 // Platform abstraction layer
 pub mod platform;
 pub mod events;
-pub mod tauri_bridge;
 
-// Fuzzy matching for search (command palette, file tree, symbols)
+// Fuzzy matching for search
 pub mod fuzzy;
 
 // Type-safe Codicon icon constants
 pub mod icons;
 
-// Existing modules
-pub mod async_bridge;
-pub mod dialogs;
-pub mod event_handler;
-pub mod ui_components;
+// Input validation
 pub mod validation;
