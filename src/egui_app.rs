@@ -2302,15 +2302,20 @@ impl BerryCodeApp {
         if !self.slack_authenticated {
             // Show Slack connection UI
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(egui::Color32::from_rgb(30, 30, 30)))
+                .frame(egui::Frame::none().fill(egui::Color32::from_rgb(40, 40, 45)))
                 .show(ctx, |ui| {
+                    // Debug info at top
+                    ui.label(egui::RichText::new(format!("Debug: Authenticated = {}", self.slack_authenticated))
+                        .size(10.0)
+                        .color(egui::Color32::from_rgb(100, 255, 100)));
+
                     // Add padding from top and center content
                     ui.add_space(80.0);
 
                     ui.vertical_centered(|ui| {
                         ui.heading(egui::RichText::new("📱 Connect to Slack")
                             .size(28.0)
-                            .color(egui::Color32::from_rgb(255, 255, 255)));
+                            .color(egui::Color32::WHITE));
 
                         ui.add_space(30.0);
 
@@ -2398,25 +2403,45 @@ impl BerryCodeApp {
 
         // Slack connected - show 3-column layout
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 26, 28)))
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(40, 40, 45)))
             .show(ctx, |ui| {
+                // Debug info
+                ui.label(egui::RichText::new(format!("Debug: Connected, {} channels, selected: {:?}",
+                    self.slack_channels.len(),
+                    self.selected_channel_id.as_ref().map(|s| s.as_str()).unwrap_or("none")))
+                    .size(10.0)
+                    .color(egui::Color32::from_rgb(100, 255, 100)));
+
                 ui.horizontal(|ui| {
                     // Left: Channel list (200px)
                     egui::SidePanel::left("channel_list")
-                        .exact_width(200.0)
+                        .exact_width(250.0)
                         .resizable(false)
-                        .frame(egui::Frame::none().fill(egui::Color32::from_rgb(30, 31, 33)))
+                        .frame(egui::Frame::none().fill(egui::Color32::from_rgb(50, 50, 55)))
                         .show_inside(ui, |ui| {
-                            ui.heading("📋 Channels");
+                            ui.heading(egui::RichText::new("📋 Channels")
+                                .color(egui::Color32::WHITE));
                             ui.separator();
 
                             egui::ScrollArea::vertical().show(ui, |ui| {
+                                if self.slack_channels.is_empty() {
+                                    ui.label(egui::RichText::new("No channels found")
+                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                }
+
                                 for channel in &self.slack_channels.clone() {
                                     let is_selected = self.selected_channel_id.as_ref() == Some(&channel.id);
 
-                                    let button = egui::Button::new(format!("# {}", channel.name))
+                                    let button_text = egui::RichText::new(format!("# {}", channel.name))
+                                        .color(if is_selected {
+                                            egui::Color32::WHITE
+                                        } else {
+                                            egui::Color32::from_rgb(180, 180, 180)
+                                        });
+
+                                    let button = egui::Button::new(button_text)
                                         .fill(if is_selected {
-                                            egui::Color32::from_rgb(45, 50, 80)
+                                            egui::Color32::from_rgb(60, 80, 120)
                                         } else {
                                             egui::Color32::TRANSPARENT
                                         });
@@ -2431,21 +2456,35 @@ impl BerryCodeApp {
 
                     // Center: Message area
                     egui::CentralPanel::default()
-                        .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 26, 28)))
+                        .frame(egui::Frame::none().fill(egui::Color32::from_rgb(35, 35, 40)))
                         .show_inside(ui, |ui| {
                             if let Some(channel_id) = &self.selected_channel_id.clone() {
+                                // Channel header
+                                ui.horizontal(|ui| {
+                                    ui.heading(egui::RichText::new(format!("# Channel"))
+                                        .color(egui::Color32::WHITE));
+                                });
+                                ui.separator();
+
                                 // Show messages
                                 egui::ScrollArea::vertical()
                                     .stick_to_bottom(true)
+                                    .max_height(ui.available_height() - 60.0)
                                     .show(ui, |ui| {
-                                        for msg in &self.slack_messages {
-                                            ui.horizontal(|ui| {
-                                                ui.label(egui::RichText::new(&msg.user)
-                                                    .strong()
-                                                    .color(egui::Color32::from_rgb(200, 200, 255)));
-                                                ui.label(&msg.text);
-                                            });
-                                            ui.add_space(8.0);
+                                        if self.slack_messages.is_empty() {
+                                            ui.label(egui::RichText::new("No messages yet. Start the conversation!")
+                                                .color(egui::Color32::from_rgb(150, 150, 150)));
+                                        } else {
+                                            for msg in &self.slack_messages {
+                                                ui.horizontal(|ui| {
+                                                    ui.label(egui::RichText::new(&msg.user)
+                                                        .strong()
+                                                        .color(egui::Color32::from_rgb(120, 180, 255)));
+                                                    ui.label(egui::RichText::new(&msg.text)
+                                                        .color(egui::Color32::from_rgb(220, 220, 220)));
+                                                });
+                                                ui.add_space(8.0);
+                                            }
                                         }
                                     });
 
@@ -2454,13 +2493,12 @@ impl BerryCodeApp {
                                 // Message input
                                 ui.horizontal(|ui| {
                                     let text_edit = egui::TextEdit::singleline(&mut self.chat_input)
-                                        .desired_width(ui.available_width() - 80.0)
+                                        .desired_width(ui.available_width() - 100.0)
                                         .hint_text("Type a message...");
 
-                                    let response = ui.add(text_edit);
+                                    ui.add(text_edit);
 
-                                    if ui.button("📤 Send").clicked()
-                                        || (response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                                    if ui.button("📤 Send").clicked() {
                                         if !self.chat_input.is_empty() {
                                             let text = self.chat_input.clone();
                                             self.send_slack_message(channel_id, &text);
@@ -2469,10 +2507,10 @@ impl BerryCodeApp {
                                 });
                             } else {
                                 ui.vertical_centered(|ui| {
-                                    ui.add_space(100.0);
-                                    ui.label(egui::RichText::new("Select a channel to start chatting")
-                                        .size(16.0)
-                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                    ui.add_space(150.0);
+                                    ui.label(egui::RichText::new("👈 Select a channel to start chatting")
+                                        .size(18.0)
+                                        .color(egui::Color32::from_rgb(180, 180, 180)));
                                 });
                             }
                         });
