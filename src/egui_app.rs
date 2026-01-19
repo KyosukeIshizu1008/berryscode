@@ -9,6 +9,114 @@ use crate::syntax::{SyntaxHighlighter, TokenType}; // Regex-based highlighting w
 use std::collections::HashSet;
 use tokio::sync::mpsc;
 
+// ===== Syntax Highlighting Color Palette =====
+// VS Code Dark+ inspired color scheme for Rust syntax highlighting
+
+mod syntax_colors {
+    use egui::Color32;
+
+    // Keywords: fn, let, mut, const, if, else, match, etc.
+    pub const KEYWORD: Color32 = Color32::from_rgb(234, 147, 71);      // #EA9347 Orange
+
+    // Function names: main, println, calculate, etc.
+    pub const FUNCTION: Color32 = Color32::from_rgb(84, 166, 224);     // #54A6E0 Sky Blue
+
+    // Types: u32, String, Vec, Result, etc.
+    pub const TYPE: Color32 = Color32::from_rgb(232, 194, 82);         // #E8C252 Yellow
+
+    // String literals: "hello", r#"raw"#
+    pub const STRING: Color32 = Color32::from_rgb(184, 214, 84);       // #B8D654 Lime Green
+
+    // Number literals: 42, 3.14, 0xFF
+    pub const NUMBER: Color32 = Color32::from_rgb(181, 206, 168);      // #B5CEA8 Light Green
+
+    // Normal comments: //
+    pub const COMMENT: Color32 = Color32::from_rgb(128, 128, 128);     // #808080 Gray
+
+    // Doc comments: //!, ///
+    pub const DOC_COMMENT: Color32 = Color32::from_rgb(106, 153, 85);  // #6A9955 Green
+
+    // Macros: println!, vec!, format!
+    pub const MACRO: Color32 = Color32::from_rgb(84, 166, 224);        // #54A6E0 Sky Blue
+
+    // Attributes: #[derive], #[test], #[cfg]
+    pub const ATTRIBUTE: Color32 = Color32::from_rgb(197, 134, 192);   // #C586C0 Pink
+
+    // Constants: MAX_SIZE, PI, DEFAULT_PORT
+    pub const CONSTANT: Color32 = Color32::from_rgb(197, 134, 192);    // #C586C0 Pink
+
+    // Lifetimes: 'a, 'static
+    pub const LIFETIME: Color32 = Color32::from_rgb(78, 201, 176);     // #4EC9B0 Cyan
+
+    // Namespaces/modules: std, crate, super
+    pub const NAMESPACE: Color32 = Color32::from_rgb(212, 212, 212);   // #D4D4D4 White
+
+    // Variables: x, count, buffer
+    pub const VARIABLE: Color32 = Color32::from_rgb(212, 212, 212);    // デフォルト白と同じ
+
+    // Operators: +, -, *, /, ::, =>
+    pub const OPERATOR: Color32 = Color32::from_rgb(212, 212, 212);    // #D4D4D4 White
+}
+
+// ===== UI Color Palette =====
+
+mod ui_colors {
+    use egui::Color32;
+
+    // Sidebar and panel background
+    pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28);     // #191A1C Dark Gray
+
+    // Editor background (same as sidebar for unified look)
+    pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28);      // #191A1C Dark Gray
+
+    // Default text color (UI elements, file names, etc.)
+    pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 Light Gray
+
+    // Window border stroke
+    pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59);         // #36393B Medium Gray
+}
+
+// ===== File Icon Color Palette =====
+// Language-specific colors for file tree icons
+
+mod file_icon_colors {
+    use egui::Color32;
+
+    // Rust files (.rs, Cargo.toml)
+    pub const RUST_ORANGE: Color32 = Color32::from_rgb(255, 152, 0);   // #FF9800
+
+    // Configuration files (.toml, .yaml, .json)
+    pub const CONFIG_GRAY: Color32 = Color32::from_rgb(128, 128, 128); // #808080
+    pub const JSON_YELLOW: Color32 = Color32::from_rgb(255, 203, 0);   // #FFCB00
+
+    // Documentation files (.md)
+    pub const MARKDOWN_BLUE: Color32 = Color32::from_rgb(66, 165, 245); // #42A5F5
+
+    // JavaScript/TypeScript
+    pub const JAVASCRIPT_YELLOW: Color32 = Color32::from_rgb(247, 223, 30); // #F7DF1E
+    pub const TYPESCRIPT_BLUE: Color32 = Color32::from_rgb(41, 127, 214);  // #297FD6
+
+    // Python
+    pub const PYTHON_GREEN: Color32 = Color32::from_rgb(52, 168, 83);   // #34A853
+
+    // Shell scripts
+    pub const SHELL_GREEN: Color32 = Color32::from_rgb(76, 175, 80);    // #4CAF50
+
+    // Web files (HTML, CSS, XML)
+    pub const HTML_ORANGE: Color32 = Color32::from_rgb(229, 115, 0);    // #E57300
+    pub const CSS_BLUE: Color32 = Color32::from_rgb(66, 165, 245);      // #42A5F5
+
+    // Images and media
+    pub const IMAGE_PURPLE: Color32 = Color32::from_rgb(156, 39, 176);  // #9C27B0
+    pub const SVG_AMBER: Color32 = Color32::from_rgb(255, 179, 0);      // #FFB300
+
+    // Git files
+    pub const GIT_ORANGE: Color32 = Color32::from_rgb(240, 98, 35);     // #F06223
+
+    // Protocol buffers
+    pub const PROTO_PURPLE: Color32 = Color32::from_rgb(156, 39, 176);  // #9C27B0
+}
+
 /// Simple EditorTab structure (replaces core::virtual_editor::EditorTab)
 #[derive(Clone)]
 pub struct EditorTab {
@@ -212,7 +320,7 @@ const MAIN_PANELS: &[SidebarPanel] = &[
     },
     SidebarPanel {
         variant: ActivePanel::Database,
-        icon: "⊜",  // Circle with horizontal bar (cylinder/database representation)
+        icon: "\u{eace}",  // codicon-database (U+EACE)
         _name: "Database",
     },
     SidebarPanel {
@@ -760,24 +868,24 @@ struct ColorTheme {
 impl BerryCodeApp {
     /// Create new application instance
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Configure One Dark theme
+        // Configure One Dark theme using named color constants
         let mut style = egui::Style::default();
         let mut visuals = egui::Visuals::dark();
         // CRITICAL: グローバルでは override_text_color を使わない（エディタのシンタックスハイライトが効かなくなる）
         visuals.override_text_color = None;
         // デフォルトのテキスト色を明るい白に設定
-        visuals.text_cursor.stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
-        visuals.window_fill = egui::Color32::from_rgb(25, 26, 28); // #191A1C - Sidebar background
-        visuals.panel_fill = egui::Color32::from_rgb(25, 26, 28); // #191A1C
-        visuals.extreme_bg_color = egui::Color32::from_rgb(25, 26, 28); // #191A1C - Same as sidebar
-        visuals.window_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59));
+        visuals.text_cursor.stroke.color = ui_colors::TEXT_DEFAULT;
+        visuals.window_fill = ui_colors::SIDEBAR_BG;
+        visuals.panel_fill = ui_colors::SIDEBAR_BG;
+        visuals.extreme_bg_color = ui_colors::EDITOR_BG;
+        visuals.window_stroke = egui::Stroke::new(1.0, ui_colors::BORDER);
         style.visuals = visuals;
 
         // テキストスタイルのデフォルト色を明るい白に設定
-        style.visuals.widgets.noninteractive.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
-        style.visuals.widgets.inactive.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
-        style.visuals.widgets.hovered.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
-        style.visuals.widgets.active.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
+        style.visuals.widgets.noninteractive.fg_stroke.color = ui_colors::TEXT_DEFAULT;
+        style.visuals.widgets.inactive.fg_stroke.color = ui_colors::TEXT_DEFAULT;
+        style.visuals.widgets.hovered.fg_stroke.color = ui_colors::TEXT_DEFAULT;
+        style.visuals.widgets.active.fg_stroke.color = ui_colors::TEXT_DEFAULT;
 
         cc.egui_ctx.set_style(style);
 
@@ -965,21 +1073,21 @@ impl BerryCodeApp {
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
             show_theme_editor: false,
-            // VS Code Dark+ color scheme (matching the target screenshot)
-            keyword_color: egui::Color32::from_rgb(234, 147, 71),       // #EA9347 Orange (keywords)
-            function_color: egui::Color32::from_rgb(84, 166, 224),      // #54A6E0 Sky Blue (functions)
-            type_color: egui::Color32::from_rgb(232, 194, 82),          // #E8C252 Yellow (types)
-            string_color: egui::Color32::from_rgb(184, 214, 84),        // #B8D654 Lime Green (strings)
-            number_color: egui::Color32::from_rgb(181, 206, 168),       // #B5CEA8 Light Green
-            comment_color: egui::Color32::from_rgb(128, 128, 128),      // #808080 Gray (normal comments)
-            doc_comment_color: egui::Color32::from_rgb(106, 153, 85),   // #6A9955 Green (doc comments)
-            macro_color: egui::Color32::from_rgb(84, 166, 224),         // #54A6E0 Sky Blue (macros)
-            attribute_color: egui::Color32::from_rgb(197, 134, 192),    // #C586C0 Pink
-            constant_color: egui::Color32::from_rgb(197, 134, 192),     // #C586C0 Pink
-            lifetime_color: egui::Color32::from_rgb(78, 201, 176),      // #4EC9B0 Cyan
-            namespace_color: egui::Color32::from_rgb(212, 212, 212),    // #D4D4D4 White (unused)
-            variable_color: egui::Color32::from_rgb(156, 220, 254),     // #9CDCFE Light Blue
-            operator_color: egui::Color32::from_rgb(212, 212, 212),     // #D4D4D4 White
+            // Use named color constants from syntax_colors module
+            keyword_color: syntax_colors::KEYWORD,
+            function_color: syntax_colors::FUNCTION,
+            type_color: syntax_colors::TYPE,
+            string_color: syntax_colors::STRING,
+            number_color: syntax_colors::NUMBER,
+            comment_color: syntax_colors::COMMENT,
+            doc_comment_color: syntax_colors::DOC_COMMENT,
+            macro_color: syntax_colors::MACRO,
+            attribute_color: syntax_colors::ATTRIBUTE,
+            constant_color: syntax_colors::CONSTANT,
+            lifetime_color: syntax_colors::LIFETIME,
+            namespace_color: syntax_colors::NAMESPACE,
+            variable_color: syntax_colors::VARIABLE,
+            operator_color: syntax_colors::OPERATOR,
             active_focus: FocusLayer::Editor,
 
             // === Workflow State ===
@@ -1061,7 +1169,7 @@ impl BerryCodeApp {
             .resizable(false)
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C
+                    .fill(ui_colors::SIDEBAR_BG) // #191A1C
                     .inner_margin(egui::Margin::same(4.0))
             )
             .show(ctx, |ui| {
@@ -1099,7 +1207,7 @@ impl BerryCodeApp {
             .resizable(true)
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C
+                    .fill(ui_colors::SIDEBAR_BG) // #191A1C
                     .inner_margin(egui::Margin::same(8.0))
             )
             .show(ctx, |ui| {
@@ -1380,50 +1488,51 @@ impl BerryCodeApp {
 
     /// Get file icon with color based on file extension
     fn get_file_icon_with_color(filename: &str) -> (&'static str, egui::Color32) {
+        // Use named color constants from file_icon_colors module
         if filename.ends_with(".rs") {
-            ("\u{eb8b}", egui::Color32::from_rgb(255, 152, 0)) // Orange for Rust
+            ("\u{eb8b}", file_icon_colors::RUST_ORANGE)
         } else if filename.ends_with(".toml") {
-            ("\u{ea7e}", egui::Color32::from_rgb(128, 128, 128)) // Gray for config
+            ("\u{ea7e}", file_icon_colors::CONFIG_GRAY)
         } else if filename.ends_with(".md") {
-            ("\u{ea82}", egui::Color32::from_rgb(66, 165, 245)) // Blue for Markdown
+            ("\u{ea82}", file_icon_colors::MARKDOWN_BLUE)
         } else if filename.ends_with(".json") {
-            ("\u{ead1}", egui::Color32::from_rgb(255, 203, 0)) // Yellow for JSON
+            ("\u{ead1}", file_icon_colors::JSON_YELLOW)
         } else if filename.ends_with(".yaml") || filename.ends_with(".yml") {
-            ("\u{ea7e}", egui::Color32::from_rgb(128, 128, 128)) // Gray for YAML
+            ("\u{ea7e}", file_icon_colors::CONFIG_GRAY)
         } else if filename.ends_with(".js") {
-            ("\u{ea7a}", egui::Color32::from_rgb(247, 223, 30)) // Yellow for JavaScript
+            ("\u{ea7a}", file_icon_colors::JAVASCRIPT_YELLOW)
         } else if filename.ends_with(".ts") {
-            ("\u{ea7a}", egui::Color32::from_rgb(41, 127, 214)) // Blue for TypeScript
+            ("\u{ea7a}", file_icon_colors::TYPESCRIPT_BLUE)
         } else if filename.ends_with(".html") {
-            ("\u{eb7e}", egui::Color32::from_rgb(229, 115, 0)) // Orange for HTML
+            ("\u{eb7e}", file_icon_colors::HTML_ORANGE)
         } else if filename.ends_with(".css") {
-            ("\u{eb7e}", egui::Color32::from_rgb(66, 165, 245)) // Blue for CSS
+            ("\u{eb7e}", file_icon_colors::CSS_BLUE)
         } else if filename.ends_with(".py") {
-            ("\u{eb8b}", egui::Color32::from_rgb(52, 168, 83)) // Green for Python
+            ("\u{eb8b}", file_icon_colors::PYTHON_GREEN)
         } else if filename.ends_with(".sh") {
-            ("\u{ea85}", egui::Color32::from_rgb(76, 175, 80)) // Green for Shell
+            ("\u{ea85}", file_icon_colors::SHELL_GREEN)
         } else if filename.ends_with(".txt") {
-            ("\u{ea7b}", egui::Color32::from_rgb(212, 212, 212)) // White for Text
+            ("\u{ea7b}", ui_colors::TEXT_DEFAULT)
         } else if filename.ends_with(".lock") {
-            ("\u{ea7f}", egui::Color32::from_rgb(128, 128, 128)) // Gray for Lock
+            ("\u{ea7f}", file_icon_colors::CONFIG_GRAY)
         } else if filename.ends_with(".proto") {
-            ("\u{eb8b}", egui::Color32::from_rgb(156, 39, 176)) // Purple for Proto
+            ("\u{eb8b}", file_icon_colors::PROTO_PURPLE)
         } else if filename.ends_with(".xml") {
-            ("\u{eb7e}", egui::Color32::from_rgb(229, 115, 0)) // Orange for XML
+            ("\u{eb7e}", file_icon_colors::HTML_ORANGE)
         } else if filename.ends_with(".svg") {
-            ("\u{eaf0}", egui::Color32::from_rgb(255, 179, 0)) // Amber for SVG
+            ("\u{eaf0}", file_icon_colors::SVG_AMBER)
         } else if filename.ends_with(".png") || filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
-            ("\u{eaf0}", egui::Color32::from_rgb(156, 39, 176)) // Purple for Images
+            ("\u{eaf0}", file_icon_colors::IMAGE_PURPLE)
         } else if filename.ends_with(".gitignore") || filename.ends_with(".gitattributes") {
-            ("\u{ea84}", egui::Color32::from_rgb(240, 98, 35)) // Orange for Git
+            ("\u{ea84}", file_icon_colors::GIT_ORANGE)
         } else if filename == "Cargo.toml" || filename == "Cargo.lock" {
-            ("\u{ea7e}", egui::Color32::from_rgb(255, 152, 0)) // Orange for Cargo
+            ("\u{ea7e}", file_icon_colors::RUST_ORANGE)
         } else if filename == "package.json" {
-            ("\u{ead1}", egui::Color32::from_rgb(255, 203, 0)) // Yellow for npm
+            ("\u{ead1}", file_icon_colors::JSON_YELLOW)
         } else if filename == "README.md" {
-            ("\u{ea82}", egui::Color32::from_rgb(66, 165, 245)) // Blue for README
+            ("\u{ea82}", file_icon_colors::MARKDOWN_BLUE)
         } else {
-            ("\u{ea7b}", egui::Color32::from_rgb(212, 212, 212)) // White for Default
+            ("\u{ea7b}", ui_colors::TEXT_DEFAULT)
         }
     }
 
@@ -2019,7 +2128,7 @@ impl BerryCodeApp {
             .resizable(true)
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28))
+                    .fill(ui_colors::SIDEBAR_BG)
                     .inner_margin(8.0)
             )
             .show(ctx, |ui| {
@@ -3682,12 +3791,11 @@ impl BerryCodeApp {
     /// Render AI Chat panel (right side of editor)
     fn render_ai_chat_panel(&mut self, ctx: &egui::Context) {
         egui::SidePanel::right("ai_chat_panel")
-            .default_width(400.0)
-            .width_range(300.0..=800.0)
-            .resizable(true)
+            .exact_width(400.0)  // Fixed width to prevent resizing
+            .resizable(false)    // Disable resizing
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28))  // Match sidebar background
+                    .fill(ui_colors::SIDEBAR_BG)  // Match sidebar background
                     .inner_margin(0.0)
             )
             .show(ctx, |ui| {
@@ -3699,7 +3807,7 @@ impl BerryCodeApp {
                         ui.horizontal(|ui| {
                             // Left: AI Chat title
                             ui.label(egui::RichText::new("AI Chat")
-                                .color(egui::Color32::from_rgb(212, 212, 212))
+                                .color(ui_colors::TEXT_DEFAULT)
                                 .size(15.0));
 
                             // Connection status indicator
@@ -3762,7 +3870,7 @@ impl BerryCodeApp {
                                             .inner_margin(12.0)
                                             .rounding(8.0)
                                             .show(ui, |ui| {
-                                                ui.set_max_width(ui.available_width() * 0.8);
+                                                ui.set_max_width(300.0);  // Fixed width
                                                 ui.label(egui::RichText::new(&msg.content)
                                                     .color(egui::Color32::from_rgb(220, 220, 220))
                                                     .size(14.0));
@@ -3773,7 +3881,7 @@ impl BerryCodeApp {
                                     ui.horizontal(|ui| {
                                         ui.add_space(12.0);
                                         ui.vertical(|ui| {
-                                            ui.set_max_width(ui.available_width() - 24.0);
+                                            ui.set_max_width(350.0);  // Fixed width
                                             Self::render_markdown(ui, &msg.content);
                                         });
                                     });
@@ -3788,7 +3896,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.add_space(12.0);
                                 ui.vertical(|ui| {
-                                    ui.set_max_width(ui.available_width() - 24.0);
+                                    ui.set_max_width(350.0);  // Fixed width
                                     Self::render_markdown(ui, &self.grpc_current_response);
                                     ui.add_space(8.0);
                                     ui.spinner();
@@ -3805,7 +3913,7 @@ impl BerryCodeApp {
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     // Bottom footer: "Share feedback" link
                     ui.horizontal(|ui| {
-                        ui.add_space(ui.available_width() / 2.0 - 60.0);
+                        ui.add_space(140.0);  // Fixed spacing for centering
                         ui.hyperlink_to(
                             egui::RichText::new("Share feedback ↗")
                                 .size(12.0)
@@ -3825,7 +3933,7 @@ impl BerryCodeApp {
                         .show(ui, |ui| {
                             // Text input area
                             let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
-                                .desired_width(f32::INFINITY)
+                                .desired_width(350.0)  // Fixed width
                                 .desired_rows(4)
                                 .hint_text("Ask AI Assistant, use @mentions or /commands")
                                 .font(egui::FontId::proportional(14.0));
@@ -4471,7 +4579,7 @@ impl BerryCodeApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C - Match sidebar background
+                    .fill(ui_colors::SIDEBAR_BG) // #191A1C - Match sidebar background
                     .inner_margin(egui::Margin::same(8.0))
             )
             .show(ctx, |ui| {
@@ -4662,8 +4770,8 @@ impl BerryCodeApp {
 
             let scroll_output = scroll_area.show(ui, |ui| {
                     // Set background color to match sidebar (#191A1C)
-                    ui.style_mut().visuals.extreme_bg_color = egui::Color32::from_rgb(25, 26, 28);
-                    ui.style_mut().visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(25, 26, 28);
+                    ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
+                    ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG;
 
                     // CRITICAL: Disable text color override to allow syntax highlighting
                     ui.style_mut().visuals.override_text_color = None;
@@ -4819,7 +4927,7 @@ impl BerryCodeApp {
         // Font size: 13px for optimal readability
         const FONT_SIZE: f32 = 13.0;
         // Default color unified white (#D4D4D4)
-        let default_color = egui::Color32::from_rgb(212, 212, 212);
+        let default_color = ui_colors::TEXT_DEFAULT;
 
         for line in text.lines() {
             // Get tokens from regex-based highlighter
@@ -4902,7 +5010,7 @@ impl BerryCodeApp {
             .exact_height(24.0)
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C
+                    .fill(ui_colors::SIDEBAR_BG) // #191A1C
                     .inner_margin(egui::Margin::symmetric(8.0, 2.0))
             )
             .show(ctx, |ui| {
@@ -5100,7 +5208,7 @@ impl BerryCodeApp {
     /// Live preview of syntax colors
     fn render_color_preview(&self, ui: &mut egui::Ui) {
         let frame = egui::Frame::none()
-            .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C - Match sidebar background
+            .fill(ui_colors::SIDEBAR_BG) // #191A1C - Match sidebar background
             .inner_margin(12.0)
             .rounding(4.0);
 
@@ -5159,19 +5267,24 @@ impl BerryCodeApp {
         });
     }
 
-    /// Reset colors to RustRover Darcula defaults
+    /// Reset colors to VS Code Dark+ defaults
     fn reset_colors_to_darcula(&mut self) {
-        self.keyword_color = egui::Color32::from_rgb(204, 120, 50);   // #CC7832
-        self.function_color = egui::Color32::from_rgb(255, 198, 109); // #FFC66D
-        self.type_color = egui::Color32::from_rgb(169, 183, 198);     // #A9B7C6
-        self.string_color = egui::Color32::from_rgb(106, 135, 89);    // #6A8759
-        self.number_color = egui::Color32::from_rgb(104, 151, 187);   // #6897BB
-        self.comment_color = egui::Color32::from_rgb(128, 128, 128);  // #808080
-        self.macro_color = egui::Color32::from_rgb(255, 198, 109);    // #FFC66D
-        self.attribute_color = egui::Color32::from_rgb(187, 181, 41); // #BBB529
-        self.constant_color = egui::Color32::from_rgb(152, 118, 170); // #9876AA
-        self.lifetime_color = egui::Color32::from_rgb(32, 153, 157);  // #20999D
-        tracing::info!("🎨 Reset colors to Darcula defaults");
+        // Use named color constants from syntax_colors module
+        self.keyword_color = syntax_colors::KEYWORD;
+        self.function_color = syntax_colors::FUNCTION;
+        self.type_color = syntax_colors::TYPE;
+        self.string_color = syntax_colors::STRING;
+        self.number_color = syntax_colors::NUMBER;
+        self.comment_color = syntax_colors::COMMENT;
+        self.doc_comment_color = syntax_colors::DOC_COMMENT;
+        self.macro_color = syntax_colors::MACRO;
+        self.attribute_color = syntax_colors::ATTRIBUTE;
+        self.constant_color = syntax_colors::CONSTANT;
+        self.lifetime_color = syntax_colors::LIFETIME;
+        self.namespace_color = syntax_colors::NAMESPACE;
+        self.variable_color = syntax_colors::VARIABLE;
+        self.operator_color = syntax_colors::OPERATOR;
+        tracing::info!("🎨 Reset colors to VS Code Dark+ defaults");
     }
 }
 
