@@ -260,25 +260,6 @@ impl LspClient {
         tracing::info!("✅ All LSP clients shutdown");
         Ok(())
     }
-
-    /// Get syntax highlighting theme from server
-    pub async fn get_theme(&self, theme_name: Option<String>) -> Result<ThemeResponse> {
-        let mut client = self.client.write().await;
-        let client = client
-            .as_mut()
-            .context("LSP client not connected - call connect() first")?;
-
-        let request = ThemeRequest { theme_name };
-
-        let response = client
-            .get_theme(request)
-            .await
-            .context("Failed to get theme")?
-            .into_inner();
-
-        tracing::info!("✅ Received theme: {}", response.theme_name);
-        Ok(response)
-    }
 }
 
 impl Default for LspClient {

@@ -10,7 +10,8 @@ pub enum TokenType {
     Type,
     String,
     Number,
-    Comment,
+    Comment,        // Normal comments: //, /* */
+    DocComment,     // Doc comments: //!, ///
     Operator,
     Identifier,
     Macro,          // NEW: println!, vec!, derive! etc.
@@ -74,14 +75,19 @@ impl SyntaxHighlighter {
         let mut tokens = Vec::new();
         let _trimmed = line.trim_start();
 
-        // Comments
+        // Comments - distinguish between doc comments (//!, ///) and normal comments (//)
         if let Some(pos) = line.find("//") {
             if pos > 0 {
                 self.add_basic_tokens(&mut tokens, &line[..pos], 0);
             }
+
+            // Check if this is a doc comment (//! or ///)
+            let comment_text = &line[pos..];
+            let is_doc_comment = comment_text.starts_with("//!") || comment_text.starts_with("///");
+
             tokens.push(SyntaxToken {
-                token_type: TokenType::Comment,
-                text: line[pos..].to_string(),
+                token_type: if is_doc_comment { TokenType::DocComment } else { TokenType::Comment },
+                text: comment_text.to_string(),
                 start: pos,
                 end: line.len(),
             });

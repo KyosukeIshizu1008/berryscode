@@ -44,6 +44,7 @@ rayon = "1.10"  # Parallel processing
 portable-pty = "0.8"
 
 # ===== Syntax Highlighting =====
+syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
 tree-sitter = "0.24"
 tree-sitter-rust = "0.23"
 tree-sitter-python = "0.23"

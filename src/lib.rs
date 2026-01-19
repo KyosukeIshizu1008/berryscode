@@ -18,6 +18,7 @@
 pub mod buffer;
 pub mod cursor;
 pub mod syntax;
+pub mod syntax_syntect; // Syntect-based syntax highlighting with One Dark theme
 
 // ===== Native Platform Modules =====
 pub mod native;

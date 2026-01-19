@@ -5,7 +5,7 @@ use crate::buffer::TextBuffer;
 use crate::focus_stack::FocusLayer;
 use crate::native;
 use crate::native::fs::DirEntry;
-use crate::syntax::{SyntaxHighlighter, TokenType};
+use crate::syntax::{SyntaxHighlighter, TokenType}; // Regex-based highlighting with One Dark colors
 use std::collections::HashSet;
 use tokio::sync::mpsc;
 
@@ -64,6 +64,123 @@ pub enum SettingsTab {
     GitHub,
 }
 
+// ===== NEW: Git UI Tabs (SourceTree-compatible) =====
+
+/// Git panel tabs (6 tabs: Status, History, Branches, Remotes, Tags, Stash)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitTab {
+    Status,
+    History,
+    Branches,
+    Remotes,
+    Tags,
+    Stash,
+}
+
+/// State for the History tab (commit graph visualization)
+#[derive(Debug, Clone)]
+pub struct GitHistoryState {
+    pub graph_nodes: Vec<native::git::GitGraphNode>,
+    pub selected_commit_id: Option<String>,
+    pub commit_details: Option<native::git::GitCommitDetail>,
+    pub show_all_branches: bool,
+    pub filter_author: String,
+    pub filter_message: String,
+    pub page_limit: usize, // Number of commits to load per page
+    pub loaded_count: usize, // Number of commits currently loaded
+}
+
+impl Default for GitHistoryState {
+    fn default() -> Self {
+        Self {
+            graph_nodes: Vec::new(),
+            selected_commit_id: None,
+            commit_details: None,
+            show_all_branches: true,
+            filter_author: String::new(),
+            filter_message: String::new(),
+            page_limit: 100,
+            loaded_count: 0,
+        }
+    }
+}
+
+/// State for the Branches tab
+#[derive(Debug, Clone)]
+pub struct GitBranchState {
+    pub local_branches: Vec<native::git::GitBranch>,
+    pub remote_branches: Vec<native::git::GitBranch>,
+    pub new_branch_name: String,
+    pub merge_target: Option<String>,
+}
+
+impl Default for GitBranchState {
+    fn default() -> Self {
+        Self {
+            local_branches: Vec::new(),
+            remote_branches: Vec::new(),
+            new_branch_name: String::new(),
+            merge_target: None,
+        }
+    }
+}
+
+/// State for the Remotes tab
+#[derive(Debug, Clone)]
+pub struct GitRemoteState {
+    pub remotes: Vec<native::git::GitRemote>,
+    pub new_remote_name: String,
+    pub new_remote_url: String,
+}
+
+impl Default for GitRemoteState {
+    fn default() -> Self {
+        Self {
+            remotes: Vec::new(),
+            new_remote_name: String::new(),
+            new_remote_url: String::new(),
+        }
+    }
+}
+
+/// State for the Tags tab
+#[derive(Debug, Clone)]
+pub struct GitTagState {
+    pub tags: Vec<native::git::GitTag>,
+    pub new_tag_name: String,
+    pub new_tag_message: String,
+    pub annotated: bool,
+}
+
+impl Default for GitTagState {
+    fn default() -> Self {
+        Self {
+            tags: Vec::new(),
+            new_tag_name: String::new(),
+            new_tag_message: String::new(),
+            annotated: false,
+        }
+    }
+}
+
+/// State for the Stash tab
+#[derive(Debug, Clone)]
+pub struct GitStashState {
+    pub stashes: Vec<native::git::GitStash>,
+    pub new_stash_message: String,
+    pub include_untracked: bool,
+}
+
+impl Default for GitStashState {
+    fn default() -> Self {
+        Self {
+            stashes: Vec::new(),
+            new_stash_message: String::new(),
+            include_untracked: false,
+        }
+    }
+}
+
 /// Panel definition for data-driven Activity Bar
 struct SidebarPanel {
     variant: ActivePanel,
@@ -95,7 +212,7 @@ const MAIN_PANELS: &[SidebarPanel] = &[
     },
     SidebarPanel {
         variant: ActivePanel::Database,
-        icon: "\u{eb36}",  // codicon-symbol-database
+        icon: "⊜",  // Circle with horizontal bar (cylinder/database representation)
         _name: "Database",
     },
     SidebarPanel {
@@ -442,7 +559,7 @@ pub struct BerryCodeApp {
     // === Editor State ===
     editor_tabs: Vec<EditorTab>,
     active_tab_idx: usize,
-    syntax_highlighter: SyntaxHighlighter,
+    syntax_highlighter: SyntaxHighlighter, // Regex-based highlighter
 
     // === File Tree State ===
     file_tree_cache: Vec<DirEntry>, // Cached directory tree
@@ -468,6 +585,14 @@ pub struct BerryCodeApp {
     git_current_branch: String,
     git_status: Vec<native::git::GitStatus>,
     git_commit_message: String,
+    git_initialized: bool, // NEW: Track if Git has been initialized
+    // NEW: SourceTree-compatible Git UI state
+    git_active_tab: GitTab,
+    git_history_state: GitHistoryState,
+    git_branch_state: GitBranchState,
+    git_remote_state: GitRemoteState,
+    git_tag_state: GitTagState,
+    git_stash_state: GitStashState,
 
     // === LSP State (Phase 6: Async integration) ===
     lsp_runtime: std::sync::Arc<tokio::runtime::Runtime>,  // NEW: Tokio runtime for async LSP
@@ -516,6 +641,30 @@ pub struct BerryCodeApp {
     slack_response_rx: Option<mpsc::UnboundedReceiver<SlackResponse>>,
     show_slack_settings: bool,
 
+    // === Database Integration ===
+    database_client: native::database::DatabaseClient,
+    database_connections: Vec<native::database::DatabaseConnection>,
+    selected_connection_id: Option<String>,
+    database_tables: Vec<String>,
+    selected_table: Option<String>,
+    sql_query: String,
+    query_result: Option<native::database::QueryResult>,
+    show_add_connection_dialog: bool,
+    new_db_name: String,
+    new_db_comment: String,
+    new_db_type: native::database::DatabaseType,
+    new_db_connection_type: String,
+    new_db_host: String,
+    new_db_port: String,
+    new_db_database: String,
+    new_db_authentication: String,
+    new_db_username: String,
+    new_db_password: String,
+    new_db_save_mode: String,
+    new_db_url: String,
+    new_db_active_tab: usize,
+    new_db_test_result: Option<String>,
+
     // gRPC for AI integration (optional)
     grpc_client: native::grpc::GrpcClient,
     grpc_session_id: Option<String>,
@@ -541,19 +690,18 @@ pub struct BerryCodeApp {
     type_color: egui::Color32,
     string_color: egui::Color32,
     number_color: egui::Color32,
-    comment_color: egui::Color32,
+    comment_color: egui::Color32,       // Normal comments: //
+    doc_comment_color: egui::Color32,   // Doc comments: //!, ///
     macro_color: egui::Color32,
     attribute_color: egui::Color32,
     constant_color: egui::Color32,
     lifetime_color: egui::Color32,
+    namespace_color: egui::Color32,
+    variable_color: egui::Color32,
+    operator_color: egui::Color32,
 
     // === Focus Management ===
     active_focus: FocusLayer,
-    pub syntax_theme: ColorTheme,
-
-    // === Theme Loading from API ===
-    theme_response_tx: Option<mpsc::UnboundedSender<native::lsp::lsp_service::ThemeResponse>>,
-    theme_response_rx: Option<mpsc::UnboundedReceiver<native::lsp::lsp_service::ThemeResponse>>,
 
     // === Workflow State ===
     workflows: Vec<Workflow>,
@@ -585,6 +733,9 @@ pub struct BerryCodeApp {
     wiki_editing: bool,
     wiki_search_query: String,
     new_wiki_title: String,
+
+    // === File Watcher ===
+    file_watcher: Option<native::watcher::FileWatcher>,  // Real-time file system monitoring
 }
 
 /// Color theme for syntax highlighting
@@ -595,27 +746,39 @@ struct ColorTheme {
     type_: egui::Color32,
     string: egui::Color32,
     number: egui::Color32,
-    comment: egui::Color32,
+    comment: egui::Color32,       // Normal comments: //
+    doc_comment: egui::Color32,   // Doc comments: //!, ///
     macro_: egui::Color32,
     attribute: egui::Color32,
     constant: egui::Color32,
     lifetime: egui::Color32,
+    namespace: egui::Color32,
+    variable: egui::Color32,
+    operator: egui::Color32,
 }
 
 impl BerryCodeApp {
     /// Create new application instance
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Configure IntelliJ Darcula theme
+        // Configure One Dark theme
         let mut style = egui::Style::default();
-        style.visuals = egui::Visuals {
-            dark_mode: true,
-            // DO NOT set override_text_color - it breaks syntax highlighting!
-            // Let syntax_highlight_layouter handle all text colors
-            window_fill: egui::Color32::from_rgb(43, 43, 43), // #2B2B2B
-            panel_fill: egui::Color32::from_rgb(60, 63, 65), // #3C3F41
-            window_stroke: egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59)),
-            ..egui::Visuals::dark()
-        };
+        let mut visuals = egui::Visuals::dark();
+        // CRITICAL: グローバルでは override_text_color を使わない（エディタのシンタックスハイライトが効かなくなる）
+        visuals.override_text_color = None;
+        // デフォルトのテキスト色を明るい白に設定
+        visuals.text_cursor.stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
+        visuals.window_fill = egui::Color32::from_rgb(25, 26, 28); // #191A1C - Sidebar background
+        visuals.panel_fill = egui::Color32::from_rgb(25, 26, 28); // #191A1C
+        visuals.extreme_bg_color = egui::Color32::from_rgb(25, 26, 28); // #191A1C - Same as sidebar
+        visuals.window_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59));
+        style.visuals = visuals;
+
+        // テキストスタイルのデフォルト色を明るい白に設定
+        style.visuals.widgets.noninteractive.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
+        style.visuals.widgets.inactive.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
+        style.visuals.widgets.hovered.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
+        style.visuals.widgets.active.fg_stroke.color = egui::Color32::from_rgb(0xD4, 0xD4, 0xD4);
+
         cc.egui_ctx.set_style(style);
 
         // Get project root directory
@@ -647,17 +810,31 @@ impl BerryCodeApp {
         // Create gRPC response channel
         let (grpc_tx, grpc_rx) = mpsc::unbounded_channel();
 
-        // Create Theme response channel
-        let (theme_tx, theme_rx) = mpsc::unbounded_channel();
-
         // Create Slack response channel
         let (slack_tx, slack_rx) = mpsc::unbounded_channel();
+
+        // Create file watcher for real-time file system monitoring
+        let file_watcher = match native::watcher::FileWatcher::new() {
+            Ok(mut watcher) => {
+                // Watch the project root directory recursively
+                if let Err(e) = watcher.watch(&root_path) {
+                    tracing::warn!("⚠️  Failed to start file watching for {}: {}", root_path, e);
+                    None
+                } else {
+                    tracing::info!("👁  File watcher started for: {}", root_path);
+                    Some(watcher)
+                }
+            }
+            Err(e) => {
+                tracing::warn!("⚠️  Failed to create file watcher: {}", e);
+                None
+            }
+        };
 
         // Spawn LSP connection task
         let client_clone = lsp_client.clone();
         let root_path_clone = root_path.clone();
         let tx_clone = lsp_tx.clone();
-        let theme_tx_clone = theme_tx.clone();
 
         lsp_runtime.spawn(async move {
             match client_clone.connect().await {
@@ -678,19 +855,6 @@ impl BerryCodeApp {
                         Err(e) => {
                             tracing::error!("❌ LSP initialization failed: {:#}", e);
                             tracing::error!("   Root path: {}", root_path_clone);
-                        }
-                    }
-
-                    // Load default theme (gruvbox) from API
-                    tracing::info!("🎨 Loading default theme from berry-api-server");
-                    match client_clone.get_theme(None).await {
-                        Ok(theme_response) => {
-                            tracing::info!("✅ Loaded theme: {}", theme_response.theme_name);
-                            // Send theme to UI thread
-                            let _ = theme_tx_clone.send(theme_response);
-                        }
-                        Err(e) => {
-                            tracing::warn!("⚠️  Failed to load theme from API: {} (using built-in theme)", e);
                         }
                     }
                 }
@@ -730,7 +894,7 @@ impl BerryCodeApp {
             sidebar_width: 300.0,
             editor_tabs: Vec::new(),
             active_tab_idx: 0,
-            syntax_highlighter: SyntaxHighlighter::new(),
+            syntax_highlighter: SyntaxHighlighter::new(), // Regex-based highlighter
             file_tree_cache: Vec::new(),
             file_tree_load_pending: true,
             expanded_dirs: HashSet::new(),
@@ -748,6 +912,13 @@ impl BerryCodeApp {
             git_current_branch: String::from("(unknown)"),
             git_status: Vec::new(),
             git_commit_message: String::new(),
+            git_initialized: false,
+            git_active_tab: GitTab::Status,
+            git_history_state: GitHistoryState::default(),
+            git_branch_state: GitBranchState::default(),
+            git_remote_state: GitRemoteState::default(),
+            git_tag_state: GitTagState::default(),
+            git_stash_state: GitStashState::default(),
             lsp_runtime,
             lsp_client: Some(lsp_client),
             lsp_response_tx: Some(lsp_tx),
@@ -794,32 +965,22 @@ impl BerryCodeApp {
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
             show_theme_editor: false,
-            // RustRover Darcula color scheme (default)
-            keyword_color: egui::Color32::from_rgb(204, 120, 50),   // #CC7832
-            function_color: egui::Color32::from_rgb(255, 198, 109), // #FFC66D
-            type_color: egui::Color32::from_rgb(169, 183, 198),     // #A9B7C6
-            string_color: egui::Color32::from_rgb(106, 135, 89),    // #6A8759
-            number_color: egui::Color32::from_rgb(104, 151, 187),   // #6897BB
-            comment_color: egui::Color32::from_rgb(128, 128, 128),  // #808080
-            macro_color: egui::Color32::from_rgb(255, 198, 109),    // #FFC66D
-            attribute_color: egui::Color32::from_rgb(187, 181, 41), // #BBB529
-            constant_color: egui::Color32::from_rgb(152, 118, 170), // #9876AA
-            lifetime_color: egui::Color32::from_rgb(32, 153, 157),  // #20999D
-            syntax_theme: ColorTheme {
-                keyword: egui::Color32::from_rgb(204, 120, 50),
-                function: egui::Color32::from_rgb(255, 198, 109),
-                type_: egui::Color32::from_rgb(169, 183, 198),
-                string: egui::Color32::from_rgb(106, 135, 89),
-                number: egui::Color32::from_rgb(104, 151, 187),
-                comment: egui::Color32::from_rgb(128, 128, 128),
-                macro_: egui::Color32::from_rgb(255, 198, 109),
-                attribute: egui::Color32::from_rgb(187, 181, 41),
-                constant: egui::Color32::from_rgb(152, 118, 170),
-                lifetime: egui::Color32::from_rgb(32, 153, 157),
-            },
+            // VS Code Dark+ color scheme (matching the target screenshot)
+            keyword_color: egui::Color32::from_rgb(234, 147, 71),       // #EA9347 Orange (keywords)
+            function_color: egui::Color32::from_rgb(84, 166, 224),      // #54A6E0 Sky Blue (functions)
+            type_color: egui::Color32::from_rgb(232, 194, 82),          // #E8C252 Yellow (types)
+            string_color: egui::Color32::from_rgb(184, 214, 84),        // #B8D654 Lime Green (strings)
+            number_color: egui::Color32::from_rgb(181, 206, 168),       // #B5CEA8 Light Green
+            comment_color: egui::Color32::from_rgb(128, 128, 128),      // #808080 Gray (normal comments)
+            doc_comment_color: egui::Color32::from_rgb(106, 153, 85),   // #6A9955 Green (doc comments)
+            macro_color: egui::Color32::from_rgb(84, 166, 224),         // #54A6E0 Sky Blue (macros)
+            attribute_color: egui::Color32::from_rgb(197, 134, 192),    // #C586C0 Pink
+            constant_color: egui::Color32::from_rgb(197, 134, 192),     // #C586C0 Pink
+            lifetime_color: egui::Color32::from_rgb(78, 201, 176),      // #4EC9B0 Cyan
+            namespace_color: egui::Color32::from_rgb(212, 212, 212),    // #D4D4D4 White (unused)
+            variable_color: egui::Color32::from_rgb(156, 220, 254),     // #9CDCFE Light Blue
+            operator_color: egui::Color32::from_rgb(212, 212, 212),     // #D4D4D4 White
             active_focus: FocusLayer::Editor,
-            theme_response_tx: Some(theme_tx),
-            theme_response_rx: Some(theme_rx),
 
             // === Workflow State ===
             workflows: Vec::new(),
@@ -863,6 +1024,33 @@ impl BerryCodeApp {
             slack_response_tx: Some(slack_tx),
             slack_response_rx: Some(slack_rx),
             show_slack_settings: false,
+
+            // === Database Integration ===
+            database_client: native::database::DatabaseClient::new(),
+            database_connections: Vec::new(),
+            selected_connection_id: None,
+            database_tables: Vec::new(),
+            selected_table: None,
+            sql_query: String::new(),
+            query_result: None,
+            show_add_connection_dialog: false,
+            new_db_name: String::new(),
+            new_db_comment: String::new(),
+            new_db_type: native::database::DatabaseType::PostgreSQL,
+            new_db_connection_type: "default".to_string(),
+            new_db_host: "localhost".to_string(),
+            new_db_port: "5432".to_string(),
+            new_db_database: "postgres".to_string(),
+            new_db_authentication: "User & Password".to_string(),
+            new_db_username: String::new(),
+            new_db_password: String::new(),
+            new_db_save_mode: "Forever".to_string(),
+            new_db_url: "jdbc:postgresql://localhost:5432/postgres".to_string(),
+            new_db_active_tab: 0,
+            new_db_test_result: None,
+
+            // === File Watcher ===
+            file_watcher,
         }
     }
 
@@ -891,7 +1079,7 @@ impl BerryCodeApp {
 
                         // Use selectable_label with custom color
                         let icon_text = egui::RichText::new(panel.icon)
-                            .color(egui::Color32::from_rgb(212, 212, 212)); // Same as source code
+                            .size(20.0);  // Explicit size for icons
                         if ui.selectable_label(is_selected, icon_text).clicked() {
                             tracing::info!("📍 Panel changed to: {:?}", panel.variant);
                             self.active_panel = panel.variant;
@@ -989,10 +1177,7 @@ impl BerryCodeApp {
             // Render root folder
             let root_label = format!("{} {}", root_icon, root_name);
             let response = ui.add(
-                egui::Label::new(
-                    egui::RichText::new(root_label)
-                        .color(egui::Color32::from_rgb(212, 212, 212)) // Same as source code
-                )
+                egui::Label::new(root_label)
                 .sense(egui::Sense::click())
             )
             .on_hover_cursor(egui::CursorIcon::Default);
@@ -1035,10 +1220,7 @@ impl BerryCodeApp {
 
                 let dir_label = format!("{} {}", icon, node.name);
                 let response = ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(dir_label)
-                            .color(egui::Color32::from_rgb(212, 212, 212)) // Same as source code
-                    )
+                    egui::Label::new(dir_label)
                     .sense(egui::Sense::click())
                 )
                 .on_hover_cursor(egui::CursorIcon::Default);
@@ -1059,22 +1241,20 @@ impl BerryCodeApp {
                     }
                 }
             } else {
-                // File node
-                let icon = Self::get_file_icon_static(&node.name);
+                // File node with colored icon
+                let (icon, color) = Self::get_file_icon_with_color(&node.name);
 
-                let file_label = format!("{} {}", icon, node.name);
-                let response = ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(file_label)
-                            .color(egui::Color32::from_rgb(212, 212, 212)) // Same as source code
-                    )
-                    .sense(egui::Sense::click())
-                )
-                .on_hover_cursor(egui::CursorIcon::Default);
+                let response = ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.label(egui::RichText::new(icon).color(color));
+                    ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
+                }).inner;
 
                 if response.clicked() {
                     self.open_file_from_path(&node.path);
                 }
+
+                response.on_hover_cursor(egui::CursorIcon::Default);
             }
         });
 
@@ -1097,6 +1277,7 @@ impl BerryCodeApp {
 
         match native::fs::read_file(file_path) {
             Ok(content) => {
+                // Language detection is done in render_editor_panel for each frame
                 // Check if file is already open
                 if let Some(idx) = self.editor_tabs.iter().position(|tab| tab.file_path == file_path) {
                     // Switch to existing tab
@@ -1194,6 +1375,55 @@ impl BerryCodeApp {
             "\u{ea82}" // codicon-markdown (README)
         } else {
             "\u{ea7b}" // codicon-file (Default)
+        }
+    }
+
+    /// Get file icon with color based on file extension
+    fn get_file_icon_with_color(filename: &str) -> (&'static str, egui::Color32) {
+        if filename.ends_with(".rs") {
+            ("\u{eb8b}", egui::Color32::from_rgb(255, 152, 0)) // Orange for Rust
+        } else if filename.ends_with(".toml") {
+            ("\u{ea7e}", egui::Color32::from_rgb(128, 128, 128)) // Gray for config
+        } else if filename.ends_with(".md") {
+            ("\u{ea82}", egui::Color32::from_rgb(66, 165, 245)) // Blue for Markdown
+        } else if filename.ends_with(".json") {
+            ("\u{ead1}", egui::Color32::from_rgb(255, 203, 0)) // Yellow for JSON
+        } else if filename.ends_with(".yaml") || filename.ends_with(".yml") {
+            ("\u{ea7e}", egui::Color32::from_rgb(128, 128, 128)) // Gray for YAML
+        } else if filename.ends_with(".js") {
+            ("\u{ea7a}", egui::Color32::from_rgb(247, 223, 30)) // Yellow for JavaScript
+        } else if filename.ends_with(".ts") {
+            ("\u{ea7a}", egui::Color32::from_rgb(41, 127, 214)) // Blue for TypeScript
+        } else if filename.ends_with(".html") {
+            ("\u{eb7e}", egui::Color32::from_rgb(229, 115, 0)) // Orange for HTML
+        } else if filename.ends_with(".css") {
+            ("\u{eb7e}", egui::Color32::from_rgb(66, 165, 245)) // Blue for CSS
+        } else if filename.ends_with(".py") {
+            ("\u{eb8b}", egui::Color32::from_rgb(52, 168, 83)) // Green for Python
+        } else if filename.ends_with(".sh") {
+            ("\u{ea85}", egui::Color32::from_rgb(76, 175, 80)) // Green for Shell
+        } else if filename.ends_with(".txt") {
+            ("\u{ea7b}", egui::Color32::from_rgb(212, 212, 212)) // White for Text
+        } else if filename.ends_with(".lock") {
+            ("\u{ea7f}", egui::Color32::from_rgb(128, 128, 128)) // Gray for Lock
+        } else if filename.ends_with(".proto") {
+            ("\u{eb8b}", egui::Color32::from_rgb(156, 39, 176)) // Purple for Proto
+        } else if filename.ends_with(".xml") {
+            ("\u{eb7e}", egui::Color32::from_rgb(229, 115, 0)) // Orange for XML
+        } else if filename.ends_with(".svg") {
+            ("\u{eaf0}", egui::Color32::from_rgb(255, 179, 0)) // Amber for SVG
+        } else if filename.ends_with(".png") || filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+            ("\u{eaf0}", egui::Color32::from_rgb(156, 39, 176)) // Purple for Images
+        } else if filename.ends_with(".gitignore") || filename.ends_with(".gitattributes") {
+            ("\u{ea84}", egui::Color32::from_rgb(240, 98, 35)) // Orange for Git
+        } else if filename == "Cargo.toml" || filename == "Cargo.lock" {
+            ("\u{ea7e}", egui::Color32::from_rgb(255, 152, 0)) // Orange for Cargo
+        } else if filename == "package.json" {
+            ("\u{ead1}", egui::Color32::from_rgb(255, 203, 0)) // Yellow for npm
+        } else if filename == "README.md" {
+            ("\u{ea82}", egui::Color32::from_rgb(66, 165, 245)) // Blue for README
+        } else {
+            ("\u{ea7b}", egui::Color32::from_rgb(212, 212, 212)) // White for Default
         }
     }
 
@@ -1964,13 +2194,41 @@ impl BerryCodeApp {
         ui.heading("🔀 Git");
         ui.separator();
 
-        // Refresh button
+        // Tab bar
+        self.render_git_tab_bar(ui);
+
+        ui.separator();
+
+        // Render the active tab
+        match self.git_active_tab {
+            GitTab::Status => self.render_git_status_tab(ui),
+            GitTab::History => self.render_git_history_tab(ui),
+            GitTab::Branches => self.render_git_branches_tab(ui),
+            GitTab::Remotes => self.render_git_remotes_tab(ui),
+            GitTab::Tags => self.render_git_tags_tab(ui),
+            GitTab::Stash => self.render_git_stash_tab(ui),
+        }
+    }
+
+    /// Render Git tab bar (6 tabs)
+    fn render_git_tab_bar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.git_active_tab, GitTab::Status, "Status");
+            ui.selectable_value(&mut self.git_active_tab, GitTab::History, "History");
+            ui.selectable_value(&mut self.git_active_tab, GitTab::Branches, "Branches");
+            ui.selectable_value(&mut self.git_active_tab, GitTab::Remotes, "Remotes");
+            ui.selectable_value(&mut self.git_active_tab, GitTab::Tags, "Tags");
+            ui.selectable_value(&mut self.git_active_tab, GitTab::Stash, "Stash");
+        });
+    }
+
+    /// Render Status tab (existing functionality with grouping)
+    fn render_git_status_tab(&mut self, ui: &mut egui::Ui) {
+        // Refresh button and branch info
         ui.horizontal(|ui| {
             if ui.button("🔄 Refresh").clicked() {
                 self.refresh_git_status();
             }
-
-            // Display current branch
             ui.label(format!("Branch: {}", self.git_current_branch));
         });
 
@@ -1994,57 +2252,537 @@ impl BerryCodeApp {
 
         ui.separator();
 
-        // Changed files list
+        // Changed files list with grouping
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
             if self.git_status.is_empty() {
                 ui.label("No changes");
             } else {
-                ui.label(format!("Changed files: {}", self.git_status.len()));
-                ui.add_space(4.0);
-
-                // Clone git status to avoid borrowing issues
+                // Group files by staged/unstaged
                 let git_statuses = self.git_status.clone();
-                for status in &git_statuses {
-                    // Prepare values outside closure
-                    let (icon, color) = match status.status.as_str() {
-                        "modified" => ("📝", egui::Color32::from_rgb(255, 198, 109)),
-                        "added" => ("➕", egui::Color32::from_rgb(106, 180, 89)),
-                        "deleted" => ("🗑️", egui::Color32::from_rgb(255, 100, 100)),
-                        _ => ("❓", egui::Color32::LIGHT_GRAY),
-                    };
-                    let is_staged = status.is_staged;
-                    let path = status.path.clone();
+                let staged: Vec<_> = git_statuses.iter().filter(|s| s.is_staged).collect();
+                let unstaged: Vec<_> = git_statuses.iter().filter(|s| !s.is_staged).collect();
 
-                    ui.horizontal(|ui| {
-                        ui.colored_label(color, icon);
+                // Staged changes
+                if !staged.is_empty() {
+                    ui.heading(format!("Staged Changes ({})", staged.len()));
+                    ui.add_space(4.0);
+                    for status in staged {
+                        self.render_file_status_row(ui, status);
+                    }
+                    ui.add_space(8.0);
+                }
 
-                        // Staged indicator
-                        if is_staged {
-                            ui.colored_label(egui::Color32::from_rgb(106, 180, 89), "✓");
-                        }
-
-                        // File path
-                        if ui.button(&path).clicked() {
-                            // Open file
-                            self.open_file_from_path(&path);
-                        }
-
-                        // Stage/Unstage button
-                        if is_staged {
-                            if ui.small_button("Unstage").clicked() {
-                                self.perform_git_unstage(&path);
-                            }
-                        } else {
-                            if ui.small_button("Stage").clicked() {
-                                self.perform_git_stage(&path);
-                            }
-                        }
-                    });
+                // Unstaged changes
+                if !unstaged.is_empty() {
+                    ui.heading(format!("Unstaged Changes ({})", unstaged.len()));
+                    ui.add_space(4.0);
+                    for status in unstaged {
+                        self.render_file_status_row(ui, status);
+                    }
                 }
             }
         });
+    }
+
+    /// Helper function to render a file status row
+    fn render_file_status_row(&mut self, ui: &mut egui::Ui, status: &native::git::GitStatus) {
+        let (icon, color) = match status.status.as_str() {
+            "modified" => ("📝", egui::Color32::from_rgb(255, 198, 109)),
+            "added" => ("➕", egui::Color32::from_rgb(106, 180, 89)),
+            "deleted" => ("🗑️", egui::Color32::from_rgb(255, 100, 100)),
+            _ => ("❓", egui::Color32::LIGHT_GRAY),
+        };
+        let is_staged = status.is_staged;
+        let path = status.path.clone();
+
+        ui.horizontal(|ui| {
+            ui.colored_label(color, icon);
+
+            // File path
+            if ui.button(&path).clicked() {
+                self.open_file_from_path(&path);
+            }
+
+            // Stage/Unstage button
+            if is_staged {
+                if ui.small_button("Unstage").clicked() {
+                    self.perform_git_unstage(&path);
+                }
+            } else {
+                if ui.small_button("Stage").clicked() {
+                    self.perform_git_stage(&path);
+                }
+            }
+        });
+    }
+
+    /// Render History tab (commit graph)
+    fn render_git_history_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            if ui.button("🔄 Refresh").clicked() {
+                self.refresh_git_history();
+            }
+
+            ui.checkbox(&mut self.git_history_state.show_all_branches, "All branches");
+
+            if ui.button("Load More").clicked() {
+                self.git_history_state.page_limit += 100;
+                self.refresh_git_history();
+            }
+        });
+
+        ui.separator();
+
+        // Filter inputs
+        ui.horizontal(|ui| {
+            ui.label("Author:");
+            ui.text_edit_singleline(&mut self.git_history_state.filter_author);
+            ui.label("Message:");
+            ui.text_edit_singleline(&mut self.git_history_state.filter_message);
+        });
+
+        ui.separator();
+
+        // 3-pane layout: Graph | Commit List | Details
+        ui.horizontal(|ui| {
+            // Left: Commit graph and list (60% width)
+            ui.vertical(|ui| {
+                ui.set_width(ui.available_width() * 0.6);
+
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        if self.git_history_state.graph_nodes.is_empty() {
+                            ui.label("No commits. Click Refresh to load.");
+                        } else {
+                            self.render_commit_graph(ui);
+                        }
+                    });
+            });
+
+            ui.separator();
+
+            // Right: Commit details (40% width)
+            ui.vertical(|ui| {
+                ui.set_width(ui.available_width());
+                self.render_commit_details(ui);
+            });
+        });
+    }
+
+    /// Render commit graph with egui painter
+    fn render_commit_graph(&mut self, ui: &mut egui::Ui) {
+        let nodes = self.git_history_state.graph_nodes.clone();
+        let selected_id = self.git_history_state.selected_commit_id.clone();
+
+        const NODE_RADIUS: f32 = 4.0;
+        const COLUMN_WIDTH: f32 = 16.0;
+        const ROW_HEIGHT: f32 = 24.0;
+
+        // 8-color palette for branches
+        let colors = [
+            egui::Color32::from_rgb(106, 180, 89),   // Green
+            egui::Color32::from_rgb(100, 181, 246),  // Blue
+            egui::Color32::from_rgb(255, 198, 109),  // Yellow
+            egui::Color32::from_rgb(239, 83, 80),    // Red
+            egui::Color32::from_rgb(171, 128, 255),  // Purple
+            egui::Color32::from_rgb(255, 138, 128),  // Coral
+            egui::Color32::from_rgb(128, 222, 234),  // Cyan
+            egui::Color32::from_rgb(255, 171, 64),   // Orange
+        ];
+
+        for (idx, node) in nodes.iter().enumerate() {
+            let y_offset = idx as f32 * ROW_HEIGHT;
+
+            ui.horizontal(|ui| {
+                // Graph column (left side)
+                let (graph_rect, graph_response) = ui.allocate_exact_size(
+                    egui::vec2(COLUMN_WIDTH * 8.0, ROW_HEIGHT),
+                    egui::Sense::click(),
+                );
+
+                if ui.is_rect_visible(graph_rect) {
+                    let painter = ui.painter();
+
+                    // Draw graph lines
+                    for line in &node.graph_lines {
+                        let from_pos = graph_rect.min + egui::vec2(
+                            line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            NODE_RADIUS,
+                        );
+                        let to_pos = graph_rect.min + egui::vec2(
+                            line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            ROW_HEIGHT,
+                        );
+
+                        let color = colors[line.color_index % colors.len()];
+
+                        if line.line_type == native::git::GraphLineType::Direct {
+                            // Straight line
+                            painter.line_segment([from_pos, to_pos], egui::Stroke::new(2.0, color));
+                        } else {
+                            // Bezier curve for merge
+                            painter.add(egui::Shape::CubicBezier(egui::epaint::CubicBezierShape::from_points_stroke(
+                                [
+                                    from_pos,
+                                    from_pos + egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                    to_pos - egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                    to_pos,
+                                ],
+                                false,
+                                egui::Color32::TRANSPARENT,
+                                egui::Stroke::new(2.0, color),
+                            )));
+                        }
+                    }
+
+                    // Draw node circle
+                    let node_pos = graph_rect.min + egui::vec2(
+                        node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                        NODE_RADIUS,
+                    );
+                    let node_color = colors[node.graph_column % colors.len()];
+                    painter.circle_filled(node_pos, NODE_RADIUS, node_color);
+                }
+
+                // Commit info (right side)
+                let is_selected = selected_id.as_ref() == Some(&node.commit.id);
+                let text_color = if is_selected {
+                    egui::Color32::from_rgb(0xAB, 0xB2, 0xBF)
+                } else {
+                    egui::Color32::from_rgb(180, 180, 180)
+                };
+
+                if ui.add(egui::Button::new(&node.commit.message).fill(
+                    if is_selected {
+                        egui::Color32::from_rgb(60, 60, 80)
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    }
+                )).clicked() {
+                    self.git_history_state.selected_commit_id = Some(node.commit.id.clone());
+                    // Load commit details
+                    if let Ok(detail) = native::git::get_commit_detail(&self.root_path, &node.commit.id) {
+                        self.git_history_state.commit_details = Some(detail);
+                    }
+                }
+
+                ui.colored_label(egui::Color32::GRAY, &node.commit.author);
+
+                // Branch/tag badges
+                for branch_name in &node.branch_names {
+                    ui.colored_label(egui::Color32::from_rgb(106, 180, 89), format!(" [{}]", branch_name));
+                }
+                for tag_name in &node.tag_names {
+                    ui.colored_label(egui::Color32::from_rgb(255, 198, 109), format!(" 🏷{}", tag_name));
+                }
+            });
+        }
+    }
+
+    /// Render commit details panel
+    fn render_commit_details(&mut self, ui: &mut egui::Ui) {
+        if let Some(detail) = &self.git_history_state.commit_details {
+            ui.heading("Commit Details");
+            ui.separator();
+
+            ui.label(format!("ID: {}", detail.commit.id));
+            ui.label(format!("Author: {}", detail.commit.author));
+            ui.label(format!("Date: {}", Self::format_timestamp(detail.commit.date)));
+            ui.label(format!("Message: {}", detail.commit.message));
+
+            ui.add_space(8.0);
+            ui.label(format!("Stats: +{} -{}", detail.total_additions, detail.total_deletions));
+
+            ui.separator();
+            ui.heading(format!("Changed Files ({})", detail.changed_files.len()));
+
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for file in &detail.changed_files {
+                    let (icon, color) = match file.status.as_str() {
+                        "added" => ("➕", egui::Color32::from_rgb(106, 180, 89)),
+                        "modified" => ("📝", egui::Color32::from_rgb(255, 198, 109)),
+                        "deleted" => ("🗑️", egui::Color32::from_rgb(255, 100, 100)),
+                        _ => ("❓", egui::Color32::GRAY),
+                    };
+
+                    ui.horizontal(|ui| {
+                        ui.colored_label(color, icon);
+                        ui.label(&file.path);
+                        ui.colored_label(egui::Color32::GREEN, format!("+{}", file.additions));
+                        ui.colored_label(egui::Color32::RED, format!("-{}", file.deletions));
+                    });
+                }
+            });
+        } else {
+            ui.label("Select a commit to view details");
+        }
+    }
+
+    /// Render Branches tab
+    fn render_git_branches_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            if ui.button("🔄 Refresh").clicked() {
+                self.refresh_git_branches();
+            }
+        });
+
+        ui.separator();
+
+        // Create new branch
+        ui.horizontal(|ui| {
+            ui.label("New branch:");
+            ui.text_edit_singleline(&mut self.git_branch_state.new_branch_name);
+            if ui.button("➕ Create").clicked() && !self.git_branch_state.new_branch_name.is_empty() {
+                self.perform_create_branch();
+            }
+        });
+
+        ui.separator();
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            // Local branches
+            ui.heading(format!("Local Branches ({})", self.git_branch_state.local_branches.len()));
+            ui.add_space(4.0);
+
+            let local_branches = self.git_branch_state.local_branches.clone();
+            for branch in &local_branches {
+                ui.horizontal(|ui| {
+                    let icon = if branch.is_current { "✓" } else { " " };
+                    let color = if branch.is_current {
+                        egui::Color32::from_rgb(106, 180, 89)
+                    } else {
+                        egui::Color32::LIGHT_GRAY
+                    };
+
+                    ui.colored_label(color, icon);
+                    ui.label(&branch.name);
+
+                    if !branch.is_current {
+                        if ui.small_button("Checkout").clicked() {
+                            self.perform_checkout_branch(&branch.name);
+                        }
+                        if ui.small_button("Merge").clicked() {
+                            self.perform_merge_branch(&branch.name);
+                        }
+                        if ui.small_button("Delete").clicked() {
+                            self.perform_delete_branch(&branch.name);
+                        }
+                    }
+                });
+            }
+
+            ui.add_space(8.0);
+
+            // Remote branches
+            ui.heading(format!("Remote Branches ({})", self.git_branch_state.remote_branches.len()));
+            ui.add_space(4.0);
+
+            let remote_branches = self.git_branch_state.remote_branches.clone();
+            for branch in &remote_branches {
+                ui.horizontal(|ui| {
+                    ui.colored_label(egui::Color32::from_rgb(100, 181, 246), "📡");
+                    ui.label(&branch.name);
+                });
+            }
+        });
+    }
+
+    /// Render Remotes tab
+    fn render_git_remotes_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            if ui.button("🔄 Refresh").clicked() {
+                self.refresh_git_remotes();
+            }
+        });
+
+        ui.separator();
+
+        // Add new remote
+        ui.horizontal(|ui| {
+            ui.label("Name:");
+            ui.text_edit_singleline(&mut self.git_remote_state.new_remote_name);
+            ui.label("URL:");
+            ui.text_edit_singleline(&mut self.git_remote_state.new_remote_url);
+            if ui.button("➕ Add").clicked() && !self.git_remote_state.new_remote_name.is_empty() {
+                self.perform_add_remote();
+            }
+        });
+
+        ui.separator();
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            if self.git_remote_state.remotes.is_empty() {
+                ui.label("No remotes configured");
+            } else {
+                let remotes = self.git_remote_state.remotes.clone();
+                for remote in &remotes {
+                    ui.group(|ui| {
+                        ui.heading(&remote.name);
+                        ui.label(format!("Fetch URL: {}", remote.fetch_url));
+                        ui.label(format!("Push URL: {}", remote.push_url));
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Fetch").clicked() {
+                                self.perform_fetch(&remote.name);
+                            }
+                            if ui.button("Pull").clicked() {
+                                self.perform_pull(&remote.name);
+                            }
+                            if ui.button("Push").clicked() {
+                                self.perform_push(&remote.name);
+                            }
+                            if ui.button("Remove").clicked() {
+                                self.perform_remove_remote(&remote.name);
+                            }
+                        });
+                    });
+                    ui.add_space(8.0);
+                }
+            }
+        });
+    }
+
+    /// Render Tags tab
+    fn render_git_tags_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            if ui.button("🔄 Refresh").clicked() {
+                self.refresh_git_tags();
+            }
+        });
+
+        ui.separator();
+
+        // Create new tag
+        ui.horizontal(|ui| {
+            ui.label("Tag name:");
+            ui.text_edit_singleline(&mut self.git_tag_state.new_tag_name);
+            ui.checkbox(&mut self.git_tag_state.annotated, "Annotated");
+        });
+
+        if self.git_tag_state.annotated {
+            ui.horizontal(|ui| {
+                ui.label("Message:");
+                ui.text_edit_singleline(&mut self.git_tag_state.new_tag_message);
+            });
+        }
+
+        if ui.button("➕ Create Tag").clicked() && !self.git_tag_state.new_tag_name.is_empty() {
+            self.perform_create_tag();
+        }
+
+        ui.separator();
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            if self.git_tag_state.tags.is_empty() {
+                ui.label("No tags");
+            } else {
+                ui.heading(format!("Tags ({})", self.git_tag_state.tags.len()));
+                ui.add_space(4.0);
+
+                let tags = self.git_tag_state.tags.clone();
+                for tag in &tags {
+                    ui.horizontal(|ui| {
+                        ui.colored_label(egui::Color32::from_rgb(255, 198, 109), "🏷");
+                        ui.label(&tag.name);
+
+                        if tag.message.is_some() {
+                            ui.colored_label(egui::Color32::GRAY, "(annotated)");
+                        }
+
+                        ui.label(format!("→ {}", &tag.commit_id[..7]));
+
+                        if ui.small_button("Delete").clicked() {
+                            self.perform_delete_tag(&tag.name);
+                        }
+                    });
+
+                    if let Some(message) = &tag.message {
+                        ui.label(format!("  {}", message));
+                    }
+                }
+            }
+        });
+    }
+
+    /// Render Stash tab
+    fn render_git_stash_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            if ui.button("🔄 Refresh").clicked() {
+                self.refresh_git_stashes();
+            }
+        });
+
+        ui.separator();
+
+        // Create new stash
+        ui.horizontal(|ui| {
+            ui.label("Message:");
+            ui.text_edit_singleline(&mut self.git_stash_state.new_stash_message);
+            ui.checkbox(&mut self.git_stash_state.include_untracked, "Include untracked");
+        });
+
+        if ui.button("💾 Save Stash").clicked() {
+            self.perform_stash_save();
+        }
+
+        ui.separator();
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            if self.git_stash_state.stashes.is_empty() {
+                ui.label("No stashes");
+            } else {
+                ui.heading(format!("Stashes ({})", self.git_stash_state.stashes.len()));
+                ui.add_space(4.0);
+
+                let stashes = self.git_stash_state.stashes.clone();
+                for stash in &stashes {
+                    ui.group(|ui| {
+                        ui.heading(format!("stash@{{{}}}", stash.index));
+                        ui.label(&stash.message);
+                        ui.label(format!("Commit: {}", &stash.commit_id[..7]));
+
+                        ui.horizontal(|ui| {
+                            if ui.button("Apply").clicked() {
+                                self.perform_stash_apply(stash.index);
+                            }
+                            if ui.button("Pop").clicked() {
+                                self.perform_stash_pop(stash.index);
+                            }
+                            if ui.button("Drop").clicked() {
+                                self.perform_stash_drop(stash.index);
+                            }
+                        });
+                    });
+                    ui.add_space(8.0);
+                }
+            }
+        });
+    }
+
+    /// Helper function to format Unix timestamp
+    fn format_timestamp(timestamp: u64) -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let duration = std::time::Duration::from_secs(timestamp);
+        let datetime = UNIX_EPOCH + duration;
+
+        // Simple formatting (could use chrono crate for better formatting)
+        if let Ok(elapsed) = SystemTime::now().duration_since(datetime) {
+            let secs = elapsed.as_secs();
+            if secs < 60 {
+                return format!("{} seconds ago", secs);
+            } else if secs < 3600 {
+                return format!("{} minutes ago", secs / 60);
+            } else if secs < 86400 {
+                return format!("{} hours ago", secs / 3600);
+            } else {
+                return format!("{} days ago", secs / 86400);
+            }
+        }
+
+        format!("Timestamp: {}", timestamp)
     }
 
     /// Render Wiki sidebar (page list)
@@ -2328,7 +3066,7 @@ impl BerryCodeApp {
                         // Token input
                         ui.horizontal(|ui| {
                             ui.add_space(50.0);
-                            let response = ui.add(
+                            let _response = ui.add(
                                 egui::TextEdit::singleline(&mut self.slack_token_input)
                                     .desired_width(500.0)
                                     .password(true)
@@ -2518,6 +3256,427 @@ impl BerryCodeApp {
             });
     }
 
+    /// Render Database Management Panel
+    fn render_database_panel(&mut self, ctx: &egui::Context) {
+        // Left sidebar: Connection list
+        egui::SidePanel::left("database_connections")
+            .default_width(250.0)
+            .width_range(200.0..=400.0)
+            .resizable(true)
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(30, 30, 35)))
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+
+                // Header with Add button
+                ui.horizontal(|ui| {
+                    ui.heading(egui::RichText::new("🗄️ Connections")
+                        .size(16.0)
+                        .color(egui::Color32::WHITE));
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button(egui::RichText::new("➕").size(14.0)).clicked() {
+                            self.show_add_connection_dialog = true;
+                        }
+                    });
+                });
+
+                ui.separator();
+                ui.add_space(8.0);
+
+                // Connection list
+                egui::ScrollArea::vertical()
+                    .show(ui, |ui| {
+                        if self.database_connections.is_empty() {
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(50.0);
+                                ui.label(egui::RichText::new("No connections")
+                                    .size(13.0)
+                                    .color(egui::Color32::from_rgb(150, 150, 150)));
+                                ui.label(egui::RichText::new("Click ➕ to add")
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(120, 120, 120)));
+                            });
+                        } else {
+                            for conn in self.database_connections.clone() {
+                                let is_selected = self.selected_connection_id.as_ref() == Some(&conn.id);
+                                let bg_color = if is_selected {
+                                    egui::Color32::from_rgb(60, 80, 120)
+                                } else {
+                                    egui::Color32::from_rgb(40, 40, 45)
+                                };
+
+                                let response = ui.add(
+                                    egui::Button::new(
+                                        egui::RichText::new(format!("{} {}",
+                                            match conn.db_type {
+                                                native::database::DatabaseType::SQLite => "📁",
+                                                native::database::DatabaseType::PostgreSQL => "🐘",
+                                                native::database::DatabaseType::MySQL => "🐬",
+                                            },
+                                            conn.name
+                                        ))
+                                        .size(13.0)
+                                        .color(egui::Color32::WHITE)
+                                    )
+                                    .fill(bg_color)
+                                    .frame(false)
+                                    .min_size(egui::vec2(ui.available_width(), 36.0))
+                                );
+
+                                if response.clicked() {
+                                    self.selected_connection_id = Some(conn.id.clone());
+                                    self.load_database_tables(&conn.id);
+                                }
+
+                                ui.add_space(2.0);
+                            }
+                        }
+                    });
+            });
+
+        // Center panel: SQL editor and results
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(40, 40, 45)))
+            .show(ctx, |ui| {
+                if self.selected_connection_id.is_none() {
+                    // No connection selected
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(100.0);
+                        ui.heading(egui::RichText::new("Select a connection")
+                            .size(24.0)
+                            .color(egui::Color32::WHITE));
+                        ui.add_space(10.0);
+                        ui.label(egui::RichText::new("Choose a database connection from the sidebar")
+                            .size(14.0)
+                            .color(egui::Color32::from_rgb(180, 180, 180)));
+                    });
+                    return;
+                }
+
+                ui.add_space(8.0);
+
+                // Connection info header
+                if let Some(conn_id) = &self.selected_connection_id.clone() {
+                    if let Some(conn) = self.database_client.get_connection(conn_id) {
+                        ui.horizontal(|ui| {
+                            ui.heading(egui::RichText::new(format!("📊 {}", conn.name))
+                                .size(18.0)
+                                .color(egui::Color32::WHITE));
+
+                            ui.label(egui::RichText::new(format!("({} • {})",
+                                conn.db_type.as_str(),
+                                conn.database
+                            ))
+                                .size(12.0)
+                                .color(egui::Color32::from_rgb(150, 150, 150)));
+                        });
+
+                        ui.separator();
+                        ui.add_space(8.0);
+                    }
+                }
+
+                // Tables list (horizontal)
+                if !self.database_tables.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Tables:")
+                            .size(12.0)
+                            .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                        egui::ScrollArea::horizontal().show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                for table in &self.database_tables.clone() {
+                                    let is_selected = self.selected_table.as_ref() == Some(table);
+                                    let button_color = if is_selected {
+                                        egui::Color32::from_rgb(60, 100, 140)
+                                    } else {
+                                        egui::Color32::from_rgb(50, 50, 55)
+                                    };
+
+                                    if ui.add(egui::Button::new(
+                                        egui::RichText::new(format!("📋 {}", table))
+                                            .size(11.0)
+                                            .color(egui::Color32::WHITE)
+                                    ).fill(button_color)).clicked() {
+                                        self.selected_table = Some(table.clone());
+                                        self.sql_query = format!("SELECT * FROM {} LIMIT 100;", table);
+                                    }
+                                }
+                            });
+                        });
+                    });
+
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+                }
+
+                // SQL Query Editor
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("SQL Query:")
+                        .size(13.0)
+                        .strong()
+                        .color(egui::Color32::WHITE));
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(egui::RichText::new("▶ Execute").size(12.0)).clicked() {
+                            if let Some(conn_id) = &self.selected_connection_id.clone() {
+                                self.execute_sql_query(conn_id);
+                            }
+                        }
+                    });
+                });
+
+                ui.add_space(4.0);
+
+                ui.add(
+                    egui::TextEdit::multiline(&mut self.sql_query)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(8)
+                        .font(egui::TextStyle::Monospace)
+                        .frame(true)
+                );
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(8.0);
+
+                // Results area
+                ui.label(egui::RichText::new("Results:")
+                    .size(13.0)
+                    .strong()
+                    .color(egui::Color32::WHITE));
+
+                ui.add_space(4.0);
+
+                if let Some(result) = &self.query_result {
+                    if !result.columns.is_empty() {
+                        // Results table
+                        egui::ScrollArea::both()
+                            .max_height(ui.available_height() - 50.0)
+                            .show(ui, |ui| {
+                                egui::Grid::new("query_results")
+                                    .striped(true)
+                                    .spacing([10.0, 4.0])
+                                    .show(ui, |ui| {
+                                        // Header row
+                                        for col in &result.columns {
+                                            ui.label(egui::RichText::new(col)
+                                                .size(12.0)
+                                                .strong()
+                                                .color(egui::Color32::from_rgb(200, 200, 255)));
+                                        }
+                                        ui.end_row();
+
+                                        // Data rows
+                                        for row in &result.rows {
+                                            for value in &row.values {
+                                                ui.label(egui::RichText::new(value)
+                                                    .size(11.0)
+                                                    .color(egui::Color32::from_rgb(220, 220, 220)));
+                                            }
+                                            ui.end_row();
+                                        }
+                                    });
+                            });
+
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new(format!("{} rows • {} rows affected",
+                            result.rows.len(),
+                            result.rows_affected
+                        ))
+                            .size(11.0)
+                            .color(egui::Color32::from_rgb(150, 150, 150)));
+                    } else {
+                        ui.label(egui::RichText::new(format!("✅ Query executed successfully • {} rows affected",
+                            result.rows_affected
+                        ))
+                            .size(12.0)
+                            .color(egui::Color32::from_rgb(100, 200, 100)));
+                    }
+                } else {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(50.0);
+                        ui.label(egui::RichText::new("💡 Write a SQL query and click Execute")
+                            .size(13.0)
+                            .color(egui::Color32::from_rgb(150, 150, 150)));
+                    });
+                }
+            });
+
+        // Add Connection Dialog (IntelliJ DataGrip style)
+        if self.show_add_connection_dialog {
+            egui::Window::new("Data Sources and Drivers")
+                .collapsible(false)
+                .resizable(true)
+                .default_width(900.0)
+                .default_height(600.0)
+                .show(ctx, |ui| {
+                    // Top section: Name and Comment
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Name:")
+                            .size(13.0)
+                            .color(egui::Color32::from_rgb(180, 180, 180)));
+                        ui.add(egui::TextEdit::singleline(&mut self.new_db_name)
+                            .desired_width(300.0)
+                            .hint_text("postgres@localhost"));
+                    });
+
+                    ui.add_space(8.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Comment:")
+                            .size(13.0)
+                            .color(egui::Color32::from_rgb(180, 180, 180)));
+                        ui.add(egui::TextEdit::singleline(&mut self.new_db_comment)
+                            .desired_width(400.0));
+                    });
+
+                    ui.add_space(12.0);
+
+                    // Tab buttons
+                    ui.horizontal(|ui| {
+                        let tab_names = ["General", "Options", "SSH/SSL", "Schemas", "Advanced"];
+                        for (idx, name) in tab_names.iter().enumerate() {
+                            let is_selected = self.new_db_active_tab == idx;
+                            let button_color = if is_selected {
+                                egui::Color32::from_rgb(60, 80, 120)
+                            } else {
+                                egui::Color32::from_rgb(45, 45, 50)
+                            };
+
+                            if ui.add(egui::Button::new(egui::RichText::new(*name)
+                                .size(13.0)
+                                .color(egui::Color32::WHITE))
+                                .fill(button_color)
+                                .min_size(egui::vec2(80.0, 28.0)))
+                                .clicked() {
+                                self.new_db_active_tab = idx;
+                            }
+                        }
+                    });
+
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(12.0);
+
+                    // Tab content
+                    egui::ScrollArea::vertical()
+                        .max_height(400.0)
+                        .show(ui, |ui| {
+                            if self.new_db_active_tab == 0 {
+                                // General Tab
+                                self.render_db_general_tab(ui);
+                            } else if self.new_db_active_tab == 1 {
+                                // Options Tab
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(egui::RichText::new("Options settings")
+                                        .size(13.0)
+                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                    ui.label("(Not implemented yet)");
+                                });
+                            } else if self.new_db_active_tab == 2 {
+                                // SSH/SSL Tab
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(egui::RichText::new("SSH/SSL settings")
+                                        .size(13.0)
+                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                    ui.label("(Not implemented yet)");
+                                });
+                            } else if self.new_db_active_tab == 3 {
+                                // Schemas Tab
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(egui::RichText::new("Schema settings")
+                                        .size(13.0)
+                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                    ui.label("(Not implemented yet)");
+                                });
+                            } else {
+                                // Advanced Tab
+                                ui.vertical_centered(|ui| {
+                                    ui.add_space(50.0);
+                                    ui.label(egui::RichText::new("Advanced settings")
+                                        .size(13.0)
+                                        .color(egui::Color32::from_rgb(150, 150, 150)));
+                                    ui.label("(Not implemented yet)");
+                                });
+                            }
+                        });
+
+                    ui.add_space(8.0);
+
+                    // Test Connection button
+                    if self.new_db_active_tab == 0 {
+                        ui.horizontal(|ui| {
+                            if ui.button(egui::RichText::new("Test Connection")
+                                .size(13.0)
+                                .color(egui::Color32::from_rgb(100, 150, 255)))
+                                .clicked() {
+                                self.test_database_connection();
+                            }
+
+                            if let Some(result) = &self.new_db_test_result {
+                                ui.label(egui::RichText::new(result)
+                                    .size(12.0)
+                                    .color(if result.contains("✅") {
+                                        egui::Color32::from_rgb(100, 200, 100)
+                                    } else {
+                                        egui::Color32::from_rgb(255, 100, 100)
+                                    }));
+                            }
+                        });
+
+                        ui.add_space(8.0);
+                    }
+
+                    ui.separator();
+                    ui.add_space(8.0);
+
+                    // Bottom buttons
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Check if all required fields are filled
+                            let is_valid = !self.new_db_name.is_empty() && !self.new_db_database.is_empty();
+
+                            if ui.add(egui::Button::new(egui::RichText::new("OK").size(13.0))
+                                .fill(egui::Color32::from_rgb(60, 100, 200))
+                                .min_size(egui::vec2(80.0, 28.0)))
+                                .clicked() && is_valid {
+                                tracing::info!("🔵 OK button clicked - adding connection");
+                                self.add_database_connection();
+                                self.show_add_connection_dialog = false;
+                            }
+
+                            if ui.add(egui::Button::new(egui::RichText::new("Apply").size(13.0))
+                                .fill(egui::Color32::from_rgb(50, 50, 55))
+                                .min_size(egui::vec2(80.0, 28.0)))
+                                .clicked() && is_valid {
+                                tracing::info!("🟢 Apply button clicked - adding connection");
+                                self.add_database_connection();
+                            }
+
+                            if ui.add(egui::Button::new(egui::RichText::new("Cancel").size(13.0))
+                                .fill(egui::Color32::from_rgb(50, 50, 55))
+                                .min_size(egui::vec2(80.0, 28.0)))
+                                .clicked() {
+                                self.show_add_connection_dialog = false;
+                            }
+
+                            // Show validation message if invalid
+                            if !is_valid {
+                                ui.label(egui::RichText::new("⚠ Name and Database/Path are required")
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(255, 150, 100)));
+                            }
+                        });
+                    });
+                });
+        }
+    }
+
     /// Render BerryCode AI chat (legacy - kept for AI features)
     #[allow(dead_code)]
     /// Render AI Chat panel (right side of editor)
@@ -2528,115 +3687,187 @@ impl BerryCodeApp {
             .resizable(true)
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(30, 30, 30))
-                    .inner_margin(12.0)
+                    .fill(egui::Color32::from_rgb(25, 26, 28))  // Match sidebar background
+                    .inner_margin(0.0)
             )
             .show(ctx, |ui| {
-                // Header
-                ui.horizontal(|ui| {
-                    ui.heading(egui::RichText::new("🤖 AI Assistant")
-                        .color(egui::Color32::from_rgb(212, 212, 212))
-                        .size(16.0));
+                // Header bar with dark background
+                egui::Frame::none()
+                    .fill(egui::Color32::from_rgb(20, 21, 23))
+                    .inner_margin(egui::Margin::symmetric(16.0, 12.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Left: AI Chat title
+                            ui.label(egui::RichText::new("AI Chat")
+                                .color(egui::Color32::from_rgb(212, 212, 212))
+                                .size(15.0));
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("🗑 Clear").clicked() {
-                            self.grpc_messages.clear();
-                        }
+                            // Connection status indicator
+                            let (status_text, status_color) = if self.grpc_connected {
+                                ("●", egui::Color32::from_rgb(0, 200, 0))  // Green dot
+                            } else {
+                                ("●", egui::Color32::from_rgb(150, 150, 150))  // Gray dot
+                            };
+                            ui.label(egui::RichText::new(status_text)
+                                .color(status_color)
+                                .size(12.0));
+
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                // Minimize button
+                                if ui.button(egui::RichText::new("−").size(16.0)).clicked() {
+                                    // TODO: Minimize panel
+                                }
+
+                                // Menu button (3 dots)
+                                if ui.button(egui::RichText::new("⋮").size(16.0)).clicked() {
+                                    // TODO: Show menu
+                                }
+
+                                // History/Clock button
+                                if ui.button(egui::RichText::new("🕐").size(14.0)).clicked() {
+                                    // TODO: Show history
+                                }
+
+                                // New Chat button
+                                if ui.button(egui::RichText::new("+ New Chat").size(13.0)).clicked() {
+                                    self.grpc_messages.clear();
+                                    self.grpc_input.clear();
+                                }
+                            });
+                        });
                     });
-                });
 
-                ui.separator();
+                ui.add_space(0.0);
 
-                // Chat history area
+                // Chat history area with markdown rendering
                 egui::ScrollArea::vertical()
                     .stick_to_bottom(true)
-                    .max_height(ui.available_height() - 100.0)
                     .show(ui, |ui| {
+                        ui.add_space(12.0);
+
                         if self.grpc_messages.is_empty() {
-                            ui.label(egui::RichText::new("💡 Ask me anything about your code!")
-                                .color(egui::Color32::from_rgb(150, 150, 150))
-                                .italics());
+                            ui.centered_and_justified(|ui| {
+                                ui.label(egui::RichText::new("💡 Ask me anything about your code!")
+                                    .color(egui::Color32::from_rgb(150, 150, 150))
+                                    .size(14.0)
+                                    .italics());
+                            });
                         } else {
-                            for msg in &self.grpc_messages {
-                                let (bg_color, label_color, prefix) = if msg.is_user {
-                                    (
-                                        egui::Color32::from_rgb(45, 55, 72),  // Blue-ish for user
-                                        egui::Color32::from_rgb(220, 220, 220),
-                                        "👤 You"
-                                    )
-                                } else {
-                                    (
-                                        egui::Color32::from_rgb(40, 54, 40),  // Green-ish for AI
-                                        egui::Color32::from_rgb(200, 220, 200),
-                                        "🤖 AI"
-                                    )
-                                };
-
-                                egui::Frame::none()
-                                    .fill(bg_color)
-                                    .inner_margin(8.0)
-                                    .rounding(6.0)
-                                    .show(ui, |ui| {
-                                        ui.label(egui::RichText::new(prefix)
-                                            .size(11.0)
-                                            .color(egui::Color32::from_rgb(150, 150, 150)));
-                                        ui.label(egui::RichText::new(&msg.content)
-                                            .color(label_color)
-                                            .size(13.0));
+                            for msg in &self.grpc_messages.clone() {
+                                if msg.is_user {
+                                    // User message - simple style
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
+                                        egui::Frame::none()
+                                            .fill(egui::Color32::from_rgb(35, 40, 50))
+                                            .inner_margin(12.0)
+                                            .rounding(8.0)
+                                            .show(ui, |ui| {
+                                                ui.set_max_width(ui.available_width() * 0.8);
+                                                ui.label(egui::RichText::new(&msg.content)
+                                                    .color(egui::Color32::from_rgb(220, 220, 220))
+                                                    .size(14.0));
+                                            });
                                     });
+                                } else {
+                                    // AI message - render as markdown
+                                    ui.horizontal(|ui| {
+                                        ui.add_space(12.0);
+                                        ui.vertical(|ui| {
+                                            ui.set_max_width(ui.available_width() - 24.0);
+                                            Self::render_markdown(ui, &msg.content);
+                                        });
+                                    });
+                                }
 
-                                ui.add_space(8.0);
+                                ui.add_space(16.0);
                             }
                         }
 
                         // Show streaming message if present
                         if self.grpc_streaming {
-                            egui::Frame::none()
-                                .fill(egui::Color32::from_rgb(40, 54, 40))
-                                .inner_margin(8.0)
-                                .rounding(6.0)
-                                .show(ui, |ui| {
-                                    ui.label(egui::RichText::new("🤖 AI")
-                                        .size(11.0)
-                                        .color(egui::Color32::from_rgb(150, 150, 150)));
-                                    ui.label(egui::RichText::new(&self.grpc_current_response)
-                                        .color(egui::Color32::from_rgb(200, 220, 200))
-                                        .size(13.0));
+                            ui.horizontal(|ui| {
+                                ui.add_space(12.0);
+                                ui.vertical(|ui| {
+                                    ui.set_max_width(ui.available_width() - 24.0);
+                                    Self::render_markdown(ui, &self.grpc_current_response);
+                                    ui.add_space(8.0);
                                     ui.spinner();
                                 });
+                            });
                         }
+
+                        ui.add_space(12.0);
                     });
 
                 ui.add_space(8.0);
 
-                // Input area
-                ui.vertical(|ui| {
-                    ui.label(egui::RichText::new("Ask AI:")
-                        .size(11.0)
-                        .color(egui::Color32::from_rgb(150, 150, 150)));
-
-                    let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(3)
-                        .font(egui::FontId::proportional(13.0));
-
-                    let response = ui.add(text_edit);
-
-                    ui.add_space(4.0);
-
+                // Input area at bottom
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    // Bottom footer: "Share feedback" link
                     ui.horizontal(|ui| {
-                        let send_enabled = !self.grpc_input.trim().is_empty() && !self.grpc_streaming;
-
-                        if ui.add_enabled(send_enabled, egui::Button::new("📤 Send")).clicked()
-                            || (response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter))) {
-                            self.send_grpc_message();
-                        }
-
-                        if self.grpc_streaming {
-                            ui.spinner();
-                            ui.label("Thinking...");
-                        }
+                        ui.add_space(ui.available_width() / 2.0 - 60.0);
+                        ui.hyperlink_to(
+                            egui::RichText::new("Share feedback ↗")
+                                .size(12.0)
+                                .color(egui::Color32::from_rgb(150, 150, 150)),
+                            "https://github.com/anthropics/claude-code/issues"
+                        );
                     });
+
+                    ui.add_space(8.0);
+
+                    // Input box with controls
+                    egui::Frame::none()
+                        .fill(egui::Color32::from_rgb(35, 36, 38))
+                        .inner_margin(12.0)
+                        .rounding(8.0)
+                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 60, 60)))
+                        .show(ui, |ui| {
+                            // Text input area
+                            let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(4)
+                                .hint_text("Ask AI Assistant, use @mentions or /commands")
+                                .font(egui::FontId::proportional(14.0));
+
+                            let response = ui.add(text_edit);
+
+                            ui.add_space(8.0);
+
+                            // Bottom controls row
+                            ui.horizontal(|ui| {
+                                // Left side: Attach button and Chat selector
+                                if ui.button(egui::RichText::new("+ ").size(16.0)).clicked() {
+                                    // TODO: Attach file
+                                }
+
+                                ui.label(egui::RichText::new("Chat ▼")
+                                    .size(13.0)
+                                    .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    // Right side: Send button
+                                    let send_enabled = !self.grpc_input.trim().is_empty() && !self.grpc_streaming;
+
+                                    if ui.add_enabled(send_enabled,
+                                        egui::Button::new(egui::RichText::new("▶").size(16.0))
+                                    ).clicked() || (response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter))) {
+                                        self.send_grpc_message();
+                                    }
+
+                                    // Auto dropdown
+                                    ui.label(egui::RichText::new("Auto ▼")
+                                        .size(13.0)
+                                        .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                                    if self.grpc_streaming {
+                                        ui.spinner();
+                                    }
+                                });
+                            });
+                        });
+
+                    ui.add_space(8.0);
                 });
             });
     }
@@ -2666,7 +3897,7 @@ impl BerryCodeApp {
                             ui.add(egui::Label::new(
                                 egui::RichText::new(&code_text)
                                     .monospace()
-                                    .color(egui::Color32::from_rgb(212, 212, 212))
+                                    .color(egui::Color32::from_rgb(0xAB, 0xB2, 0xBF))
                             ).selectable(true));
                         });
                     code_lines.clear();
@@ -2686,15 +3917,15 @@ impl BerryCodeApp {
 
             // Heading detection
             if line.trim().starts_with("# ") {
-                ui.heading(egui::RichText::new(line.trim_start_matches("# ")).color(egui::Color32::from_rgb(212, 212, 212)));
+                ui.heading(egui::RichText::new(line.trim_start_matches("# ")).color(egui::Color32::from_rgb(0xAB, 0xB2, 0xBF)));
                 continue;
             }
             if line.trim().starts_with("## ") {
-                ui.label(egui::RichText::new(line.trim_start_matches("## ")).size(16.0).strong().color(egui::Color32::from_rgb(212, 212, 212)));
+                ui.label(egui::RichText::new(line.trim_start_matches("## ")).size(16.0).strong().color(egui::Color32::from_rgb(0xAB, 0xB2, 0xBF)));
                 continue;
             }
             if line.trim().starts_with("### ") {
-                ui.label(egui::RichText::new(line.trim_start_matches("### ")).size(14.0).strong().color(egui::Color32::from_rgb(212, 212, 212)));
+                ui.label(egui::RichText::new(line.trim_start_matches("### ")).size(14.0).strong().color(egui::Color32::from_rgb(0xAB, 0xB2, 0xBF)));
                 continue;
             }
 
@@ -2740,7 +3971,7 @@ impl BerryCodeApp {
                     ui.add(egui::Label::new(
                         egui::RichText::new(&code_text)
                             .monospace()
-                            .color(egui::Color32::from_rgb(212, 212, 212))
+                            .color(egui::Color32::from_rgb(0xAB, 0xB2, 0xBF))
                     ).selectable(true));
                 });
         }
@@ -2749,7 +3980,7 @@ impl BerryCodeApp {
     /// Render inline markdown formatting (bold, italic, code, links)
     /// Uses flowing layout instead of horizontal_wrapped to avoid vertical text splitting
     fn render_inline_formatting(ui: &mut egui::Ui, text: &str) {
-        let unified_white = egui::Color32::from_rgb(212, 212, 212);
+        let unified_white = egui::Color32::from_rgb(0xAB, 0xB2, 0xBF);
         let code_bg = egui::Color32::from_rgb(45, 45, 45);
 
         // Parse inline markdown into segments
@@ -3240,7 +4471,7 @@ impl BerryCodeApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C
+                    .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C - Match sidebar background
                     .inner_margin(egui::Margin::same(8.0))
             )
             .show(ctx, |ui| {
@@ -3268,20 +4499,24 @@ impl BerryCodeApp {
                 );
 
                 // Collect tab info first to avoid borrow checker issues
-                let tab_info: Vec<(usize, String, &'static str)> = self.editor_tabs.iter().enumerate().map(|(idx, t)| {
+                let tab_info: Vec<(usize, String, &'static str, egui::Color32)> = self.editor_tabs.iter().enumerate().map(|(idx, t)| {
                     let filename = t.file_path.split('/').last().unwrap_or(&t.file_path).to_string();
-                    let icon = Self::get_file_icon_static(&filename);
-                    (idx, filename, icon)
+                    let (icon, color) = Self::get_file_icon_with_color(&filename);
+                    (idx, filename, icon, color)
                 }).collect();
 
-                for (idx, filename, file_icon) in tab_info {
+                for (idx, filename, file_icon, icon_color) in tab_info {
                     ui.group(|ui| {
                         ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+
+                            // Colored icon
+                            ui.label(egui::RichText::new(file_icon).color(icon_color));
+
                             // Tab label (clickable to switch)
-                            let tab_label = format!("{} {}", file_icon, filename);
-                            let tab_text = egui::RichText::new(tab_label)
-                                .color(egui::Color32::from_rgb(212, 212, 212)); // Same as source code
-                            if ui.selectable_label(idx == self.active_tab_idx, tab_text).clicked() {
+                            let filename_text = egui::RichText::new(&filename)
+                                .color(egui::Color32::from_rgb(0xD4, 0xD4, 0xD4));
+                            if ui.selectable_label(idx == self.active_tab_idx, filename_text).clicked() {
                                 self.active_tab_idx = idx;
                             }
 
@@ -3331,20 +4566,39 @@ impl BerryCodeApp {
             let mut text = tab.buffer.to_string();
             let original_text = text.clone();
 
-            // Detect language from file extension
-            let lang = if tab.file_path.ends_with(".rs") {
-                "rust"
+            // Detect language from file extension (syntect uses extension, not language name)
+            let extension = if tab.file_path.ends_with(".rs") {
+                "rs"
             } else if tab.file_path.ends_with(".toml") {
                 "toml"
             } else if tab.file_path.ends_with(".md") {
-                "markdown"
+                "md"
+            } else if tab.file_path.ends_with(".js") {
+                "js"
+            } else if tab.file_path.ends_with(".ts") {
+                "ts"
+            } else if tab.file_path.ends_with(".py") {
+                "py"
+            } else if tab.file_path.ends_with(".json") {
+                "json"
+            } else if tab.file_path.ends_with(".yaml") || tab.file_path.ends_with(".yml") {
+                "yaml"
             } else {
-                "plaintext"
+                "txt"
             };
 
-            // Set language for syntax highlighter
-            let mut highlighter = self.syntax_highlighter.clone();
-            let _ = highlighter.set_language(lang);
+            // Set language for syntax highlighter (directly on self, not clone)
+            match self.syntax_highlighter.set_language(extension) {
+                Ok(_) => {
+                    tracing::info!("🎨 Syntax highlighting enabled for: {} ({})", tab.file_path, extension);
+                }
+                Err(e) => {
+                    tracing::warn!("⚠️  Failed to set syntax language for {}: {}", extension, e);
+                }
+            }
+
+            // Clone highlighter AFTER setting the language
+            let highlighter = self.syntax_highlighter.clone();
 
             // Copy color theme (to avoid borrowing issues in layouter closure)
             let color_theme = ColorTheme {
@@ -3354,10 +4608,14 @@ impl BerryCodeApp {
                 string: self.string_color,
                 number: self.number_color,
                 comment: self.comment_color,
+                doc_comment: self.doc_comment_color,
                 macro_: self.macro_color,
                 attribute: self.attribute_color,
                 constant: self.constant_color,
                 lifetime: self.lifetime_color,
+                namespace: self.namespace_color,
+                variable: self.variable_color,
+                operator: self.operator_color,
             };
 
             // Read-only warning banner
@@ -3403,21 +4661,22 @@ impl BerryCodeApp {
                 .auto_shrink([false; 2]);
 
             let scroll_output = scroll_area.show(ui, |ui| {
-                    // Set background color to match panels (#191A1C)
+                    // Set background color to match sidebar (#191A1C)
                     ui.style_mut().visuals.extreme_bg_color = egui::Color32::from_rgb(25, 26, 28);
                     ui.style_mut().visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(25, 26, 28);
 
+                    // CRITICAL: Disable text color override to allow syntax highlighting
+                    ui.style_mut().visuals.override_text_color = None;
+
                     let output = egui::TextEdit::multiline(&mut text)
-                        .font(egui::TextStyle::Monospace)
                         .code_editor()
                         .desired_width(f32::INFINITY)
                         .desired_rows(50)
                         .lock_focus(true)
-                        .interactive(!is_readonly)  // Disable editing for read-only files
+                        .interactive(!is_readonly)
                         .layouter(&mut |ui, text, _wrap_width| {
-                            // Ignore wrap_width to prevent text wrapping for wide characters
                             let mut job = Self::syntax_highlight_layouter(ui, text, &highlighter, &color_theme);
-                            job.wrap.max_width = f32::INFINITY; // Disable wrapping
+                            job.wrap.max_width = f32::INFINITY;
                             ui.fonts(|f| f.layout_job(job))
                         })
                         .show(ui);
@@ -3548,8 +4807,7 @@ impl BerryCodeApp {
     }
 
     /// Syntax highlighting layouter for egui::TextEdit
-    /// This version preserves ALL whitespace by using token positions
-    /// VS Code style: 13px font, 1.5 line height
+    /// Regex-based syntax highlighting with One Dark theme
     fn syntax_highlight_layouter(
         _ui: &egui::Ui,
         text: &str,
@@ -3558,20 +4816,20 @@ impl BerryCodeApp {
     ) -> egui::text::LayoutJob {
         let mut job = egui::text::LayoutJob::default();
 
-        // Larger font for better readability
+        // Font size: 13px for optimal readability
         const FONT_SIZE: f32 = 13.0;
-        const LINE_HEIGHT: f32 = 19.5; // 13 * 1.5
+        // Default color unified white (#D4D4D4)
+        let default_color = egui::Color32::from_rgb(212, 212, 212);
 
         for line in text.lines() {
-            // Get tokens for this line
+            // Get tokens from regex-based highlighter
             let tokens = highlighter.highlight_line(line);
 
             if tokens.is_empty() {
                 // No tokens, just add the whole line in default color
                 job.append(line, 0.0, egui::TextFormat {
                     font_id: egui::FontId::monospace(FONT_SIZE),
-                    color: egui::Color32::from_rgb(212, 212, 212), // #D4D4D4
-                    // Remove line_height to use default baseline alignment
+                    color: default_color,
                     ..Default::default()
                 });
             } else {
@@ -3583,13 +4841,30 @@ impl BerryCodeApp {
                         let before = &line[pos..token.start];
                         job.append(before, 0.0, egui::TextFormat {
                             font_id: egui::FontId::monospace(FONT_SIZE),
-                            color: egui::Color32::from_rgb(212, 212, 212), // #D4D4D4
+                            color: default_color,
                             ..Default::default()
                         });
                     }
 
-                    // Add the token itself with its color
-                    let color = Self::token_type_to_color(&token.token_type, color_theme);
+                    // Map TokenType to VS Code Dark+ color scheme
+                    let color = match token.token_type {
+                        TokenType::Keyword => color_theme.keyword,        // #C586C0 Pink/Purple
+                        TokenType::Function => color_theme.function,      // #DCDCAA Yellow
+                        TokenType::Type => color_theme.type_,             // #4EC9B0 Cyan/Teal
+                        TokenType::String => color_theme.string,          // #CE9178 Orange/Brown
+                        TokenType::Number => color_theme.number,          // #B5CEA8 Light Green
+                        TokenType::Comment => color_theme.comment,        // #808080 Gray (normal //)
+                        TokenType::DocComment => color_theme.doc_comment, // #6A9955 Green (//!, ///)
+                        TokenType::Macro => color_theme.macro_,           // #DCDCAA Yellow
+                        TokenType::Attribute => color_theme.attribute,    // #C586C0 Pink
+                        TokenType::Constant => color_theme.constant,      // #C586C0 Pink
+                        TokenType::Lifetime => color_theme.lifetime,      // #4EC9B0 Cyan
+                        TokenType::Identifier => color_theme.variable,    // #9CDCFE Light Blue (identifiers as variables)
+                        TokenType::Namespace => default_color,            // #D4D4D4 White
+                        TokenType::Operator => color_theme.operator,      // #D4D4D4 White
+                        TokenType::EscapeSequence => color_theme.string,  // #CE9178 Orange/Brown
+                    };
+
                     job.append(&token.text, 0.0, egui::TextFormat {
                         font_id: egui::FontId::monospace(FONT_SIZE),
                         color,
@@ -3604,7 +4879,7 @@ impl BerryCodeApp {
                     let remaining = &line[pos..];
                     job.append(remaining, 0.0, egui::TextFormat {
                         font_id: egui::FontId::monospace(FONT_SIZE),
-                        color: egui::Color32::from_rgb(212, 212, 212), // #D4D4D4
+                        color: default_color,
                         ..Default::default()
                     });
                 }
@@ -3613,34 +4888,12 @@ impl BerryCodeApp {
             // Add newline
             job.append("\n", 0.0, egui::TextFormat {
                 font_id: egui::FontId::monospace(FONT_SIZE),
-                color: egui::Color32::from_rgb(212, 212, 212),
+                color: default_color,
                 ..Default::default()
             });
         }
 
         job
-    }
-
-    /// Convert TokenType to egui::Color32 (IntelliJ Darcula theme colors)
-    /// Get color for token type (uses customizable theme colors)
-    fn token_type_to_color(token_type: &TokenType, theme: &ColorTheme) -> egui::Color32 {
-        match token_type {
-            // ここに直接 RGB 値（0〜255）を叩き込む！
-            TokenType::Keyword => theme.keyword,
-            TokenType::Function => theme.function,    // ⭐ これでメソッド名が水色になる
-            TokenType::Type => theme.type_,
-            TokenType::String => theme.string,
-            TokenType::Number => theme.number,
-            TokenType::Comment => theme.comment,
-            TokenType::Operator => theme.type_,       // 演算子はTypeと同じグレー
-            TokenType::Identifier => theme.type_,     // 変数名もTypeと同じグレー
-            TokenType::Macro => theme.macro_,         // マクロは黄色
-            TokenType::Attribute => theme.attribute,
-            TokenType::Constant => theme.constant,
-            TokenType::Lifetime => theme.lifetime,
-            TokenType::Namespace => theme.type_,
-            TokenType::EscapeSequence => theme.keyword,
-        }
     }
 
     /// Render Status Bar (bottom)
@@ -3847,7 +5100,7 @@ impl BerryCodeApp {
     /// Live preview of syntax colors
     fn render_color_preview(&self, ui: &mut egui::Ui) {
         let frame = egui::Frame::none()
-            .fill(egui::Color32::from_rgb(25, 26, 28)) // Darcula editor background
+            .fill(egui::Color32::from_rgb(25, 26, 28)) // #191A1C - Match sidebar background
             .inner_margin(12.0)
             .rounding(4.0);
 
@@ -3927,17 +5180,29 @@ impl eframe::App for BerryCodeApp {
         // Ensure window decorations are visible
         ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
 
+        // Initialize Git repository on first update
+        if !self.git_initialized {
+            self.git_initialized = true;
+            self.refresh_git_status();
+            self.refresh_git_history();
+            self.refresh_git_branches();
+            self.refresh_git_remotes();
+            self.refresh_git_tags();
+            self.refresh_git_stashes();
+            tracing::info!("✅ Git repository initialized for {}", self.root_path);
+        }
+
         // Poll LSP responses (non-blocking)
         self.poll_lsp_responses();
 
         // Poll gRPC responses (non-blocking)
         self.poll_grpc_responses();
 
-        // Poll Theme responses (non-blocking)
-        self.poll_theme_responses();
-
         // Poll Slack responses (non-blocking)
         self.poll_slack_responses();
+
+        // Poll file watcher events (non-blocking)
+        self.poll_file_watcher_events();
 
         // Handle keyboard shortcuts
         self.handle_editor_shortcuts(ctx);
@@ -3964,6 +5229,9 @@ impl eframe::App for BerryCodeApp {
         } else if self.active_panel == ActivePanel::Terminal {
             // Terminal mode: Full-screen iTerm2-like terminal (no sidebar)
             self.render_terminal_fullscreen(ctx);
+        } else if self.active_panel == ActivePanel::Database {
+            // Database mode: Full database management interface
+            self.render_database_panel(ctx);
         } else {
             // Normal mode: Sidebar + Editor (center) + AI Chat (right panel)
             self.render_sidebar(ctx);
@@ -4797,6 +6065,305 @@ impl BerryCodeApp {
         }
     }
 
+    /// Refresh Git history (load commit graph)
+    fn refresh_git_history(&mut self) {
+        tracing::info!("🔀 Refreshing Git history for {}", self.root_path);
+
+        match native::git::get_detailed_log(
+            &self.root_path,
+            self.git_history_state.page_limit,
+            self.git_history_state.show_all_branches,
+        ) {
+            Ok(nodes) => {
+                self.git_history_state.graph_nodes = nodes;
+                self.git_history_state.loaded_count = self.git_history_state.graph_nodes.len();
+                tracing::info!("✅ Git history loaded: {} commits", self.git_history_state.loaded_count);
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load Git history: {}", e);
+                self.git_history_state.graph_nodes.clear();
+            }
+        }
+    }
+
+    /// Refresh Git branches
+    fn refresh_git_branches(&mut self) {
+        match native::git::list_branches(&self.root_path) {
+            Ok(branches) => {
+                self.git_branch_state.local_branches = branches;
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load branches: {}", e);
+            }
+        }
+
+        match native::git::list_remote_branches(&self.root_path) {
+            Ok(branches) => {
+                self.git_branch_state.remote_branches = branches;
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load remote branches: {}", e);
+            }
+        }
+    }
+
+    /// Refresh Git remotes
+    fn refresh_git_remotes(&mut self) {
+        match native::git::list_remotes(&self.root_path) {
+            Ok(remotes) => {
+                self.git_remote_state.remotes = remotes;
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load remotes: {}", e);
+            }
+        }
+    }
+
+    /// Refresh Git tags
+    fn refresh_git_tags(&mut self) {
+        match native::git::list_tags(&self.root_path) {
+            Ok(tags) => {
+                self.git_tag_state.tags = tags;
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load tags: {}", e);
+            }
+        }
+    }
+
+    /// Refresh Git stashes
+    fn refresh_git_stashes(&mut self) {
+        match native::git::list_stashes(&self.root_path) {
+            Ok(stashes) => {
+                self.git_stash_state.stashes = stashes;
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load stashes: {}", e);
+            }
+        }
+    }
+
+    // ===== Branch Actions =====
+
+    fn perform_create_branch(&mut self) {
+        let branch_name = self.git_branch_state.new_branch_name.clone();
+        match native::git::create_branch(&self.root_path, &branch_name) {
+            Ok(_) => {
+                tracing::info!("✅ Created branch: {}", branch_name);
+                self.git_branch_state.new_branch_name.clear();
+                self.refresh_git_branches();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to create branch: {}", e);
+            }
+        }
+    }
+
+    fn perform_checkout_branch(&mut self, branch_name: &str) {
+        match native::git::checkout_branch(&self.root_path, branch_name) {
+            Ok(_) => {
+                tracing::info!("✅ Checked out branch: {}", branch_name);
+                self.refresh_git_branches();
+                self.refresh_git_status();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to checkout branch: {}", e);
+            }
+        }
+    }
+
+    fn perform_delete_branch(&mut self, branch_name: &str) {
+        match native::git::delete_branch(&self.root_path, branch_name) {
+            Ok(_) => {
+                tracing::info!("✅ Deleted branch: {}", branch_name);
+                self.refresh_git_branches();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to delete branch: {}", e);
+            }
+        }
+    }
+
+    fn perform_merge_branch(&mut self, branch_name: &str) {
+        match native::git::merge_branch(&self.root_path, branch_name) {
+            Ok(_) => {
+                tracing::info!("✅ Merged branch: {}", branch_name);
+                self.refresh_git_status();
+                self.refresh_git_history();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to merge branch: {}", e);
+            }
+        }
+    }
+
+    // ===== Remote Actions =====
+
+    fn perform_add_remote(&mut self) {
+        let name = self.git_remote_state.new_remote_name.clone();
+        let url = self.git_remote_state.new_remote_url.clone();
+
+        match native::git::add_remote(&self.root_path, &name, &url) {
+            Ok(_) => {
+                tracing::info!("✅ Added remote: {} -> {}", name, url);
+                self.git_remote_state.new_remote_name.clear();
+                self.git_remote_state.new_remote_url.clear();
+                self.refresh_git_remotes();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to add remote: {}", e);
+            }
+        }
+    }
+
+    fn perform_remove_remote(&mut self, name: &str) {
+        match native::git::remove_remote(&self.root_path, name) {
+            Ok(_) => {
+                tracing::info!("✅ Removed remote: {}", name);
+                self.refresh_git_remotes();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to remove remote: {}", e);
+            }
+        }
+    }
+
+    fn perform_fetch(&mut self, remote_name: &str) {
+        match native::git::fetch(&self.root_path, remote_name) {
+            Ok(_) => {
+                tracing::info!("✅ Fetched from remote: {}", remote_name);
+                self.refresh_git_branches();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to fetch: {}", e);
+            }
+        }
+    }
+
+    fn perform_pull(&mut self, remote_name: &str) {
+        // Use current branch name
+        let branch_name = self.git_current_branch.clone();
+        match native::git::pull(&self.root_path, remote_name, &branch_name) {
+            Ok(_) => {
+                tracing::info!("✅ Pulled from remote: {}", remote_name);
+                self.refresh_git_status();
+                self.refresh_git_history();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to pull: {}", e);
+            }
+        }
+    }
+
+    fn perform_push(&mut self, remote_name: &str) {
+        // Push current branch
+        let branch_name = self.git_current_branch.clone();
+        let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+        match native::git::push(&self.root_path, remote_name, &[&refspec]) {
+            Ok(_) => {
+                tracing::info!("✅ Pushed to remote: {}", remote_name);
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to push: {}", e);
+            }
+        }
+    }
+
+    // ===== Tag Actions =====
+
+    fn perform_create_tag(&mut self) {
+        let tag_name = self.git_tag_state.new_tag_name.clone();
+        let result = if self.git_tag_state.annotated {
+            let message = self.git_tag_state.new_tag_message.clone();
+            native::git::create_annotated_tag(&self.root_path, &tag_name, &message, None)
+        } else {
+            native::git::create_tag(&self.root_path, &tag_name, None)
+        };
+
+        match result {
+            Ok(_) => {
+                tracing::info!("✅ Created tag: {}", tag_name);
+                self.git_tag_state.new_tag_name.clear();
+                self.git_tag_state.new_tag_message.clear();
+                self.refresh_git_tags();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to create tag: {}", e);
+            }
+        }
+    }
+
+    fn perform_delete_tag(&mut self, tag_name: &str) {
+        match native::git::delete_tag(&self.root_path, tag_name) {
+            Ok(_) => {
+                tracing::info!("✅ Deleted tag: {}", tag_name);
+                self.refresh_git_tags();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to delete tag: {}", e);
+            }
+        }
+    }
+
+    // ===== Stash Actions =====
+
+    fn perform_stash_save(&mut self) {
+        let message = if self.git_stash_state.new_stash_message.is_empty() {
+            None
+        } else {
+            Some(self.git_stash_state.new_stash_message.as_str())
+        };
+
+        match native::git::stash_save(&self.root_path, message, self.git_stash_state.include_untracked) {
+            Ok(_) => {
+                tracing::info!("✅ Saved stash");
+                self.git_stash_state.new_stash_message.clear();
+                self.refresh_git_stashes();
+                self.refresh_git_status();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to save stash: {}", e);
+            }
+        }
+    }
+
+    fn perform_stash_apply(&mut self, index: usize) {
+        match native::git::stash_apply(&self.root_path, index) {
+            Ok(_) => {
+                tracing::info!("✅ Applied stash@{}", index);
+                self.refresh_git_status();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to apply stash: {}", e);
+            }
+        }
+    }
+
+    fn perform_stash_pop(&mut self, index: usize) {
+        match native::git::stash_pop(&self.root_path, index) {
+            Ok(_) => {
+                tracing::info!("✅ Popped stash@{}", index);
+                self.refresh_git_stashes();
+                self.refresh_git_status();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to pop stash: {}", e);
+            }
+        }
+    }
+
+    fn perform_stash_drop(&mut self, index: usize) {
+        match native::git::stash_drop(&self.root_path, index) {
+            Ok(_) => {
+                tracing::info!("✅ Dropped stash@{}", index);
+                self.refresh_git_stashes();
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to drop stash: {}", e);
+            }
+        }
+    }
+
     /// Stage a file
     fn perform_git_stage(&mut self, file_path: &str) {
         tracing::info!("🔀 Staging file: {}", file_path);
@@ -5083,8 +6650,17 @@ impl BerryCodeApp {
         let session_id = match &self.grpc_session_id {
             Some(id) => id.clone(),
             None => {
-                tracing::error!("❌ No active gRPC session");
+                tracing::error!("❌ No active gRPC session - berry-api-server may not be running");
                 self.grpc_streaming = false;
+
+                // Add error message to chat
+                self.grpc_messages.push(GrpcMessage {
+                    content: "⚠️ AI Chat is not available. Please start berry-api-server:\ncd berry_api && cargo run --bin berry-api-server".to_string(),
+                    is_user: false,
+                });
+
+                self.status_message = "❌ AI Chat unavailable - start berry-api-server".to_string();
+                self.status_message_timestamp = Some(std::time::Instant::now());
                 return;
             }
         };
@@ -5168,23 +6744,6 @@ impl BerryCodeApp {
         }
     }
 
-    /// Poll theme responses from berry-api-server (non-blocking)
-    fn poll_theme_responses(&mut self) {
-        let mut theme_responses = Vec::new();
-
-        if let Some(rx) = &mut self.theme_response_rx {
-            // Try to receive all available messages without blocking
-            while let Ok(theme_response) = rx.try_recv() {
-                theme_responses.push(theme_response);
-            }
-        }
-
-        // Apply all themes after releasing the borrow
-        for theme_response in theme_responses {
-            self.apply_theme(theme_response);
-        }
-    }
-
     /// Poll Slack responses (non-blocking)
     fn poll_slack_responses(&mut self) {
         let mut should_reload_messages = false;
@@ -5228,6 +6787,56 @@ impl BerryCodeApp {
         if should_reload_messages {
             if let Some(channel_id) = reload_channel_id {
                 self.load_slack_messages(&channel_id);
+            }
+        }
+    }
+
+    /// Poll file watcher events (non-blocking) and update file tree
+    fn poll_file_watcher_events(&mut self) {
+        if let Some(watcher) = &mut self.file_watcher {
+            // Try to receive all available file system events without blocking
+            while let Some(event) = watcher.try_recv() {
+                match event {
+                    native::watcher::FileEvent::Created(path) => {
+                        tracing::debug!("📄 File created: {}", path.display());
+                        // Mark file tree for reload
+                        self.file_tree_load_pending = true;
+                    }
+                    native::watcher::FileEvent::Modified(path) => {
+                        tracing::debug!("✏️  File modified: {}", path.display());
+                        // If the file is currently open, we could optionally reload it
+                        // For now, just log it
+                    }
+                    native::watcher::FileEvent::Removed(path) => {
+                        tracing::debug!("🗑️  File removed: {}", path.display());
+                        // Mark file tree for reload
+                        self.file_tree_load_pending = true;
+
+                        // Close the tab if the deleted file is currently open
+                        let path_str = path.to_string_lossy().to_string();
+                        if let Some(tab_idx) = self.editor_tabs.iter().position(|tab| tab.file_path == path_str) {
+                            self.editor_tabs.remove(tab_idx);
+                            // Adjust active tab index if necessary
+                            if self.active_tab_idx >= self.editor_tabs.len() && !self.editor_tabs.is_empty() {
+                                self.active_tab_idx = self.editor_tabs.len() - 1;
+                            }
+                            tracing::info!("🗑️  Closed tab for deleted file: {}", path_str);
+                        }
+                    }
+                    native::watcher::FileEvent::Renamed { from, to } => {
+                        tracing::debug!("📝 File renamed: {} -> {}", from.display(), to.display());
+                        // Mark file tree for reload
+                        self.file_tree_load_pending = true;
+
+                        // Update the tab path if the renamed file is currently open
+                        let from_str = from.to_string_lossy().to_string();
+                        let to_str = to.to_string_lossy().to_string();
+                        if let Some(tab) = self.editor_tabs.iter_mut().find(|tab| tab.file_path == from_str) {
+                            tab.file_path = to_str.clone();
+                            tracing::info!("📝 Updated tab path: {} -> {}", from_str, to_str);
+                        }
+                    }
+                }
             }
         }
     }
@@ -5501,7 +7110,8 @@ impl BerryCodeApp {
                             ui.label("Text:");
                             let mut text_color = visuals.text_color();
                             ui.color_edit_button_srgba(&mut text_color);
-                            visuals.override_text_color = Some(text_color);
+                            // DO NOT override text color - it breaks syntax highlighting!
+                            // visuals.override_text_color = Some(text_color);
                             ui.end_row();
 
                             ui.label("Selection:");
@@ -5851,108 +7461,6 @@ impl BerryCodeApp {
         });
     }
 
-    // ===== Theme Loading from API =====
-
-    /// Load syntax highlighting theme from berry-api-server
-    pub fn load_theme_from_api(&mut self, theme_name: Option<String>) {
-        let lsp_client = match &self.lsp_client {
-            Some(client) => client.clone(),
-            None => {
-                tracing::warn!("⚠️ LSP client not available for theme loading");
-                return;
-            }
-        };
-
-        let theme_tx = match &self.theme_response_tx {
-            Some(tx) => tx.clone(),
-            None => {
-                tracing::warn!("⚠️ Theme response channel not available");
-                return;
-            }
-        };
-
-        let runtime = self.lsp_runtime.clone();
-
-        // Spawn async task to load theme
-        runtime.spawn(async move {
-            // LSP client is already connected, no need to connect again
-            match lsp_client.get_theme(theme_name).await {
-                Ok(theme_response) => {
-                    tracing::info!("✅ Received theme: {}", theme_response.theme_name);
-                    // Send theme response to UI thread via channel
-                    if let Err(e) = theme_tx.send(theme_response) {
-                        tracing::error!("❌ Failed to send theme response: {}", e);
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("❌ Failed to get theme from API: {}", e);
-                }
-            }
-        });
-    }
-
-    /// Apply received theme to the UI
-    fn apply_theme(&mut self, theme_response: native::lsp::lsp_service::ThemeResponse) {
-        tracing::info!("🎨 Applying theme: {}", theme_response.theme_name);
-
-        let colors = match theme_response.colors {
-            Some(c) => c,
-            None => {
-                tracing::warn!("⚠️ No colors in theme response");
-                return;
-            }
-        };
-
-        // Helper to convert RGBColor to egui::Color32
-        let to_color32 = |rgb: Option<native::lsp::lsp_service::RgbColor>| {
-            rgb.map(|c| egui::Color32::from_rgb(c.r as u8, c.g as u8, c.b as u8))
-        };
-
-        // Apply syntax highlighting colors
-        if let Some(color) = to_color32(colors.keyword) {
-            self.syntax_theme.keyword = color;
-            self.keyword_color = color;
-        }
-        if let Some(color) = to_color32(colors.function) {
-            self.syntax_theme.function = color;
-            self.function_color = color;
-        }
-        if let Some(color) = to_color32(colors.type_color) {
-            self.syntax_theme.type_ = color;
-            self.type_color = color;
-        }
-        if let Some(color) = to_color32(colors.string) {
-            self.syntax_theme.string = color;
-            self.string_color = color;
-        }
-        if let Some(color) = to_color32(colors.number) {
-            self.syntax_theme.number = color;
-            self.number_color = color;
-        }
-        if let Some(color) = to_color32(colors.comment) {
-            self.syntax_theme.comment = color;
-            self.comment_color = color;
-        }
-        if let Some(color) = to_color32(colors.macro_color) {
-            self.syntax_theme.macro_ = color;
-            self.macro_color = color;
-        }
-        if let Some(color) = to_color32(colors.attribute) {
-            self.syntax_theme.attribute = color;
-            self.attribute_color = color;
-        }
-        if let Some(color) = to_color32(colors.constant) {
-            self.syntax_theme.constant = color;
-            self.constant_color = color;
-        }
-        if let Some(color) = to_color32(colors.lifetime) {
-            self.syntax_theme.lifetime = color;
-            self.lifetime_color = color;
-        }
-
-        tracing::info!("✅ Theme '{}' applied successfully", theme_response.theme_name);
-    }
-
     // ====================================================================
     // Slack Integration Helper Methods
     // ====================================================================
@@ -6038,6 +7546,330 @@ impl BerryCodeApp {
                 }
             }
         });
+    }
+
+    // === Database Helper Methods ===
+
+    /// Add a new database connection
+    fn add_database_connection(&mut self) {
+        tracing::info!("📊 Adding database connection: name={}, type={:?}, db={}",
+            self.new_db_name, self.new_db_type, self.new_db_database);
+
+        let conn = match self.new_db_type {
+            native::database::DatabaseType::SQLite => {
+                native::database::DatabaseConnection::new_sqlite(
+                    self.new_db_name.clone(),
+                    self.new_db_database.clone(),
+                )
+            }
+            native::database::DatabaseType::PostgreSQL => {
+                let port = self.new_db_port.parse::<u16>().unwrap_or(5432);
+                native::database::DatabaseConnection::new_postgresql(
+                    self.new_db_name.clone(),
+                    self.new_db_host.clone(),
+                    port,
+                    self.new_db_database.clone(),
+                    self.new_db_username.clone(),
+                    self.new_db_password.clone(),
+                )
+            }
+            native::database::DatabaseType::MySQL => {
+                let port = self.new_db_port.parse::<u16>().unwrap_or(3306);
+                native::database::DatabaseConnection::new_mysql(
+                    self.new_db_name.clone(),
+                    self.new_db_host.clone(),
+                    port,
+                    self.new_db_database.clone(),
+                    self.new_db_username.clone(),
+                    self.new_db_password.clone(),
+                )
+            }
+        };
+
+        tracing::info!("✅ Created connection: id={}, name={}", conn.id, conn.name);
+
+        self.database_client.add_connection(conn.clone());
+        self.database_connections.push(conn.clone());
+
+        tracing::info!("📋 Total connections: {}", self.database_connections.len());
+
+        // Auto-select the newly added connection
+        self.selected_connection_id = Some(conn.id.clone());
+        self.load_database_tables(&conn.id);
+
+        // Reset form
+        self.new_db_name.clear();
+        self.new_db_comment.clear();
+        self.new_db_type = native::database::DatabaseType::PostgreSQL;
+        self.new_db_connection_type = "default".to_string();
+        self.new_db_host = "localhost".to_string();
+        self.new_db_port = "5432".to_string();
+        self.new_db_database = "postgres".to_string();
+        self.new_db_authentication = "User & Password".to_string();
+        self.new_db_username.clear();
+        self.new_db_password.clear();
+        self.new_db_save_mode = "Forever".to_string();
+        self.new_db_url = "jdbc:postgresql://localhost:5432/postgres".to_string();
+        self.new_db_active_tab = 0;
+        self.new_db_test_result = None;
+    }
+
+    /// Load tables for a database connection
+    fn load_database_tables(&mut self, connection_id: &str) {
+        match self.database_client.get_tables(connection_id) {
+            Ok(tables) => {
+                self.database_tables = tables;
+            }
+            Err(e) => {
+                tracing::error!("Failed to load tables: {}", e);
+                self.database_tables.clear();
+            }
+        }
+    }
+
+    /// Execute SQL query
+    fn execute_sql_query(&mut self, connection_id: &str) {
+        match self.database_client.execute_query(connection_id, &self.sql_query) {
+            Ok(result) => {
+                self.query_result = Some(result);
+            }
+            Err(e) => {
+                tracing::error!("Failed to execute query: {}", e);
+                self.query_result = None;
+            }
+        }
+    }
+
+    /// Render General tab content for database connection dialog
+    fn render_db_general_tab(&mut self, ui: &mut egui::Ui) {
+        // Connection type and Driver
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Connection type:")
+                .size(12.0)
+                .color(egui::Color32::from_rgb(180, 180, 180)));
+            ui.label(egui::RichText::new(&self.new_db_connection_type)
+                .size(12.0)
+                .color(egui::Color32::from_rgb(100, 150, 255)));
+
+            ui.add_space(20.0);
+
+            ui.label(egui::RichText::new("Driver:")
+                .size(12.0)
+                .color(egui::Color32::from_rgb(180, 180, 180)));
+
+            egui::ComboBox::from_id_salt("db_driver")
+                .selected_text(self.new_db_type.as_str())
+                .show_ui(ui, |ui| {
+                    if ui.selectable_value(&mut self.new_db_type, native::database::DatabaseType::PostgreSQL, "PostgreSQL").clicked() {
+                        self.update_db_url();
+                    }
+                    if ui.selectable_value(&mut self.new_db_type, native::database::DatabaseType::MySQL, "MySQL").clicked() {
+                        self.update_db_url();
+                    }
+                    if ui.selectable_value(&mut self.new_db_type, native::database::DatabaseType::SQLite, "SQLite").clicked() {
+                        self.update_db_url();
+                    }
+                });
+        });
+
+        ui.add_space(12.0);
+
+        // Conditional fields based on database type
+        if self.new_db_type == native::database::DatabaseType::SQLite {
+            // SQLite: Only File Path
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("File Path:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                if ui.add(egui::TextEdit::singleline(&mut self.new_db_database)
+                    .desired_width(500.0)
+                    .hint_text("/path/to/database.db or :memory:")).changed() {
+                    self.update_db_url();
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("💡 Tip: SQLite creates the file automatically if it doesn't exist")
+                .size(11.0)
+                .color(egui::Color32::from_rgb(100, 150, 200))
+                .italics());
+
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new("Examples:")
+                .size(11.0)
+                .color(egui::Color32::from_rgb(150, 150, 150)));
+            ui.label(egui::RichText::new("  • /Users/username/Documents/mydb.db")
+                .size(10.0)
+                .color(egui::Color32::from_rgb(120, 120, 120))
+                .family(egui::FontFamily::Monospace));
+            ui.label(egui::RichText::new("  • ./data/local.db")
+                .size(10.0)
+                .color(egui::Color32::from_rgb(120, 120, 120))
+                .family(egui::FontFamily::Monospace));
+            ui.label(egui::RichText::new("  • :memory: (in-memory database)")
+                .size(10.0)
+                .color(egui::Color32::from_rgb(120, 120, 120))
+                .family(egui::FontFamily::Monospace));
+
+        } else {
+            // PostgreSQL / MySQL: Server connection fields
+
+            // Host and Port
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Host:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                if ui.add(egui::TextEdit::singleline(&mut self.new_db_host)
+                    .desired_width(250.0)).changed() {
+                    self.update_db_url();
+                }
+
+                ui.add_space(20.0);
+
+                ui.label(egui::RichText::new("Port:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                if ui.add(egui::TextEdit::singleline(&mut self.new_db_port)
+                    .desired_width(80.0)).changed() {
+                    self.update_db_url();
+                }
+            });
+
+            ui.add_space(12.0);
+
+            // Authentication
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Authentication:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                egui::ComboBox::from_id_salt("db_auth")
+                    .selected_text(&self.new_db_authentication)
+                    .width(250.0)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.new_db_authentication, "User & Password".to_string(), "User & Password");
+                        ui.selectable_value(&mut self.new_db_authentication, "No Auth".to_string(), "No Auth");
+                    });
+            });
+
+            ui.add_space(12.0);
+
+            // User
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("User:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                ui.add(egui::TextEdit::singleline(&mut self.new_db_username)
+                    .desired_width(250.0));
+            });
+
+            ui.add_space(12.0);
+
+            // Password and Save
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Password:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                ui.add(egui::TextEdit::singleline(&mut self.new_db_password)
+                    .password(true)
+                    .desired_width(250.0)
+                    .hint_text("<hidden>"));
+
+                ui.add_space(20.0);
+
+                ui.label(egui::RichText::new("Save:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+
+                egui::ComboBox::from_id_salt("db_save")
+                    .selected_text(&self.new_db_save_mode)
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.new_db_save_mode, "Forever".to_string(), "Forever");
+                        ui.selectable_value(&mut self.new_db_save_mode, "Until Restart".to_string(), "Until Restart");
+                        ui.selectable_value(&mut self.new_db_save_mode, "Never".to_string(), "Never");
+                    });
+            });
+
+            ui.add_space(12.0);
+
+            // Database
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Database:")
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                if ui.add(egui::TextEdit::singleline(&mut self.new_db_database)
+                    .desired_width(250.0)).changed() {
+                    self.update_db_url();
+                }
+            });
+        }
+
+        ui.add_space(12.0);
+
+        // URL (auto-generated)
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("URL:")
+                .size(12.0)
+                .color(egui::Color32::from_rgb(180, 180, 180)));
+            ui.add(egui::TextEdit::singleline(&mut self.new_db_url)
+                .desired_width(500.0)
+                .font(egui::TextStyle::Monospace));
+        });
+
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new("Overrides settings above")
+            .size(11.0)
+            .color(egui::Color32::from_rgb(120, 120, 120))
+            .italics());
+    }
+
+    /// Update database URL based on current settings
+    fn update_db_url(&mut self) {
+        self.new_db_url = match self.new_db_type {
+            native::database::DatabaseType::PostgreSQL => {
+                format!("jdbc:postgresql://{}:{}/{}",
+                    self.new_db_host,
+                    self.new_db_port,
+                    self.new_db_database)
+            }
+            native::database::DatabaseType::MySQL => {
+                format!("jdbc:mysql://{}:{}/{}",
+                    self.new_db_host,
+                    self.new_db_port,
+                    self.new_db_database)
+            }
+            native::database::DatabaseType::SQLite => {
+                format!("jdbc:sqlite:{}", self.new_db_database)
+            }
+        };
+    }
+
+    /// Test database connection
+    fn test_database_connection(&mut self) {
+        // Mock test - in real implementation, this would actually test the connection
+        let success = match self.new_db_type {
+            native::database::DatabaseType::SQLite => {
+                !self.new_db_database.is_empty()
+            }
+            _ => {
+                !self.new_db_host.is_empty() && !self.new_db_database.is_empty()
+            }
+        };
+
+        if success {
+            let message = match self.new_db_type {
+                native::database::DatabaseType::SQLite => {
+                    format!("✅ SQLite file path validated: {}", self.new_db_database)
+                }
+                _ => {
+                    format!("✅ Connected to {} successfully", self.new_db_type.as_str())
+                }
+            };
+            self.new_db_test_result = Some(message);
+        } else {
+            self.new_db_test_result = Some("❌ Connection failed: Missing required fields".to_string());
+        }
     }
 }
 

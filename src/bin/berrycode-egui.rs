@@ -39,6 +39,7 @@ fn main() -> eframe::Result<()> {
 
             // Add Codicon font for icons
             if let Ok(font_data) = std::fs::read("assets/codicon.ttf") {
+                tracing::info!("✅ Loaded Codicon font: {} bytes", font_data.len());
                 fonts.font_data.insert(
                     "codicon".to_owned(),
                     egui::FontData::from_owned(font_data),
@@ -47,6 +48,9 @@ fn main() -> eframe::Result<()> {
                     .get_mut(&egui::FontFamily::Proportional)
                     .unwrap()
                     .insert(0, "codicon".to_owned());
+                tracing::info!("✅ Codicon font added to Proportional family");
+            } else {
+                tracing::error!("❌ Failed to load Codicon font from assets/codicon.ttf");
             }
 
             // Add Japanese font (try monospace fonts first for better baseline alignment)

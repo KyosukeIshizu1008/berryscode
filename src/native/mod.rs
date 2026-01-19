@@ -1,6 +1,7 @@
 //! Native platform integration module
 //! Replaces Tauri IPC commands with direct Rust function calls
 
+pub mod database;
 pub mod fs;
 pub mod git;
 pub mod grpc;
@@ -11,6 +12,7 @@ pub mod terminal;
 pub mod watcher;
 
 // Re-exports for convenience
+pub use database::*;
 pub use fs::*;
 pub use git::*;
 pub use grpc::*;
