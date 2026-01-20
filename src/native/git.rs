@@ -4,6 +4,7 @@
 use anyhow::{Context, Result};
 use git2::{Repository, Status, StatusOptions};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -382,15 +383,120 @@ pub fn get_log(repo_path: impl AsRef<Path>, limit: usize) -> Result<Vec<GitCommi
 
 /// Get diff for a file (simplified version - shows working tree vs HEAD)
 pub fn get_diff(repo_path: impl AsRef<Path>, file_path: &str) -> Result<GitDiff> {
-    let repo = open_repo(repo_path)?;
+    let repo = open_repo(repo_path.as_ref())?;
 
-    // For simplicity, return a basic diff structure
-    // Full implementation would require more complex git2 diff parsing
+    // Check if file is untracked (new file)
+    let full_path = repo_path.as_ref().join(file_path);
+    let is_new_file = if full_path.exists() {
+        // Check if file is in the index
+        let index = repo.index()?;
+        index.get_path(Path::new(file_path), 0).is_none()
+    } else {
+        false
+    };
+
+    // For new files, create a synthetic diff showing all lines as additions
+    if is_new_file {
+        let content = std::fs::read_to_string(&full_path)
+            .unwrap_or_else(|_| String::from("(Binary file or unreadable)"));
+
+        let mut lines = Vec::new();
+        for (idx, line) in content.lines().enumerate() {
+            lines.push(GitDiffLine {
+                origin: '+',
+                content: format!("{}\n", line),
+                old_lineno: None,
+                new_lineno: Some((idx + 1) as u32),
+            });
+        }
+
+        let hunk = GitDiffHunk {
+            old_start: 0,
+            old_lines: 0,
+            new_start: 1,
+            new_lines: lines.len() as u32,
+            header: format!("@@ -0,0 +1,{} @@ New file\n", lines.len()),
+            lines,
+        };
+
+        return Ok(GitDiff {
+            old_path: None,
+            new_path: Some(file_path.to_string()),
+            status: String::from("added"),
+            hunks: vec![hunk],
+        });
+    }
+
+    let head_tree = repo.head()?.peel_to_tree()?;
+
+    // Get diff between HEAD and working directory
+    let mut diff_options = git2::DiffOptions::new();
+    diff_options.pathspec(file_path);
+    diff_options.context_lines(3);
+
+    let diff = repo.diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut diff_options))?;
+
+    let old_path = RefCell::new(Some(file_path.to_string()));
+    let new_path = RefCell::new(Some(file_path.to_string()));
+    let status = RefCell::new(String::from("modified"));
+    let hunks = RefCell::new(Vec::new());
+    let current_hunk = RefCell::new(None::<GitDiffHunk>);
+
+    // Parse diff hunks and lines
+    diff.foreach(
+        &mut |delta, _progress| {
+            *old_path.borrow_mut() = delta.old_file().path().map(|p| p.to_string_lossy().to_string());
+            *new_path.borrow_mut() = delta.new_file().path().map(|p| p.to_string_lossy().to_string());
+            *status.borrow_mut() = match delta.status() {
+                git2::Delta::Added => "added",
+                git2::Delta::Deleted => "deleted",
+                git2::Delta::Modified => "modified",
+                git2::Delta::Renamed => "renamed",
+                _ => "modified",
+            }.to_string();
+            true
+        },
+        None,
+        Some(&mut |_delta, hunk| {
+            // Save previous hunk if exists
+            if let Some(h) = current_hunk.borrow_mut().take() {
+                hunks.borrow_mut().push(h);
+            }
+
+            // Create new hunk
+            *current_hunk.borrow_mut() = Some(GitDiffHunk {
+                old_start: hunk.old_start(),
+                old_lines: hunk.old_lines(),
+                new_start: hunk.new_start(),
+                new_lines: hunk.new_lines(),
+                header: String::from_utf8_lossy(hunk.header()).to_string(),
+                lines: Vec::new(),
+            });
+            true
+        }),
+        Some(&mut |_delta, _hunk, line| {
+            if let Some(ref mut hunk) = *current_hunk.borrow_mut() {
+                hunk.lines.push(GitDiffLine {
+                    origin: line.origin(),
+                    content: String::from_utf8_lossy(line.content()).to_string(),
+                    old_lineno: line.old_lineno(),
+                    new_lineno: line.new_lineno(),
+                });
+            }
+            true
+        }),
+    )?;
+
+    // Save last hunk if exists
+    if let Some(h) = current_hunk.borrow_mut().take() {
+        hunks.borrow_mut().push(h);
+    }
+
     Ok(GitDiff {
-        old_path: Some(file_path.to_string()),
-        new_path: Some(file_path.to_string()),
-        status: String::from("modified"),
-        hunks: Vec::new(), // TODO: Implement full diff parsing
+        old_path: old_path.into_inner(),
+        new_path: new_path.into_inner(),
+        status: status.into_inner(),
+        hunks: hunks.into_inner(),
     })
 }
 

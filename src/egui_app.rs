@@ -289,6 +289,22 @@ impl Default for GitStashState {
     }
 }
 
+/// State for Git Diff Viewer
+#[derive(Debug, Clone)]
+pub struct GitDiffState {
+    pub selected_file: Option<String>,
+    pub diff: Option<native::git::GitDiff>,
+}
+
+impl Default for GitDiffState {
+    fn default() -> Self {
+        Self {
+            selected_file: None,
+            diff: None,
+        }
+    }
+}
+
 /// Panel definition for data-driven Activity Bar
 struct SidebarPanel {
     variant: ActivePanel,
@@ -701,6 +717,7 @@ pub struct BerryCodeApp {
     git_remote_state: GitRemoteState,
     git_tag_state: GitTagState,
     git_stash_state: GitStashState,
+    git_diff_state: GitDiffState,
 
     // === LSP State (Phase 6: Async integration) ===
     lsp_runtime: std::sync::Arc<tokio::runtime::Runtime>,  // NEW: Tokio runtime for async LSP
@@ -1027,6 +1044,7 @@ impl BerryCodeApp {
             git_remote_state: GitRemoteState::default(),
             git_tag_state: GitTagState::default(),
             git_stash_state: GitStashState::default(),
+            git_diff_state: GitDiffState::default(),
             lsp_runtime,
             lsp_client: Some(lsp_client),
             lsp_response_tx: Some(lsp_tx),
@@ -2409,9 +2427,9 @@ impl BerryCodeApp {
         ui.horizontal(|ui| {
             ui.colored_label(color, icon);
 
-            // File path
+            // File path - click to show diff
             if ui.button(&path).clicked() {
-                self.open_file_from_path(&path);
+                self.load_git_diff(&path);
             }
 
             // Stage/Unstage button
@@ -2425,6 +2443,23 @@ impl BerryCodeApp {
                 }
             }
         });
+    }
+
+    /// Load git diff for a file and display in center panel
+    fn load_git_diff(&mut self, file_path: &str) {
+        tracing::info!("🔍 Loading diff for: {}", file_path);
+        match native::git::get_diff(&self.root_path, file_path) {
+            Ok(diff) => {
+                self.git_diff_state.selected_file = Some(file_path.to_string());
+                self.git_diff_state.diff = Some(diff);
+                tracing::info!("✅ Diff loaded for: {}", file_path);
+            }
+            Err(e) => {
+                tracing::error!("❌ Failed to load diff for {}: {}", file_path, e);
+                self.git_diff_state.selected_file = None;
+                self.git_diff_state.diff = None;
+            }
+        }
     }
 
     /// Render History tab (commit graph)
@@ -3975,7 +4010,7 @@ impl BerryCodeApp {
                             });
                         });
 
-                    ui.add_space(8.0);
+                    ui.add_space(24.0);  // Increased bottom margin to prevent cutoff
                 });
             });
     }
@@ -4571,6 +4606,223 @@ impl BerryCodeApp {
             self.terminal_input = self.terminal_history[idx].clone();
         } else {
             self.terminal_history_index = None;
+        }
+    }
+
+    /// Render Git Diff Viewer in center panel (split view: Graph above, Diff below)
+    fn render_git_diff_viewer(&mut self, ctx: &egui::Context) {
+        // Top panel: Git commit graph (30% of height)
+        egui::TopBottomPanel::top("git_graph_panel")
+            .default_height(250.0)
+            .resizable(true)
+            .frame(
+                egui::Frame::none()
+                    .fill(ui_colors::SIDEBAR_BG)
+                    .inner_margin(egui::Margin::same(8.0))
+            )
+            .show(ctx, |ui| {
+                ui.heading("📊 Commit Graph");
+                ui.separator();
+
+                // Render commit graph (reuse existing logic from History tab)
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false; 2])
+                    .show(ui, |ui| {
+                        self.render_git_graph_compact(ui);
+                    });
+            });
+
+        // Bottom panel: Diff viewer
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::none()
+                    .fill(ui_colors::SIDEBAR_BG)
+                    .inner_margin(egui::Margin::same(8.0))
+            )
+            .show(ctx, |ui| {
+                if let Some(diff) = &self.git_diff_state.diff {
+                    let file_path = self.git_diff_state.selected_file.as_ref()
+                        .map(|s| s.as_str())
+                        .unwrap_or("Unknown file");
+
+                    // Header with file path and status
+                    ui.horizontal(|ui| {
+                        ui.heading(format!("📝 Diff: {}", file_path));
+                        let status_color = match diff.status.as_str() {
+                            "added" => egui::Color32::from_rgb(100, 255, 100),
+                            "deleted" => egui::Color32::from_rgb(255, 100, 100),
+                            "modified" => egui::Color32::from_rgb(100, 180, 255),
+                            _ => ui_colors::TEXT_DEFAULT,
+                        };
+                        ui.label(egui::RichText::new(&diff.status.to_uppercase())
+                            .color(status_color)
+                            .strong());
+                    });
+                    ui.separator();
+
+                    // Scroll area for diff content
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false; 2])
+                        .show(ui, |ui| {
+                            // Render each hunk
+                            for hunk in &diff.hunks {
+                                // Hunk header
+                                ui.label(egui::RichText::new(&hunk.header)
+                                    .color(egui::Color32::from_rgb(100, 180, 255))
+                                    .family(egui::FontFamily::Monospace)
+                                    .size(13.0));
+
+                                ui.add_space(4.0);
+
+                                // Render lines in the hunk
+                                for line in &hunk.lines {
+                                    let (bg_color, fg_color, prefix) = match line.origin {
+                                        '+' => (
+                                            egui::Color32::from_rgb(20, 60, 20),  // Dark green background
+                                            ui_colors::TEXT_DEFAULT, // White text (same as file tree)
+                                            "+ "
+                                        ),
+                                        '-' => (
+                                            egui::Color32::from_rgb(60, 20, 20),  // Dark red background
+                                            ui_colors::TEXT_DEFAULT, // White text (same as file tree)
+                                            "- "
+                                        ),
+                                        _ => (
+                                            ui_colors::SIDEBAR_BG,  // Default background
+                                            ui_colors::TEXT_DEFAULT, // Default text
+                                            "  "
+                                        ),
+                                    };
+
+                                    // Line number + content
+                                    let line_num = if line.origin == '+' {
+                                        line.new_lineno.map(|n| format!("{:>4} ", n)).unwrap_or_else(|| "     ".to_string())
+                                    } else if line.origin == '-' {
+                                        line.old_lineno.map(|n| format!("{:>4} ", n)).unwrap_or_else(|| "     ".to_string())
+                                    } else {
+                                        line.new_lineno.map(|n| format!("{:>4} ", n)).unwrap_or_else(|| "     ".to_string())
+                                    };
+
+                                    let text = format!("{}{}{}", line_num, prefix, line.content.trim_end());
+
+                                    egui::Frame::none()
+                                        .fill(bg_color)
+                                        .inner_margin(egui::Margin::symmetric(4.0, 2.0))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new(text)
+                                                .color(fg_color)
+                                                .family(egui::FontFamily::Monospace)
+                                                .size(13.0));
+                                        });
+                                }
+
+                                ui.add_space(8.0);
+                            }
+                        });
+                } else {
+                    // No diff selected
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(100.0);
+                        ui.label("📝 Select a file to view diff");
+                    });
+                }
+            });
+    }
+
+    /// Render compact Git commit graph (for split view)
+    fn render_git_graph_compact(&mut self, ui: &mut egui::Ui) {
+        if self.git_history_state.graph_nodes.is_empty() {
+            ui.label("No commits. Click Refresh in Git Status tab.");
+            return;
+        }
+
+        let nodes = self.git_history_state.graph_nodes.clone();
+
+        const NODE_RADIUS: f32 = 4.0;
+        const COLUMN_WIDTH: f32 = 16.0;
+        const ROW_HEIGHT: f32 = 24.0;
+
+        // 8-color palette for branches (same as full graph)
+        let colors = [
+            egui::Color32::from_rgb(106, 180, 89),   // Green
+            egui::Color32::from_rgb(100, 181, 246),  // Blue
+            egui::Color32::from_rgb(255, 198, 109),  // Yellow
+            egui::Color32::from_rgb(239, 83, 80),    // Red
+            egui::Color32::from_rgb(171, 128, 255),  // Purple
+            egui::Color32::from_rgb(255, 138, 128),  // Coral
+            egui::Color32::from_rgb(128, 222, 234),  // Cyan
+            egui::Color32::from_rgb(255, 171, 64),   // Orange
+        ];
+
+        // Display recent 10 commits in compact form with graph
+        for node in nodes.iter().take(10) {
+            ui.horizontal(|ui| {
+                // Graph column (left side)
+                let (graph_rect, _graph_response) = ui.allocate_exact_size(
+                    egui::vec2(COLUMN_WIDTH * 8.0, ROW_HEIGHT),
+                    egui::Sense::hover(),
+                );
+
+                if ui.is_rect_visible(graph_rect) {
+                    let painter = ui.painter();
+
+                    // Draw graph lines
+                    for line in &node.graph_lines {
+                        let from_pos = graph_rect.min + egui::vec2(
+                            line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            NODE_RADIUS,
+                        );
+                        let to_pos = graph_rect.min + egui::vec2(
+                            line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            ROW_HEIGHT,
+                        );
+
+                        let color = colors[line.color_index % colors.len()];
+
+                        if line.line_type == native::git::GraphLineType::Direct {
+                            // Straight line
+                            painter.line_segment([from_pos, to_pos], egui::Stroke::new(2.0, color));
+                        } else {
+                            // Bezier curve for merge
+                            painter.add(egui::Shape::CubicBezier(egui::epaint::CubicBezierShape::from_points_stroke(
+                                [
+                                    from_pos,
+                                    from_pos + egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                    to_pos - egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                    to_pos,
+                                ],
+                                false,
+                                egui::Color32::TRANSPARENT,
+                                egui::Stroke::new(2.0, color),
+                            )));
+                        }
+                    }
+
+                    // Draw node circle
+                    let node_pos = graph_rect.min + egui::vec2(
+                        node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                        NODE_RADIUS,
+                    );
+                    let node_color = colors[node.graph_column % colors.len()];
+                    painter.circle_filled(node_pos, NODE_RADIUS, node_color);
+                }
+
+                // Commit message (truncated)
+                let msg = node.commit.message.lines().next().unwrap_or("");
+                let truncated = if msg.len() > 40 {
+                    format!("{}...", &msg[..40])
+                } else {
+                    msg.to_string()
+                };
+                ui.label(egui::RichText::new(truncated)
+                    .family(egui::FontFamily::Monospace)
+                    .size(12.0));
+
+                // Author
+                ui.label(egui::RichText::new(&node.commit.author)
+                    .color(egui::Color32::from_rgb(150, 150, 150))
+                    .size(11.0));
+            });
         }
     }
 
@@ -5345,6 +5597,10 @@ impl eframe::App for BerryCodeApp {
         } else if self.active_panel == ActivePanel::Database {
             // Database mode: Full database management interface
             self.render_database_panel(ctx);
+        } else if self.active_panel == ActivePanel::Git {
+            // Git mode: Sidebar (status/tree) + Center (diff viewer) + AI Chat (optional)
+            self.render_sidebar(ctx);
+            self.render_git_diff_viewer(ctx);
         } else {
             // Normal mode: Sidebar + Editor (center) + AI Chat (right panel)
             self.render_sidebar(ctx);
