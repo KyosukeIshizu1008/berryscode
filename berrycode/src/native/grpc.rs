@@ -83,6 +83,7 @@ impl GrpcClient {
         &self,
         session_id: String,
         message: String,
+        autonomous: bool,
     ) -> Result<tokio::sync::mpsc::Receiver<String>> {
         // Clone the client to avoid holding write lock during streaming
         let mut client = {
@@ -94,6 +95,7 @@ impl GrpcClient {
             session_id,
             message,
             stream: Some(true), // Enable streaming
+            autonomous: Some(autonomous),
         });
 
         let mut stream = client
@@ -167,6 +169,7 @@ pub async fn start_session(project_path: String, autonomous: bool) -> Result<Str
 pub async fn chat_stream(
     session_id: String,
     message: String,
+    autonomous: bool,
 ) -> Result<tokio::sync::mpsc::Receiver<String>> {
-    get_client().chat_stream(session_id, message).await
+    get_client().chat_stream(session_id, message, autonomous).await
 }

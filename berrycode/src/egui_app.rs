@@ -670,6 +670,13 @@ struct PendingGotoDefinition {
     original_text: String,
 }
 
+/// AI Chat mode
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum AIChatMode {
+    Chat,       // 対話式（通常のチャット）
+    Autonomous, // 自動実行モード（dangerously-skip-permissions）
+}
+
 /// Main application state
 pub struct BerryCodeApp {
     // === Project State ===
@@ -802,6 +809,7 @@ pub struct BerryCodeApp {
     grpc_streaming_message: Option<String>,
 
     // AI Chat Panel State
+    ai_chat_mode: AIChatMode,
     grpc_messages: Vec<GrpcMessage>,
     grpc_input: String,
     grpc_streaming: bool,
@@ -1086,6 +1094,7 @@ impl BerryCodeApp {
             grpc_response_tx: Some(grpc_tx),
             grpc_response_rx: Some(grpc_rx),
             grpc_streaming_message: None,
+            ai_chat_mode: AIChatMode::Chat,
             grpc_messages: Vec::new(),
             grpc_input: String::new(),
             grpc_streaming: false,
@@ -1182,6 +1191,73 @@ impl BerryCodeApp {
         }
     }
 
+    /// Render top header bar (tab bar under native title)
+    fn render_top_header(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("top_header")
+            .exact_height(32.0)
+            .frame(
+                egui::Frame::none()
+                    .fill(egui::Color32::from_rgb(50, 51, 54)) // Dark gray background #323336
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(4.0);
+
+                    // Purple tab with project info
+                    let tab_rect_size = egui::vec2(160.0, 24.0);
+                    let (tab_rect, _response) = ui.allocate_exact_size(tab_rect_size, egui::Sense::click());
+
+                    // Draw purple background
+                    ui.painter().rect_filled(
+                        tab_rect,
+                        4.0, // Rounded corners
+                        egui::Color32::from_rgb(126, 89, 161), // Purple #7E59A1
+                    );
+
+                    // Draw badge with "0"
+                    let badge_center = egui::pos2(tab_rect.left() + 16.0, tab_rect.center().y);
+                    ui.painter().circle_filled(
+                        badge_center,
+                        9.0,
+                        egui::Color32::from_rgba_premultiplied(255, 255, 255, 60),
+                    );
+                    ui.painter().text(
+                        badge_center,
+                        egui::Align2::CENTER_CENTER,
+                        "0",
+                        egui::FontId::proportional(12.0),
+                        egui::Color32::WHITE,
+                    );
+
+                    // Project name
+                    let project_name = self.root_path
+                        .split('/')
+                        .last()
+                        .unwrap_or("oracleberry");
+
+                    let text_pos = egui::pos2(tab_rect.left() + 34.0, tab_rect.center().y);
+                    ui.painter().text(
+                        text_pos,
+                        egui::Align2::LEFT_CENTER,
+                        project_name,
+                        egui::FontId::proportional(12.0),
+                        egui::Color32::WHITE,
+                    );
+
+                    // Dropdown arrow
+                    let arrow_pos = egui::pos2(tab_rect.right() - 12.0, tab_rect.center().y);
+                    ui.painter().text(
+                        arrow_pos,
+                        egui::Align2::CENTER_CENTER,
+                        "▼",
+                        egui::FontId::proportional(9.0),
+                        egui::Color32::from_rgb(200, 200, 200),
+                    );
+                });
+            });
+    }
+
     /// Render Activity Bar (left-most 48px panel with icons)
     fn render_activity_bar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("activity_bar")
@@ -1261,13 +1337,35 @@ impl BerryCodeApp {
 
     /// Render File Tree panel (Phase 2: full implementation)
     fn render_file_tree(&mut self, ui: &mut egui::Ui) {
-        // Use larger font for header
-        ui.style_mut().text_styles.insert(
-            egui::TextStyle::Heading,
-            egui::FontId::proportional(16.0),
-        );
-        // Codicon: \u{eaf3} = codicon-files
-        ui.heading(format!("{} Explorer", "\u{eaf3}"));
+        // Project name dropdown
+        let project_name = self.root_path
+            .split('/')
+            .last()
+            .unwrap_or("oracleberry");
+
+        ui.horizontal(|ui| {
+            // Folder icon
+            ui.label(
+                egui::RichText::new("\u{ea83}") // codicon-folder
+                    .size(16.0)
+                    .color(ui_colors::TEXT_DEFAULT)
+            );
+
+            ui.add_space(4.0);
+
+            // Project name with dropdown
+            let response = ui.button(
+                egui::RichText::new(format!("{} ▼", project_name.to_uppercase()))
+                    .size(11.0)
+                    .strong()
+            );
+
+            // TODO: Show dropdown menu when clicked
+            if response.clicked() {
+                // Future: Show project switcher menu
+            }
+        });
+
         ui.separator();
 
         egui::ScrollArea::vertical()
@@ -3891,11 +3989,47 @@ impl BerryCodeApp {
                         ui.add_space(12.0);
 
                         if self.grpc_messages.is_empty() {
-                            ui.centered_and_justified(|ui| {
-                                ui.label(egui::RichText::new("💡 Ask me anything about your code!")
+                            ui.add_space(100.0);
+                            ui.vertical_centered(|ui| {
+                                ui.add_space(20.0);
+
+                                // Feature list
+                                ui.horizontal(|ui| {
+                                    ui.label(egui::RichText::new("Multiline code completion")
+                                        .color(egui::Color32::from_rgb(150, 150, 150))
+                                        .size(14.0));
+                                    ui.label(egui::RichText::new("⌘")
+                                        .monospace()
+                                        .color(egui::Color32::from_rgb(100, 100, 100))
+                                        .size(12.0));
+                                });
+
+                                ui.add_space(12.0);
+
+                                ui.horizontal(|ui| {
+                                    ui.label(egui::RichText::new("Code generation in the editor")
+                                        .color(egui::Color32::from_rgb(150, 150, 150))
+                                        .size(14.0));
+                                    ui.label(egui::RichText::new("⌘⌥")
+                                        .monospace()
+                                        .color(egui::Color32::from_rgb(100, 100, 100))
+                                        .size(12.0));
+                                });
+
+                                ui.add_space(12.0);
+
+                                ui.label(egui::RichText::new("AI actions in the editor's context menu")
                                     .color(egui::Color32::from_rgb(150, 150, 150))
-                                    .size(14.0)
-                                    .italics());
+                                    .size(14.0));
+
+                                ui.add_space(12.0);
+
+                                ui.hyperlink_to(
+                                    egui::RichText::new("All features")
+                                        .color(egui::Color32::from_rgb(100, 150, 255))
+                                        .size(14.0),
+                                    "https://github.com/anthropics/claude-code"
+                                );
                             });
                         } else {
                             for msg in &self.grpc_messages.clone() {
@@ -3915,12 +4049,10 @@ impl BerryCodeApp {
                                     });
                                 } else {
                                     // AI message - render as markdown
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(12.0);
-                                        ui.vertical(|ui| {
-                                            ui.set_max_width(350.0);  // Fixed width
-                                            Self::render_markdown(ui, &msg.content);
-                                        });
+                                    ui.add_space(12.0);
+                                    ui.vertical(|ui| {
+                                        ui.set_max_width(360.0);  // Match panel width
+                                        Self::render_markdown(ui, &msg.content);
                                     });
                                 }
 
@@ -3930,14 +4062,12 @@ impl BerryCodeApp {
 
                         // Show streaming message if present
                         if self.grpc_streaming {
-                            ui.horizontal(|ui| {
-                                ui.add_space(12.0);
-                                ui.vertical(|ui| {
-                                    ui.set_max_width(350.0);  // Fixed width
-                                    Self::render_markdown(ui, &self.grpc_current_response);
-                                    ui.add_space(8.0);
-                                    ui.spinner();
-                                });
+                            ui.add_space(12.0);
+                            ui.vertical(|ui| {
+                                ui.set_max_width(360.0);  // Match panel width
+                                Self::render_markdown(ui, &self.grpc_current_response);
+                                ui.add_space(8.0);
+                                ui.spinner();
                             });
                         }
 
@@ -3961,34 +4091,81 @@ impl BerryCodeApp {
 
                     ui.add_space(8.0);
 
-                    // Input box with controls
+                    // Input box with controls (blue border like Claude Code)
+                    let input_focused = ui.memory(|mem| mem.focused().is_some());
+                    let border_color = if input_focused {
+                        egui::Color32::from_rgb(70, 130, 255) // Blue when focused
+                    } else {
+                        egui::Color32::from_rgb(60, 60, 60) // Gray when not focused
+                    };
+
                     egui::Frame::none()
                         .fill(egui::Color32::from_rgb(35, 36, 38))
                         .inner_margin(12.0)
                         .rounding(8.0)
-                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 60, 60)))
+                        .stroke(egui::Stroke::new(2.0, border_color))
                         .show(ui, |ui| {
                             // Text input area
+                            let hint_text = "Ask AI Assistant, use @mentions or /commands";
                             let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
                                 .desired_width(350.0)  // Fixed width
-                                .desired_rows(4)
-                                .hint_text("Ask AI Assistant, use @mentions or /commands")
+                                .desired_rows(3)
+                                .hint_text(hint_text)
                                 .font(egui::FontId::proportional(14.0));
 
                             let response = ui.add(text_edit);
 
                             ui.add_space(8.0);
 
-                            // Bottom controls row
+                            // Attached files/context (like "📎 CLAUDE.md Current ×")
                             ui.horizontal(|ui| {
-                                // Left side: Attach button and Chat selector
-                                if ui.button(egui::RichText::new("+ ").size(16.0)).clicked() {
-                                    // TODO: Attach file
+                                egui::Frame::none()
+                                    .fill(egui::Color32::from_rgb(50, 51, 53))
+                                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                                    .rounding(4.0)
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 6.0;
+                                            ui.label(egui::RichText::new("📎")
+                                                .size(12.0));
+                                            ui.label(egui::RichText::new("CLAUDE.md")
+                                                .color(egui::Color32::from_rgb(100, 150, 255))
+                                                .size(12.0));
+                                            ui.label(egui::RichText::new("Current")
+                                                .color(egui::Color32::from_rgb(150, 150, 150))
+                                                .size(11.0));
+                                            if ui.small_button("×").clicked() {
+                                                // TODO: Remove attachment
+                                            }
+                                        });
+                                    });
+                            });
+
+                            ui.add_space(8.0);
+
+                            // Bottom controls row (matching Claude Code design)
+                            ui.horizontal(|ui| {
+                                // Left side: "+" button and "Chat ▼"
+                                if ui.button(egui::RichText::new("+").size(16.0)).clicked() {
+                                    // TODO: Attach file or add context
                                 }
 
-                                ui.label(egui::RichText::new("Chat ▼")
-                                    .size(13.0)
-                                    .color(egui::Color32::from_rgb(180, 180, 180)));
+                                ui.add_space(4.0);
+
+                                // Chat mode dropdown
+                                egui::ComboBox::from_id_salt("chat_mode_selector")
+                                    .selected_text(
+                                        egui::RichText::new(match self.ai_chat_mode {
+                                            AIChatMode::Chat => "💬 Chat",
+                                            AIChatMode::Autonomous => "⚡ Autonomous",
+                                        })
+                                        .color(egui::Color32::from_rgb(200, 200, 200))
+                                        .size(13.0)
+                                    )
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(&mut self.ai_chat_mode, AIChatMode::Chat, "💬 Chat");
+                                        ui.selectable_value(&mut self.ai_chat_mode, AIChatMode::Autonomous, "⚡ Autonomous");
+                                    });
 
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     // Right side: Send button
@@ -4000,12 +4177,23 @@ impl BerryCodeApp {
                                         self.send_grpc_message();
                                     }
 
-                                    // Auto dropdown
-                                    ui.label(egui::RichText::new("Auto ▼")
-                                        .size(13.0)
-                                        .color(egui::Color32::from_rgb(180, 180, 180)));
+                                    ui.add_space(8.0);
+
+                                    // Auto mode dropdown (placeholder)
+                                    egui::ComboBox::from_id_salt("auto_mode_selector")
+                                        .selected_text(
+                                            egui::RichText::new("Auto")
+                                                .color(egui::Color32::from_rgb(150, 150, 150))
+                                                .size(13.0)
+                                        )
+                                        .show_ui(ui, |ui| {
+                                            ui.label("Normal");
+                                            ui.label("Creative");
+                                            ui.label("Precise");
+                                        });
 
                                     if self.grpc_streaming {
+                                        ui.add_space(4.0);
                                         ui.spinner();
                                     }
                                 });
@@ -4272,8 +4460,8 @@ impl BerryCodeApp {
             segments.push(Segment::Text(current_text));
         }
 
-        // Render segments on the same line without horizontal_wrapped
-        ui.horizontal(|ui| {
+        // Render segments with word wrapping enabled
+        ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0; // No spacing between segments
 
             for segment in segments {
@@ -5551,8 +5739,6 @@ impl BerryCodeApp {
 
 impl eframe::App for BerryCodeApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // Ensure window decorations are visible
-        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
 
         // Initialize Git repository on first update
         if !self.git_initialized {
@@ -5583,6 +5769,9 @@ impl eframe::App for BerryCodeApp {
         self.handle_goto_definition_shortcut(ctx);
         self.handle_find_references_shortcut(ctx);
         self.handle_settings_shortcuts(ctx);
+
+        // Render top header bar (VS Code style)
+        self.render_top_header(ctx);
 
         // Render UI panels
         self.render_activity_bar(ctx);
@@ -7170,12 +7359,13 @@ impl BerryCodeApp {
         // Send message to berry-api-server via gRPC
         let grpc_client = self.grpc_client.clone();
         let tx = self.grpc_response_tx.clone();
+        let autonomous = self.ai_chat_mode == AIChatMode::Autonomous;
 
-        tracing::info!("📤 Sending AI message: {}", message);
+        tracing::info!("📤 Sending AI message (autonomous={}): {}", autonomous, message);
 
         // Spawn async task to handle streaming response
         self.lsp_runtime.spawn(async move {
-            match grpc_client.chat_stream(session_id, message).await {
+            match grpc_client.chat_stream(session_id, message, autonomous).await {
                 Ok(mut rx) => {
                     // Stream chunks back to UI
                     while let Some(chunk) = rx.recv().await {

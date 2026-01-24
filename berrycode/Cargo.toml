@@ -1,0 +1,87 @@
+[package]
+name = "berry-editor"
+version = "0.2.0"
+edition = "2021"
+description = "100% Rust Native Desktop Code Editor with egui + WGPU Rendering"
+authors = ["BerryCode Team"]
+
+# Binaries
+[[bin]]
+name = "berrycode"
+path = "src/main.rs"
+
+[[bin]]
+name = "berrycode-egui"
+path = "src/bin/berrycode-egui.rs"
+
+[dependencies]
+# ===== egui Native UI Framework (WGPU-based, Pure Native) =====
+eframe = { version = "0.29", default-features = false, features = ["wgpu", "default_fonts"] }
+egui = "0.29"
+egui-wgpu = "0.29"
+
+# ===== Text Editing Core =====
+ropey = "1.6"
+unicode-segmentation = "1.11"
+unicode-width = "0.1"
+
+# ===== File System & I/O =====
+tokio = { version = "1", features = ["full"] }
+walkdir = "2.4"
+notify = "7.0"
+ignore = "0.4"
+glob = "0.3"
+memmap2 = "0.9"  # Memory-mapped I/O for large files
+
+# ===== Git Integration =====
+git2 = "0.19"
+
+# ===== Search & Replace =====
+regex = "1.10"
+rayon = "1.10"  # Parallel processing
+
+# ===== Terminal (PTY) =====
+portable-pty = "0.8"
+
+# ===== Syntax Highlighting =====
+syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-c = "0.23"
+tree-sitter-cpp = "0.23"
+
+# ===== Serialization =====
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# ===== Utilities =====
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+indexmap = "2.0"
+parking_lot = "0.12"
+once_cell = "1.19"
+dirs = "5.0"
+tempfile = "3.8"
+lazy_static = "1.4"
+urlencoding = "2.1"
+base64 = "0.22"
+
+# ===== Clipboard =====
+arboard = "3.4"
+
+# ===== gRPC Client for berry-api-server =====
+tonic = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+
+# ===== HTTP Client for Slack API =====
+reqwest = { version = "0.12", features = ["json"] }
+
+[build-dependencies]
+tonic-build = "0.12"

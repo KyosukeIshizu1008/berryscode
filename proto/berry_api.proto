@@ -262,6 +262,7 @@ message ChatRequest {
   string session_id = 1;
   string message = 2;
   optional bool stream = 3;           // Enable streaming response
+  optional bool autonomous = 4;       // Enable autonomous mode with tools
 }
 
 message ChatChunk {

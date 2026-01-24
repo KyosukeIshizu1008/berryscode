@@ -1,5 +1,6 @@
 use crate::berry_api::berry_code_service_server::BerryCodeService;
 use crate::berry_api::*;
+use crate::llm::{LlmClient, ModelType};
 use crate::session::SessionManager;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -8,12 +9,26 @@ use tonic::{Request, Response, Status};
 
 pub struct BerryCodeServiceImpl {
     session_manager: Arc<RwLock<SessionManager>>,
+    llm_client: Option<LlmClient>,
 }
 
 impl BerryCodeServiceImpl {
     pub fn new() -> Self {
+        // Try to create LLM client
+        let llm_client = match LlmClient::new() {
+            Ok(client) => {
+                tracing::info!("✅ LLM client initialized with Ollama (llama4:scout + qwen3-coder:30b)");
+                Some(client)
+            }
+            Err(e) => {
+                tracing::warn!("⚠️  LLM client not available: {}. Using mock responses.", e);
+                None
+            }
+        };
+
         Self {
             session_manager: Arc::new(RwLock::new(SessionManager::new())),
+            llm_client,
         }
     }
 }
@@ -57,37 +72,107 @@ impl BerryCodeService for BerryCodeServiceImpl {
 
         tracing::info!("💬 Chat request: session={}, message={}", req.session_id, req.message);
 
+        // Get project path from session
+        let project_path = {
+            let manager = self.session_manager.read().await;
+            manager.get_session(&req.session_id)
+                .and_then(|session| session.request.project_path.clone())
+        };
+
         let (tx, rx) = tokio::sync::mpsc::channel(100);
+        let llm_client = self.llm_client.clone();
 
         // Spawn async task to handle streaming response
         tokio::spawn(async move {
-            // Simulate LLM streaming response
-            let response_text = format!("Echo: {}", req.message);
-            let chunks: Vec<&str> = response_text.split_whitespace().collect();
+            if let Some(client) = llm_client {
+                // Auto-detect model type based on message content
+                let model_type = ModelType::detect_from_message(&req.message);
+                let autonomous = req.autonomous.unwrap_or(false);
 
-            for (i, chunk) in chunks.iter().enumerate() {
-                let is_final = i == chunks.len() - 1;
+                tracing::info!("🤖 Chat mode: autonomous={}, project_path={:?}", autonomous, project_path);
 
-                let chat_chunk = ChatChunk {
-                    content: format!("{} ", chunk),
-                    is_final,
-                    thinking: None,
-                    metadata: if is_final {
-                        Some(ChatMetadata {
-                            tokens_used: chunks.len() as u32,
-                            model: "mock-model".to_string(),
-                            finish_reason: Some("stop".to_string()),
-                        })
-                    } else {
-                        None
-                    },
-                };
+                // Use Ollama API with auto-selected model
+                match client.chat_stream(req.message.clone(), model_type, autonomous, project_path).await {
+                    Ok(mut stream) => {
+                        use futures::StreamExt;
+                        let mut chunk_count = 0;
 
-                if tx.send(Ok(chat_chunk)).await.is_err() {
-                    break;
+                        while let Some(result) = stream.next().await {
+                            match result {
+                                Ok(text) => {
+                                    chunk_count += 1;
+                                    let chat_chunk = ChatChunk {
+                                        content: text,
+                                        is_final: false,
+                                        thinking: None,
+                                        metadata: None,
+                                    };
+
+                                    if tx.send(Ok(chat_chunk)).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!("❌ Stream error: {}", e);
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Send final chunk with metadata
+                        let final_chunk = ChatChunk {
+                            content: String::new(),
+                            is_final: true,
+                            thinking: None,
+                            metadata: Some(ChatMetadata {
+                                tokens_used: chunk_count,
+                                model: "ollama".to_string(),
+                                finish_reason: Some("stop".to_string()),
+                            }),
+                        };
+                        let _ = tx.send(Ok(final_chunk)).await;
+                    }
+                    Err(e) => {
+                        tracing::error!("❌ Failed to call Ollama API: {}", e);
+                        let error_chunk = ChatChunk {
+                            content: format!("Error: {}", e),
+                            is_final: true,
+                            thinking: None,
+                            metadata: None,
+                        };
+                        let _ = tx.send(Ok(error_chunk)).await;
+                    }
                 }
+            } else {
+                // Fallback to mock response if LLM client is not available
+                tracing::warn!("⚠️  Using mock response (API key not configured)");
+                let response_text = format!("Echo: {}", req.message);
+                let chunks: Vec<&str> = response_text.split_whitespace().collect();
 
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                for (i, chunk) in chunks.iter().enumerate() {
+                    let is_final = i == chunks.len() - 1;
+
+                    let chat_chunk = ChatChunk {
+                        content: format!("{} ", chunk),
+                        is_final,
+                        thinking: None,
+                        metadata: if is_final {
+                            Some(ChatMetadata {
+                                tokens_used: chunks.len() as u32,
+                                model: "mock-model".to_string(),
+                                finish_reason: Some("stop".to_string()),
+                            })
+                        } else {
+                            None
+                        },
+                    };
+
+                    if tx.send(Ok(chat_chunk)).await.is_err() {
+                        break;
+                    }
+
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
             }
         });
 

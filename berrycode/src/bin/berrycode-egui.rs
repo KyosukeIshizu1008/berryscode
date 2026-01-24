@@ -23,7 +23,7 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1400.0, 900.0])
             .with_title("BerryCode - Native Desktop Editor")
-            .with_decorations(true) // Ensure window controls are visible
+            .with_decorations(true) // Use native title bar with macOS buttons
             .with_transparent(false),
         renderer: eframe::Renderer::Wgpu, // Force WGPU backend
         // FIX #3: Reactive Mode - request_repaint_after()で必要な時だけ再描画
