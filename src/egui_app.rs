@@ -704,6 +704,9 @@ pub struct BerryCodeApp {
     search_case_sensitive: bool,
     current_search_index: usize,
     search_results: Vec<SearchMatch>,
+    // Replace功能
+    replace_query: String,
+    show_replace: bool, // Ctrl+H opens replace mode
 
     // === Git State ===
     git_current_branch: String,
@@ -1034,6 +1037,8 @@ impl BerryCodeApp {
             search_case_sensitive: false,
             current_search_index: 0,
             search_results: Vec::new(),
+            replace_query: String::new(),
+            show_replace: false,
             git_current_branch: String::from("(unknown)"),
             git_status: Vec::new(),
             git_commit_message: String::new(),
@@ -1064,11 +1069,8 @@ impl BerryCodeApp {
             show_references_panel: false,
 
             // === Slack-like Chat ===
-            chat_channels: vec![
-                ChatChannel::new("general".to_string(), "general".to_string(), ChannelType::Public),
-                ChatChannel::new("random".to_string(), "random".to_string(), ChannelType::Public),
-            ],
-            selected_channel_id: Some("general".to_string()),
+            chat_channels: vec![],  // Start with empty, will be populated from Slack API
+            selected_channel_id: None,
             chat_input: String::new(),
             selected_message_for_thread: None,
             show_thread_panel: false,
@@ -3383,7 +3385,7 @@ impl BerryCodeApp {
                                     if ui.button("📤 Send").clicked() {
                                         if !self.chat_input.is_empty() {
                                             let text = self.chat_input.clone();
-                                            self.send_slack_message(channel_id, &text);
+                                            self.send_slack_message(channel_id, &text, None);
                                         }
                                     }
                                 });
@@ -4347,7 +4349,7 @@ impl BerryCodeApp {
             ui.horizontal(|ui| {
                 ui.label("$");
 
-                let response = ui.text_edit_singleline(&mut self.terminal_input);
+                let mut response = ui.text_edit_singleline(&mut self.terminal_input);
 
                 // Handle Enter key
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -4355,14 +4357,17 @@ impl BerryCodeApp {
                     response.request_focus();
                 }
 
-                // Handle arrow keys for history
-                if response.has_focus() {
-                    if ui.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
-                        self.navigate_history_up();
-                    }
-                    if ui.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
-                        self.navigate_history_down();
-                    }
+                // Handle arrow keys for history (check input directly)
+                let arrow_up_pressed = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
+                let arrow_down_pressed = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
+
+                if arrow_up_pressed && response.has_focus() {
+                    self.navigate_history_up();
+                    response.request_focus();
+                }
+                if arrow_down_pressed && response.has_focus() {
+                    self.navigate_history_down();
+                    response.request_focus();
                 }
             });
         });
@@ -4452,21 +4457,25 @@ impl BerryCodeApp {
                                 .desired_width(f32::INFINITY)
                                 .frame(false); // No border, like a real terminal
 
-                            let response = ui.add(text_edit);
+                            let mut response = ui.add(text_edit);
 
                             // Handle Enter key to execute command
                             if ui.input(|i| i.key_pressed(egui::Key::Enter)) && response.has_focus() {
                                 self.execute_terminal_command();
+                                response.request_focus();
                             }
 
-                            // Handle arrow keys for history
-                            if response.has_focus() {
-                                if ui.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
-                                    self.navigate_history_up();
-                                }
-                                if ui.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
-                                    self.navigate_history_down();
-                                }
+                            // Handle arrow keys for history (check input directly)
+                            let arrow_up_pressed = ui.input(|i| i.key_pressed(egui::Key::ArrowUp));
+                            let arrow_down_pressed = ui.input(|i| i.key_pressed(egui::Key::ArrowDown));
+
+                            if arrow_up_pressed && response.has_focus() {
+                                self.navigate_history_up();
+                                response.request_focus();
+                            }
+                            if arrow_down_pressed && response.has_focus() {
+                                self.navigate_history_down();
+                                response.request_focus();
                             }
                         });
                     });
@@ -5668,8 +5677,16 @@ impl BerryCodeApp {
 
         ctx.input(|i| {
             // Ctrl+F / Cmd+F: Open search dialog
-            if i.modifiers.command && i.key_pressed(egui::Key::F) {
+            if i.modifiers.command && !i.modifiers.shift && i.key_pressed(egui::Key::F) {
                 self.search_dialog_open = true;
+                self.show_replace = false;
+                self.search_results.clear();
+            }
+
+            // Ctrl+H / Cmd+H: Open replace dialog
+            if i.modifiers.command && i.key_pressed(egui::Key::H) {
+                self.search_dialog_open = true;
+                self.show_replace = true;
                 self.search_results.clear();
             }
 
@@ -5790,7 +5807,13 @@ impl BerryCodeApp {
     fn render_search_dialog(&mut self, ctx: &egui::Context) {
         let mut close_dialog = false;
 
-        egui::Window::new("🔍 Search")
+        let window_title = if self.show_replace {
+            "🔍 Find & Replace"
+        } else {
+            "🔍 Search"
+        };
+
+        egui::Window::new(window_title)
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_TOP, [0.0, 100.0])
@@ -5814,6 +5837,22 @@ impl BerryCodeApp {
                         self.perform_search();
                     }
                 });
+
+                // Replace input field (only show in replace mode)
+                if self.show_replace {
+                    ui.horizontal(|ui| {
+                        ui.label("Replace:");
+                        ui.text_edit_singleline(&mut self.replace_query);
+
+                        if ui.button("Replace").clicked() {
+                            self.perform_replace_current();
+                        }
+
+                        if ui.button("Replace All").clicked() {
+                            self.perform_replace_all();
+                        }
+                    });
+                }
 
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.search_case_sensitive, "Case sensitive");
@@ -6064,6 +6103,100 @@ impl BerryCodeApp {
                 match_result.start_col + 1
             );
         }
+    }
+
+    /// Replace current search match
+    fn perform_replace_current(&mut self) {
+        if self.search_results.is_empty() || self.editor_tabs.is_empty() {
+            return;
+        }
+
+        let match_result = if let Some(m) = self.search_results.get(self.current_search_index) {
+            m.clone()
+        } else {
+            return;
+        };
+
+        // Get current tab
+        if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+            let content = tab.buffer.to_string();
+            let lines: Vec<&str> = content.lines().collect();
+
+            if match_result.line_number >= lines.len() {
+                return;
+            }
+
+            let line = lines[match_result.line_number];
+            let before = &line[..match_result.start_col];
+            let after = &line[match_result.end_col..];
+            let new_line = format!("{}{}{}", before, self.replace_query, after);
+
+            // Replace the line in the buffer
+            let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
+            new_lines[match_result.line_number] = new_line;
+
+            let new_content = new_lines.join("\n");
+            tab.buffer = TextBuffer::from_str(&new_content);
+            tab.mark_dirty();
+
+            tracing::info!(
+                "✏️  Replaced '{}' with '{}' at line {}",
+                self.search_query,
+                self.replace_query,
+                match_result.line_number + 1
+            );
+
+            // Remove this match and move to next
+            self.search_results.remove(self.current_search_index);
+            if !self.search_results.is_empty() && self.current_search_index >= self.search_results.len() {
+                self.current_search_index = 0;
+            }
+
+            // Re-run search to update matches
+            self.perform_search();
+        }
+    }
+
+    /// Replace all search matches
+    fn perform_replace_all(&mut self) {
+        if self.search_results.is_empty() || self.editor_tabs.is_empty() {
+            return;
+        }
+
+        let tab = &mut self.editor_tabs[self.active_tab_idx];
+        let content = tab.buffer.to_string();
+
+        // Perform replace using simple string replacement
+        let new_content = if self.search_case_sensitive {
+            content.replace(&self.search_query, &self.replace_query)
+        } else {
+            // Case-insensitive replacement
+            let mut result = content.clone();
+            let query_lower = self.search_query.to_lowercase();
+            let mut start = 0;
+
+            while let Some(pos) = result[start..].to_lowercase().find(&query_lower) {
+                let actual_pos = start + pos;
+                result.replace_range(actual_pos..actual_pos + self.search_query.len(), &self.replace_query);
+                start = actual_pos + self.replace_query.len();
+            }
+            result
+        };
+
+        let count = self.search_results.len();
+        tab.buffer = TextBuffer::from_str(&new_content);
+        tab.mark_dirty();
+
+        tracing::info!(
+            "✏️  Replaced {} occurrences of '{}' with '{}'",
+            count,
+            self.search_query,
+            self.replace_query
+        );
+
+        // Clear search results
+        self.search_results.clear();
+        self.current_search_index = 0;
     }
 
     /// Handle Cmd+Click go-to-definition (Hybrid: LSP priority + regex fallback)
@@ -7130,11 +7263,62 @@ impl BerryCodeApp {
                     }
                     SlackResponse::ChannelsList(channels) => {
                         tracing::info!("📋 Loaded {} Slack channels", channels.len());
-                        self.slack_channels = channels;
+                        self.slack_channels = channels.clone();
+
+                        // Convert Slack channels to Chat UI channels
+                        self.chat_channels = channels.into_iter().map(|ch| {
+                            ChatChannel::new(
+                                ch.id.clone(),
+                                ch.name,
+                                ChannelType::Public,  // Slack API doesn't distinguish in this simple impl
+                            )
+                        }).collect();
+
+                        // Select first channel if none selected
+                        let first_channel_id = if self.selected_channel_id.is_none() && !self.chat_channels.is_empty() {
+                            let channel_id = self.chat_channels[0].id.clone();
+                            self.selected_channel_id = Some(channel_id.clone());
+                            Some(channel_id)
+                        } else {
+                            None
+                        };
+
+                        // Load messages after releasing borrow
+                        if let Some(channel_id) = first_channel_id {
+                            should_reload_messages = true;
+                            reload_channel_id = Some(channel_id);
+                        }
                     }
                     SlackResponse::MessagesList(messages) => {
                         tracing::info!("💬 Loaded {} Slack messages", messages.len());
-                        self.slack_messages = messages;
+                        self.slack_messages = messages.clone();
+
+                        // Convert Slack messages to Chat UI messages
+                        if let Some(channel_id) = &self.selected_channel_id {
+                            if let Some(channel) = self.chat_channels.iter_mut().find(|c| &c.id == channel_id) {
+                                channel.messages = messages.into_iter().map(|msg| {
+                                    // Parse timestamp or use current time as fallback
+                                    let timestamp = msg.timestamp.parse::<f64>()
+                                        .ok()
+                                        .and_then(|ts| chrono::DateTime::from_timestamp(ts as i64, 0))
+                                        .unwrap_or_else(|| chrono::Utc::now());
+
+                                    ChatMessage {
+                                        id: msg.timestamp.clone(),
+                                        channel_id: channel_id.clone(),
+                                        user_id: msg.user.clone(),
+                                        user_name: msg.user.clone(),  // Use user ID as name for now
+                                        content: msg.text,
+                                        timestamp,
+                                        edited: false,  // TODO: Parse from Slack metadata
+                                        thread_replies: Vec::new(),  // TODO: Load thread replies
+                                        reactions: Vec::new(),  // TODO: Load reactions
+                                        mentioned_users: Vec::new(),  // TODO: Parse from message text
+                                        is_pinned: false,  // TODO: Get from Slack metadata
+                                    }
+                                }).collect();
+                            }
+                        }
                     }
                     SlackResponse::MessageSent => {
                         tracing::info!("✅ Slack message sent");
@@ -7870,6 +8054,32 @@ impl BerryCodeApp {
         });
     }
 
+    /// Send a Slack message
+    pub fn send_slack_message(&mut self, channel_id: &str, text: &str, thread_ts: Option<&str>) {
+        let slack_client = self.slack_client.clone();
+        let tx = self.slack_response_tx.clone();
+        let channel_id = channel_id.to_string();
+        let text = text.to_string();
+        let thread_ts = thread_ts.map(|s| s.to_string());
+
+        self.lsp_runtime.spawn(async move {
+            match slack_client.send_message(&channel_id, &text, thread_ts.as_deref()).await {
+                Ok(_) => {
+                    tracing::info!("✅ Message sent to channel {}", channel_id);
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::MessageSent);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("❌ Failed to send message: {}", e);
+                    if let Some(tx) = tx {
+                        let _ = tx.send(SlackResponse::Error(e.to_string()));
+                    }
+                }
+            }
+        });
+    }
+
     /// Load messages from a Slack channel
     fn load_slack_messages(&mut self, channel_id: &str) {
         let slack_client = self.slack_client.clone();
@@ -7894,29 +8104,6 @@ impl BerryCodeApp {
     }
 
     /// Send a message to a Slack channel
-    fn send_slack_message(&mut self, channel_id: &str, text: &str) {
-        let slack_client = self.slack_client.clone();
-        let tx = self.slack_response_tx.clone();
-        let channel_id = channel_id.to_string();
-        let text = text.to_string();
-
-        self.lsp_runtime.spawn(async move {
-            match slack_client.send_message(&channel_id, &text, None).await {
-                Ok(_) => {
-                    if let Some(tx) = tx {
-                        let _ = tx.send(SlackResponse::MessageSent);
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to send Slack message: {}", e);
-                    if let Some(tx) = tx {
-                        let _ = tx.send(SlackResponse::Error(e.to_string()));
-                    }
-                }
-            }
-        });
-    }
-
     // === Database Helper Methods ===
 
     /// Add a new database connection

@@ -1,0 +1,38 @@
+[package]
+name = "berry-api"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "berry-api-server"
+path = "src/bin/berry-api-server.rs"
+
+[dependencies]
+# gRPC server
+tonic = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+
+# HTTP client for LLM APIs
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utils
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[build-dependencies]
+tonic-build = "0.12"

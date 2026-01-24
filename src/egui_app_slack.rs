@@ -1,7 +1,7 @@
 // Slack-like chat UI components for BerryCodeApp
 // This file contains the implementation of Slack-style chat features
 
-use crate::egui_app::{BerryCodeApp, ChatChannel, ChatMessage, ChannelType};
+use crate::egui_app::{BerryCodeApp, ChatChannel, ChatMessage, ChannelType, SlackResponse};
 
 impl BerryCodeApp {
     /// Render channel list (left sidebar)
@@ -381,17 +381,14 @@ impl BerryCodeApp {
         }
 
         if let Some(channel_id) = &self.selected_channel_id {
-            let message = ChatMessage::new(
-                channel_id.clone(),
-                self.current_user_id.clone(),
-                self.current_user_name.clone(),
-                self.chat_input.clone(),
-            );
+            // Call helper method to send via Slack API
+            let channel_id_clone = channel_id.clone();
+            let message_text = self.chat_input.clone();
+            let thread_ts = self.selected_message_for_thread.clone();
 
-            if let Some(channel) = self.chat_channels.iter_mut().find(|c| &c.id == channel_id) {
-                channel.messages.push(message);
-            }
+            self.send_slack_message(&channel_id_clone, &message_text, thread_ts.as_deref());
 
+            // Clear input
             self.chat_input.clear();
         }
     }
