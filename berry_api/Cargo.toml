@@ -38,3 +38,7 @@ futures = "0.3"
 
 [build-dependencies]
 tonic-build = "0.12"
+
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"

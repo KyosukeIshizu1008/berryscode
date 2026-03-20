@@ -1,6 +1,6 @@
 use crate::berry_api::berry_code_service_server::BerryCodeService;
 use crate::berry_api::*;
-use crate::llm::{LlmClient, ModelType};
+use crate::llm::LlmClient;
 use crate::session::SessionManager;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -17,7 +17,7 @@ impl BerryCodeServiceImpl {
         // Try to create LLM client
         let llm_client = match LlmClient::new() {
             Ok(client) => {
-                tracing::info!("✅ LLM client initialized with Ollama (llama4:scout + qwen3-coder:30b)");
+                tracing::info!("✅ LLM client initialized with Ollama (qwen3-coder-next:q8_0)");
                 Some(client)
             }
             Err(e) => {
@@ -85,14 +85,14 @@ impl BerryCodeService for BerryCodeServiceImpl {
         // Spawn async task to handle streaming response
         tokio::spawn(async move {
             if let Some(client) = llm_client {
-                // Auto-detect model type based on message content
-                let model_type = ModelType::detect_from_message(&req.message);
                 let autonomous = req.autonomous.unwrap_or(false);
 
-                tracing::info!("🤖 Chat mode: autonomous={}, project_path={:?}", autonomous, project_path);
+                // Always use the router model (llama3.2:3b) to classify intent
+                let role = client.classify_with_router(&req.message).await;
 
-                // Use Ollama API with auto-selected model
-                match client.chat_stream(req.message.clone(), model_type, autonomous, project_path).await {
+                tracing::info!("🤖 Chat mode: role={:?}, autonomous={}, project_path={:?}", role, autonomous, project_path);
+
+                match client.chat_stream(req.message.clone(), role, autonomous, project_path).await {
                     Ok(mut stream) => {
                         use futures::StreamExt;
                         let mut chunk_count = 0;

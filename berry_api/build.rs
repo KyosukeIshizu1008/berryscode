@@ -5,10 +5,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(false)
         .compile_protos(
             &[
-                "../proto/berry_api.proto",
-                "../proto/lsp_service.proto",
+                "../berrycode/proto/berry_api.proto",
             ],
-            &["../proto"],
+            &["../berrycode/proto"],
         )?;
     Ok(())
 }

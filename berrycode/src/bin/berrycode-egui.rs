@@ -37,21 +37,26 @@ fn main() -> eframe::Result<()> {
             // Setup fonts with Japanese support
             let mut fonts = egui::FontDefinitions::default();
 
-            // Add Codicon font for icons
-            if let Ok(font_data) = std::fs::read("assets/codicon.ttf") {
-                tracing::info!("✅ Loaded Codicon font: {} bytes", font_data.len());
-                fonts.font_data.insert(
-                    "codicon".to_owned(),
-                    egui::FontData::from_owned(font_data),
-                );
-                fonts.families
-                    .get_mut(&egui::FontFamily::Proportional)
-                    .unwrap()
-                    .insert(0, "codicon".to_owned());
-                tracing::info!("✅ Codicon font added to Proportional family");
-            } else {
-                tracing::error!("❌ Failed to load Codicon font from assets/codicon.ttf");
-            }
+            // Add Codicon font for icons (embedded at compile time)
+            const CODICON_FONT_BYTES: &[u8] = include_bytes!("../../assets/codicon.ttf");
+            tracing::info!("✅ Loaded Codicon font: {} bytes", CODICON_FONT_BYTES.len());
+            fonts.font_data.insert(
+                "codicon".to_owned(),
+                egui::FontData::from_static(CODICON_FONT_BYTES),
+            );
+
+            // Create a custom font family for Codicon icons
+            fonts.families.insert(
+                egui::FontFamily::Name("codicon".into()),
+                vec!["codicon".to_owned()],
+            );
+
+            // Also add to Proportional family as fallback
+            fonts.families
+                .get_mut(&egui::FontFamily::Proportional)
+                .unwrap()
+                .insert(0, "codicon".to_owned());
+            tracing::info!("✅ Codicon font added to custom family and Proportional family");
 
             // Add Japanese font (try monospace fonts first for better baseline alignment)
             let japanese_font_paths = vec![

@@ -731,7 +731,7 @@ pub struct BerryCodeApp {
 
     // === LSP State (Phase 6: Async integration) ===
     lsp_runtime: std::sync::Arc<tokio::runtime::Runtime>,  // NEW: Tokio runtime for async LSP
-    lsp_client: Option<std::sync::Arc<native::lsp::LspClient>>,  // NEW: LSP client
+    lsp_native_client: Option<std::sync::Arc<native::lsp_native::NativeLspClient>>,  // Native LSP client
     lsp_response_tx: Option<mpsc::UnboundedSender<LspResponse>>,  // NEW: Send LSP responses
     lsp_connected: bool,
     lsp_diagnostics: Vec<LspDiagnostic>,
@@ -933,9 +933,8 @@ impl BerryCodeApp {
                 .expect("Failed to create Tokio runtime for LSP")
         );
 
-        // Create LSP client (connects to berry-api-server on port 50051)
-        // Use [::1] for IPv6 localhost to match berry-api-server
-        let lsp_client = std::sync::Arc::new(native::lsp::LspClient::new("http://[::1]:50051"));
+        // Create native LSP client (directly communicates with rust-analyzer)
+        let lsp_native_client = std::sync::Arc::new(native::lsp_native::NativeLspClient::new());
 
         // Create gRPC client (connects to berry-api-server on port 50051)
         let grpc_client = native::grpc::GrpcClient::new("http://[::1]:50051");
@@ -967,34 +966,21 @@ impl BerryCodeApp {
             }
         };
 
-        // Spawn LSP connection task
-        let client_clone = lsp_client.clone();
+        // Spawn native LSP initialization task
+        let client_clone = lsp_native_client.clone();
         let root_path_clone = root_path.clone();
         let tx_clone = lsp_tx.clone();
 
         lsp_runtime.spawn(async move {
-            match client_clone.connect().await {
+            match client_clone.start_server("rust", &root_path_clone).await {
                 Ok(_) => {
-                    tracing::info!("✅ LSP client connected to berry-api-server");
-
-                    // Initialize for Rust language
-                    match client_clone.initialize(
-                        "rust",
-                        format!("file://{}", root_path_clone),
-                        Some(root_path_clone.clone())
-                    ).await {
-                        Ok(response) => {
-                            tracing::info!("🔧 LSP initialized for Rust: {:?}", response);
-                            // Notify UI that LSP is connected
-                            let _ = tx_clone.send(LspResponse::Connected);
-                        }
-                        Err(e) => {
-                            tracing::error!("❌ LSP initialization failed: {:#}", e);
-                            tracing::error!("   Root path: {}", root_path_clone);
-                        }
-                    }
+                    tracing::info!("✅ Native LSP (rust-analyzer) started");
+                    // Notify UI that LSP is connected
+                    let _ = tx_clone.send(LspResponse::Connected);
                 }
-                Err(e) => tracing::warn!("⚠️  LSP connection failed: {} (will use fallback)", e),
+                Err(e) => {
+                    tracing::warn!("⚠️  Native LSP startup failed: {} (will use fallback)", e);
+                }
             }
         });
 
@@ -1004,23 +990,29 @@ impl BerryCodeApp {
         let grpc_tx_clone = grpc_tx.clone();
         let grpc_client_clone = grpc_client.clone();
         runtime_clone.spawn(async move {
-            match grpc_client_clone.connect().await {
-                Ok(_) => {
-                    tracing::info!("✅ gRPC client connected to berry-api-server");
-                    // Start chat session (autonomous: true = auto-continue with tools)
-                    match grpc_client_clone.start_session(root_path_for_grpc, true).await {
-                        Ok(session_id) => {
-                            tracing::info!("🎯 gRPC chat session started: {}", session_id);
-                            // Send session ID to UI
-                            let _ = grpc_tx_clone.send(GrpcResponse::SessionStarted(session_id));
+            // Retry until berry-api-server is available (5s interval, up to 24 attempts = 2 min)
+            for attempt in 1..=24u32 {
+                match grpc_client_clone.connect().await {
+                    Ok(_) => {
+                        tracing::info!("✅ gRPC client connected to berry-api-server");
+                        match grpc_client_clone.start_session(root_path_for_grpc.clone(), true).await {
+                            Ok(session_id) => {
+                                tracing::info!("🎯 gRPC chat session started: {}", session_id);
+                                let _ = grpc_tx_clone.send(GrpcResponse::SessionStarted(session_id));
+                            }
+                            Err(e) => {
+                                tracing::error!("❌ Failed to start gRPC session: {:#}", e);
+                            }
                         }
-                        Err(e) => {
-                            tracing::error!("❌ Failed to start gRPC session: {:#}", e);
-                        }
+                        return; // connected — stop retrying
+                    }
+                    Err(_) => {
+                        tracing::info!("⏳ berry-api-server not ready, retrying in 5s (attempt {}/24)...", attempt);
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     }
                 }
-                Err(e) => tracing::warn!("⚠️  gRPC connection failed: {}", e),
             }
+            tracing::warn!("⚠️  berry-api-server not found after 2 minutes. Start it with: cd berry_api && cargo run --bin berry-api-server");
         });
 
         Self {
@@ -1059,7 +1051,7 @@ impl BerryCodeApp {
             git_stash_state: GitStashState::default(),
             git_diff_state: GitDiffState::default(),
             lsp_runtime,
-            lsp_client: Some(lsp_client),
+            lsp_native_client: Some(lsp_native_client),
             lsp_response_tx: Some(lsp_tx),
             lsp_connected: false,
             lsp_diagnostics: Vec::new(),
@@ -1281,9 +1273,10 @@ impl BerryCodeApp {
                     for panel in MAIN_PANELS {
                         let is_selected = self.active_panel == panel.variant;
 
-                        // Use selectable_label with custom color
+                        // Use selectable_label with custom color and explicit font family
                         let icon_text = egui::RichText::new(panel.icon)
-                            .size(20.0);  // Explicit size for icons
+                            .size(20.0)  // Explicit size for icons
+                            .family(egui::FontFamily::Name("codicon".into()));  // Use Codicon font
                         if ui.selectable_label(is_selected, icon_text).clicked() {
                             tracing::info!("📍 Panel changed to: {:?}", panel.variant);
                             self.active_panel = panel.variant;
@@ -1349,6 +1342,7 @@ impl BerryCodeApp {
                 egui::RichText::new("\u{ea83}") // codicon-folder
                     .size(16.0)
                     .color(ui_colors::TEXT_DEFAULT)
+                    .family(egui::FontFamily::Name("codicon".into()))
             );
 
             ui.add_space(4.0);
@@ -1401,12 +1395,14 @@ impl BerryCodeApp {
             let root_icon = if is_root_expanded { "\u{ea7c}" } else { "\u{ea83}" }; // codicon-folder-opened / codicon-folder
 
             // Render root folder
-            let root_label = format!("{} {}", root_icon, root_name);
-            let response = ui.add(
-                egui::Label::new(root_label)
-                .sense(egui::Sense::click())
-            )
-            .on_hover_cursor(egui::CursorIcon::Default);
+            let response = ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(root_icon)
+                        .family(egui::FontFamily::Name("codicon".into()))
+                );
+                ui.label(root_name)
+            }).response.interact(egui::Sense::click());
+
             if response.clicked() {
                 if is_root_expanded {
                     self.expanded_dirs.remove(&self.root_path);
@@ -1444,12 +1440,14 @@ impl BerryCodeApp {
                 // Codicon folder icons: closed=\u{ea83}, open=\u{ea7c}
                 let icon = if is_expanded { "\u{ea7c}" } else { "\u{ea83}" };
 
-                let dir_label = format!("{} {}", icon, node.name);
-                let response = ui.add(
-                    egui::Label::new(dir_label)
-                    .sense(egui::Sense::click())
-                )
-                .on_hover_cursor(egui::CursorIcon::Default);
+                let response = ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.label(
+                        egui::RichText::new(icon)
+                            .family(egui::FontFamily::Name("codicon".into()))
+                    );
+                    ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
+                }).inner;
 
                 if response.clicked() {
                     // Toggle expansion
@@ -1466,13 +1464,19 @@ impl BerryCodeApp {
                         }
                     }
                 }
+
+                response.on_hover_cursor(egui::CursorIcon::Default);
             } else {
                 // File node with colored icon
                 let (icon, color) = Self::get_file_icon_with_color(&node.name);
 
                 let response = ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
-                    ui.label(egui::RichText::new(icon).color(color));
+                    ui.label(
+                        egui::RichText::new(icon)
+                            .color(color)
+                            .family(egui::FontFamily::Name("codicon".into()))
+                    );
                     ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
                 }).inner;
 
@@ -1656,7 +1660,14 @@ impl BerryCodeApp {
 
     /// Render Workflow panel (left sidebar)
     fn render_workflow(&mut self, ui: &mut egui::Ui) {
-        ui.heading(format!("{} Workflows", "\u{ebb2}")); // codicon-tasklist
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new("\u{ebb2}")
+                    .heading()
+                    .family(egui::FontFamily::Name("codicon".into()))
+            );
+            ui.heading("Workflows");
+        });
         ui.separator();
 
         // New Workflow Button - creates empty canvas
@@ -3031,7 +3042,14 @@ impl BerryCodeApp {
 
     /// Render Wiki sidebar (page list)
     fn render_wiki_sidebar(&mut self, ui: &mut egui::Ui) {
-        ui.heading(format!("{} Wiki", "\u{ea88}")); // codicon-file-text (document)
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new("\u{ea88}")
+                    .heading()
+                    .family(egui::FontFamily::Name("codicon".into()))
+            );
+            ui.heading("Wiki");
+        });
         ui.separator();
 
         // Search box
@@ -4117,32 +4135,6 @@ impl BerryCodeApp {
 
                             ui.add_space(8.0);
 
-                            // Attached files/context (like "📎 CLAUDE.md Current ×")
-                            ui.horizontal(|ui| {
-                                egui::Frame::none()
-                                    .fill(egui::Color32::from_rgb(50, 51, 53))
-                                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
-                                    .rounding(4.0)
-                                    .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            ui.spacing_mut().item_spacing.x = 6.0;
-                                            ui.label(egui::RichText::new("📎")
-                                                .size(12.0));
-                                            ui.label(egui::RichText::new("CLAUDE.md")
-                                                .color(egui::Color32::from_rgb(100, 150, 255))
-                                                .size(12.0));
-                                            ui.label(egui::RichText::new("Current")
-                                                .color(egui::Color32::from_rgb(150, 150, 150))
-                                                .size(11.0));
-                                            if ui.small_button("×").clicked() {
-                                                // TODO: Remove attachment
-                                            }
-                                        });
-                                    });
-                            });
-
-                            ui.add_space(8.0);
-
                             // Bottom controls row (matching Claude Code design)
                             ui.horizontal(|ui| {
                                 // Left side: "+" button and "Chat ▼"
@@ -5068,7 +5060,11 @@ impl BerryCodeApp {
                             ui.spacing_mut().item_spacing.x = 4.0;
 
                             // Colored icon
-                            ui.label(egui::RichText::new(file_icon).color(icon_color));
+                            ui.label(
+                                egui::RichText::new(file_icon)
+                                    .color(icon_color)
+                                    .family(egui::FontFamily::Name("codicon".into()))
+                            );
 
                             // Tab label (clickable to switch)
                             let filename_text = egui::RichText::new(&filename)
@@ -5078,7 +5074,12 @@ impl BerryCodeApp {
                             }
 
                             // Close button - Codicon: \u{ea76} = codicon-close
-                            if ui.small_button("\u{ea76}").clicked() {
+                            if ui.add(
+                                egui::Button::new(
+                                    egui::RichText::new("\u{ea76}")
+                                        .family(egui::FontFamily::Name("codicon".into()))
+                                ).small()
+                            ).clicked() {
                                 tab_to_close = Some(idx);
                             }
                         });
@@ -6405,12 +6406,23 @@ impl BerryCodeApp {
             None => return,
         };
 
-        let (line, column) = calculate_line_column(text, cursor_pos);
+        let (line, utf8_column) = calculate_line_column(text, cursor_pos);
 
         // PHASE 1: Try LSP first (if connected)
-        if self.lsp_connected && self.lsp_client.is_some() {
-            tracing::info!("🚀 Requesting LSP goto_definition for '{}' at {}:{}", word, line, column);
-            self.spawn_goto_definition_request(current_file, line, column);
+        if self.lsp_connected && self.lsp_native_client.is_some() {
+            // Convert UTF-8 column to UTF-16 for LSP
+            let utf16_column = {
+                let lines: Vec<&str> = text.lines().collect();
+                if line < lines.len() {
+                    utf8_offset_to_utf16(lines[line], utf8_column)
+                } else {
+                    utf8_column
+                }
+            };
+
+            tracing::info!("🚀 Requesting LSP goto_definition for '{}' at {}:{} (UTF-8: {}, UTF-16: {})",
+                word, line, utf16_column, utf8_column, utf16_column);
+            self.spawn_goto_definition_request(current_file, line, utf16_column);
 
             // Save context for fallback if LSP fails
             self.pending_goto_definition = Some(PendingGotoDefinition {
@@ -6584,7 +6596,7 @@ impl BerryCodeApp {
 
     /// Spawn LSP goto_definition request asynchronously
     fn spawn_goto_definition_request(&self, file_path: String, line: usize, column: usize) {
-        let client = match &self.lsp_client {
+        let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
                 tracing::warn!("⚠️ LSP client not initialized");
@@ -6667,10 +6679,23 @@ impl BerryCodeApp {
 
         // Set cursor position (using pending jump for next frame)
         if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+            // Convert UTF-16 column offset (from LSP) to UTF-8 character offset
+            let utf8_column = {
+                let text = tab.buffer.to_string();
+                let lines: Vec<&str> = text.lines().collect();
+                if location.line < lines.len() {
+                    let line_text = lines[location.line];
+                    utf16_offset_to_utf8(line_text, location.column)
+                } else {
+                    location.column
+                }
+            };
+
             tab.cursor_line = location.line;
-            tab.cursor_col = location.column;
-            tab.pending_cursor_jump = Some((location.line, location.column));
-            tracing::info!("⏭️ Scheduled cursor jump to line {} col {}", location.line, location.column);
+            tab.cursor_col = utf8_column;
+            tab.pending_cursor_jump = Some((location.line, utf8_column));
+            tracing::info!("⏭️ Scheduled cursor jump to line {} col {} (UTF-16: {}, UTF-8: {})",
+                location.line, utf8_column, location.column, utf8_column);
         }
 
         self.status_message = format!("✅ Jumped to {}",
@@ -6680,7 +6705,7 @@ impl BerryCodeApp {
 
     /// Spawn LSP find_references request asynchronously
     fn spawn_find_references_request(&self, file_path: String, line: usize, column: usize, include_declaration: bool) {
-        let client = match &self.lsp_client {
+        let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
                 tracing::warn!("⚠️ LSP client not initialized");
@@ -7184,11 +7209,22 @@ impl BerryCodeApp {
 
         let file_path = tab.file_path.clone();
 
-        // Get current cursor position
+        // Get current cursor position (UTF-8)
         let line = tab.cursor_line;
-        let column = tab.cursor_col;
+        let utf8_column = tab.cursor_col;
 
-        let client = match &self.lsp_client {
+        // Convert UTF-8 column to UTF-16 for LSP
+        let utf16_column = {
+            let text = tab.buffer.to_string();
+            let lines: Vec<&str> = text.lines().collect();
+            if line < lines.len() {
+                utf8_offset_to_utf16(lines[line], utf8_column)
+            } else {
+                utf8_column
+            }
+        };
+
+        let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
                 tracing::warn!("⚠️ LSP client not initialized");
@@ -7205,46 +7241,49 @@ impl BerryCodeApp {
 
         // Spawn async task to request completions from LSP server
         runtime.spawn(async move {
-            tracing::info!("🚀 Requesting LSP completions at {}:{}", line, column);
+            tracing::info!("🚀 Requesting LSP completions at {}:{} (UTF-16)", line, utf16_column);
 
-            match client.get_completions("rust", file_path.clone(), line as u32, column as u32).await {
+            match client.get_completions("rust", file_path.clone(), line as u32, utf16_column as u32).await {
                 Ok(items) => {
                     tracing::info!("📋 LSP returned {} completion items", items.len());
 
-                    // Convert proto CompletionItem → LspCompletionItem
+                    // Convert lsp_types::CompletionItem → LspCompletionItem
                     let lsp_completions: Vec<LspCompletionItem> = items
                         .into_iter()
-                        .map(|item| LspCompletionItem {
-                            label: item.label,
-                            detail: item.detail,
-                            kind: match item.kind {
-                                Some(1) => "text",
-                                Some(2) => "method",
-                                Some(3) => "function",
-                                Some(4) => "constructor",
-                                Some(5) => "field",
-                                Some(6) => "variable",
-                                Some(7) => "class",
-                                Some(8) => "interface",
-                                Some(9) => "module",
-                                Some(10) => "property",
-                                Some(11) => "unit",
-                                Some(12) => "value",
-                                Some(13) => "enum",
-                                Some(14) => "keyword",
-                                Some(15) => "snippet",
-                                Some(16) => "color",
-                                Some(17) => "file",
-                                Some(18) => "reference",
-                                Some(19) => "folder",
-                                Some(20) => "enum_member",
-                                Some(21) => "constant",
-                                Some(22) => "struct",
-                                Some(23) => "event",
-                                Some(24) => "operator",
-                                Some(25) => "type_parameter",
-                                _ => "unknown",
-                            }.to_string(),
+                        .map(|item| {
+                            use lsp_types::CompletionItemKind;
+                            LspCompletionItem {
+                                label: item.label,
+                                detail: item.detail,
+                                kind: match item.kind {
+                                    Some(CompletionItemKind::TEXT) => "text",
+                                    Some(CompletionItemKind::METHOD) => "method",
+                                    Some(CompletionItemKind::FUNCTION) => "function",
+                                    Some(CompletionItemKind::CONSTRUCTOR) => "constructor",
+                                    Some(CompletionItemKind::FIELD) => "field",
+                                    Some(CompletionItemKind::VARIABLE) => "variable",
+                                    Some(CompletionItemKind::CLASS) => "class",
+                                    Some(CompletionItemKind::INTERFACE) => "interface",
+                                    Some(CompletionItemKind::MODULE) => "module",
+                                    Some(CompletionItemKind::PROPERTY) => "property",
+                                    Some(CompletionItemKind::UNIT) => "unit",
+                                    Some(CompletionItemKind::VALUE) => "value",
+                                    Some(CompletionItemKind::ENUM) => "enum",
+                                    Some(CompletionItemKind::KEYWORD) => "keyword",
+                                    Some(CompletionItemKind::SNIPPET) => "snippet",
+                                    Some(CompletionItemKind::COLOR) => "color",
+                                    Some(CompletionItemKind::FILE) => "file",
+                                    Some(CompletionItemKind::REFERENCE) => "reference",
+                                    Some(CompletionItemKind::FOLDER) => "folder",
+                                    Some(CompletionItemKind::ENUM_MEMBER) => "enum_member",
+                                    Some(CompletionItemKind::CONSTANT) => "constant",
+                                    Some(CompletionItemKind::STRUCT) => "struct",
+                                    Some(CompletionItemKind::EVENT) => "event",
+                                    Some(CompletionItemKind::OPERATOR) => "operator",
+                                    Some(CompletionItemKind::TYPE_PARAMETER) => "type_parameter",
+                                    _ => "unknown",
+                                }.to_string(),
+                            }
                         })
                         .collect();
 
@@ -7418,10 +7457,11 @@ impl BerryCodeApp {
                     GrpcResponse::ChatStreamCompleted => {
                         tracing::info!("✅ Chat stream completed");
 
-                        // Add completed AI message to history
+                        // Add completed AI message to history (strip <thinking> blocks)
                         if !self.grpc_current_response.is_empty() {
+                            let content = strip_thinking_blocks(&self.grpc_current_response);
                             self.grpc_messages.push(GrpcMessage {
-                                content: self.grpc_current_response.clone(),
+                                content,
                                 is_user: false,
                             });
                             self.grpc_current_response.clear();
@@ -7893,7 +7933,7 @@ impl BerryCodeApp {
 
         let file_path = tab.file_path.clone();
 
-        let client = match &self.lsp_client {
+        let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
                 tracing::warn!("⚠️ LSP client not initialized");
@@ -7916,26 +7956,25 @@ impl BerryCodeApp {
                 Ok(diagnostics) => {
                     tracing::info!("📋 LSP returned {} diagnostics", diagnostics.len());
 
-                    // Convert proto Diagnostic → LspDiagnostic
+                    // Convert lsp_types::Diagnostic → LspDiagnostic
                     let lsp_diagnostics: Vec<LspDiagnostic> = diagnostics
                         .into_iter()
-                        .filter_map(|diag| {
-                            let range = diag.range?;
-                            let start = range.start?;
+                        .map(|diag| {
+                            use lsp_types::DiagnosticSeverity as LspSeverity;
 
-                            Some(LspDiagnostic {
-                                line: start.line as usize,
-                                column: start.character as usize,
+                            LspDiagnostic {
+                                line: diag.range.start.line as usize,
+                                column: diag.range.start.character as usize,
                                 severity: match diag.severity {
-                                    1 => DiagnosticSeverity::Error,
-                                    2 => DiagnosticSeverity::Warning,
-                                    3 => DiagnosticSeverity::Information,
-                                    4 => DiagnosticSeverity::Hint,
+                                    Some(LspSeverity::ERROR) => DiagnosticSeverity::Error,
+                                    Some(LspSeverity::WARNING) => DiagnosticSeverity::Warning,
+                                    Some(LspSeverity::INFORMATION) => DiagnosticSeverity::Information,
+                                    Some(LspSeverity::HINT) => DiagnosticSeverity::Hint,
                                     _ => DiagnosticSeverity::Error,
                                 },
                                 message: diag.message,
                                 source: diag.source,
-                            })
+                            }
                         })
                         .collect();
 
@@ -8046,7 +8085,7 @@ impl BerryCodeApp {
 
         let file_path = tab.file_path.clone();
 
-        let client = match &self.lsp_client {
+        let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
                 tracing::warn!("⚠️ LSP client not initialized");
@@ -8070,8 +8109,26 @@ impl BerryCodeApp {
                     if let Some(hover) = hover_opt {
                         tracing::info!("💡 LSP returned hover info");
 
+                        // Convert HoverContents to String
+                        use lsp_types::{HoverContents, MarkedString, MarkupContent};
+                        let contents_string = match hover.contents {
+                            HoverContents::Scalar(marked) => match marked {
+                                MarkedString::String(s) => s,
+                                MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+                            },
+                            HoverContents::Array(arr) => arr
+                                .into_iter()
+                                .map(|marked| match marked {
+                                    MarkedString::String(s) => s,
+                                    MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n\n"),
+                            HoverContents::Markup(markup) => markup.value,
+                        };
+
                         let lsp_hover = LspHoverInfo {
-                            contents: hover.contents,
+                            contents: contents_string,
                             line,
                             column,
                         };
@@ -8135,16 +8192,27 @@ impl BerryCodeApp {
 
         let file_path = tab.file_path.clone();
         let cursor_line = tab.cursor_line;
-        let cursor_col = tab.cursor_col;
+        let utf8_cursor_col = tab.cursor_col;
 
-        tracing::info!("🔍 Triggering find references at {}:{}:{}",
+        // Convert UTF-8 column to UTF-16 for LSP
+        let utf16_cursor_col = {
+            let text = tab.buffer.to_string();
+            let lines: Vec<&str> = text.lines().collect();
+            if cursor_line < lines.len() {
+                utf8_offset_to_utf16(lines[cursor_line], utf8_cursor_col)
+            } else {
+                utf8_cursor_col
+            }
+        };
+
+        tracing::info!("🔍 Triggering find references at {}:{}:{} (UTF-16)",
             file_path.split('/').last().unwrap_or(&file_path),
             cursor_line + 1,
-            cursor_col + 1
+            utf16_cursor_col + 1
         );
 
         // Spawn async LSP request
-        self.spawn_find_references_request(file_path, cursor_line, cursor_col, true);
+        self.spawn_find_references_request(file_path, cursor_line, utf16_cursor_col, true);
     }
 
     /// Trigger go-to-definition at current cursor position
@@ -8623,22 +8691,69 @@ impl BerryCodeApp {
 // Helper Functions for LSP Go-to-Definition (Phase 2)
 // ====================================================================
 
-/// Parse proto Location to LspLocation
-fn parse_lsp_location(proto_loc: native::lsp::lsp_service::Location) -> Option<LspLocation> {
+/// Strip `<thinking>...</thinking>` blocks from LLM responses.
+/// CoT blocks are internal reasoning and should not be shown to users.
+fn strip_thinking_blocks(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("<thinking>") {
+        result.push_str(&rest[..start]);
+        if let Some(end) = rest[start..].find("</thinking>") {
+            rest = &rest[start + end + "</thinking>".len()..];
+        } else {
+            // Unclosed tag — drop the rest (still streaming or malformed)
+            return result.trim().to_string();
+        }
+    }
+    result.push_str(rest);
+    result.trim().to_string()
+}
+
+/// Parse lsp_types::Location to LspLocation
+fn parse_lsp_location(lsp_loc: lsp_types::Location) -> Option<LspLocation> {
     // URI format: "file:///path/to/file.rs" → "/path/to/file.rs"
-    let file_path = proto_loc.uri
-        .strip_prefix("file://")
-        .unwrap_or(&proto_loc.uri)
-        .to_string();
+    let file_path = lsp_loc.uri.path().to_string();
 
-    let range = proto_loc.range?;
-    let start = range.start?;
-
+    // LSP uses 0-indexed positions
+    // Note: LSP character positions are UTF-16 code units
+    // We use them as-is since our text editor will handle the conversion
     Some(LspLocation {
         file_path,
-        line: start.line as usize,
-        column: start.character as usize,
+        line: lsp_loc.range.start.line as usize,
+        column: lsp_loc.range.start.character as usize,
     })
+}
+
+/// Convert UTF-16 character offset to UTF-8 character offset
+/// LSP uses UTF-16 code units, but Rust strings use UTF-8
+fn utf16_offset_to_utf8(line_text: &str, utf16_offset: usize) -> usize {
+    let mut utf16_count = 0;
+    let mut utf8_count = 0;
+
+    for ch in line_text.chars() {
+        if utf16_count >= utf16_offset {
+            break;
+        }
+        utf16_count += ch.len_utf16();
+        utf8_count += 1;
+    }
+
+    utf8_count
+}
+
+/// Convert UTF-8 character offset to UTF-16 code unit offset
+/// Used when sending positions to LSP server
+fn utf8_offset_to_utf16(line_text: &str, utf8_offset: usize) -> usize {
+    let mut utf16_count = 0;
+
+    for (idx, ch) in line_text.chars().enumerate() {
+        if idx >= utf8_offset {
+            break;
+        }
+        utf16_count += ch.len_utf16();
+    }
+
+    utf16_count
 }
 
 /// Calculate line and column from byte offset in text

@@ -3,8 +3,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(false) // Client only
         .build_client(true)
         .compile_protos(
-            &["../proto/berry_api.proto", "../proto/lsp_service.proto"],
-            &["../proto/"],
+            &["proto/berry_api.proto"],
+            &["proto/"],
         )?;
     Ok(())
 }
