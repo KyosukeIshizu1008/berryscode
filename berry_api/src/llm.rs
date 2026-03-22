@@ -7,6 +7,14 @@ use std::sync::{Arc, Mutex};
 
 /// TTL for list_files in-memory cache (seconds)
 const LIST_CACHE_TTL_SECS: u64 = 30;
+/// Timeout for autonomous mode requests (stream:false — full response is awaited)
+const OLLAMA_AUTONOMOUS_TIMEOUT_SECS: u64 = 180;
+/// Timeout for non-autonomous streaming connection establishment
+const OLLAMA_STREAM_TIMEOUT_SECS: u64 = 60;
+/// Timeout for shell commands executed by the AI (kills the process on expiry)
+const OLLAMA_COMMAND_TIMEOUT_SECS: u64 = 60;
+/// Maximum byte length of a single NDJSON line in the streaming response
+const MAX_LINE_BUF_BYTES: usize = 1_048_576; // 1 MB
 
 // Chat API structures (for tool calling)
 #[derive(Debug, Clone, Serialize)]
@@ -52,20 +60,21 @@ struct OllamaFunction {
 #[derive(Debug, Deserialize)]
 struct OllamaChatResponse {
     message: OllamaMessage,
+    #[allow(dead_code)]
     done: bool,
+}
+
+/// Message variant from Ollama's NDJSON streaming response
+#[derive(Debug, Deserialize)]
+struct OllamaStreamMessage {
+    #[serde(default)]
+    content: String,
 }
 
 /// One chunk from Ollama's NDJSON streaming response
 #[derive(Debug, Deserialize)]
 struct OllamaStreamChunk {
-    message: OllamaMessage,
-    done: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct OllamaChatStreamResponse {
-    model: String,
-    message: OllamaMessage,
+    message: OllamaStreamMessage,
     done: bool,
 }
 
@@ -85,19 +94,118 @@ fn is_tool_call_json(text: &str) -> bool {
         || t.starts_with("<function=")
 }
 
+/// Find the index of the closing `}` that matches the `{` at `start`.
+/// Correctly handles nested braces and strings (skips `}` inside string literals).
+fn find_json_end(s: &str, start: usize) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut depth: i32 = 0;
+    let mut i = start;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            b'"' => {
+                // Skip string content so inner braces are ignored
+                i += 1;
+                while i < bytes.len() {
+                    if bytes[i] == b'\\' {
+                        i += 1; // skip escaped character
+                    } else if bytes[i] == b'"' {
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Strip `<think>...</think>` blocks produced by reasoning models (deepseek-r1, etc.).
+/// Returns the content after the last closing `</think>` tag, trimmed.
+/// If no think tags are present the original string is returned as-is.
+fn strip_think_tags(content: &str) -> String {
+    // Find the last </think> and return everything after it.
+    if let Some(end) = content.rfind("</think>") {
+        content[end + "</think>".len()..].trim().to_string()
+    } else {
+        // Partial block — model may still be thinking; treat whole content as-is.
+        content.to_string()
+    }
+}
+
+/// Filter `<think>` blocks from a streaming chunk, maintaining state across calls.
+/// `in_think` tracks whether we are currently inside a think block.
+/// Returns the portion of `text` that should be forwarded to the user.
+fn filter_think_stream(text: &str, in_think: &mut bool) -> String {
+    let mut result = String::new();
+    let mut remaining = text;
+    loop {
+        if *in_think {
+            if let Some(pos) = remaining.find("</think>") {
+                *in_think = false;
+                remaining = &remaining[pos + "</think>".len()..];
+            } else {
+                break; // Still inside think block — discard everything
+            }
+        } else {
+            if let Some(pos) = remaining.find("<think>") {
+                result.push_str(&remaining[..pos]);
+                *in_think = true;
+                remaining = &remaining[pos + "<think>".len()..];
+            } else {
+                result.push_str(remaining);
+                break;
+            }
+        }
+    }
+    result
+}
+
 /// Parse tool call from various formats (JSON or XML-like)
 fn parse_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
-    // Try JSON format first: {"type": "function", "name": "tool_name", "parameters": {...}}
-    if let Ok(tool_call) = serde_json::from_str::<ToolCall>(content) {
-        return Some((tool_call.name, tool_call.parameters));
+    let trimmed = content.trim();
+
+    // Format 1: Ollama qwen output — {"name": "tool", "arguments": {...}}
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let (Some(name), Some(args)) = (
+            v.get("name").and_then(|n| n.as_str()),
+            v.get("arguments"),
+        ) {
+            if !name.is_empty() {
+                return Some((name.to_string(), args.clone()));
+            }
+        }
+        // Format 2: {"type": "function", "name": "tool_name", "parameters": {...}}
+        if let Ok(tool_call) = serde_json::from_value::<ToolCall>(v) {
+            return Some((tool_call.name, tool_call.parameters));
+        }
     }
 
-    // Also try to find JSON within the content
-    if let Some(start) = content.find("{\"type\"") {
-        if let Some(end) = content[start..].rfind('}') {
-            let json_str = &content[start..start + end + 1];
-            if let Ok(tool_call) = serde_json::from_str::<ToolCall>(json_str) {
-                return Some((tool_call.name, tool_call.parameters));
+    // Search for embedded JSON objects in content.
+    // Use brace-counting to find the correct closing brace (rfind would
+    // match the last '}' in the whole string, grabbing multiple JSON objects).
+    for prefix in &["{\"name\"", "{\"type\""] {
+        if let Some(start) = content.find(prefix) {
+            if let Some(end) = find_json_end(content, start) {
+                let json_str = &content[start..=end];
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(json_str) {
+                    if let (Some(name), Some(args)) = (
+                        v.get("name").and_then(|n| n.as_str()),
+                        v.get("arguments").or_else(|| v.get("parameters")),
+                    ) {
+                        if !name.is_empty() {
+                            return Some((name.to_string(), args.clone()));
+                        }
+                    }
+                }
             }
         }
     }
@@ -147,6 +255,27 @@ fn parse_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
         }
     }
 
+    // Format: "tool_name {json}" — e.g. "list_files {"path": "."}"
+    let known_tools = ["list_files", "read_file", "write_file", "execute_command", "search_code"];
+    for tool in &known_tools {
+        if let Some(stripped) = trimmed.strip_prefix(*tool) {
+            let rest = stripped.trim();
+            let args = if rest.starts_with('{') {
+                serde_json::from_str(rest).unwrap_or(serde_json::json!({}))
+            } else {
+                serde_json::json!({})
+            };
+            // Default path argument for list_files
+            let args = if *tool == "list_files" && args.get("path").is_none() {
+                serde_json::json!({"path": "."})
+            } else {
+                args
+            };
+            tracing::info!("📝 Parsed plain-text tool call: {} {:?}", tool, args);
+            return Some((tool.to_string(), args));
+        }
+    }
+
     None
 }
 
@@ -160,7 +289,7 @@ pub enum Role {
     Router,
     /// 実装: Rust implementation, debugging, refactoring (qwen3-coder-next:q8_0)
     Coder,
-    /// 設計: system design, architecture, 10M-ctx planning (llama4:scout)
+    /// 設計: system design, architecture, deep reasoning (deepseek-r1:32b)
     Architect,
     /// UI監査: visual diff / layout audit from screenshots (pixtral:12b)
     Vision,
@@ -180,12 +309,12 @@ impl Role {
         match self {
             Role::Router     => "llama3.2:3b-instruct-q8_0",
             Role::Coder      => "qwen2.5-coder:32b-instruct-q8_0",
-            Role::Architect  => "llama4:17b-scout-16e-instruct-q4_K_M",
+            Role::Architect  => "deepseek-r1:32b",
             Role::Vision     => "llama3.2-vision:11b",
-            Role::Summarizer => "llama4:17b-scout-16e-instruct-q4_K_M", // 10Mコンテキストで要約
+            Role::Summarizer => "deepseek-r1:32b", // 推論モデルで要約
             Role::CliGit     => "llama3.2:1b-instruct-q8_0",
             Role::Reviewer   => "qwen2.5-coder:32b-instruct-q8_0",      // Rustの静的解析力で監査
-            Role::DocRag     => "llama4:17b-scout-16e-instruct-q4_K_M", // 10Mコンテキストで文書作成
+            Role::DocRag     => "deepseek-r1:32b", // 推論モデルで文書作成
         }
     }
 
@@ -230,27 +359,15 @@ impl Role {
                 \n  When followed by 「教えて」「説明して」「概要」「について」 → summarizer"
             }
             Role::Coder => {
-                "You are an elite Rust engineer.\
-                \n\
-                \nBefore writing any code, you MUST output a <thinking> block that covers:\
-                \n  1. What the existing code does (summarize relevant parts)\
-                \n  2. What edge cases or type constraints matter\
-                \n  3. Your implementation plan step-by-step\
-                \nOnly after closing </thinking> should you write the actual Rust code.\
-                \n\
-                \nCode standards: clean idiomatic Rust, type-system over runtime checks, \
+                "You are an elite Rust engineer. \
+                Answer in the same language as the user's message (Japanese if Japanese, English if English). \
+                Write clean idiomatic Rust, use type-system over runtime checks, \
                 anyhow/thiserror for errors (never unwrap in production), follow existing style."
             }
             Role::Architect => {
-                "You are a software architect with a complete picture of the entire codebase.\
-                \n\
-                \nBefore making any recommendation, you MUST output a <thinking> block that covers:\
-                \n  1. Current module structure and relevant boundaries\
-                \n  2. Constraints (performance, maintainability, complexity budget)\
-                \n  3. Trade-offs between at least 2 candidate designs\
-                \nOnly after closing </thinking> should you state your recommendation.\
-                \n\
-                \nOutput: ASCII or Mermaid diagrams, explain trade-offs, recommend the simplest \
+                "You are a software architect with a complete picture of the entire codebase. \
+                Answer in the same language as the user's message (Japanese if Japanese, English if English). \
+                Output: ASCII or Mermaid diagrams, explain trade-offs, recommend the simplest \
                 design that satisfies constraints. Be concise and opinionated."
             }
             Role::Vision => {
@@ -319,12 +436,12 @@ impl Role {
     ///   - 0.5 : Architect / Vision / Summarizer / DocRag (creative latitude welcome)
     ///
     /// Context window: router/cliGit need very little; Architect/Summarizer/DocRag
-    /// can fill llama4:scout's 10M window — cap at 131_072 for practical speed.
-    pub fn inference_options(&self) -> OllamaOptions {
+    /// cap at 131_072 for practical speed.
+    fn inference_options(&self) -> OllamaOptions {
         match self {
             Role::Router => OllamaOptions {
                 temperature: 0.0,
-                num_ctx: Some(4_096),   // one-word answer: tiny context sufficient
+                num_ctx: Some(16_384),  // must fit system prompt + ~70 few-shot examples
                 num_predict: Some(10),  // hard cap: we only need one token
             },
             Role::Coder => OllamaOptions {
@@ -334,7 +451,7 @@ impl Role {
             },
             Role::Architect => OllamaOptions {
                 temperature: 0.5,
-                num_ctx: Some(131_072), // 128k: full module trees + design docs
+                num_ctx: Some(16_384), // deepseek-r1:32b needs most VRAM for weights; keep ctx small
                 num_predict: None,
             },
             Role::Vision => OllamaOptions {
@@ -344,7 +461,7 @@ impl Role {
             },
             Role::Summarizer => OllamaOptions {
                 temperature: 0.5,
-                num_ctx: Some(131_072), // same as Architect — large logs/codebases
+                num_ctx: Some(16_384), // deepseek-r1:32b: keep ctx within VRAM budget
                 num_predict: None,
             },
             Role::CliGit => OllamaOptions {
@@ -359,7 +476,7 @@ impl Role {
             },
             Role::DocRag => OllamaOptions {
                 temperature: 0.5,
-                num_ctx: Some(131_072),
+                num_ctx: Some(16_384), // deepseek-r1:32b: keep ctx within VRAM budget
                 num_predict: None,
             },
         }
@@ -428,7 +545,13 @@ impl LlmClient {
 
     /// Few-shot examples injected as conversation turns.
     /// Small models (3B) follow examples far more reliably than long instructions alone.
-    fn router_few_shot_messages() -> Vec<OllamaMessage> {
+    /// Built once at first call and cached for the lifetime of the process.
+    fn router_few_shot_messages() -> &'static [OllamaMessage] {
+        static CACHE: std::sync::OnceLock<Vec<OllamaMessage>> = std::sync::OnceLock::new();
+        CACHE.get_or_init(Self::build_router_few_shot)
+    }
+
+    fn build_router_few_shot() -> Vec<OllamaMessage> {
         // (user_message, expected_label)
         let examples: &[(&str, &str)] = &[
             // coder — context traps: negation / "設計" mentioned but goal is fix
@@ -587,7 +710,6 @@ impl LlmClient {
         if has_arch  && has_coder    { return Some(("architect",  "coder")); }
         if has_coder && has_doc      { return Some(("coder",     "doc_rag")); }
 
-        let _ = (has_reviewer, has_arch, has_doc); // suppress unused warnings
         None
     }
 
@@ -643,7 +765,7 @@ impl LlmClient {
             role: "system".to_string(),
             content: Role::Router.system_prompt().to_string(),
         }];
-        messages.extend(Self::router_few_shot_messages());
+        messages.extend(Self::router_few_shot_messages().iter().cloned());
         messages.push(OllamaMessage {
             role: "user".to_string(),
             content: message.to_string(),
@@ -674,6 +796,7 @@ impl LlmClient {
 
     /// Patterns that are never allowed in execute_command, regardless of context.
     /// Returns the matched pattern if blocked.
+    /// Normalizes consecutive whitespace before matching to prevent trivial bypass.
     fn check_blocked_command(command: &str) -> Option<&'static str> {
         const BLOCKED: &[&str] = &[
             "rm -rf /",
@@ -694,7 +817,36 @@ impl LlmClient {
             "shred ",
             "wipefs",
         ];
-        BLOCKED.iter().find(|&&p| command.contains(p)).copied()
+        // Normalize whitespace so "git  push  --force" etc. are also blocked
+        let normalized: String = command.split_whitespace().collect::<Vec<_>>().join(" ");
+        BLOCKED.iter().find(|&&p| normalized.contains(p)).copied()
+    }
+
+    /// Joins `root` with `rel_path` and rejects any result that escapes `root` via "..".
+    /// Does not require the target path to exist, making it safe for write_file as well.
+    fn safe_join(root: &str, rel_path: &str) -> std::result::Result<std::path::PathBuf, String> {
+        use std::path::Component;
+        let root_path = std::path::PathBuf::from(root);
+        let joined = root_path.join(rel_path);
+        let mut normalized = std::path::PathBuf::new();
+        for component in joined.components() {
+            match component {
+                Component::ParentDir => {
+                    if !normalized.pop() {
+                        return Err(format!(
+                            "🚫 Access denied: '{}' escapes the project root", rel_path
+                        ));
+                    }
+                }
+                c => normalized.push(c.as_os_str()),
+            }
+        }
+        if !normalized.starts_with(&root_path) {
+            return Err(format!(
+                "🚫 Access denied: '{}' is outside the project root", rel_path
+            ));
+        }
+        Ok(normalized)
     }
 
     /// Execute a tool call
@@ -708,7 +860,10 @@ impl LlmClient {
                     .context("Missing 'path' parameter")?;
 
                 let full_path = if let Some(proj_path) = project_path {
-                    std::path::Path::new(proj_path).join(path)
+                    match Self::safe_join(proj_path, path) {
+                        Ok(p) => p,
+                        Err(msg) => { tracing::warn!("{}", msg); return Ok(msg); }
+                    }
                 } else {
                     std::path::PathBuf::from(path)
                 };
@@ -734,7 +889,10 @@ impl LlmClient {
                     .context("Missing 'content' parameter")?;
 
                 let full_path = if let Some(proj_path) = project_path {
-                    std::path::Path::new(proj_path).join(path)
+                    match Self::safe_join(proj_path, path) {
+                        Ok(p) => p,
+                        Err(msg) => { tracing::warn!("{}", msg); return Ok(msg); }
+                    }
                 } else {
                     std::path::PathBuf::from(path)
                 };
@@ -765,13 +923,30 @@ impl LlmClient {
 
                 tracing::info!("🔧 Executing command: {}", command);
 
-                let output = tokio::process::Command::new("sh")
+                // kill_on_drop ensures the child process is terminated if the timeout fires
+                let child = tokio::process::Command::new("sh")
                     .arg("-c")
                     .arg(command)
                     .current_dir(project_path.unwrap_or("."))
-                    .output()
-                    .await
-                    .context("Failed to execute command")?;
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .kill_on_drop(true)
+                    .spawn()
+                    .context("Failed to spawn command")?;
+
+                let output = match tokio::time::timeout(
+                    std::time::Duration::from_secs(OLLAMA_COMMAND_TIMEOUT_SECS),
+                    child.wait_with_output(),
+                ).await {
+                    Ok(Ok(out)) => out,
+                    Ok(Err(e)) => return Err(anyhow::anyhow!("Command execution failed: {}", e)),
+                    Err(_) => {
+                        return Ok(format!(
+                            "❌ TIMEOUT: '{}' was killed after {}s — use a more targeted command",
+                            command, OLLAMA_COMMAND_TIMEOUT_SECS
+                        ));
+                    }
+                };
 
                 // Combine stdout + stderr so the AI sees the full picture.
                 // Rust compiler errors go to stderr, so combining is essential.
@@ -801,15 +976,33 @@ impl LlmClient {
                 tracing::info!("🔍 Searching code for: {}", query);
 
                 let search_dir = project_path.unwrap_or(".");
-                let output = tokio::process::Command::new("rg")
+
+                // Try rg first, fall back to grep -r
+                let rg_result = tokio::process::Command::new("rg")
                     .arg(query)
                     .arg("--max-count=10")
                     .arg("--heading")
                     .arg("--line-number")
                     .current_dir(search_dir)
                     .output()
-                    .await
-                    .context("Failed to search code")?;
+                    .await;
+
+                let output = match rg_result {
+                    Ok(o) => o,
+                    Err(_) => {
+                        tracing::info!("rg not found, falling back to grep");
+                        tokio::process::Command::new("grep")
+                            .arg("-r")
+                            .arg("-n")
+                            .arg("--max-count=10")
+                            .arg(query)
+                            .arg(".")
+                            .current_dir(search_dir)
+                            .output()
+                            .await
+                            .context("Failed to search code (grep fallback)")?
+                    }
+                };
 
                 let result = String::from_utf8_lossy(&output.stdout);
                 tracing::info!("Search results: {} bytes", result.len());
@@ -818,14 +1011,17 @@ impl LlmClient {
             "list_files" => {
                 let path_str = parameters.get("path").and_then(|v| v.as_str()).unwrap_or(".");
                 let root = if let Some(proj) = project_path {
-                    std::path::Path::new(proj).join(path_str)
+                    match Self::safe_join(proj, path_str) {
+                        Ok(p) => p,
+                        Err(msg) => { tracing::warn!("{}", msg); return Ok(msg); }
+                    }
                 } else {
                     std::path::PathBuf::from(path_str)
                 };
 
                 // Cache lookup — avoid redundant filesystem scans in tight tool loops
                 {
-                    let cache = self.list_cache.lock().unwrap();
+                    let cache = self.list_cache.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some((ts, cached)) = cache.get(&root) {
                         if ts.elapsed() < std::time::Duration::from_secs(LIST_CACHE_TTL_SECS) {
                             tracing::info!("📂 list_files cache hit: {} ({} bytes)", root.display(), cached.len());
@@ -840,9 +1036,11 @@ impl LlmClient {
                     header + &LlmClient::build_file_tree(&root_clone, "  ", 0, 3)
                 }).await.context("list_files spawn failed")?;
 
-                // Store in cache
+                // Store in cache, evicting expired entries first
                 {
-                    let mut cache = self.list_cache.lock().unwrap();
+                    let mut cache = self.list_cache.lock().unwrap_or_else(|e| e.into_inner());
+                    let ttl = std::time::Duration::from_secs(LIST_CACHE_TTL_SECS);
+                    cache.retain(|_, (ts, _)| ts.elapsed() < ttl);
                     cache.insert(root, (std::time::Instant::now(), tree.clone()));
                 }
 
@@ -1017,18 +1215,6 @@ impl LlmClient {
         }
     }
 
-    /// Classify multiple messages concurrently using the router model.
-    /// All requests are dispatched in parallel — total latency ≈ max(individual latencies).
-    /// Useful for multi-step tasks where you know the role for each sub-task up front.
-    pub async fn parallel_classify(&self, messages: &[String]) -> Vec<Role> {
-        let futs: Vec<_> = messages.iter().map(|msg| {
-            let client = self.clone();
-            let msg = msg.clone();
-            async move { client.classify_with_router(&msg).await }
-        }).collect();
-        futures::future::join_all(futs).await
-    }
-
     /// Send a chat message to Ollama and get streaming response.
     /// In autonomous mode, handles the tool calling loop.
     pub async fn chat_stream(
@@ -1043,6 +1229,14 @@ impl LlmClient {
         let client = self.client.clone();
         let list_cache = self.list_cache.clone();
         let role_prompt = role.system_prompt();
+        // Role-specific starting hint for autonomous mode — injected AFTER the system prompt.
+        // Each role has a natural first tool to call; forcing list_files on CliGit conflicts
+        // with its git-status-first workflow.
+        let autonomous_start_hint = match &role {
+            Role::CliGit    => "Start with execute_command('git status') to see what has changed.",
+            Role::Reviewer  => "Start with list_files to understand the project, then read_file each relevant source file.",
+            _               => "Start with list_files to explore the project structure.",
+        };
         let inference_opts = role.inference_options();
 
         tracing::info!("🤖 Using model: {} (role: {:?}, autonomous: {}, project_path: {:?})",
@@ -1053,25 +1247,16 @@ impl LlmClient {
                 // Autonomous mode: handle tool calling loop
                 let tools = Self::get_autonomous_tools();
 
-                // Combine role-specific prompt with autonomous tool-use instructions
-                let system_content = format!("{}\n\n\
-You also have access to tools and MUST USE THEM to complete tasks.\n\
-\n\
-CRITICAL RULES:\n\
-1. When asked to READ a file: You MUST call read_file tool immediately\n\
-2. When asked to WRITE/CREATE a file: You MUST call write_file tool immediately\n\
-3. When asked to RUN a command: You MUST call execute_command tool immediately\n\
-4. When asked to SEARCH code: You MUST call search_code tool immediately\n\
-5. NEVER just explain what you would do - ACTUALLY DO IT using the tools\n\
-6. For multi-step tasks, use tools multiple times in sequence\n\
-7. Always verify your work by reading files you created or running commands\n\
-\n\
-AVAILABLE TOOLS:\n\
-- list_files: List directory tree (use FIRST to explore project structure)\n\
-- read_file: Read file contents (use for ANY file reading task)\n\
-- write_file: Write/create files (use for ANY file writing/creation task)\n\
-- execute_command: Run shell commands (use for ls, cat, compilation, etc)\n\
-- search_code: Search in codebase", role_prompt);
+                // Keep system prompt short so the model outputs standard JSON tool calls.
+                // Verbose prompts cause the model to output non-standard formats.
+                // deepseek-r1 and other reasoning models emit <think> blocks before the
+                // actual response — remind them to output the tool call after thinking.
+                let system_content = format!(
+                    "{}\n\nUse the provided tools to complete the task. {}\
+                    \n\nIMPORTANT: After any reasoning, output ONLY a tool call in valid JSON. \
+                    Do NOT ask the user for clarification — infer what you need from context.",
+                    role_prompt, autonomous_start_hint
+                );
 
                 let mut messages = vec![
                     OllamaMessage {
@@ -1092,19 +1277,31 @@ AVAILABLE TOOLS:\n\
                         tracing::debug!("  Message {}: role={}, content_len={}", i, msg.role, msg.content.len());
                     }
 
+                    // Use stream:false for tool-calling iterations so we get the
+                    // complete JSON response in one shot (streaming splits JSON tokens
+                    // across HTTP chunks making reassembly unreliable).
                     let request = OllamaChatRequest {
                         model: model.clone(),
                         messages: messages.clone(),
-                        stream: true,   // stream tokens so the user sees thinking live
+                        stream: false,
                         tools: Some(tools.clone()),
-                        options: None,
+                        options: Some(inference_opts.clone()),
                     };
 
                     let url = format!("{}/api/chat", base_url);
-                    let response = match client.post(&url).json(&request).send().await {
-                        Ok(resp) => resp,
-                        Err(e) => {
+                    let response = match tokio::time::timeout(
+                        std::time::Duration::from_secs(OLLAMA_AUTONOMOUS_TIMEOUT_SECS),
+                        client.post(&url).json(&request).send(),
+                    ).await {
+                        Ok(Ok(resp)) => resp,
+                        Ok(Err(e)) => {
                             yield Err(anyhow::anyhow!("Failed to send request: {}", e));
+                            break;
+                        }
+                        Err(_) => {
+                            yield Err(anyhow::anyhow!(
+                                "Ollama request timed out after {}s", OLLAMA_AUTONOMOUS_TIMEOUT_SECS
+                            ));
                             break;
                         }
                     };
@@ -1116,57 +1313,47 @@ AVAILABLE TOOLS:\n\
                         break;
                     }
 
-                    // Stream tokens: yield each one immediately so the user sees
-                    // the model's <thinking> and reasoning as it happens.
-                    // Accumulate full content for post-stream tool-call detection.
-                    let mut byte_stream = response.bytes_stream();
-                    let mut line_buf = Vec::<u8>::new();
-                    let mut full_content = String::new();
-                    let mut stream_done = false;
-
-                    while let Some(item) = futures::StreamExt::next(&mut byte_stream).await {
-                        let bytes = match item {
-                            Ok(b) => b,
-                            Err(e) => {
-                                yield Err(anyhow::anyhow!("Stream read error: {}", e));
-                                break;
-                            }
-                        };
-                        for &byte in bytes.iter() {
-                            if byte == b'\n' {
-                                if !line_buf.is_empty() {
-                                    if let Ok(chunk) = serde_json::from_slice::<OllamaStreamChunk>(&line_buf) {
-                                        if !chunk.message.content.is_empty() {
-                                            // Yield each token so the user sees the model thinking
-                                            yield Ok(chunk.message.content.clone());
-                                            full_content.push_str(&chunk.message.content);
-                                        }
-                                        if chunk.done {
-                                            stream_done = true;
-                                        }
-                                    }
-                                    line_buf.clear();
-                                }
-                            } else {
-                                line_buf.push(byte);
-                            }
+                    let body = match response.text().await {
+                        Ok(b) => b,
+                        Err(e) => {
+                            yield Err(anyhow::anyhow!("Failed to read response body: {}", e));
+                            break;
                         }
-                        if stream_done { break; }
-                    }
-
-                    if !stream_done {
-                        // Stream ended without a done=true chunk — treat as complete
-                        tracing::warn!("⚠️  Autonomous stream ended without done=true");
-                    }
-
-                    let assistant_message = OllamaMessage {
-                        role: "assistant".to_string(),
-                        content: full_content,
                     };
-                    tracing::info!("🤖 Assistant streamed ({} bytes)", assistant_message.content.len());
 
-                    // Check if the response contains a tool call (JSON or XML format)
-                    if let Some((tool_name, tool_params)) = parse_tool_call(&assistant_message.content) {
+                    let resp: serde_json::Value = match serde_json::from_str(&body) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            yield Err(anyhow::anyhow!("Failed to parse response JSON: {}\nbody: {:.200}", e, body));
+                            break;
+                        }
+                    };
+
+                    let full_content = resp["message"]["content"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string();
+
+                    tracing::info!("🤖 Full response JSON: {}", body);
+                    tracing::info!("🤖 content ({} bytes): {:.100}", full_content.len(), full_content);
+
+                    // Strip <think>...</think> blocks emitted by reasoning models (e.g. deepseek-r1).
+                    // The tool call (if any) appears after the thinking block.
+                    let content_for_parse = strip_think_tags(&full_content);
+
+                    // Resolve tool call: prefer native tool_calls field, then text-based parse
+                    let native_tool = resp["message"]["tool_calls"]
+                        .as_array()
+                        .and_then(|arr| arr.first())
+                        .and_then(|tc| {
+                            let name = tc["function"]["name"].as_str()?.to_string();
+                            let args = tc["function"]["arguments"].clone();
+                            Some((name, args))
+                        });
+
+                    let resolved_tool = native_tool.or_else(|| parse_tool_call(&content_for_parse));
+
+                    if let Some((tool_name, tool_params)) = resolved_tool {
                         // Tool call detected!
                         tracing::info!("🔧 Tool call detected: {} with params: {:?}", tool_name, tool_params);
 
@@ -1228,10 +1415,16 @@ AVAILABLE TOOLS:\n\
                             tool_result.clone()
                         };
 
-                        messages.push(assistant_message);
+                        // Use "user" role for tool results to avoid Ollama rejecting
+                        // "tool" role when the assistant message has text content
+                        // instead of native tool_calls.
                         messages.push(OllamaMessage {
-                            role: "tool".to_string(),
-                            content: history_content,
+                            role: "assistant".to_string(),
+                            content: format!("I'll call the {} tool.", tool_name),
+                        });
+                        messages.push(OllamaMessage {
+                            role: "user".to_string(),
+                            content: format!("Tool result for {}:\n{}", tool_name, history_content),
                         });
 
                         tracing::info!("📨 Added tool result to conversation ({} bytes)", tool_result.len());
@@ -1249,15 +1442,18 @@ AVAILABLE TOOLS:\n\
                         // Continue to next iteration
                         continue;
                     } else {
-                        // No tool call — final answer was already streamed token by token
-                        tracing::info!("✅ Final answer streamed ({} bytes)", assistant_message.content.len());
+                        // No tool call — stream final answer to the user now
+                        tracing::info!("✅ Final answer ({} bytes): {:.100}", full_content.len(), full_content);
+                        if !full_content.is_empty() {
+                            yield Ok(full_content);
+                        }
                         break;
                     }
                 }
             } else {
                 // Non-autonomous mode: streaming chat with role-based system prompt.
                 // Explicitly tell the model that no tools are available.
-                // Some models (llama4:scout) will attempt tool calls even when
+                // Some models will attempt tool calls even when
                 // tools:None is sent, because they are RLHF-trained to use tools.
 
                 // Inject project context (CLAUDE.md / README.md) when available,
@@ -1268,7 +1464,7 @@ AVAILABLE TOOLS:\n\
                     let mut ctx = String::new();
                     for name in &candidates {
                         let p = root.join(name);
-                        if let Ok(content) = std::fs::read_to_string(&p) {
+                        if let Ok(content) = tokio::fs::read_to_string(&p).await {
                             tracing::info!("📄 Injecting project context from {}", p.display());
                             ctx = format!("\n\n--- PROJECT CONTEXT (from {}) ---\n{}\n--- END PROJECT CONTEXT ---", name, content);
                             break;
@@ -1304,10 +1500,19 @@ AVAILABLE TOOLS:\n\
                 };
 
                 let url = format!("{}/api/chat", base_url);
-                let response = match client.post(&url).json(&request).send().await {
-                    Ok(resp) => resp,
-                    Err(e) => {
+                let response = match tokio::time::timeout(
+                    std::time::Duration::from_secs(OLLAMA_STREAM_TIMEOUT_SECS),
+                    client.post(&url).json(&request).send(),
+                ).await {
+                    Ok(Ok(resp)) => resp,
+                    Ok(Err(e)) => {
                         yield Err(anyhow::anyhow!("Failed to send request: {}", e));
+                        return;
+                    }
+                    Err(_) => {
+                        yield Err(anyhow::anyhow!(
+                            "Ollama connection timed out after {}s", OLLAMA_STREAM_TIMEOUT_SECS
+                        ));
                         return;
                     }
                 };
@@ -1322,12 +1527,15 @@ AVAILABLE TOOLS:\n\
                 // Ollama streams NDJSON: one JSON object per line, done=true on last
                 let mut byte_stream = response.bytes_stream();
                 let mut line_buf = Vec::<u8>::new();
+                // Track whether we are inside a <think> block across chunks.
+                let mut in_think_block = false;
 
                 while let Some(item) = futures::StreamExt::next(&mut byte_stream).await {
                     let bytes = match item {
                         Ok(b) => b,
                         Err(e) => {
-                            yield Err(anyhow::anyhow!("Stream read error: {}", e));
+                            // Surface read errors to the user so they're not left in silence.
+                            yield Ok(format!("\n\n⚠️ Stream error: {}", e));
                             return;
                         }
                     };
@@ -1338,7 +1546,11 @@ AVAILABLE TOOLS:\n\
                                 if let Ok(chunk) = serde_json::from_slice::<OllamaStreamChunk>(&line_buf) {
                                     let text = chunk.message.content;
                                     if !text.is_empty() && !is_tool_call_json(&text) {
-                                        yield Ok(text);
+                                        // Strip <think> blocks from reasoning models.
+                                        let filtered = filter_think_stream(&text, &mut in_think_block);
+                                        if !filtered.is_empty() {
+                                            yield Ok(filtered);
+                                        }
                                     }
                                     if chunk.done {
                                         return;
@@ -1346,8 +1558,12 @@ AVAILABLE TOOLS:\n\
                                 }
                                 line_buf.clear();
                             }
-                        } else {
+                        } else if line_buf.len() < MAX_LINE_BUF_BYTES {
                             line_buf.push(byte);
+                        } else {
+                            // Oversized line — likely malformed response; discard and continue
+                            tracing::warn!("⚠️ Streaming line exceeded {}B limit, discarding", MAX_LINE_BUF_BYTES);
+                            line_buf.clear();
                         }
                     }
                 }
@@ -1373,12 +1589,12 @@ mod tests {
     fn test_role_model_name_all_variants() {
         assert_eq!(Role::Router.model_name(),     "llama3.2:3b-instruct-q8_0");
         assert_eq!(Role::Coder.model_name(),      "qwen2.5-coder:32b-instruct-q8_0");
-        assert_eq!(Role::Architect.model_name(),  "llama4:17b-scout-16e-instruct-q4_K_M");
+        assert_eq!(Role::Architect.model_name(),  "deepseek-r1:32b");
         assert_eq!(Role::Vision.model_name(),     "llama3.2-vision:11b");
-        assert_eq!(Role::Summarizer.model_name(), "llama4:17b-scout-16e-instruct-q4_K_M");
+        assert_eq!(Role::Summarizer.model_name(), "deepseek-r1:32b");
         assert_eq!(Role::CliGit.model_name(),     "llama3.2:1b-instruct-q8_0");
         assert_eq!(Role::Reviewer.model_name(),   "qwen2.5-coder:32b-instruct-q8_0");
-        assert_eq!(Role::DocRag.model_name(),     "llama4:17b-scout-16e-instruct-q4_K_M");
+        assert_eq!(Role::DocRag.model_name(),     "deepseek-r1:32b");
     }
 
     #[test]
@@ -1387,7 +1603,7 @@ mod tests {
         const INSTALLED: &[&str] = &[
             "llama3.2:3b-instruct-q8_0",
             "qwen2.5-coder:32b-instruct-q8_0",
-            "llama4:17b-scout-16e-instruct-q4_K_M",
+            "deepseek-r1:32b",
             "llama3.2-vision:11b",
             "llama3.2:1b-instruct-q8_0",
         ];
@@ -1632,8 +1848,13 @@ mod tests {
     // LlmClient::new()
     // =========================================================
 
+    /// Mutex to serialize tests that manipulate OLLAMA_BASE_URL.
+    /// Without this, parallel test execution causes non-deterministic failures.
+    static OLLAMA_URL_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn test_llm_client_new_default_url_when_env_not_set() {
+        let _guard = OLLAMA_URL_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         std::env::remove_var("OLLAMA_BASE_URL");
         let client = LlmClient::new().unwrap();
         assert_eq!(client.base_url, "http://KyosukenoMac-Studio.local:11434");
@@ -1641,6 +1862,7 @@ mod tests {
 
     #[test]
     fn test_llm_client_new_custom_url_from_env() {
+        let _guard = OLLAMA_URL_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("OLLAMA_BASE_URL", "http://localhost:12345");
         let client = LlmClient::new().unwrap();
         assert_eq!(client.base_url, "http://localhost:12345");
@@ -2099,6 +2321,72 @@ mod tests {
     }
 
     // =========================================================
+    // safe_join() — path traversal prevention
+    // =========================================================
+
+    #[test]
+    fn test_safe_join_normal_relative_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_str().unwrap();
+        let result = LlmClient::safe_join(root, "src/main.rs").unwrap();
+        assert!(result.starts_with(dir.path()));
+        assert!(result.ends_with("src/main.rs"));
+    }
+
+    #[test]
+    fn test_safe_join_dot_path_stays_in_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_str().unwrap();
+        let result = LlmClient::safe_join(root, ".").unwrap();
+        assert!(result.starts_with(dir.path()));
+    }
+
+    #[test]
+    fn test_safe_join_blocks_parent_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_str().unwrap();
+        assert!(LlmClient::safe_join(root, "../../etc/passwd").is_err());
+        assert!(LlmClient::safe_join(root, "../sibling").is_err());
+        assert!(LlmClient::safe_join(root, "subdir/../../..").is_err());
+    }
+
+    #[test]
+    fn test_safe_join_blocks_absolute_path_injection() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_str().unwrap();
+        // Path::join("/etc/passwd") replaces the base — safe_join must catch this
+        let result = LlmClient::safe_join(root, "/etc/passwd");
+        assert!(result.is_err(), "absolute path injection must be blocked");
+    }
+
+    #[tokio::test]
+    async fn test_list_files_blocks_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = LlmClient::new_with_base_url(String::new());
+        let params = serde_json::json!({"path": "../../"});
+        let result = client.execute_tool("list_files", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        assert!(result.contains("Access denied"), "list_files must block path traversal, got: {}", result);
+    }
+
+    #[tokio::test]
+    async fn test_read_file_blocks_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = LlmClient::new_with_base_url(String::new());
+        let params = serde_json::json!({"path": "../../etc/passwd"});
+        let result = client.execute_tool("read_file", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        assert!(result.contains("Access denied"), "read_file must block path traversal, got: {}", result);
+    }
+
+    #[tokio::test]
+    async fn test_write_file_blocks_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = LlmClient::new_with_base_url(String::new());
+        let params = serde_json::json!({"path": "../../tmp/injected.txt", "content": "pwned"});
+        let result = client.execute_tool("write_file", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        assert!(result.contains("Access denied"), "write_file must block path traversal, got: {}", result);
+    }
+
+    // =========================================================
     // Role::inference_options()
     // =========================================================
 
@@ -2106,7 +2394,8 @@ mod tests {
     fn test_inference_options_router_is_deterministic_and_tiny() {
         let opts = Role::Router.inference_options();
         assert_eq!(opts.temperature, 0.0, "Router must be deterministic");
-        assert!(opts.num_ctx.unwrap_or(u32::MAX) <= 8_192, "Router needs very small context");
+        // 16_384 is the minimum to fit the system prompt + ~70 few-shot examples
+        assert!(opts.num_ctx.unwrap_or(u32::MAX) <= 32_768, "Router context must be reasonable (≤32k)");
         assert!(opts.num_predict.is_some(), "Router must have output token cap");
     }
 
@@ -2118,9 +2407,11 @@ mod tests {
     }
 
     #[test]
-    fn test_inference_options_architect_has_large_context() {
+    fn test_inference_options_architect_has_context() {
         let opts = Role::Architect.inference_options();
-        assert!(opts.num_ctx.unwrap_or(0) >= 65_536, "Architect needs large context for design docs");
+        // deepseek-r1:32b uses most VRAM for weights; 16K is the practical limit.
+        let ctx = opts.num_ctx.unwrap_or(0);
+        assert!(ctx >= 8_192 && ctx <= 32_768, "Architect ctx should be within deepseek-r1:32b VRAM budget");
     }
 
     #[test]
@@ -2230,5 +2521,35 @@ mod tests {
             "✅ SUCCESS: 'cargo build' completed.\nSTDOUT:\n   Compiling foo v0.1.0",
         );
         assert!(result.is_none(), "successful output must not trigger correction");
+    }
+
+    // =========================================================
+    // strip_think_tags
+    // =========================================================
+
+    #[test]
+    fn test_strip_think_tags_removes_block() {
+        let input = "<think>\nLet me reason about this.\n</think>\n{\"name\": \"list_files\"}";
+        assert_eq!(strip_think_tags(input), "{\"name\": \"list_files\"}");
+    }
+
+    #[test]
+    fn test_strip_think_tags_no_tags_passthrough() {
+        let input = "{\"name\": \"list_files\"}";
+        assert_eq!(strip_think_tags(input), input);
+    }
+
+    #[test]
+    fn test_strip_think_tags_uses_last_closing_tag() {
+        // Multiple think blocks — should strip up to and including the last </think>
+        let input = "<think>first</think> middle <think>second</think> final";
+        assert_eq!(strip_think_tags(input), "final");
+    }
+
+    #[test]
+    fn test_strip_think_tags_partial_block_passthrough() {
+        // Model is still mid-think — no closing tag yet, return as-is
+        let input = "<think>\nstill thinking...";
+        assert_eq!(strip_think_tags(input), input);
     }
 }

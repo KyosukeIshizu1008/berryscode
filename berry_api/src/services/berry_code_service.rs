@@ -17,7 +17,7 @@ impl BerryCodeServiceImpl {
         // Try to create LLM client
         let llm_client = match LlmClient::new() {
             Ok(client) => {
-                tracing::info!("✅ LLM client initialized with Ollama (qwen3-coder-next:q8_0)");
+                tracing::info!("✅ LLM client initialized — multi-model routing enabled (Ollama)");
                 Some(client)
             }
             Err(e) => {
@@ -44,11 +44,12 @@ impl BerryCodeService for BerryCodeServiceImpl {
         tracing::info!("📝 Starting new session: project_path={:?}", req.project_path);
 
         let session_id = uuid::Uuid::new_v4().to_string();
-        let model = req.model.clone().unwrap_or_else(|| "gpt-4".to_string());
+        let model = req.model.clone().unwrap_or_else(|| "auto".to_string());
         let mode = req.mode.clone().unwrap_or_else(|| "code".to_string());
 
-        // Store session in manager
+        // Store session in manager, evicting any expired sessions first
         let mut manager = self.session_manager.write().await;
+        manager.cleanup_expired();
         manager.create_session(session_id.clone(), req.clone());
 
         tracing::info!("✅ Session created: {}", session_id);
@@ -72,11 +73,19 @@ impl BerryCodeService for BerryCodeServiceImpl {
 
         tracing::info!("💬 Chat request: session={}, message={}", req.session_id, req.message);
 
-        // Get project path from session
+        // Get project path: prefer per-request field, fall back to session storage
         let project_path = {
-            let manager = self.session_manager.read().await;
-            manager.get_session(&req.session_id)
-                .and_then(|session| session.request.project_path.clone())
+            if let Some(ref p) = req.project_path {
+                if !p.is_empty() {
+                    Some(p.clone())
+                } else {
+                    None
+                }
+            } else {
+                let manager = self.session_manager.read().await;
+                manager.get_session(&req.session_id)
+                    .and_then(|session| session.request.project_path.clone())
+            }
         };
 
         let (tx, rx) = tokio::sync::mpsc::channel(100);
@@ -114,6 +123,13 @@ impl BerryCodeService for BerryCodeServiceImpl {
                                 }
                                 Err(e) => {
                                     tracing::error!("❌ Stream error: {}", e);
+                                    let error_chunk = ChatChunk {
+                                        content: format!("\n\n❌ Error: {}", e),
+                                        is_final: false,
+                                        thinking: None,
+                                        metadata: None,
+                                    };
+                                    let _ = tx.send(Ok(error_chunk)).await;
                                     break;
                                 }
                             }
@@ -125,6 +141,8 @@ impl BerryCodeService for BerryCodeServiceImpl {
                             is_final: true,
                             thinking: None,
                             metadata: Some(ChatMetadata {
+                                // Note: chunk_count is the number of stream chunks, not token count.
+                                // Accurate token usage requires Ollama's /api/chat eval_count field.
                                 tokens_used: chunk_count,
                                 model: "ollama".to_string(),
                                 finish_reason: Some("stop".to_string()),
@@ -145,7 +163,7 @@ impl BerryCodeService for BerryCodeServiceImpl {
                 }
             } else {
                 // Fallback to mock response if LLM client is not available
-                tracing::warn!("⚠️  Using mock response (API key not configured)");
+                tracing::warn!("⚠️  Using mock response (Ollama not reachable)");
                 let response_text = format!("Echo: {}", req.message);
                 let chunks: Vec<&str> = response_text.split_whitespace().collect();
 
@@ -211,11 +229,39 @@ impl BerryCodeService for BerryCodeServiceImpl {
         Ok(Response::new(ListModelsResponse {
             models: vec![
                 ModelInfo {
-                    name: "gpt-4".to_string(),
-                    provider: "openai".to_string(),
-                    description: Some("GPT-4 Model".to_string()),
-                    context_window: Some(8192),
-                    cost_per_1k_tokens: Some(0.03),
+                    name: "qwen2.5-coder:32b-instruct-q8_0".to_string(),
+                    provider: "ollama".to_string(),
+                    description: Some("Coder / Reviewer — Rust implementation, debugging, security audit".to_string()),
+                    context_window: Some(65_536),
+                    cost_per_1k_tokens: Some(0.0),
+                },
+                ModelInfo {
+                    name: "deepseek-r1:32b".to_string(),
+                    provider: "ollama".to_string(),
+                    description: Some("Architect / Summarizer / DocRag — reasoning model, design and documentation".to_string()),
+                    context_window: Some(131_072),
+                    cost_per_1k_tokens: Some(0.0),
+                },
+                ModelInfo {
+                    name: "llama3.2:3b-instruct-q8_0".to_string(),
+                    provider: "ollama".to_string(),
+                    description: Some("Router — intent classification dispatcher".to_string()),
+                    context_window: Some(16_384),
+                    cost_per_1k_tokens: Some(0.0),
+                },
+                ModelInfo {
+                    name: "llama3.2:1b-instruct-q8_0".to_string(),
+                    provider: "ollama".to_string(),
+                    description: Some("CliGit — commit messages, shell commands, file ops".to_string()),
+                    context_window: Some(8_192),
+                    cost_per_1k_tokens: Some(0.0),
+                },
+                ModelInfo {
+                    name: "llama3.2-vision:11b".to_string(),
+                    provider: "ollama".to_string(),
+                    description: Some("Vision — UI layout audit from screenshots".to_string()),
+                    context_window: Some(32_768),
+                    cost_per_1k_tokens: Some(0.0),
                 },
             ],
         }))
@@ -230,8 +276,12 @@ impl BerryCodeService for BerryCodeServiceImpl {
 
     async fn close_session(
         &self,
-        _request: Request<CloseSessionRequest>,
+        request: Request<CloseSessionRequest>,
     ) -> Result<Response<CloseSessionResponse>, Status> {
+        let req = request.into_inner();
+        let mut manager = self.session_manager.write().await;
+        manager.remove_session(&req.session_id);
+        tracing::info!("🗑 Session closed: {}", req.session_id);
         Ok(Response::new(CloseSessionResponse {
             success: true,
             history_file: None,

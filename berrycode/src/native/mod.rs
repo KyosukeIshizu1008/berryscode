@@ -1,23 +1,3 @@
-//! Native platform integration module
-//! Replaces Tauri IPC commands with direct Rust function calls
-
-pub mod database;
-pub mod fs;
-pub mod git;
-pub mod grpc;
-pub mod lsp_native;
-pub mod search;
-pub mod slack;
-pub mod terminal;
-pub mod watcher;
-
-// Re-exports for convenience
-pub use database::*;
-pub use fs::*;
-pub use git::*;
-pub use grpc::*;
-pub use lsp_native::*;
-pub use search::*;
-pub use slack::*;
-pub use terminal::*;
-pub use watcher::*;
+// Re-export get_client from one of the modules to avoid ambiguity
+pub use grpc::get_client;
+// Alternatively, rename re-exports if necessary

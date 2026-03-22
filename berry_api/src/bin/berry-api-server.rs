@@ -1,5 +1,4 @@
 use berry_api::server::BerryApiServer;
-use tracing_subscriber;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,7 +10,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    let addr = "[::1]:50051".parse()?;
+    let addr_str = std::env::var("BERRY_API_ADDR")
+        .unwrap_or_else(|_| "[::1]:50051".to_string());
+    let addr: std::net::SocketAddr = addr_str.parse()
+        .map_err(|e| format!("Invalid BERRY_API_ADDR '{}': {}", addr_str, e))?;
 
     tracing::info!("🚀 Starting berry-api-server on {}", addr);
 

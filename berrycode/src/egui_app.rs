@@ -603,6 +603,15 @@ pub enum LspResponse {
     References(Vec<LspLocation>),  // NEW: Find references results
 }
 
+/// Event produced by file tree rendering (one per frame at most).
+/// Collected during the read-only render pass and applied afterwards.
+#[derive(Debug)]
+enum FileTreeEvent {
+    ExpandDir(String, bool), // (path, needs_fs_load)
+    CollapseDir(String),
+    OpenFile(String),
+}
+
 /// gRPC response types
 #[derive(Debug, Clone)]
 pub enum GrpcResponse {
@@ -814,6 +823,8 @@ pub struct BerryCodeApp {
     grpc_input: String,
     grpc_streaming: bool,
     grpc_current_response: String,
+    /// Path to an image file the user has attached (drag-and-drop or paste)
+    chat_attachment: Option<String>,
 
     // === Settings ===
     show_settings: bool,
@@ -1091,6 +1102,7 @@ impl BerryCodeApp {
             grpc_input: String::new(),
             grpc_streaming: false,
             grpc_current_response: String::new(),
+            chat_attachment: None,
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
             show_theme_editor: false,
@@ -1365,17 +1377,20 @@ impl BerryCodeApp {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-            // Use larger font for label
+            // Set font style ONCE for the whole tree (not per node)
             ui.style_mut().text_styles.insert(
                 egui::TextStyle::Body,
                 egui::FontId::proportional(14.0),
+            );
+            ui.style_mut().text_styles.insert(
+                egui::TextStyle::Button,
+                egui::FontId::proportional(15.0),
             );
 
             // Load file tree on first render
             if self.file_tree_cache.is_empty() && self.file_tree_load_pending {
                 ui.label("読み込み中...");
 
-                // Load root directory (max_depth: 1)
                 match native::fs::read_dir(&self.root_path, Some(1)) {
                     Ok(entries) => {
                         tracing::info!("✅ Loaded {} entries from {}", entries.len(), self.root_path);
@@ -1389,12 +1404,11 @@ impl BerryCodeApp {
                 }
             }
 
-            // Create root node representing the project folder
+            // Root folder row
             let root_name = self.root_path.split('/').last().unwrap_or(&self.root_path);
             let is_root_expanded = self.expanded_dirs.contains(&self.root_path);
-            let root_icon = if is_root_expanded { "\u{ea7c}" } else { "\u{ea83}" }; // codicon-folder-opened / codicon-folder
+            let root_icon = if is_root_expanded { "\u{ea7c}" } else { "\u{ea83}" };
 
-            // Render root folder
             let response = ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(root_icon)
@@ -1411,94 +1425,108 @@ impl BerryCodeApp {
                 }
             }
 
-            // Render children if root is expanded
+            // Render children without cloning: take cache, render read-only,
+            // restore cache, then apply any event.
             if is_root_expanded {
-                for entry in self.file_tree_cache.clone() {
-                    self.render_tree_node(ui, &entry, 1); // Start at depth 1
+                let cache = std::mem::take(&mut self.file_tree_cache);
+                let mut event: Option<FileTreeEvent> = None;
+                for entry in &cache {
+                    if event.is_none() {
+                        event = Self::render_tree_node(ui, entry, 1, &self.expanded_dirs);
+                    } else {
+                        Self::render_tree_node(ui, entry, 1, &self.expanded_dirs);
+                    }
+                }
+                self.file_tree_cache = cache;
+
+                // Apply the single event (if any) after rendering
+                match event {
+                    Some(FileTreeEvent::ExpandDir(path, needs_load)) => {
+                        tracing::info!("📂 Expanded: {}", path);
+                        self.expanded_dirs.insert(path.clone());
+                        if needs_load {
+                            self.load_directory_children(&path);
+                        }
+                    }
+                    Some(FileTreeEvent::CollapseDir(path)) => {
+                        tracing::info!("📁 Collapsed: {}", path);
+                        self.expanded_dirs.remove(&path);
+                    }
+                    Some(FileTreeEvent::OpenFile(path)) => {
+                        self.open_file_from_path(&path);
+                    }
+                    None => {}
                 }
             }
         });
     }
 
-    /// Render a single tree node (file or directory) recursively
-    fn render_tree_node(&mut self, ui: &mut egui::Ui, node: &DirEntry, depth: usize) {
+    /// Render a single tree node (file or directory) recursively.
+    /// Read-only: does not mutate self. Returns at most one FileTreeEvent per frame.
+    fn render_tree_node(
+        ui: &mut egui::Ui,
+        node: &DirEntry,
+        depth: usize,
+        expanded_dirs: &std::collections::HashSet<String>,
+    ) -> Option<FileTreeEvent> {
         let indent = depth as f32 * 20.0;
+        let mut event: Option<FileTreeEvent> = None;
 
-        // Render current node
-        ui.horizontal(|ui| {
-            ui.add_space(indent);
-
-            // Use larger font for file tree
-            ui.style_mut().text_styles.insert(
-                egui::TextStyle::Button,
-                egui::FontId::proportional(15.0), // Larger font size
-            );
-
-            if node.is_dir {
-                // Directory node
-                let is_expanded = self.expanded_dirs.contains(&node.path);
-                // Codicon folder icons: closed=\u{ea83}, open=\u{ea7c}
-                let icon = if is_expanded { "\u{ea7c}" } else { "\u{ea83}" };
-
-                let response = ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
-                    ui.label(
-                        egui::RichText::new(icon)
-                            .family(egui::FontFamily::Name("codicon".into()))
-                    );
-                    ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
-                }).inner;
-
-                if response.clicked() {
-                    // Toggle expansion
-                    if is_expanded {
-                        self.expanded_dirs.remove(&node.path);
-                        tracing::info!("📁 Collapsed: {}", node.path);
-                    } else {
-                        self.expanded_dirs.insert(node.path.clone());
-                        tracing::info!("📂 Expanded: {}", node.path);
-
-                        // Load children if not already loaded
-                        if node.children.is_none() {
-                            self.load_directory_children(&node.path);
-                        }
-                    }
-                }
-
-                response.on_hover_cursor(egui::CursorIcon::Default);
-            } else {
-                // File node with colored icon
-                let (icon, color) = Self::get_file_icon_with_color(&node.name);
-
-                let response = ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
-                    ui.label(
-                        egui::RichText::new(icon)
-                            .color(color)
-                            .family(egui::FontFamily::Name("codicon".into()))
-                    );
-                    ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
-                }).inner;
-
-                if response.clicked() {
-                    self.open_file_from_path(&node.path);
-                }
-
-                response.on_hover_cursor(egui::CursorIcon::Default);
-            }
-        });
-
-        // Render children OUTSIDE of horizontal layout (so they appear on separate lines)
         if node.is_dir {
-            let is_expanded = self.expanded_dirs.contains(&node.path);
+            let is_expanded = expanded_dirs.contains(&node.path);
+            let icon = if is_expanded { "\u{ea7c}" } else { "\u{ea83}" };
+
+            let response = ui.horizontal(|ui| {
+                ui.add_space(indent);
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.label(
+                    egui::RichText::new(icon)
+                        .family(egui::FontFamily::Name("codicon".into()))
+                );
+                ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
+            }).inner;
+
+            if response.clicked() {
+                event = Some(if is_expanded {
+                    FileTreeEvent::CollapseDir(node.path.clone())
+                } else {
+                    FileTreeEvent::ExpandDir(node.path.clone(), node.children.is_none())
+                });
+            }
+            response.on_hover_cursor(egui::CursorIcon::Default);
+
             if is_expanded {
                 if let Some(children) = &node.children {
                     for child in children {
-                        self.render_tree_node(ui, child, depth + 1);
+                        if event.is_none() {
+                            event = Self::render_tree_node(ui, child, depth + 1, expanded_dirs);
+                        } else {
+                            Self::render_tree_node(ui, child, depth + 1, expanded_dirs);
+                        }
                     }
                 }
             }
+        } else {
+            let (icon, color) = Self::get_file_icon_with_color(&node.name);
+
+            let response = ui.horizontal(|ui| {
+                ui.add_space(indent);
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.label(
+                    egui::RichText::new(icon)
+                        .color(color)
+                        .family(egui::FontFamily::Name("codicon".into()))
+                );
+                ui.add(egui::Label::new(&node.name).sense(egui::Sense::click()))
+            }).inner;
+
+            if response.clicked() {
+                event = Some(FileTreeEvent::OpenFile(node.path.clone()));
+            }
+            response.on_hover_cursor(egui::CursorIcon::Default);
         }
+
+        event
     }
 
     /// Open a file from a given path (used by file tree and search results)
@@ -3943,54 +3971,63 @@ impl BerryCodeApp {
     #[allow(dead_code)]
     /// Render AI Chat panel (right side of editor)
     fn render_ai_chat_panel(&mut self, ctx: &egui::Context) {
+        // ── Drag-and-drop image detection ─────────────────────────────
+        let dropped: Vec<_> = ctx.input(|i| i.raw.dropped_files.clone());
+        for file in &dropped {
+            if let Some(path) = &file.path {
+                let ext = path.extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                if ["png","jpg","jpeg","gif","webp","bmp"].contains(&ext.as_str()) {
+                    self.chat_attachment = Some(path.to_string_lossy().to_string());
+                }
+            }
+        }
+
+        // Accent colors for the chat panel
+        const PANEL_BG:    egui::Color32 = egui::Color32::from_rgb(18, 19, 22);
+        const HEADER_BG:   egui::Color32 = egui::Color32::from_rgb(22, 23, 27);
+        const INPUT_BG:    egui::Color32 = egui::Color32::from_rgb(28, 29, 34);
+        const USER_BG:     egui::Color32 = egui::Color32::from_rgb(45, 55, 95);
+        const ACCENT:      egui::Color32 = egui::Color32::from_rgb(99, 139, 255);
+        const TEXT_DIM:    egui::Color32 = egui::Color32::from_rgb(110, 115, 130);
+        const DIVIDER:     egui::Color32 = egui::Color32::from_rgb(35, 37, 45);
+
         egui::SidePanel::right("ai_chat_panel")
-            .exact_width(400.0)  // Fixed width to prevent resizing
-            .resizable(false)    // Disable resizing
-            .frame(
-                egui::Frame::none()
-                    .fill(ui_colors::SIDEBAR_BG)  // Match sidebar background
-                    .inner_margin(0.0)
-            )
+            .exact_width(420.0)
+            .resizable(false)
+            .frame(egui::Frame::none().fill(PANEL_BG).inner_margin(0.0))
             .show(ctx, |ui| {
-                // Header bar with dark background
+                // ── Header ─────────────────────────────────────────────
                 egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(20, 21, 23))
-                    .inner_margin(egui::Margin::symmetric(16.0, 12.0))
+                    .fill(HEADER_BG)
+                    .inner_margin(egui::Margin { left: 16.0, right: 12.0, top: 10.0, bottom: 10.0 })
+                    .stroke(egui::Stroke::new(1.0, DIVIDER))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            // Left: AI Chat title
-                            ui.label(egui::RichText::new("AI Chat")
-                                .color(ui_colors::TEXT_DEFAULT)
-                                .size(15.0));
-
-                            // Connection status indicator
-                            let (status_text, status_color) = if self.grpc_connected {
-                                ("●", egui::Color32::from_rgb(0, 200, 0))  // Green dot
+                            // Status dot
+                            let dot_color = if self.grpc_connected {
+                                egui::Color32::from_rgb(72, 199, 116)
                             } else {
-                                ("●", egui::Color32::from_rgb(150, 150, 150))  // Gray dot
+                                egui::Color32::from_rgb(80, 80, 90)
                             };
-                            ui.label(egui::RichText::new(status_text)
-                                .color(status_color)
-                                .size(12.0));
+                            ui.label(egui::RichText::new("●").color(dot_color).size(9.0));
+                            ui.add_space(6.0);
+                            ui.label(egui::RichText::new("AI Chat")
+                                .color(egui::Color32::from_rgb(200, 205, 220))
+                                .size(14.0)
+                                .strong());
 
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                // Minimize button
-                                if ui.button(egui::RichText::new("−").size(16.0)).clicked() {
-                                    // TODO: Minimize panel
-                                }
-
-                                // Menu button (3 dots)
-                                if ui.button(egui::RichText::new("⋮").size(16.0)).clicked() {
-                                    // TODO: Show menu
-                                }
-
-                                // History/Clock button
-                                if ui.button(egui::RichText::new("🕐").size(14.0)).clicked() {
-                                    // TODO: Show history
-                                }
-
                                 // New Chat button
-                                if ui.button(egui::RichText::new("+ New Chat").size(13.0)).clicked() {
+                                let btn = egui::Button::new(
+                                    egui::RichText::new("＋ New").size(12.0).color(TEXT_DIM)
+                                )
+                                .fill(egui::Color32::from_rgb(35, 37, 46))
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 57, 68)))
+                                .rounding(6.0);
+                                if ui.add(btn).clicked() {
                                     self.grpc_messages.clear();
                                     self.grpc_input.clear();
                                 }
@@ -3998,201 +4035,293 @@ impl BerryCodeApp {
                         });
                     });
 
-                ui.add_space(0.0);
-
-                // Chat history area with markdown rendering
-                egui::ScrollArea::vertical()
-                    .stick_to_bottom(true)
-                    .show(ui, |ui| {
-                        ui.add_space(12.0);
-
-                        if self.grpc_messages.is_empty() {
-                            ui.add_space(100.0);
-                            ui.vertical_centered(|ui| {
-                                ui.add_space(20.0);
-
-                                // Feature list
-                                ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new("Multiline code completion")
-                                        .color(egui::Color32::from_rgb(150, 150, 150))
-                                        .size(14.0));
-                                    ui.label(egui::RichText::new("⌘")
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(100, 100, 100))
-                                        .size(12.0));
-                                });
-
-                                ui.add_space(12.0);
-
-                                ui.horizontal(|ui| {
-                                    ui.label(egui::RichText::new("Code generation in the editor")
-                                        .color(egui::Color32::from_rgb(150, 150, 150))
-                                        .size(14.0));
-                                    ui.label(egui::RichText::new("⌘⌥")
-                                        .monospace()
-                                        .color(egui::Color32::from_rgb(100, 100, 100))
-                                        .size(12.0));
-                                });
-
-                                ui.add_space(12.0);
-
-                                ui.label(egui::RichText::new("AI actions in the editor's context menu")
-                                    .color(egui::Color32::from_rgb(150, 150, 150))
-                                    .size(14.0));
-
-                                ui.add_space(12.0);
-
-                                ui.hyperlink_to(
-                                    egui::RichText::new("All features")
-                                        .color(egui::Color32::from_rgb(100, 150, 255))
-                                        .size(14.0),
-                                    "https://github.com/anthropics/claude-code"
-                                );
-                            });
-                        } else {
-                            for msg in &self.grpc_messages.clone() {
-                                if msg.is_user {
-                                    // User message - simple style
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                                        egui::Frame::none()
-                                            .fill(egui::Color32::from_rgb(35, 40, 50))
-                                            .inner_margin(12.0)
-                                            .rounding(8.0)
-                                            .show(ui, |ui| {
-                                                ui.set_max_width(300.0);  // Fixed width
-                                                ui.label(egui::RichText::new(&msg.content)
-                                                    .color(egui::Color32::from_rgb(220, 220, 220))
-                                                    .size(14.0));
-                                            });
-                                    });
-                                } else {
-                                    // AI message - render as markdown
-                                    ui.add_space(12.0);
-                                    ui.vertical(|ui| {
-                                        ui.set_max_width(360.0);  // Match panel width
-                                        Self::render_markdown(ui, &msg.content);
-                                    });
-                                }
-
-                                ui.add_space(16.0);
-                            }
-                        }
-
-                        // Show streaming message if present
-                        if self.grpc_streaming {
-                            ui.add_space(12.0);
-                            ui.vertical(|ui| {
-                                ui.set_max_width(360.0);  // Match panel width
-                                Self::render_markdown(ui, &self.grpc_current_response);
-                                ui.add_space(8.0);
-                                ui.spinner();
-                            });
-                        }
-
-                        ui.add_space(12.0);
-                    });
-
-                ui.add_space(8.0);
-
-                // Input area at bottom
+                // ── Layout: input pinned to bottom, scroll fills rest ──
+                // Render bottom-up so input is always visible and scroll
+                // takes exactly the remaining space above it.
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    // Bottom footer: "Share feedback" link
-                    ui.horizontal(|ui| {
-                        ui.add_space(140.0);  // Fixed spacing for centering
-                        ui.hyperlink_to(
-                            egui::RichText::new("Share feedback ↗")
-                                .size(12.0)
-                                .color(egui::Color32::from_rgb(150, 150, 150)),
-                            "https://github.com/anthropics/claude-code/issues"
-                        );
-                    });
 
-                    ui.add_space(8.0);
-
-                    // Input box with controls (blue border like Claude Code)
-                    let input_focused = ui.memory(|mem| mem.focused().is_some());
-                    let border_color = if input_focused {
-                        egui::Color32::from_rgb(70, 130, 255) // Blue when focused
-                    } else {
-                        egui::Color32::from_rgb(60, 60, 60) // Gray when not focused
-                    };
-
+                    // ── Input area ────────────────────────────────────
                     egui::Frame::none()
-                        .fill(egui::Color32::from_rgb(35, 36, 38))
-                        .inner_margin(12.0)
-                        .rounding(8.0)
-                        .stroke(egui::Stroke::new(2.0, border_color))
+                        .fill(PANEL_BG)
+                        .inner_margin(egui::Margin { left: 12.0, right: 12.0, top: 8.0, bottom: 12.0 })
                         .show(ui, |ui| {
-                            // Text input area
-                            let hint_text = "Ask AI Assistant, use @mentions or /commands";
-                            let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
-                                .desired_width(350.0)  // Fixed width
-                                .desired_rows(3)
-                                .hint_text(hint_text)
-                                .font(egui::FontId::proportional(14.0));
+                            let input_id = egui::Id::new("chat_input");
+                            let input_focused = ui.memory(|m| m.has_focus(input_id));
+                            let border_color = if input_focused { ACCENT }
+                                              else { egui::Color32::from_rgb(48, 50, 62) };
 
-                            let response = ui.add(text_edit);
-
-                            ui.add_space(8.0);
-
-                            // Bottom controls row (matching Claude Code design)
-                            ui.horizontal(|ui| {
-                                // Left side: "+" button and "Chat ▼"
-                                if ui.button(egui::RichText::new("+").size(16.0)).clicked() {
-                                    // TODO: Attach file or add context
-                                }
-
-                                ui.add_space(4.0);
-
-                                // Chat mode dropdown
-                                egui::ComboBox::from_id_salt("chat_mode_selector")
-                                    .selected_text(
-                                        egui::RichText::new(match self.ai_chat_mode {
-                                            AIChatMode::Chat => "💬 Chat",
-                                            AIChatMode::Autonomous => "⚡ Autonomous",
-                                        })
-                                        .color(egui::Color32::from_rgb(200, 200, 200))
-                                        .size(13.0)
-                                    )
-                                    .show_ui(ui, |ui| {
-                                        ui.selectable_value(&mut self.ai_chat_mode, AIChatMode::Chat, "💬 Chat");
-                                        ui.selectable_value(&mut self.ai_chat_mode, AIChatMode::Autonomous, "⚡ Autonomous");
-                                    });
-
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    // Right side: Send button
-                                    let send_enabled = !self.grpc_input.trim().is_empty() && !self.grpc_streaming;
-
-                                    if ui.add_enabled(send_enabled,
-                                        egui::Button::new(egui::RichText::new("▶").size(16.0))
-                                    ).clicked() || (response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter))) {
-                                        self.send_grpc_message();
-                                    }
-
-                                    ui.add_space(8.0);
-
-                                    // Auto mode dropdown (placeholder)
-                                    egui::ComboBox::from_id_salt("auto_mode_selector")
-                                        .selected_text(
-                                            egui::RichText::new("Auto")
-                                                .color(egui::Color32::from_rgb(150, 150, 150))
-                                                .size(13.0)
-                                        )
-                                        .show_ui(ui, |ui| {
-                                            ui.label("Normal");
-                                            ui.label("Creative");
-                                            ui.label("Precise");
-                                        });
-
-                                    if self.grpc_streaming {
+                            egui::Frame::none()
+                                .fill(INPUT_BG)
+                                .inner_margin(egui::Margin { left: 14.0, right: 10.0, top: 10.0, bottom: 8.0 })
+                                .rounding(12.0)
+                                .stroke(egui::Stroke::new(1.5, border_color))
+                                .show(ui, |ui| {
+                                    // Attachment preview
+                                    if let Some(ref path) = self.chat_attachment.clone() {
+                                        let fname = std::path::Path::new(path)
+                                            .file_name()
+                                            .and_then(|n| n.to_str())
+                                            .unwrap_or(path);
+                                        egui::Frame::none()
+                                            .fill(egui::Color32::from_rgb(30, 35, 50))
+                                            .rounding(6.0)
+                                            .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.label(egui::RichText::new(fname)
+                                                        .size(11.0)
+                                                        .color(egui::Color32::from_rgb(160, 180, 255)));
+                                                    if ui.small_button(egui::RichText::new("x")
+                                                        .size(10.0).color(TEXT_DIM)).clicked() {
+                                                        self.chat_attachment = None;
+                                                    }
+                                                });
+                                            });
                                         ui.add_space(4.0);
-                                        ui.spinner();
                                     }
+
+                                    let hint = if self.chat_attachment.is_some() {
+                                        "画像について質問…"
+                                    } else {
+                                        "Ask anything…"
+                                    };
+                                    let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
+                                        .id(input_id)
+                                        .desired_width(f32::INFINITY)
+                                        .desired_rows(2)
+                                        .hint_text(egui::RichText::new(hint).color(TEXT_DIM))
+                                        .font(egui::FontId::proportional(14.0))
+                                        .frame(false);
+                                    let response = ui.add(text_edit);
+
+                                    ui.add_space(6.0);
+
+                                    // Controls row
+                                    ui.horizontal(|ui| {
+                                        // Mode toggle: [Chat] [Auto] pill
+                                        let is_auto = self.ai_chat_mode == AIChatMode::Autonomous;
+                                        let toggle_bg = egui::Color32::from_rgb(32, 34, 44);
+                                        egui::Frame::none()
+                                            .fill(toggle_bg)
+                                            .rounding(8.0)
+                                            .inner_margin(egui::Margin::symmetric(2.0, 2.0))
+                                            .show(ui, |ui| {
+                                                ui.horizontal(|ui| {
+                                                    ui.spacing_mut().item_spacing.x = 0.0;
+                                                    let chat_btn = egui::Button::new(
+                                                        egui::RichText::new("Chat").size(12.0)
+                                                            .color(if !is_auto { egui::Color32::WHITE } else { TEXT_DIM })
+                                                    )
+                                                    .fill(if !is_auto { ACCENT } else { egui::Color32::TRANSPARENT })
+                                                    .rounding(6.0)
+                                                    .min_size(egui::vec2(46.0, 22.0));
+                                                    if ui.add(chat_btn).clicked() {
+                                                        self.ai_chat_mode = AIChatMode::Chat;
+                                                    }
+                                                    let auto_btn = egui::Button::new(
+                                                        egui::RichText::new("Auto").size(12.0)
+                                                            .color(if is_auto { egui::Color32::WHITE } else { TEXT_DIM })
+                                                    )
+                                                    .fill(if is_auto { ACCENT } else { egui::Color32::TRANSPARENT })
+                                                    .rounding(6.0)
+                                                    .min_size(egui::vec2(46.0, 22.0));
+                                                    if ui.add(auto_btn).clicked() {
+                                                        self.ai_chat_mode = AIChatMode::Autonomous;
+                                                    }
+                                                });
+                                            });
+
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            if self.grpc_streaming {
+                                                ui.spinner();
+                                            } else {
+                                                let send_enabled = !self.grpc_input.trim().is_empty()
+                                                    || self.chat_attachment.is_some();
+                                                let send_btn = egui::Button::new(
+                                                    egui::RichText::new("↑").size(16.0)
+                                                        .color(if send_enabled { egui::Color32::WHITE } else { TEXT_DIM })
+                                                )
+                                                .fill(if send_enabled { ACCENT } else { egui::Color32::from_rgb(40, 42, 52) })
+                                                .rounding(8.0)
+                                                .min_size(egui::vec2(28.0, 28.0));
+
+                                                if ui.add_enabled(send_enabled, send_btn).clicked()
+                                                    || (response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter)))
+                                                {
+                                                    // Prepend image path to message if attached
+                                                    if let Some(ref img) = self.chat_attachment.clone() {
+                                                        if self.grpc_input.is_empty() {
+                                                            self.grpc_input = format!("[image:{}]", img);
+                                                        } else {
+                                                            self.grpc_input = format!("[image:{}] {}", img, self.grpc_input);
+                                                        }
+                                                        self.chat_attachment = None;
+                                                    }
+                                                    self.send_grpc_message();
+                                                }
+                                            }
+                                        });
+                                    });
                                 });
-                            });
                         });
 
-                    ui.add_space(24.0);  // Increased bottom margin to prevent cutoff
+                    // ── Message scroll area (fills remaining height) ──
+                    egui::ScrollArea::vertical()
+                        .id_salt("chat_messages_scroll")
+                        .stick_to_bottom(true)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            // Force top-down layout inside the scroll area.
+                            // The outer bottom_up layout otherwise reverses content direction.
+                            ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            ui.set_min_width(ui.available_width());
+
+                            if self.grpc_messages.is_empty() && !self.grpc_streaming {
+                                // ── Welcome / empty state ─────────────
+                                let avail = ui.available_height();
+                                ui.add_space((avail * 0.15).max(30.0));
+                                ui.vertical_centered(|ui| {
+                                    // Logo mark — colored "B" in a rounded frame
+                                    egui::Frame::none()
+                                        .fill(ACCENT)
+                                        .rounding(14.0)
+                                        .inner_margin(egui::Margin::symmetric(14.0, 8.0))
+                                        .show(ui, |ui| {
+                                            ui.label(egui::RichText::new("B")
+                                                .size(28.0)
+                                                .strong()
+                                                .color(egui::Color32::WHITE));
+                                        });
+                                    ui.add_space(14.0);
+                                    ui.label(egui::RichText::new("berrycode AI")
+                                        .size(20.0)
+                                        .strong()
+                                        .color(egui::Color32::from_rgb(210, 215, 230)));
+                                    ui.add_space(4.0);
+                                    ui.label(egui::RichText::new("Pure Rust  ·  Ollama  ·  Local")
+                                        .size(11.0)
+                                        .color(TEXT_DIM));
+                                    ui.add_space(28.0);
+
+                                    // Suggestion chips — no emoji, plain text
+                                    let suggestions: &[(&str, &str)] = &[
+                                        ("設計を教えて",           "[ 設計 ]"),
+                                        ("コンパイルエラーを直して", "[ Fix ]"),
+                                        ("変更をコミットして",       "[ Git ]"),
+                                        ("セキュリティチェック",     "[ Sec ]"),
+                                    ];
+                                    for (text, label) in suggestions {
+                                        ui.horizontal(|ui| {
+                                            // Badge
+                                            egui::Frame::none()
+                                                .fill(egui::Color32::from_rgb(38, 42, 58))
+                                                .rounding(6.0)
+                                                .inner_margin(egui::Margin::symmetric(7.0, 3.0))
+                                                .show(ui, |ui| {
+                                                    ui.label(egui::RichText::new(*label)
+                                                        .size(10.0)
+                                                        .monospace()
+                                                        .color(ACCENT));
+                                                });
+                                            let chip = egui::Button::new(
+                                                egui::RichText::new(*text)
+                                                    .size(13.0)
+                                                    .color(egui::Color32::from_rgb(185, 190, 210))
+                                            )
+                                            .fill(egui::Color32::from_rgb(26, 28, 36))
+                                            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 49, 63)))
+                                            .rounding(10.0);
+                                            if ui.add(chip).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                                self.grpc_input = text.to_string();
+                                                self.send_grpc_message();
+                                            }
+                                        });
+                                        ui.add_space(7.0);
+                                    }
+
+                                    ui.add_space(20.0);
+                                    ui.label(egui::RichText::new("画像はドラッグ&ドロップで添付できます")
+                                        .size(11.0)
+                                        .color(egui::Color32::from_rgb(70, 75, 90)));
+                                });
+                            } else {
+                                ui.add_space(16.0);
+                                let messages: Vec<(String, bool)> = self.grpc_messages
+                                    .iter()
+                                    .map(|m| (m.content.clone(), m.is_user))
+                                    .collect();
+
+                                for (content, is_user) in &messages {
+                                    if *is_user {
+                                        // User bubble — right-aligned via horizontal spacer.
+                                        // horizontal() (not wrapped, not right_to_left) properly
+                                        // propagates the frame's full height to the parent layout.
+                                        let avail = ui.available_width();
+                                        ui.horizontal(|ui| {
+                                            let bubble_max = 300.0_f32;
+                                            let right_pad = 12.0_f32;
+                                            let spacer = (avail - bubble_max - right_pad - 28.0).max(0.0);
+                                            ui.add_space(spacer);
+                                            egui::Frame::none()
+                                                .fill(USER_BG)
+                                                .inner_margin(egui::Margin { left: 14.0, right: 14.0, top: 10.0, bottom: 10.0 })
+                                                .rounding(egui::Rounding { nw: 16.0, ne: 4.0, sw: 16.0, se: 16.0 })
+                                                .show(ui, |ui| {
+                                                    ui.set_max_width(bubble_max);
+                                                    ui.label(egui::RichText::new(content)
+                                                        .color(egui::Color32::from_rgb(225, 230, 255))
+                                                        .size(14.0));
+                                                });
+                                            ui.add_space(right_pad);
+                                        });
+                                    } else {
+                                        // AI response — left-aligned, no background
+                                        ui.horizontal(|ui| {
+                                            ui.add_space(12.0);
+                                            ui.vertical(|ui| {
+                                                // Small model label
+                                                ui.label(egui::RichText::new("berrycode")
+                                                    .size(10.0)
+                                                    .color(TEXT_DIM));
+                                                ui.add_space(2.0);
+                                                ui.set_max_width(380.0);
+                                                Self::render_markdown(ui, content);
+                                            });
+                                        });
+                                    }
+                                    ui.add_space(18.0);
+                                }
+                            }
+
+                            // Streaming response
+                            if self.grpc_streaming {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(12.0);
+                                    ui.vertical(|ui| {
+                                        ui.label(egui::RichText::new("berrycode")
+                                            .size(10.0)
+                                            .color(TEXT_DIM));
+                                        ui.add_space(2.0);
+                                        ui.set_max_width(380.0);
+                                        let visible = strip_thinking_blocks(&self.grpc_current_response);
+                                        if !visible.is_empty() {
+                                            Self::render_markdown(ui, &visible);
+                                        }
+                                        ui.add_space(6.0);
+                                        ui.horizontal(|ui| {
+                                            ui.spinner();
+                                            ui.label(egui::RichText::new(" thinking…")
+                                                .size(11.0)
+                                                .color(TEXT_DIM));
+                                        });
+                                    });
+                                });
+                                ui.add_space(18.0);
+                            }
+
+                            ui.add_space(8.0);
+                            }); // top_down layout
+                        });
                 });
             });
     }
@@ -4462,13 +4591,14 @@ impl BerryCodeApp {
                         ui.label(egui::RichText::new(s).color(unified_white));
                     }
                     Segment::Code(s) => {
-                        egui::Frame::none()
-                            .fill(code_bg)
-                            .inner_margin(egui::Margin::symmetric(3.0, 1.0))
-                            .rounding(2.0)
-                            .show(ui, |ui| {
-                                ui.label(egui::RichText::new(s).monospace().color(unified_white));
-                            });
+                        // Use background_color instead of Frame to avoid narrow-space
+                        // vertical character wrapping in horizontal_wrapped layout.
+                        ui.label(
+                            egui::RichText::new(s)
+                                .monospace()
+                                .color(unified_white)
+                                .background_color(code_bg),
+                        );
                     }
                     Segment::Bold(s) => {
                         ui.label(egui::RichText::new(s).strong().color(unified_white));
@@ -7457,9 +7587,15 @@ impl BerryCodeApp {
                     GrpcResponse::ChatStreamCompleted => {
                         tracing::info!("✅ Chat stream completed");
 
-                        // Add completed AI message to history (strip <thinking> blocks)
+                        // Add completed AI message to history (strip <thinking>/<think> blocks)
                         if !self.grpc_current_response.is_empty() {
-                            let content = strip_thinking_blocks(&self.grpc_current_response);
+                            let stripped = strip_thinking_blocks(&self.grpc_current_response);
+                            // Fallback: if stripping removed everything, use raw response
+                            let content = if stripped.is_empty() {
+                                self.grpc_current_response.trim().to_string()
+                            } else {
+                                stripped
+                            };
                             self.grpc_messages.push(GrpcMessage {
                                 content,
                                 is_user: false,
@@ -8694,14 +8830,34 @@ impl BerryCodeApp {
 /// Strip `<thinking>...</thinking>` blocks from LLM responses.
 /// CoT blocks are internal reasoning and should not be shown to users.
 fn strip_thinking_blocks(text: &str) -> String {
+    // Strip both <thinking>...</thinking> and <think>...</think> blocks.
+    // Tries both closing tags to handle model variations.
     let mut result = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(start) = rest.find("<thinking>") {
-        result.push_str(&rest[..start]);
-        if let Some(end) = rest[start..].find("</thinking>") {
-            rest = &rest[start + end + "</thinking>".len()..];
-        } else {
-            // Unclosed tag — drop the rest (still streaming or malformed)
+    loop {
+        // Find the earliest opening tag among variants
+        let pos_full  = rest.find("<thinking>");
+        let pos_short = rest.find("<think>");
+        let (open_start, open_tag, close_tag) = match (pos_full, pos_short) {
+            (Some(a), Some(b)) if a <= b => (a, "<thinking>", "</thinking>"),
+            (Some(a), None)              => (a, "<thinking>", "</thinking>"),
+            (_, Some(b))                 => (b, "<think>",    "</think>"),
+            (None, None)                 => break,
+        };
+        result.push_str(&rest[..open_start]);
+        let after_open = &rest[open_start + open_tag.len()..];
+        // Try primary close tag, then the other variant
+        let close_candidates = [close_tag, if close_tag == "</thinking>" { "</think>" } else { "</thinking>" }];
+        let mut found = false;
+        for &close in &close_candidates {
+            if let Some(end) = after_open.find(close) {
+                rest = &after_open[end + close.len()..];
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            // Unclosed tag — content still streaming; stop here
             return result.trim().to_string();
         }
     }

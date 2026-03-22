@@ -24,14 +24,25 @@ pub struct DirEntry {
     pub children: Option<Vec<DirEntry>>,
 }
 
-/// Get current working directory
+/// Get project root directory.
+/// Walks up from CWD to find the nearest `.git` directory.
+/// Falls back to CWD if no git root is found.
 pub fn get_current_dir() -> Result<String> {
-    std::env::current_dir()
-        .context("Failed to get current directory")?
-        .to_str()
-        .context("Invalid UTF-8 in path")?
-        .to_string()
-        .pipe(Ok)
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+
+    // Walk up from CWD to find git root
+    let mut dir = cwd.clone();
+    loop {
+        if dir.join(".git").exists() {
+            return Ok(dir.to_str().context("Invalid UTF-8 in path")?.to_string());
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+
+    // No git root found — fall back to CWD
+    Ok(cwd.to_str().context("Invalid UTF-8 in path")?.to_string())
 }
 
 /// Read file contents (with size limit for safety)

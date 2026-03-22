@@ -91,11 +91,15 @@ impl GrpcClient {
             client_guard.as_ref().context("Not connected to berry-api-server")?.clone()
         };
 
+        // Send project_path with every request so autonomous mode works even after server restart
+        let project_path = crate::native::fs::get_current_dir().ok();
+
         let request = tonic::Request::new(ChatRequest {
             session_id,
             message,
-            stream: Some(true), // Enable streaming
+            stream: Some(true),
             autonomous: Some(autonomous),
+            project_path,
         });
 
         let mut stream = client
@@ -116,16 +120,27 @@ impl GrpcClient {
                 match stream.message().await {
                     Ok(Some(chunk)) => {
                         chunk_count += 1;
+
+                        // Final chunk signals end-of-stream; its content is always empty
+                        if chunk.is_final {
+                            tracing::info!("📨 Chat stream ended (is_final, {} chunks)", chunk_count);
+                            break;
+                        }
+
+                        // Skip empty content chunks (defensive; shouldn't happen in normal flow)
+                        if chunk.content.is_empty() {
+                            continue;
+                        }
+
                         tracing::info!("📦 Received chunk #{}: {} chars", chunk_count, chunk.content.len());
 
                         if let Err(e) = tx.send(chunk.content).await {
                             tracing::error!("❌ Failed to send chunk to channel: {}", e);
                             break;
                         }
-                        tracing::info!("✅ Chunk #{} sent to channel", chunk_count);
                     }
                     Ok(None) => {
-                        tracing::info!("📨 Chat stream ended normally (received {} chunks)", chunk_count);
+                        tracing::info!("📨 Chat stream ended (stream closed, {} chunks)", chunk_count);
                         break;
                     }
                     Err(e) => {
@@ -142,7 +157,9 @@ impl GrpcClient {
 
 /// Global singleton instance
 static GRPC_CLIENT: once_cell::sync::Lazy<GrpcClient> = once_cell::sync::Lazy::new(|| {
-    GrpcClient::new("http://[::1]:50051")
+    let endpoint = std::env::var("BERRY_API_ENDPOINT")
+        .unwrap_or_else(|_| "http://[::1]:50051".to_string());
+    GrpcClient::new(endpoint)
 });
 
 /// Get the global gRPC client
