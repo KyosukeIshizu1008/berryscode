@@ -31,6 +31,13 @@ jobs:
         run: |
           python3 ai-review.py
 
+      - name: Auto Fix Issues
+        if: always()
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 .github/workflows/fix-issues.py
       - name: Comment on Issues
         if: always()
         uses: actions/github-script@v7

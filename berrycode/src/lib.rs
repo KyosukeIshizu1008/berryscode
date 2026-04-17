@@ -1,18 +1,15 @@
-//! BerryEditor - 100% Rust Native Desktop Code Editor
+//! BerryCode - Bevy IDE
 //!
-//! Built with egui 0.29 + eframe (Pure Native, No WebView)
-//! GPU-accelerated rendering via WGPU
+//! A Bevy-specialized code editor built with Bevy + bevy_egui.
+//! GPU-accelerated rendering via WGPU.
 //!
 //! ## Architecture
 //!
-//! - **main.rs + egui_app.rs**: Pure egui-based UI
-//! - **native/ modules**: Framework-agnostic platform operations
-//! - **buffer, syntax, theme**: Core text editing (framework-agnostic)
-//!
-//! ## Clean Architecture
-//!
-//! All Dioxus, HTML, CSS, and JavaScript code has been removed.
-//! Binary size: ~6.4MB (down from 7.9MB)
+//! - **app/**: Bevy-based UI (egui panels, editor, git, terminal, etc.)
+//! - **bevy_ide/**: Bevy-specific features (templates, ECS inspector, scene preview, assets)
+//! - **bevy_plugin.rs**: Bevy Plugin integrating the editor
+//! - **native/**: Platform operations (fs, git, LSP, terminal, search)
+//! - **buffer, cursor, syntax**: Core text editing
 
 // ===== Core Text Editing =====
 pub mod buffer;
@@ -27,9 +24,15 @@ pub mod common;
 pub mod types;
 pub mod focus_stack;
 
-// ===== egui Application (Main UI) =====
-pub mod egui_app;
-pub mod egui_app_slack; // Slack-like chat UI
+// ===== Bevy Application =====
+pub mod app;
+pub mod bevy_plugin;
+pub mod bevy_ide;
+
+// Backwards-compatible re-export
+pub mod egui_app {
+    pub use crate::app::BerryCodeApp;
+}
 
 // ===== Search =====
 pub mod search;

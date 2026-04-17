@@ -206,7 +206,7 @@ impl SyntaxHighlighter {
             // Lifetime ('a, 'static)
             if bytes[pos] == b'\'' && pos + 1 < bytes.len() && bytes[pos + 1].is_ascii_alphabetic() {
                 pos += 1; // Skip '
-                let lifetime_start = pos;
+                let _lifetime_start = pos;
                 while pos < bytes.len() && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_') {
                     pos += 1;
                 }

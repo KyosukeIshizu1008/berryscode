@@ -83,6 +83,7 @@ impl FileDiff {
     }
 }
 
+#[allow(dead_code)]
 pub struct GitDiffTracker {
     current_file: Option<String>,
     diff_cache: HashMap<String, FileDiff>,

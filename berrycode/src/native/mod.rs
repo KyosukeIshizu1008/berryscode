@@ -1,3 +1,11 @@
-// Re-export get_client from one of the modules to avoid ambiguity
+pub mod dap;
+pub mod fs;
+pub mod git;
+pub mod grpc;
+pub mod lsp_native;
+pub mod search;
+pub mod terminal;
+pub mod watcher;
+
+// Re-export get_client from grpc module
 pub use grpc::get_client;
-// Alternatively, rename re-exports if necessary

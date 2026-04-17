@@ -1106,6 +1106,135 @@ pub fn merge_branch(repo_path: impl AsRef<Path>, branch_name: &str) -> Result<()
     Ok(())
 }
 
+// ===== Line-level diff for gutter markers =====
+
+#[derive(Debug, Clone)]
+pub struct LineChange {
+    pub line: usize,      // 0-indexed line number in the current file
+    pub change_type: LineChangeType,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum LineChangeType {
+    Added,
+    Modified,
+    Deleted,
+}
+
+/// Get line-level diff between HEAD and working copy for a file (for gutter markers)
+pub fn get_line_changes(root_path: &str, file_path: &str) -> Result<Vec<LineChange>> {
+    let repo = Repository::open(root_path)
+        .or_else(|_| Repository::discover(root_path))
+        .context("Failed to open git repository")?;
+
+    // Get relative path
+    let relative = file_path.strip_prefix(root_path)
+        .unwrap_or(file_path)
+        .trim_start_matches('/');
+
+    let head_tree = match repo.head() {
+        Ok(head) => match head.peel_to_tree() {
+            Ok(tree) => tree,
+            Err(_) => {
+                // No commits yet, all lines are Added
+                let content = std::fs::read_to_string(file_path)?;
+                let count = content.lines().count();
+                return Ok((0..count).map(|i| LineChange { line: i, change_type: LineChangeType::Added }).collect());
+            }
+        },
+        Err(_) => {
+            let content = std::fs::read_to_string(file_path)?;
+            let count = content.lines().count();
+            return Ok((0..count).map(|i| LineChange { line: i, change_type: LineChangeType::Added }).collect());
+        }
+    };
+
+    let entry = match head_tree.get_path(Path::new(relative)) {
+        Ok(e) => e,
+        Err(_) => {
+            // File not in HEAD, all lines are Added
+            let content = std::fs::read_to_string(file_path)?;
+            let count = content.lines().count();
+            return Ok((0..count).map(|i| LineChange { line: i, change_type: LineChangeType::Added }).collect());
+        }
+    };
+
+    let blob = repo.find_blob(entry.id())?;
+    let old_content = std::str::from_utf8(blob.content()).unwrap_or("");
+    let new_content = std::fs::read_to_string(file_path)?;
+
+    let old_lines: Vec<&str> = old_content.lines().collect();
+    let new_lines: Vec<&str> = new_content.lines().collect();
+
+    let mut changes = Vec::new();
+    let max_len = old_lines.len().max(new_lines.len());
+
+    for i in 0..max_len {
+        match (old_lines.get(i), new_lines.get(i)) {
+            (Some(old), Some(new)) => {
+                if old != new {
+                    changes.push(LineChange { line: i, change_type: LineChangeType::Modified });
+                }
+            }
+            (None, Some(_)) => {
+                changes.push(LineChange { line: i, change_type: LineChangeType::Added });
+            }
+            (Some(_), None) => {
+                changes.push(LineChange {
+                    line: i.min(new_lines.len().saturating_sub(1)),
+                    change_type: LineChangeType::Deleted,
+                });
+            }
+            (None, None) => {}
+        }
+    }
+
+    Ok(changes)
+}
+
+// ===== Inline blame info =====
+
+#[derive(Debug, Clone)]
+pub struct BlameInfo {
+    pub author: String,
+    pub timestamp: i64,
+    pub message: String,
+}
+
+/// Get blame info for a specific line (0-indexed)
+pub fn get_line_blame(root_path: &str, file_path: &str, line: usize) -> Result<Option<BlameInfo>> {
+    let repo = Repository::open(root_path)
+        .or_else(|_| Repository::discover(root_path))
+        .context("Failed to open git repository")?;
+
+    let relative = file_path.strip_prefix(root_path)
+        .unwrap_or(file_path)
+        .trim_start_matches('/');
+
+    let blame = repo.blame_file(Path::new(relative), None)
+        .context("Failed to get blame")?;
+
+    // git blame get_line is 1-indexed
+    if let Some(hunk) = blame.get_line(line + 1) {
+        let sig = hunk.final_signature();
+        let name = sig.name().unwrap_or("unknown").to_string();
+        let time = sig.when();
+        let commit_id = hunk.final_commit_id();
+
+        let message = repo.find_commit(commit_id)
+            .map(|c| c.summary().unwrap_or("").to_string())
+            .unwrap_or_default();
+
+        Ok(Some(BlameInfo {
+            author: name,
+            timestamp: time.seconds(),
+            message,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Rebase current branch onto target branch
 pub fn rebase_branch(repo_path: impl AsRef<Path>, target_branch: &str) -> Result<()> {
     let repo = open_repo(repo_path)?;

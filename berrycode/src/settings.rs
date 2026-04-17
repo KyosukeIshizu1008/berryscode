@@ -48,6 +48,7 @@ impl Default for EditorSettings {
 }
 
 impl EditorSettings {
+    #[allow(dead_code)]
     const STORAGE_KEY: &'static str = "berry-editor-settings";
 
     /// Get settings file path
