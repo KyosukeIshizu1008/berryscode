@@ -738,6 +738,18 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                                 "s".hash(&mut hasher);
                                 v.hash(&mut hasher);
                             }
+                            ScriptValue::Vec(items) => {
+                                "v".hash(&mut hasher);
+                                items.len().hash(&mut hasher);
+                            }
+                            ScriptValue::Option(opt) => {
+                                "o".hash(&mut hasher);
+                                opt.is_some().hash(&mut hasher);
+                            }
+                            ScriptValue::Map(entries) => {
+                                "m".hash(&mut hasher);
+                                entries.len().hash(&mut hasher);
+                            }
                         }
                     }
                 }

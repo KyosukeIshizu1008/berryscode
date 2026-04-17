@@ -429,7 +429,17 @@ impl BerryCodeApp {
                 self.scene_model.modified = false;
                 self.status_message = format!("Scene saved: {}", path);
                 self.status_message_timestamp = Some(std::time::Instant::now());
-                tracing::info!("💾 Scene saved: {}", path);
+                tracing::info!("Scene saved: {}", path);
+
+                // Auto-generate Rust code alongside the scene
+                match crate::app::scene_editor::codegen::save_scene_code(&self.scene_model, &path) {
+                    Ok(rs_path) => {
+                        tracing::info!("Code generated: {}", rs_path);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Code generation failed: {}", e);
+                    }
+                }
             }
             Err(e) => {
                 self.status_message = format!("Save failed: {}", e);

@@ -374,6 +374,12 @@ pub enum ScriptValue {
     Int(i64),
     Bool(bool),
     String(String),
+    /// Variable-length list of values (e.g. `Vec<f32>`).
+    Vec(Vec<ScriptValue>),
+    /// Optional value (e.g. `Option<f32>`). `None` means the option is unset.
+    Option(Option<Box<ScriptValue>>),
+    /// Key-value map (e.g. `HashMap<String, f32>`).
+    Map(Vec<(String, ScriptValue)>),
 }
 
 impl ScriptValue {
@@ -384,6 +390,9 @@ impl ScriptValue {
             ScriptValue::Int(_) => "i64",
             ScriptValue::Bool(_) => "bool",
             ScriptValue::String(_) => "String",
+            ScriptValue::Vec(_) => "Vec",
+            ScriptValue::Option(_) => "Option",
+            ScriptValue::Map(_) => "Map",
         }
     }
 }
@@ -1000,6 +1009,9 @@ pub struct SceneModel {
     /// Editor-only dirty flag; not persisted.
     #[serde(skip)]
     pub modified: bool,
+    /// Global Bevy Resources defined for this scene.
+    #[serde(default)]
+    pub resources: Vec<super::resource_editor::ResourceDef>,
 }
 
 impl SceneModel {
@@ -1012,6 +1024,7 @@ impl SceneModel {
             selected_ids: HashSet::new(),
             file_path: None,
             modified: false,
+            resources: Vec::new(),
         }
     }
 

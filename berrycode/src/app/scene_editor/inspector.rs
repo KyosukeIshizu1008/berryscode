@@ -3,6 +3,30 @@
 use super::model::*;
 use crate::app::BerryCodeApp;
 
+/// Create a default [`ScriptValue`] from a Rust type string.
+/// Recognises `Vec<T>`, `Option<T>`, and `HashMap<K,V>` wrappers in addition
+/// to the basic primitive types.
+fn script_value_from_type(ty: &str) -> ScriptValue {
+    let ty = ty.trim();
+    if let Some(inner) = ty.strip_prefix("Vec<").and_then(|s| s.strip_suffix('>')) {
+        // Vec<T> -> empty vec (element type preserved conceptually)
+        let _ = inner; // inner type used if we want to seed elements later
+        ScriptValue::Vec(vec![])
+    } else if let Some(inner) = ty.strip_prefix("Option<").and_then(|s| s.strip_suffix('>')) {
+        let _ = inner;
+        ScriptValue::Option(None)
+    } else if ty.starts_with("HashMap<") || ty.starts_with("BTreeMap<") {
+        ScriptValue::Map(vec![])
+    } else {
+        match ty {
+            "f32" | "f64" => ScriptValue::Float(0.0),
+            "i32" | "i64" | "u32" | "u64" | "usize" | "isize" => ScriptValue::Int(0),
+            "bool" => ScriptValue::Bool(false),
+            _ => ScriptValue::String(String::new()),
+        }
+    }
+}
+
 impl BerryCodeApp {
     /// Render the Inspector panel for the currently selected entity.
     pub(crate) fn render_scene_inspector(&mut self, ui: &mut egui::Ui) {
@@ -1118,6 +1142,105 @@ impl BerryCodeApp {
                                                     mutated = true;
                                                 }
                                             }
+                                            ScriptValue::Vec(items) => {
+                                                ui.vertical(|ui| {
+                                                    let mut remove_vec_idx: Option<usize> = None;
+                                                    for (vi, item) in items.iter_mut().enumerate() {
+                                                        ui.horizontal(|ui| {
+                                                            ui.label(format!("[{}]", vi));
+                                                            if let ScriptValue::Float(v) = item {
+                                                                if ui.add(egui::DragValue::new(v).speed(0.05)).changed() {
+                                                                    mutated = true;
+                                                                }
+                                                            } else if let ScriptValue::Int(v) = item {
+                                                                if ui.add(egui::DragValue::new(v).speed(1.0)).changed() {
+                                                                    mutated = true;
+                                                                }
+                                                            } else if let ScriptValue::String(v) = item {
+                                                                if ui.add(egui::TextEdit::singleline(v).desired_width(120.0)).changed() {
+                                                                    mutated = true;
+                                                                }
+                                                            }
+                                                            if ui.small_button("x").clicked() {
+                                                                remove_vec_idx = Some(vi);
+                                                            }
+                                                        });
+                                                    }
+                                                    if let Some(ri) = remove_vec_idx {
+                                                        items.remove(ri);
+                                                        mutated = true;
+                                                    }
+                                                    if ui.small_button("+ element").clicked() {
+                                                        items.push(ScriptValue::Float(0.0));
+                                                        mutated = true;
+                                                    }
+                                                });
+                                            }
+                                            ScriptValue::Option(opt) => {
+                                                ui.horizontal(|ui| {
+                                                    let mut has_value = opt.is_some();
+                                                    if ui.checkbox(&mut has_value, "Some").changed() {
+                                                        if has_value {
+                                                            *opt = Some(Box::new(ScriptValue::Float(0.0)));
+                                                        } else {
+                                                            *opt = None;
+                                                        }
+                                                        mutated = true;
+                                                    }
+                                                    if let Some(inner) = opt {
+                                                        if let ScriptValue::Float(v) = inner.as_mut() {
+                                                            if ui.add(egui::DragValue::new(v).speed(0.05)).changed() {
+                                                                mutated = true;
+                                                            }
+                                                        } else if let ScriptValue::Int(v) = inner.as_mut() {
+                                                            if ui.add(egui::DragValue::new(v).speed(1.0)).changed() {
+                                                                mutated = true;
+                                                            }
+                                                        } else if let ScriptValue::String(v) = inner.as_mut() {
+                                                            if ui.add(egui::TextEdit::singleline(v).desired_width(120.0)).changed() {
+                                                                mutated = true;
+                                                            }
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                            ScriptValue::Map(entries) => {
+                                                ui.vertical(|ui| {
+                                                    let mut remove_map_idx: Option<usize> = None;
+                                                    for (mi, (key, val)) in entries.iter_mut().enumerate() {
+                                                        ui.horizontal(|ui| {
+                                                            if ui.add(egui::TextEdit::singleline(key).desired_width(80.0)).changed() {
+                                                                mutated = true;
+                                                            }
+                                                            ui.label(":");
+                                                            if let ScriptValue::Float(v) = val {
+                                                                if ui.add(egui::DragValue::new(v).speed(0.05)).changed() {
+                                                                    mutated = true;
+                                                                }
+                                                            } else if let ScriptValue::Int(v) = val {
+                                                                if ui.add(egui::DragValue::new(v).speed(1.0)).changed() {
+                                                                    mutated = true;
+                                                                }
+                                                            } else if let ScriptValue::String(v) = val {
+                                                                if ui.add(egui::TextEdit::singleline(v).desired_width(120.0)).changed() {
+                                                                    mutated = true;
+                                                                }
+                                                            }
+                                                            if ui.small_button("x").clicked() {
+                                                                remove_map_idx = Some(mi);
+                                                            }
+                                                        });
+                                                    }
+                                                    if let Some(ri) = remove_map_idx {
+                                                        entries.remove(ri);
+                                                        mutated = true;
+                                                    }
+                                                    if ui.small_button("+ entry").clicked() {
+                                                        entries.push((format!("key_{}", entries.len()), ScriptValue::Float(0.0)));
+                                                        mutated = true;
+                                                    }
+                                                });
+                                            }
                                         }
                                         if ui.small_button("x").clicked() {
                                             remove_idx = Some(f_idx);
@@ -1156,6 +1279,27 @@ impl BerryCodeApp {
                                         fields.push(ScriptField {
                                             name: format!("field_{}", fields.len()),
                                             value: ScriptValue::String(String::new()),
+                                        });
+                                        mutated = true;
+                                    }
+                                    if ui.small_button("+ Vec").clicked() {
+                                        fields.push(ScriptField {
+                                            name: format!("field_{}", fields.len()),
+                                            value: ScriptValue::Vec(vec![]),
+                                        });
+                                        mutated = true;
+                                    }
+                                    if ui.small_button("+ Option").clicked() {
+                                        fields.push(ScriptField {
+                                            name: format!("field_{}", fields.len()),
+                                            value: ScriptValue::Option(None),
+                                        });
+                                        mutated = true;
+                                    }
+                                    if ui.small_button("+ Map").clicked() {
+                                        fields.push(ScriptField {
+                                            name: format!("field_{}", fields.len()),
+                                            value: ScriptValue::Map(vec![]),
                                         });
                                         mutated = true;
                                     }
@@ -1556,6 +1700,33 @@ impl BerryCodeApp {
                             add_label = name.to_string();
                         }
                     }
+
+                    // User-defined components from project scan
+                    if !self.scanned_user_components.is_empty() {
+                        ui.separator();
+                        ui.label("User Components:");
+                        for comp in &self.scanned_user_components {
+                            if !filter_lower.is_empty()
+                                && !comp.name.to_lowercase().contains(&filter_lower)
+                            {
+                                continue;
+                            }
+                            if ui.selectable_label(false, &comp.name).clicked() {
+                                let fields: Vec<ScriptField> = comp
+                                    .fields
+                                    .iter()
+                                    .map(|f| ScriptField {
+                                        name: f.name.clone(),
+                                        value: script_value_from_type(&f.field_type),
+                                    })
+                                    .collect();
+                                add_component = Some(ComponentData::CustomScript {
+                                    type_name: comp.name.clone(),
+                                    fields,
+                                });
+                            }
+                        }
+                    }
                 });
                 if !add_label.is_empty() {
                     for (name, default) in ComponentData::default_all() {
@@ -1799,6 +1970,14 @@ impl BerryCodeApp {
         // Phase 17: debug overlay for live values during play mode.
         if self.play_mode.is_active() {
             self.render_debug_overlay(ui);
+        }
+
+        // Bevy Resource Editor: show editable global resources below entity components.
+        if super::resource_editor::render_resource_inspector(
+            ui,
+            &mut self.scene_model.resources,
+        ) {
+            self.scene_model.modified = true;
         }
     }
 }

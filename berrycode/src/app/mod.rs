@@ -295,6 +295,7 @@ pub struct BerryCodeApp {
 
     // === ECS Inspector ===
     pub(crate) ecs_inspector: crate::bevy_ide::inspector::ecs_state::EcsInspectorState,
+    pub(crate) ecs_inspector_tab: ecs_inspector::EcsInspectorTab,
 
     // === Scene Preview ===
     pub(crate) scene_preview: crate::bevy_ide::scene_preview::parser::ScenePreviewState,
@@ -502,12 +503,41 @@ pub struct BerryCodeApp {
     pub(crate) build_process: Option<std::process::Child>,
     pub(crate) build_output_rx: Option<std::sync::mpsc::Receiver<String>>,
 
+    // === Scanned User Components (bidirectional sync) ===
+    pub(crate) scanned_user_components: Vec<scene_editor::script_scan::ScannedComponent>,
+
     // === Scene Merge (Phase 64) ===
     pub(crate) merge_panel_open: bool,
     pub(crate) merge_base_path: String,
     pub(crate) merge_ours_path: String,
     pub(crate) merge_theirs_path: String,
     pub(crate) merge_result: Option<scene_editor::scene_merge::MergeResult>,
+
+    // === Bevy System Graph ===
+    pub(crate) system_graph_open: bool,
+    pub(crate) system_graph: scene_editor::system_graph::SystemGraph,
+
+    // === Bevy Event Monitor ===
+    pub(crate) event_monitor_open: bool,
+    pub(crate) event_log: Vec<scene_editor::event_monitor::EventEntry>,
+    pub(crate) event_filter_text: String,
+    pub(crate) event_filter_types: std::collections::HashSet<String>,
+
+    // === Bevy Query Visualizer ===
+    pub(crate) query_viz_open: bool,
+    pub(crate) queries: Vec<scene_editor::query_viz::QueryDef>,
+
+    // === Bevy States Editor ===
+    pub(crate) state_editor_open: bool,
+    pub(crate) state_graph: scene_editor::state_editor::StateGraph,
+
+    // === Bevy Plugin Browser ===
+    pub(crate) plugin_browser_open: bool,
+    pub(crate) plugin_search_query: String,
+    pub(crate) plugin_search_results: Vec<scene_editor::plugin_browser::CrateResult>,
+
+    // === Bevy Version Management ===
+    pub(crate) bevy_version: Option<String>,
 }
 
 impl BerryCodeApp {
@@ -629,6 +659,8 @@ impl BerryCodeApp {
             tracing::warn!("⚠️  berry-api-server not found after 2 minutes. Start it with: cd berry_api && cargo run --bin berry-api-server");
         });
 
+        let bevy_version = scene_editor::bevy_version::detect_bevy_version(&root_path);
+
         Self {
             root_path,
             selected_file: None,
@@ -736,6 +768,7 @@ impl BerryCodeApp {
             file_watcher,
 
             ecs_inspector: Default::default(),
+            ecs_inspector_tab: ecs_inspector::EcsInspectorTab::default(),
 
             scene_preview: Default::default(),
 
@@ -795,7 +828,7 @@ impl BerryCodeApp {
             scene_fog_start: 50.0,
             scene_fog_end: 200.0,
             scene_dof_enabled: false,
-            scene_dof_focus_distance: 10.0,
+            scene_dof_focus_distance: 5.0,
             scene_dof_aperture: 0.02,
             fly_mode_active: false,
             fly_camera_speed: 5.0,
@@ -816,16 +849,45 @@ impl BerryCodeApp {
 
             dragged_asset_path: None,
 
-            profiler: scene_editor::profiler::ProfilerState::default(),
+            profiler: {
+                let mut p = scene_editor::profiler::ProfilerState::default();
+                p.open = false;
+                p
+            },
 
             particle_preview: scene_editor::particle_preview::ParticlePreview::default(),
 
-            animation_playback: scene_editor::animation::AnimationPlayback::default(),
+            animation_playback: {
+                let mut ap = scene_editor::animation::AnimationPlayback::default();
+                ap.playing = true;
+                ap
+            },
             timeline_open: false,
             dopesheet_open: false,
             dopesheet_show_curves: true,
             animator_editor_open: false,
-            editing_animator: None,
+            editing_animator: Some({
+                let mut c = scene_editor::animator::AnimatorController::default();
+                c.states.push(scene_editor::animator::AnimState {
+                    name: "Walk".into(), clip_name: "walk".into(), speed: 1.0, looped: true, position: [300.0, 100.0],
+                });
+                c.states.push(scene_editor::animator::AnimState {
+                    name: "Run".into(), clip_name: "run".into(), speed: 1.5, looped: true, position: [300.0, 250.0],
+                });
+                c.transitions.push(scene_editor::animator::AnimTransition {
+                    from_state: 0, to_state: 1,
+                    condition: scene_editor::animator::TransitionCondition::BoolParam { name: "is_running".into(), value: true },
+                    blend_duration: 0.2,
+                });
+                c.transitions.push(scene_editor::animator::AnimTransition {
+                    from_state: 1, to_state: 0,
+                    condition: scene_editor::animator::TransitionCondition::BoolParam { name: "is_running".into(), value: false },
+                    blend_duration: 0.3,
+                });
+                c.parameters.push(scene_editor::animator::AnimParam::Bool { name: "is_running".into(), value: false });
+                c.parameters.push(scene_editor::animator::AnimParam::Float { name: "speed".into(), value: 1.0 });
+                c
+            }),
             editing_animator_path: String::new(),
             animator_dragging_state: None,
             pending_transition_from: None,
@@ -867,10 +929,27 @@ impl BerryCodeApp {
             terrain_brush: scene_editor::terrain::TerrainBrushState::default(),
 
             visual_script_editor_open: false,
-            editing_visual_script: None,
+            editing_visual_script: Some({
+                let mut s = scene_editor::visual_script::VisualScript::default();
+                s.nodes.push(scene_editor::visual_script::ScriptNode {
+                    id: 2, node_type: scene_editor::visual_script::NodeType::Print { message: "Hello World".into() },
+                    position: [300.0, 80.0],
+                });
+                s.nodes.push(scene_editor::visual_script::ScriptNode {
+                    id: 3, node_type: scene_editor::visual_script::NodeType::Branch,
+                    position: [200.0, 200.0],
+                });
+                s.nodes.push(scene_editor::visual_script::ScriptNode {
+                    id: 4, node_type: scene_editor::visual_script::NodeType::Delay { seconds: 1.0 },
+                    position: [400.0, 200.0],
+                });
+                s.edges.push(scene_editor::visual_script::ScriptEdge { from_node: 1, from_pin: 0, to_node: 2, to_pin: 0 });
+                s.edges.push(scene_editor::visual_script::ScriptEdge { from_node: 2, from_pin: 0, to_node: 3, to_pin: 0 });
+                s
+            }),
 
             shader_graph_editor_open: false,
-            editing_shader_graph: None,
+            editing_shader_graph: Some(scene_editor::shader_graph::ShaderGraph::default()),
 
             hot_reload: scene_editor::hot_reload::HotReloadState::default(),
 
@@ -878,11 +957,33 @@ impl BerryCodeApp {
             build_process: None,
             build_output_rx: None,
 
+            scanned_user_components: Vec::new(),
+
             merge_panel_open: false,
             merge_base_path: String::new(),
             merge_ours_path: String::new(),
             merge_theirs_path: String::new(),
             merge_result: None,
+
+            system_graph_open: false,
+            system_graph: scene_editor::system_graph::SystemGraph::default(),
+
+            event_monitor_open: false,
+            event_log: Vec::new(),
+            event_filter_text: String::new(),
+            event_filter_types: std::collections::HashSet::new(),
+
+            query_viz_open: false,
+            queries: Vec::new(),
+
+            state_editor_open: false,
+            state_graph: scene_editor::state_editor::StateGraph::default_game_states(),
+
+            plugin_browser_open: false,
+            plugin_search_query: String::new(),
+            plugin_search_results: Vec::new(),
+
+            bevy_version,
         }
     }
 
@@ -1229,6 +1330,21 @@ pub fn berry_ui_system(
 
     // Phase 74: floating shader graph editor.
     app.render_shader_graph_editor(ctx);
+
+    // Bevy-specific: System Execution Graph.
+    app.render_system_graph(ctx);
+
+    // Bevy-specific: Event Monitor.
+    app.render_event_monitor(ctx);
+
+    // Bevy-specific: Query Visualizer.
+    app.render_query_viz(ctx);
+
+    // Bevy-specific: States Editor.
+    app.render_state_editor(ctx);
+
+    // Bevy-specific: Plugin Browser.
+    app.render_plugin_browser(ctx);
 
     // Phase 75: hot reload polling.
     {

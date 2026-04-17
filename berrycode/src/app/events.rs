@@ -6,6 +6,10 @@ use crate::native;
 
 impl BerryCodeApp {
     pub(crate) fn poll_file_watcher_events(&mut self) {
+        // Deferred scene re-import path: collected inside the watcher loop,
+        // processed after the borrow on self.file_watcher is released.
+        let mut pending_scene_reimport: Option<(String, String)> = None;
+
         if let Some(watcher) = &mut self.file_watcher {
             while let Some(event) = watcher.try_recv() {
                 match event {
@@ -15,9 +19,53 @@ impl BerryCodeApp {
                     }
                     native::watcher::FileEvent::Modified(path) => {
                         tracing::debug!("File modified: {}", path.display());
+
+                        // Bevy Asset Hot Reload: detect changes to asset files
+                        // (.png, .jpg, .glb, .gltf, .wav, .ogg) in the project's
+                        // assets/ directory and trigger a scene re-sync.
+                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                            let is_asset_ext = matches!(
+                                ext,
+                                "png" | "jpg" | "jpeg" | "glb" | "gltf" | "wav" | "ogg" | "mp3"
+                            );
+                            let in_assets_dir = path
+                                .to_string_lossy()
+                                .contains("/assets/");
+                            if is_asset_ext && in_assets_dir {
+                                self.scene_needs_sync = true;
+                                let filename = path
+                                    .file_name()
+                                    .map(|s| s.to_string_lossy().to_string())
+                                    .unwrap_or_default();
+                                self.status_message = format!("Asset reloaded: {}", filename);
+                                self.status_message_timestamp = Some(std::time::Instant::now());
+                                tracing::info!("Asset hot reload: {}", filename);
+                            }
+                        }
+
                         // Phase 75: hot reload - notify on .rs file changes
                         if path.extension().and_then(|e| e.to_str()) == Some("rs") {
                             self.hot_reload.notify_change();
+                            // Rescan user component definitions for bidirectional sync
+                            self.scanned_user_components =
+                                crate::app::scene_editor::script_scan::scan_components_with_fields(
+                                    &self.root_path,
+                                );
+
+                            // If a _scene.rs file was modified, defer re-import
+                            let path_str = path.to_string_lossy().to_string();
+                            if path_str.ends_with("_scene.rs") {
+                                let bscene_path = path_str.replace("_scene.rs", ".bscene");
+                                let should_reimport = self
+                                    .scene_model
+                                    .file_path
+                                    .as_ref()
+                                    .map(|p| *p == bscene_path)
+                                    .unwrap_or(false);
+                                if should_reimport {
+                                    pending_scene_reimport = Some((path_str, bscene_path));
+                                }
+                            }
                         }
                     }
                     native::watcher::FileEvent::Removed(path) => {
@@ -44,6 +92,23 @@ impl BerryCodeApp {
                             tracing::info!("📝 Updated tab path: {} -> {}", from_str, to_str);
                         }
                     }
+                }
+            }
+        }
+
+        // Process deferred scene re-import (outside the watcher borrow)
+        if let Some((scene_rs_path, bscene_path)) = pending_scene_reimport {
+            if let Ok(code) = std::fs::read_to_string(&scene_rs_path) {
+                let imported =
+                    crate::app::scene_editor::code_import::import_scene_from_code(&code);
+                if !imported.entities.is_empty() {
+                    self.scene_snapshot();
+                    self.scene_model = imported;
+                    self.scene_model.file_path = Some(bscene_path);
+                    self.scene_needs_sync = true;
+                    self.status_message =
+                        format!("Scene re-imported from {}", scene_rs_path);
+                    self.status_message_timestamp = Some(std::time::Instant::now());
                 }
             }
         }

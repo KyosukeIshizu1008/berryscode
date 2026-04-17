@@ -71,6 +71,39 @@ impl BerryCodeApp {
                 self.tool_panel_open = true;
                 self.active_tool_tab = crate::app::dock::ToolTab::Dopesheet;
             }
+            if ui.button("Systems").clicked() {
+                self.system_graph_open = !self.system_graph_open;
+            }
+            if ui.button("Events").clicked() {
+                self.event_monitor_open = !self.event_monitor_open;
+            }
+            if ui.button("Queries").clicked() {
+                self.query_viz_open = !self.query_viz_open;
+            }
+            if ui.button("States").clicked() {
+                self.state_editor_open = !self.state_editor_open;
+            }
+            if ui.button("Plugins").clicked() {
+                self.plugin_browser_open = !self.plugin_browser_open;
+            }
+            if ui.button("Export .scn.ron").clicked() {
+                let path = self.scene_model.file_path.clone().unwrap_or_else(|| {
+                    format!("{}/scenes/scene.bscene", self.root_path)
+                });
+                match crate::app::scene_editor::bevy_scene_export::save_bevy_scene(
+                    &self.scene_model,
+                    &path,
+                ) {
+                    Ok(p) => {
+                        self.status_message = format!("Exported: {}", p);
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                    }
+                    Err(e) => {
+                        self.status_message = format!("Export failed: {}", e);
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                    }
+                }
+            }
             if let Some(path) = &self.scene_model.file_path {
                 let file_name = std::path::Path::new(path)
                     .file_name()

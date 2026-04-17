@@ -82,6 +82,10 @@ impl BerryCodeApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label("egui 0.29 + Native");
+                        if let Some(ref ver) = self.bevy_version {
+                            ui.separator();
+                            ui.label(format!("Bevy {}", ver));
+                        }
                     });
                 });
             });

@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BerryCode - 機能ドキュメント</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;font-size:16px}
+  body{
+    background:#1a1b1e;color:#d4d4d4;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;
+    line-height:1.7;display:flex;min-height:100vh;
+  }
+  ::selection{background:#264f78;color:#fff}
+  a{color:#569cd6;text-decoration:none}
+  a:hover{text-decoration:underline;color:#9cdcfe}
+
+  /* ---------- sidebar ---------- */
+  nav.sidebar{
+    position:sticky;top:0;left:0;height:100vh;width:280px;min-width:280px;
+    background:#16171a;border-right:1px solid #2d2d30;overflow-y:auto;
+    padding:20px 0;z-index:100;
+  }
+  nav.sidebar::-webkit-scrollbar{width:6px}
+  nav.sidebar::-webkit-scrollbar-thumb{background:#3e3e42;border-radius:3px}
+  nav.sidebar .logo{text-align:center;padding:12px 16px 20px;border-bottom:1px solid #2d2d30;margin-bottom:12px}
+  nav.sidebar .logo h2{font-size:1.1rem;color:#c586c0;letter-spacing:.05em}
+  nav.sidebar ul{list-style:none}
+  nav.sidebar li{margin:0}
+  nav.sidebar li a{
+    display:block;padding:6px 20px;font-size:.82rem;color:#9da5b4;
+    border-left:3px solid transparent;transition:all .15s;
+  }
+  nav.sidebar li a:hover,nav.sidebar li a.active{
+    color:#d4d4d4;background:#1e1f23;border-left-color:#569cd6;text-decoration:none;
+  }
+  nav.sidebar li.section-head a{color:#c586c0;font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;margin-top:12px}
+
+  /* ---------- main ---------- */
+  main{flex:1;max-width:960px;margin:0 auto;padding:40px 48px 80px}
+
+  /* header hero */
+  .hero{text-align:center;padding:60px 0 48px;border-bottom:1px solid #2d2d30;margin-bottom:48px}
+  .hero h1{font-size:2.6rem;color:#c586c0;letter-spacing:.04em;margin-bottom:8px}
+  .hero .subtitle{font-size:1.15rem;color:#9cdcfe;margin-bottom:20px}
+  .hero .specs{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+  .hero .specs span{
+    background:#252629;border:1px solid #3e3e42;border-radius:6px;padding:6px 16px;
+    font-size:.82rem;color:#d4d4d4;font-family:"SF Mono",Consolas,monospace;
+  }
+
+  /* sections */
+  section{margin-bottom:48px}
+  section h2{
+    font-size:1.45rem;color:#c586c0;border-bottom:2px solid #c586c080;
+    padding-bottom:8px;margin-bottom:20px;
+  }
+  section h3{font-size:1.1rem;color:#dcdcaa;margin:20px 0 10px}
+  section h4{font-size:.95rem;color:#4ec9b0;margin:14px 0 6px}
+
+  /* card */
+  .card{
+    background:#1e1f23;border:1px solid #2d2d30;border-radius:8px;
+    padding:22px 26px;margin-bottom:16px;
+  }
+  .card p,.card li{font-size:.9rem}
+  .card ul{padding-left:22px;margin-top:6px}
+  .card ul li{margin-bottom:4px;list-style:disc}
+
+  /* kbd */
+  kbd{
+    background:#3e3e42;border:1px solid #555;border-radius:3px;padding:1px 6px;
+    font-size:.78rem;font-family:"SF Mono",Consolas,monospace;color:#ce9178;
+  }
+
+  /* code block */
+  pre.code{
+    background:#16171a;border:1px solid #2d2d30;border-radius:6px;
+    padding:14px 18px;overflow-x:auto;font-size:.82rem;line-height:1.6;
+    font-family:"SF Mono",Consolas,monospace;color:#d4d4d4;margin:10px 0;
+  }
+  pre.code .kw{color:#c586c0}
+  pre.code .fn{color:#dcdcaa}
+  pre.code .str{color:#ce9178}
+  pre.code .cmt{color:#6a9955}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.85rem}
+  table th,table td{border:1px solid #2d2d30;padding:8px 12px;text-align:left}
+  table th{background:#252629;color:#9cdcfe;font-weight:600}
+  table tr:nth-child(even){background:#1e1f23}
+  table td:first-child{color:#4ec9b0;font-weight:500}
+
+  /* badge */
+  .badge{
+    display:inline-block;background:#264f78;color:#9cdcfe;border-radius:4px;
+    padding:2px 8px;font-size:.72rem;font-weight:600;margin-right:6px;vertical-align:middle;
+  }
+  .badge.green{background:#2d4a2d;color:#6a9955}
+  .badge.orange{background:#4a3a1a;color:#ce9178}
+
+  /* component grid */
+  .comp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:14px}
+  .comp-card{
+    background:#16171a;border:1px solid #2d2d30;border-radius:6px;padding:16px 18px;
+  }
+  .comp-card h4{margin:0 0 6px;font-size:.9rem;color:#4ec9b0}
+  .comp-card p{font-size:.82rem;color:#b0b0b0;margin:0}
+
+  /* footer */
+  footer{
+    text-align:center;padding:32px 0;border-top:1px solid #2d2d30;margin-top:40px;
+    font-size:.78rem;color:#6a6a6a;
+  }
+
+  /* responsive */
+  @media(max-width:900px){
+    nav.sidebar{display:none}
+    main{padding:24px 20px 60px}
+    .hero h1{font-size:1.8rem}
+    .comp-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== SIDEBAR ==================== -->
+<nav class="sidebar">
+  <div class="logo"><h2>BerryCode Docs</h2></div>
+  <ul>
+    <li class="section-head"><a href="#top">概要</a></li>
+    <li><a href="#editor">A. コードエディタ</a></li>
+    <li><a href="#git">B. Git パネル</a></li>
+    <li><a href="#terminal">C. ターミナル</a></li>
+    <li><a href="#lsp">D. LSP統合</a></li>
+    <li><a href="#ai">E. AIチャット</a></li>
+    <li class="section-head"><a href="#scene-viewport">Scene Editor</a></li>
+    <li><a href="#scene-viewport">F. 3Dビューポート</a></li>
+    <li><a href="#scene-rendering">G. レンダリング品質</a></li>
+    <li><a href="#scene-gizmo">H. Transform Gizmo</a></li>
+    <li><a href="#scene-selection">I. 選択システム</a></li>
+    <li><a href="#scene-hierarchy">J. Hierarchy</a></li>
+    <li><a href="#scene-inspector">K. Inspector</a></li>
+    <li><a href="#scene-components">L. 全29コンポーネント</a></li>
+    <li><a href="#scene-animation">M. アニメーション</a></li>
+    <li><a href="#scene-visual-script">N. Visual Scripting</a></li>
+    <li><a href="#scene-shader">O. Shader Graph</a></li>
+    <li><a href="#scene-terrain">P. Terrain</a></li>
+    <li><a href="#scene-navmesh">Q. NavMesh</a></li>
+    <li><a href="#scene-physics">R. Physics</a></li>
+    <li><a href="#scene-play">S. Play Mode</a></li>
+    <li><a href="#scene-prefab">T. Prefab</a></li>
+    <li><a href="#scene-asset">U. Asset Pipeline</a></li>
+    <li><a href="#scene-tools">V. ツール群</a></li>
+    <li class="section-head"><a href="#bevy">Bevy専用</a></li>
+    <li><a href="#bevy">W. Bevy専用機能</a></li>
+    <li><a href="#perf">X. パフォーマンス比較</a></li>
+  </ul>
+</nav>
+
+<!-- ==================== MAIN ==================== -->
+<main>
+
+<!-- HERO -->
+<div class="hero" id="top">
+  <h1>BerryCode</h1>
+  <p class="subtitle">100% Rust製 Unity級ゲームエディタ</p>
+  <p style="color:#6a9955;font-size:.88rem;margin-bottom:8px;">Bevy 0.15 + bevy_egui 0.32 + WGPU &mdash; ネイティブGPUレンダリング</p>
+  <div class="specs">
+    <span>v0.1.0</span>
+    <span>31 MB バイナリ</span>
+    <span>215 MB RAM</span>
+    <span>232 テスト</span>
+    <span>Zero JavaScript</span>
+  </div>
+</div>
+
+<!-- ===== A. コードエディタ ===== -->
+<section id="editor">
+  <h2>A. コードエディタ (IDE基盤)</h2>
+
+  <div class="card">
+    <h3>マルチタブエディタ</h3>
+    <p>Rope データ構造によるテキストバッファを採用。O(log n) の挿入・削除、O(1) のクローン（Undo/Redo用）を実現し、大規模ファイルでも高速に動作します。タブの並べ替え、ピン留め、分割表示に対応。</p>
+    <ul>
+      <li>無制限の Undo / Redo（スナップショットベース）</li>
+      <li>タブのドラッグ&amp;ドロップ並べ替え</li>
+      <li>変更未保存インジケータ (ドット表示)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>シンタックスハイライト</h3>
+    <p>正規表現ベースのハイライトエンジンで、以下の言語をサポートしています。</p>
+    <ul>
+      <li><span class="badge">Rust</span> キーワード、マクロ、ライフタイム、属性</li>
+      <li><span class="badge">Python</span> デコレータ、f-string</li>
+      <li><span class="badge">JavaScript</span> / TypeScript — JSX 対応</li>
+      <li><span class="badge">C / C++</span> プリプロセッサディレクティブ対応</li>
+      <li><span class="badge">TOML</span> / <span class="badge">JSON</span> / <span class="badge">RON</span></li>
+    </ul>
+    <p>カラースキームは VS Code Dark+ 互換で統一された <code>#D4D4D4</code> テキストカラーをベースにしています。</p>
+  </div>
+
+  <div class="card">
+    <h3>ファイルツリー (エクスプローラ)</h3>
+    <p>遅延読み込み方式でディレクトリを展開し、巨大プロジェクトでも即座に表示されます。</p>
+    <ul>
+      <li>Codicon アイコンによるファイルタイプ識別</li>
+      <li>ドラッグ&amp;ドロップによるファイル移動</li>
+      <li>右クリックコンテキストメニュー（新規ファイル/フォルダ、名前変更、削除）</li>
+      <li><code>.gitignore</code> パターンによる自動フィルタリング</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>プロジェクト全体検索</h3>
+    <p>Rayon による並列処理と正規表現エンジンにより、数万ファイルでもミリ秒単位で結果を返します。</p>
+    <ul>
+      <li>正規表現 / 大文字小文字区別 / 単語一致フィルタ</li>
+      <li>ファイルタイプ絞り込み（glob パターン）</li>
+      <li>結果のインライン置換</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>ファイル内検索・置換</h3>
+    <p><kbd>Ctrl</kbd>+<kbd>F</kbd> でファイル内検索バーを表示。ハイライト表示と <kbd>Enter</kbd> / <kbd>Shift</kbd>+<kbd>Enter</kbd> で前後移動。置換モードでは単一・全置換に対応します。</p>
+  </div>
+
+  <div class="card">
+    <h3>コード折り畳み</h3>
+    <p>ブレース <code>{}</code> やインデントレベルに基づいてリージョンを折り畳み、大規模ファイルの見通しを改善します。行番号ガター横の三角アイコンをクリック、または <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd> で操作できます。</p>
+  </div>
+
+  <div class="card">
+    <h3>マルチカーソル</h3>
+    <p><kbd>Alt</kbd>+クリックで追加カーソルを配置。<kbd>Ctrl</kbd>+<kbd>D</kbd> で同一単語の次の出現位置にカーソルを追加。すべてのカーソルに同時に入力・編集が反映されます。</p>
+  </div>
+
+  <div class="card">
+    <h3>ミニマップ</h3>
+    <p>エディタ右端にファイル全体の縮小プレビューを表示。クリックまたはドラッグで高速スクロール。シンタックスハイライトも反映されます。</p>
+  </div>
+
+  <div class="card">
+    <h3>カスタマイズ可能ショートカット</h3>
+    <p>主要キーバインド一覧:</p>
+    <table>
+      <tr><th>操作</th><th>キー</th></tr>
+      <tr><td>保存</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td></tr>
+      <tr><td>元に戻す</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td></tr>
+      <tr><td>やり直し</td><td><kbd>Ctrl</kbd>+<kbd>Y</kbd></td></tr>
+      <tr><td>検索</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td></tr>
+      <tr><td>プロジェクト検索</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></td></tr>
+      <tr><td>コマンドパレット</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td></tr>
+      <tr><td>ファイル切替</td><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd></td></tr>
+      <tr><td>行コメント</td><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== B. Git パネル ===== -->
+<section id="git">
+  <h2>B. Git パネル (SourceTree風 6タブ)</h2>
+  <p>libgit2 ベースの完全ネイティブ Git クライアント。外部 Git バイナリ不要で、パフォーマンスとポータビリティを両立します。</p>
+
+  <div class="card">
+    <h3>Status タブ</h3>
+    <p>変更ファイルをステージ済み / 未ステージに分類表示。ファイル単位またはハンク単位でステージ/アンステージ操作が可能です。</p>
+    <ul>
+      <li>差分のインラインプレビュー (統合diff表示)</li>
+      <li>コミットメッセージ入力 + ワンクリックコミット</li>
+      <li>Amend コミットサポート</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>History タブ</h3>
+    <p>コミットグラフをブランチ分岐・マージを含めて視覚化。各コミットの diff、変更ファイル一覧、メタ情報を閲覧できます。</p>
+    <ul>
+      <li>著者/日付/メッセージでフィルタリング</li>
+      <li>コミット間の差分比較</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Branches タブ</h3>
+    <ul>
+      <li>ブランチ一覧表示（ローカル + リモート追跡）</li>
+      <li>新規ブランチ作成</li>
+      <li>ブランチ切替 (checkout)</li>
+      <li>マージ操作 (Fast-Forward / 3-Way)</li>
+      <li>ブランチ削除</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Remotes タブ</h3>
+    <ul>
+      <li>リモートリポジトリの追加 / 削除 / 編集</li>
+      <li>Fetch / Push / Pull 操作</li>
+      <li>リモートブランチの追跡設定</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Tags タブ</h3>
+    <ul>
+      <li>タグ一覧表示</li>
+      <li>Lightweight タグ / Annotated タグの作成</li>
+      <li>タグの削除</li>
+      <li>タグへのチェックアウト</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Stash タブ</h3>
+    <ul>
+      <li>現在の変更をスタッシュに保存 (メッセージ付き)</li>
+      <li>スタッシュの適用 (Apply / Pop)</li>
+      <li>スタッシュの内容プレビュー</li>
+      <li>スタッシュの削除</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== C. ターミナル ===== -->
+<section id="terminal">
+  <h2>C. ターミナル</h2>
+  <div class="card">
+    <p>portable-pty による PTY (疑似端末) 統合ターミナル。シェルの完全な対話操作が IDE 内で完結します。</p>
+    <ul>
+      <li>フルスクリーンモード切替</li>
+      <li>ANSI カラーコード完全対応</li>
+      <li>シェル自動検出 (zsh / bash / fish)</li>
+      <li>作業ディレクトリ同期（プロジェクトルート）</li>
+      <li>複数ターミナルインスタンスのタブ管理</li>
+      <li><kbd>Ctrl</kbd>+<kbd>`</kbd> でトグル表示</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== D. LSP統合 ===== -->
+<section id="lsp">
+  <h2>D. LSP (Language Server Protocol) 統合</h2>
+  <div class="card">
+    <p>stdio ベースのネイティブ LSP クライアントを内蔵。rust-analyzer をはじめとする言語サーバーと通信し、リアルタイムのコード補助を提供します。</p>
+    <ul>
+      <li><strong>自動補完</strong> — タイプ中にリアルタイムで候補を表示。Fuzzy マッチング対応</li>
+      <li><strong>ホバー情報</strong> — シンボル上にカーソルを置くと型情報・ドキュメントをツールチップ表示</li>
+      <li><strong>診断 (Diagnostics)</strong> — エラー・警告を波線で即時表示。問題パネルに一覧集約</li>
+      <li><strong>定義ジャンプ</strong> — <kbd>Ctrl</kbd>+クリック または <kbd>F12</kbd> でシンボル定義元へ移動</li>
+      <li><strong>Peek Definition</strong> — インラインで定義をプレビュー（ファイル遷移不要）</li>
+      <li><strong>References</strong> — シンボルの全参照箇所を検索・一覧表示</li>
+      <li><strong>リネーム</strong> — <kbd>F2</kbd> でプロジェクト全体のシンボル名変更</li>
+    </ul>
+    <p style="margin-top:10px;font-size:.82rem;color:#6a9955;">Bevy プロジェクト検出時は rust-analyzer の設定が自動最適化されます (proc-macro 有効化、cargo features 設定など)。</p>
+  </div>
+</section>
+
+<!-- ===== E. AIチャット ===== -->
+<section id="ai">
+  <h2>E. AIチャット</h2>
+  <div class="card">
+    <p>berry_api サーバーと gRPC ストリーミングで接続し、LLM によるリアルタイムのコード支援を実現します。</p>
+    <ul>
+      <li><strong>ストリーミング応答</strong> — トークン単位でリアルタイム表示</li>
+      <li><strong>コード生成</strong> — 自然言語の指示からコードを生成</li>
+      <li><strong>コード説明</strong> — 選択したコードの解説を生成</li>
+      <li><strong>リファクタリング提案</strong> — 改善案を提示</li>
+      <li><strong>コンテキスト共有</strong> — 現在開いているファイルの内容を自動的にコンテキストとして送信</li>
+      <li><strong>API キーの安全性</strong> — クライアント側に API キーを保存しない設計。すべて berry_api サーバー経由</li>
+    </ul>
+    <pre class="code"><span class="cmt">// gRPC 通信フロー</span>
+berrycode (クライアント)
+  → gRPC StreamChat Request
+    → berry_api (UnifiedLLMService)
+      → LLM プロバイダ
+    ← gRPC Server-Sent Stream
+  ← リアルタイムUI更新</pre>
+  </div>
+</section>
+
+<!-- ===== F. 3Dビューポート ===== -->
+<section id="scene-viewport">
+  <h2>F. Scene Editor &mdash; 3Dビューポート</h2>
+  <div class="card">
+    <p>WGPU による GPU オフスクリーンレンダリングで、シーンをリアルタイムに描画。egui テクスチャとして IDE パネル内に表示します。</p>
+    <h4>カメラ操作</h4>
+    <table>
+      <tr><th>操作</th><th>入力</th><th>説明</th></tr>
+      <tr><td>オービットカメラ</td><td><kbd>Alt</kbd>+<kbd>LMB</kbd> ドラッグ</td><td>選択オブジェクトを中心に回転</td></tr>
+      <tr><td>パン</td><td><kbd>Alt</kbd>+<kbd>MMB</kbd> ドラッグ</td><td>カメラを水平/垂直移動</td></tr>
+      <tr><td>ズーム</td><td>マウスホイール</td><td>カメラを前後移動</td></tr>
+      <tr><td>Fly カメラ</td><td><kbd>RMB</kbd>+<kbd>WASD</kbd></td><td>FPS スタイルで自由移動</td></tr>
+      <tr><td>フォーカス</td><td><kbd>F</kbd></td><td>選択オブジェクトにフレーミング</td></tr>
+    </table>
+    <h4>ビュー切替</h4>
+    <ul>
+      <li>Perspective / Orthographic トグル</li>
+      <li>プリセットビュー: Front / Back / Left / Right / Top / Bottom</li>
+      <li>Quad View (4分割表示) — Top, Front, Right + Perspective を同時表示</li>
+    </ul>
+    <h4>ワールドグリッド</h4>
+    <p>XZ 平面に無限グリッドを描画。ズームレベルに応じてグリッド密度が自動調整されます。原点の軸ラインを赤 (X)・緑 (Y)・青 (Z) で色分け表示。</p>
+  </div>
+</section>
+
+<!-- ===== G. レンダリング品質 ===== -->
+<section id="scene-rendering">
+  <h2>G. Scene Editor &mdash; レンダリング品質</h2>
+  <div class="card">
+    <p>ゲームクオリティのリアルタイムレンダリングをエディタ内で実現。各エフェクトは個別に有効化/調整できます。</p>
+    <table>
+      <tr><th>機能</th><th>説明</th></tr>
+      <tr><td>Shadow Mapping</td><td>Cascaded Shadow Maps によるリアルタイム影生成。解像度・カスケード数を設定可能</td></tr>
+      <tr><td>Bloom</td><td>高輝度部分のグロー効果。強度 (Intensity) スライダーで調整</td></tr>
+      <tr><td>Tone Mapping</td><td>5モード対応: Reinhard / Reinhard Luminance / ACES Fitted / AgX / Blender Filmic</td></tr>
+      <tr><td>SSAO</td><td>Screen-Space Ambient Occlusion — 隙間部分の自然な陰影を追加</td></tr>
+      <tr><td>TAA</td><td>Temporal Anti-Aliasing — フレーム間のジッタを利用した高品質アンチエイリアス</td></tr>
+      <tr><td>Fog</td><td>距離ベースのフォグ効果。Linear / Exponential / Exponential Squared</td></tr>
+      <tr><td>Depth of Field</td><td>被写界深度。焦点距離・絞り値を設定し、ボケ効果をシミュレート</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ===== H. Transform Gizmo ===== -->
+<section id="scene-gizmo">
+  <h2>H. Scene Editor &mdash; Transform Gizmo</h2>
+  <div class="card">
+    <p>3D空間でオブジェクトを直感的に操作するためのギズモシステム。</p>
+    <table>
+      <tr><th>モード</th><th>ショートカット</th><th>表示</th><th>操作</th></tr>
+      <tr><td>Move (移動)</td><td><kbd>W</kbd></td><td>矢印</td><td>軸方向にドラッグで移動</td></tr>
+      <tr><td>Rotate (回転)</td><td><kbd>E</kbd></td><td>弧</td><td>弧をドラッグして回転</td></tr>
+      <tr><td>Scale (拡縮)</td><td><kbd>R</kbd></td><td>立方体</td><td>軸方向にスケール変更</td></tr>
+    </table>
+    <h4>平面ドラッグ</h4>
+    <p>軸間の四角パッチをドラッグすると、2軸同時に操作できます (XY / XZ / YZ 平面)。</p>
+    <h4>グリッドスナップ</h4>
+    <p><kbd>Ctrl</kbd> を押しながらドラッグで、設定したグリッド間隔にスナップ。移動 = 1.0 単位、回転 = 15度、スケール = 0.1 単位がデフォルト。</p>
+    <h4>複数選択一括操作</h4>
+    <p>複数エンティティを選択した状態でギズモを操作すると、すべてのオブジェクトに同時に変換が適用されます。ピボットポイントは選択中心。</p>
+  </div>
+</section>
+
+<!-- ===== I. 選択システム ===== -->
+<section id="scene-selection">
+  <h2>I. Scene Editor &mdash; 選択システム</h2>
+  <div class="card">
+    <table>
+      <tr><th>操作</th><th>入力</th><th>動作</th></tr>
+      <tr><td>単一選択</td><td><kbd>LMB</kbd> クリック</td><td>クリックしたオブジェクトを選択 (既存選択は解除)</td></tr>
+      <tr><td>追加選択</td><td><kbd>Shift</kbd>+<kbd>LMB</kbd></td><td>既存選択を維持しつつ追加</td></tr>
+      <tr><td>トグル選択</td><td><kbd>Ctrl</kbd>+<kbd>LMB</kbd></td><td>選択済みなら解除、未選択なら追加</td></tr>
+      <tr><td>ボックス選択</td><td><kbd>LMB</kbd> ドラッグ (空白領域)</td><td>矩形範囲内のオブジェクトをすべて選択</td></tr>
+      <tr><td>全選択</td><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>シーン内の全オブジェクトを選択</td></tr>
+      <tr><td>選択解除</td><td><kbd>Esc</kbd></td><td>すべての選択を解除</td></tr>
+    </table>
+    <p style="margin-top:10px">GPU レイキャスティングにより、メッシュ形状に正確にヒットテストを行います。</p>
+  </div>
+</section>
+
+<!-- ===== J. Hierarchy パネル ===== -->
+<section id="scene-hierarchy">
+  <h2>J. Scene Editor &mdash; Hierarchy パネル</h2>
+  <div class="card">
+    <p>シーン内のすべてのエンティティをツリー構造で表示・管理するパネルです。</p>
+    <h4>ツリー表示</h4>
+    <p>親子関係をインデントで視覚化。折り畳み可能なノードで階層を効率的にナビゲートできます。</p>
+    <h4>ドラッグ&amp;ドロップ Reparenting</h4>
+    <p>エンティティをドラッグして別のエンティティ上にドロップすると、その子要素として再配置されます。ルートレベルへの移動も対応。</p>
+    <h4>フィルタ検索</h4>
+    <p>上部の検索バーにテキストを入力すると、名前が一致するエンティティのみを表示します。</p>
+    <h4>インラインリネーム</h4>
+    <p>エンティティ名をダブルクリックするか <kbd>F2</kbd> を押して、その場で名前を変更できます。</p>
+    <h4>コンテキストメニュー</h4>
+    <p>右クリックで以下の操作が可能:</p>
+    <ul>
+      <li><strong>Copy</strong> — エンティティをクリップボードにコピー</li>
+      <li><strong>Paste</strong> — コピーしたエンティティを貼り付け</li>
+      <li><strong>Duplicate</strong> — 選択エンティティを複製</li>
+      <li><strong>Delete</strong> — 選択エンティティを削除</li>
+      <li><strong>Save as Prefab</strong> — エンティティを .prefab ファイルとして保存</li>
+    </ul>
+    <h4>表示/非表示トグル</h4>
+    <p>エンティティ横の目のアイコンをクリックして、ビューポートでの表示/非表示を切り替えます。非表示エンティティはグレーアウト表示。</p>
+    <h4>シーンタブ</h4>
+    <p>複数の <code>.bscene</code> ファイルを同時に開き、タブで切り替えることができます。</p>
+  </div>
+</section>
+
+<!-- ===== K. Inspector パネル ===== -->
+<section id="scene-inspector">
+  <h2>K. Scene Editor &mdash; Inspector パネル</h2>
+  <div class="card">
+    <p>選択中エンティティのプロパティをリアルタイムに編集するパネルです。</p>
+    <h4>Transform 編集</h4>
+    <p>Position (位置)、Rotation (回転)、Scale (拡縮) を数値入力で編集。Local / World 座標系の切替が可能です。</p>
+    <h4>Add Component</h4>
+    <p>「+ Add Component」ボタンをクリックすると、全29種のコンポーネントから検索フィルタ付きで追加できます。</p>
+    <h4>コンポーネント操作</h4>
+    <ul>
+      <li>ドラッグで並び替え</li>
+      <li>右クリックメニューでコピー/ペースト/削除</li>
+      <li>各コンポーネントの折り畳み表示</li>
+    </ul>
+    <h4>GPU Material Preview</h4>
+    <p>マテリアルコンポーネント選択時に、球体プレビューをリアルタイムGPUレンダリングで表示します。パラメータ変更が即座に反映されます。</p>
+    <h4>Prefab 操作</h4>
+    <ul>
+      <li><strong>Revert</strong> — オーバーライドした値を Prefab 元の値に戻す</li>
+      <li><strong>Apply</strong> — 現在の値を Prefab ソースに書き戻す</li>
+      <li><strong>Unpack</strong> — Prefab リンクを解除し、通常のエンティティに変換</li>
+    </ul>
+    <h4>Debug Inspector</h4>
+    <p>Play Mode 中に有効化すると、ECS コンポーネントの内部状態をリアルタイムでモニタリングできます。</p>
+  </div>
+</section>
+
+<!-- ===== L. コンポーネント全29種 ===== -->
+<section id="scene-components">
+  <h2>L. Scene Editor &mdash; コンポーネント全29種</h2>
+  <p>Inspector の「Add Component」から追加可能なすべてのコンポーネントの詳細です。</p>
+
+  <h3>メッシュ (4種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>MeshCube</h4>
+      <p>立方体メッシュを生成。サイズ (幅/高さ/奥行き) を個別に設定可能。プロトタイピングに最適。</p>
+    </div>
+    <div class="comp-card">
+      <h4>MeshSphere</h4>
+      <p>球体メッシュを生成。半径とセグメント数 (経度/緯度分割数) を設定してポリゴン密度を調整。</p>
+    </div>
+    <div class="comp-card">
+      <h4>MeshPlane</h4>
+      <p>平面メッシュを生成。幅と奥行きを設定。地面、水面、UIバックグラウンドなどに使用。</p>
+    </div>
+    <div class="comp-card">
+      <h4>MeshFromFile</h4>
+      <p>外部3Dモデルファイル (.gltf / .glb / .obj) を読み込んでメッシュとして使用。Asset Browser からの D&amp;D にも対応。</p>
+    </div>
+  </div>
+
+  <h3>ライト (3種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>PointLight</h4>
+      <p>全方向に光を放つ点光源。色、強度、減衰半径を設定。室内照明やランプの表現に使用。</p>
+    </div>
+    <div class="comp-card">
+      <h4>SpotLight</h4>
+      <p>円錐状に光を放つスポットライト。内角/外角、色、強度を設定。舞台照明やフラッシュライトの表現に。</p>
+    </div>
+    <div class="comp-card">
+      <h4>DirectionalLight</h4>
+      <p>平行光源。太陽光のシミュレーション。方向は Transform の回転で制御。シャドウマッピングの主要光源。</p>
+    </div>
+  </div>
+
+  <h3>カメラ &amp; オーディオ (3種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>Camera</h4>
+      <p>レンダリングカメラ。Perspective (透視投影) / Orthographic (正射影) 切替。FOV、Near/Far Clip、Priority を設定。</p>
+    </div>
+    <div class="comp-card">
+      <h4>AudioSource</h4>
+      <p>サウンドの発生源。オーディオファイルを指定し、ボリューム、ピッチ、ループ、空間減衰を設定。</p>
+    </div>
+    <div class="comp-card">
+      <h4>AudioListener</h4>
+      <p>音声の受信点。通常はメインカメラにアタッチ。3D空間オーディオの基準位置として機能。</p>
+    </div>
+  </div>
+
+  <h3>物理 (2種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>RigidBody</h4>
+      <p>物理シミュレーション対象。Dynamic (動的) / Static (静的) / Kinematic (キネマティック) のタイプ選択。質量、摩擦、反発係数を設定。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Collider</h4>
+      <p>衝突判定の形状を定義。Box / Sphere / Capsule / Mesh から選択。Is Trigger フラグで貫通イベント用途にも。</p>
+    </div>
+  </div>
+
+  <h3>UI (3種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>UiText</h4>
+      <p>テキスト表示。フォント、サイズ、色、整列を設定。ゲーム内のスコア表示やダイアログテキストに使用。</p>
+    </div>
+    <div class="comp-card">
+      <h4>UiButton</h4>
+      <p>インタラクティブなボタン。通常/ホバー/押下の3状態で色/画像を切替。クリックイベントをスクリプトにバインド。</p>
+    </div>
+    <div class="comp-card">
+      <h4>UiImage</h4>
+      <p>画像表示。テクスチャアセットを指定し、色の乗算、UV Rect によるスプライトシート対応。</p>
+    </div>
+  </div>
+
+  <h3>エフェクト &amp; アニメーション (4種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>ParticleEmitter</h4>
+      <p>パーティクルシステム。放出速度、寿命、サイズカーブ、色グラデーション、重力影響を設定。煙、火、魔法エフェクトに。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Animation</h4>
+      <p>アニメーションクリップのデータ。Position / Rotation / Scale のキーフレームを保持。8種のイージングカーブ対応。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Animator</h4>
+      <p>アニメーションの再生制御。FSM (有限状態機械) によるステート遷移を管理。ブレンド、クロスフェード対応。</p>
+    </div>
+    <div class="comp-card">
+      <h4>SkinnedMesh</h4>
+      <p>ボーンベースのスケルタルメッシュ。頂点ウェイトによるスキニング変形。キャラクターアニメーションの基盤。</p>
+    </div>
+  </div>
+
+  <h3>スクリプト (2種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>CustomScript</h4>
+      <p>Rust スクリプトファイルをアタッチ。Bevy の System として登録され、ECS クエリでコンポーネントにアクセス。Hot Reload 対応。</p>
+    </div>
+    <div class="comp-card">
+      <h4>VisualScript</h4>
+      <p>ノードベースのビジュアルスクリプト。コーディング不要でゲームロジックを構築。10種のノードタイプを接続して動作を定義。</p>
+    </div>
+  </div>
+
+  <h3>環境 &amp; 地形 (4種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>Skybox</h4>
+      <p>6面キューブマップまたは HDR 環境マップによる空の表現。IBL (Image-Based Lighting) のソースとしても使用。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Terrain</h4>
+      <p>ハイトマップベースの地形。ブラシツール (Raise / Lower / Smooth / Flatten) でリアルタイム編集。自動LOD対応。</p>
+    </div>
+    <div class="comp-card">
+      <h4>NavMesh</h4>
+      <p>ナビゲーションメッシュ。グリッドベースのベイク処理で歩行可能領域を自動計算。A* パスファインディング対応。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Spline</h4>
+      <p>Catmull-Rom スプラインカーブ。制御点の追加/移動でパスを定義。カメラレール、道路、河川の作成に。</p>
+    </div>
+  </div>
+
+  <h3>最適化 &amp; その他 (4種)</h3>
+  <div class="comp-grid">
+    <div class="comp-card">
+      <h4>LodGroup</h4>
+      <p>Level of Detail 制御。カメラ距離に応じて3段階のメッシュを自動切替し、描画パフォーマンスを最適化。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Material (暗黙)</h4>
+      <p>PBR マテリアル。Base Color、Metallic、Roughness、Normal Map、Emissive を設定。Inspector 内で球体プレビュー。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Transform (暗黙)</h4>
+      <p>全エンティティに自動付与。Position / Rotation / Scale。Local / World 座標系。階層的な変換伝播。</p>
+    </div>
+    <div class="comp-card">
+      <h4>Name (暗黙)</h4>
+      <p>エンティティの表示名。Hierarchy パネルでの識別に使用。デフォルトは「Entity_N」形式。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== M. アニメーション ===== -->
+<section id="scene-animation">
+  <h2>M. Scene Editor &mdash; アニメーションシステム</h2>
+  <div class="card">
+    <h3>マルチトラックアニメーション</h3>
+    <p>Position / Rotation / Scale を独立したトラックで制御。各トラックにキーフレームを配置し、時間経過に沿ったプロパティ変化を定義します。</p>
+
+    <h4>8種イージングカーブ</h4>
+    <table>
+      <tr><th>カーブ</th><th>特性</th><th>用途例</th></tr>
+      <tr><td>Linear</td><td>等速</td><td>機械的な移動</td></tr>
+      <tr><td>EaseIn</td><td>加速</td><td>落下開始</td></tr>
+      <tr><td>EaseOut</td><td>減速</td><td>着地</td></tr>
+      <tr><td>EaseInOut</td><td>加速→減速</td><td>滑らかな移動</td></tr>
+      <tr><td>Bounce</td><td>バウンド</td><td>跳ねるボール</td></tr>
+      <tr><td>Elastic</td><td>弾性</td><td>ばね的動き</td></tr>
+      <tr><td>Back</td><td>オーバーシュート</td><td>誇張表現</td></tr>
+      <tr><td>Cubic Bezier</td><td>カスタム</td><td>細かい調整</td></tr>
+    </table>
+
+    <h4>Timeline / Dopesheet ビュー</h4>
+    <p><strong>Timeline</strong> — カーブエディタ。キーフレーム間の補間カーブを視覚的に編集。ハンドルをドラッグしてベジェ曲線を調整。</p>
+    <p><strong>Dopesheet</strong> — 全トラックのキーフレームをタイムライン上のドットで一覧表示。キーフレームの移動・複製・削除を一括操作。</p>
+
+    <h4>Animation Events</h4>
+    <p>特定のフレームにイベントを挿入し、アニメーション再生時にコールバック関数を発火します。足音サウンド、エフェクト生成、状態変更などに使用。</p>
+
+    <h4>Animator Controller (FSM ノードグラフ)</h4>
+    <p>ノードグラフエディタで有限状態機械を構築。各ステートにアニメーションクリップを割り当て、条件付きトランジションで遷移を制御します。</p>
+    <ul>
+      <li>パラメータ (Bool / Float / Trigger) による遷移条件</li>
+      <li>クロスフェード期間の設定</li>
+      <li>Any State / Entry / Exit の特殊ステート</li>
+      <li>サブステートマシン (階層化)</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== N. Visual Scripting ===== -->
+<section id="scene-visual-script">
+  <h2>N. Scene Editor &mdash; Visual Scripting</h2>
+  <div class="card">
+    <p>コーディング不要でゲームロジックを構築するノードベースエディタです。</p>
+
+    <h4>10種のノードタイプ</h4>
+    <table>
+      <tr><th>ノード</th><th>色</th><th>説明</th></tr>
+      <tr><td>OnStart</td><td style="color:#6a9955">緑</td><td>シーン開始時に1回実行される起点ノード</td></tr>
+      <tr><td>OnUpdate</td><td style="color:#6a9955">緑</td><td>毎フレーム実行される起点ノード</td></tr>
+      <tr><td>Branch</td><td style="color:#dcdcaa">黄</td><td>条件分岐 (Bool入力 → True/False出力)</td></tr>
+      <tr><td>ForLoop</td><td style="color:#dcdcaa">黄</td><td>指定回数のループ実行</td></tr>
+      <tr><td>GetComponent</td><td style="color:#569cd6">青</td><td>指定エンティティからコンポーネントデータを取得</td></tr>
+      <tr><td>SetComponent</td><td style="color:#569cd6">青</td><td>コンポーネントのプロパティ値を設定</td></tr>
+      <tr><td>MathAdd</td><td style="color:#b5cea8">薄緑</td><td>2つの数値を加算</td></tr>
+      <tr><td>MathMultiply</td><td style="color:#b5cea8">薄緑</td><td>2つの数値を乗算</td></tr>
+      <tr><td>Compare</td><td style="color:#dcdcaa">黄</td><td>2値を比較 (==, !=, &lt;, &gt;, &le;, &ge;)</td></tr>
+      <tr><td>Print</td><td style="color:#ce9178">橙</td><td>Console パネルにデバッグメッセージを出力</td></tr>
+    </table>
+
+    <h4>エディタ操作</h4>
+    <ul>
+      <li>右クリック → ノード追加メニュー (検索フィルタ付き)</li>
+      <li>ポートをドラッグして接続線を描画</li>
+      <li><kbd>Delete</kbd> で選択ノード/接続を削除</li>
+      <li>マウスホイールでズーム、<kbd>MMB</kbd> ドラッグでパン</li>
+      <li>ノードのグループ化 (色付きフレームでまとめ)</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== O. Shader Graph ===== -->
+<section id="scene-shader">
+  <h2>O. Scene Editor &mdash; Shader Graph</h2>
+  <div class="card">
+    <p>ノードベースのシェーダー作成ツール。WGSL コードを記述せずに PBR マテリアルを構築できます。</p>
+
+    <h4>10種のノードタイプ</h4>
+    <table>
+      <tr><th>ノード</th><th>説明</th></tr>
+      <tr><td>TextureSample</td><td>テクスチャファイルをサンプリングし RGBA 値を出力</td></tr>
+      <tr><td>NormalMap</td><td>法線マップをデコードしてサーフェス法線を変更</td></tr>
+      <tr><td>Color</td><td>定数カラー値を出力 (カラーピッカー付き)</td></tr>
+      <tr><td>Float</td><td>定数 Float 値を出力 (スライダー付き)</td></tr>
+      <tr><td>Multiply</td><td>2つの入力を乗算</td></tr>
+      <tr><td>Add</td><td>2つの入力を加算</td></tr>
+      <tr><td>Lerp</td><td>2つの値をパラメータ t で線形補間</td></tr>
+      <tr><td>Fresnel</td><td>フレネル効果を計算 (視線角度ベースの反射)</td></tr>
+      <tr><td>UV</td><td>メッシュの UV 座標を出力</td></tr>
+      <tr><td>Time</td><td>経過時間を出力 (アニメーション用)</td></tr>
+    </table>
+
+    <h4>PBR 評価 &amp; Preview 連携</h4>
+    <p>ノードグラフの最終出力は PBR Output ノードに接続します。Base Color / Metallic / Roughness / Normal / Emissive の5チャンネル。変更は Inspector の Material Preview 球にリアルタイム反映されます。</p>
+  </div>
+</section>
+
+<!-- ===== P. Terrain ===== -->
+<section id="scene-terrain">
+  <h2>P. Scene Editor &mdash; Terrain</h2>
+  <div class="card">
+    <p>ハイトマップベースの地形編集システム。</p>
+    <h4>ハイトマップ</h4>
+    <p>グレースケール画像 (16bit 対応) またはプロシージャルノイズから地形を生成。解像度は 64x64 から 1024x1024 まで選択可能。</p>
+
+    <h4>ブラシツール</h4>
+    <table>
+      <tr><th>ブラシ</th><th>説明</th></tr>
+      <tr><td>Raise</td><td>地形を隆起させる。ブラシサイズと強度を調整</td></tr>
+      <tr><td>Lower</td><td>地形を陥没させる</td></tr>
+      <tr><td>Smooth</td><td>周囲の高さの平均に近づけて滑らかにする</td></tr>
+      <tr><td>Flatten</td><td>クリック位置の高さに周囲を揃えて平坦にする</td></tr>
+    </table>
+    <p>すべてのブラシはリアルタイムプレビュー (半透明円表示) とアンドゥ対応。</p>
+
+    <h4>メッシュ自動生成</h4>
+    <p>ハイトマップの変更に応じてメッシュが自動再生成されます。法線とタンジェントも再計算され、ライティングが正しく反映されます。</p>
+  </div>
+</section>
+
+<!-- ===== Q. NavMesh ===== -->
+<section id="scene-navmesh">
+  <h2>Q. Scene Editor &mdash; NavMesh</h2>
+  <div class="card">
+    <p>AI エージェントのナビゲーションに使用するナビゲーションメッシュ。</p>
+    <h4>グリッドベイク</h4>
+    <p>シーン内の Static コライダーを解析し、歩行可能な領域をグリッドとして自動計算します。エージェントの半径、高さ、登坂角度を設定パラメータとして指定。</p>
+    <h4>A* パスファインディング</h4>
+    <p>ベイク済み NavMesh 上で A* アルゴリズムによる最短経路探索を実行。スクリプトから <code>navmesh.find_path(start, goal)</code> で経路を取得できます。</p>
+    <ul>
+      <li>NavMesh の可視化オーバーレイ (半透明ブルー表示)</li>
+      <li>歩行不可領域の赤色ハイライト</li>
+      <li>パスのデバッグ表示 (黄色ライン)</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== R. Physics ===== -->
+<section id="scene-physics">
+  <h2>R. Scene Editor &mdash; Physics</h2>
+  <div class="card">
+    <p>リアルタイム物理シミュレーション。Play Mode で自動的に有効化されます。</p>
+    <table>
+      <tr><th>機能</th><th>説明</th></tr>
+      <tr><td>重力</td><td>デフォルト (0, -9.81, 0)。グローバル設定で方向と強度を変更可能</td></tr>
+      <tr><td>AABB 衝突検出</td><td>ブロードフェーズで Axis-Aligned Bounding Box を使用した高速衝突判定</td></tr>
+      <tr><td>摩擦</td><td>コライダー間の摩擦係数。0.0 (氷) 〜 1.0 (ゴム) で設定</td></tr>
+      <tr><td>反発</td><td>反発係数 (Restitution)。0.0 (完全非弾性) 〜 1.0 (完全弾性衝突)</td></tr>
+    </table>
+    <ul>
+      <li>RigidBody の速度/角速度をスクリプトから制御可能</li>
+      <li>衝突イベントのコールバック (OnCollisionEnter / Stay / Exit)</li>
+      <li>トリガー判定 (OnTriggerEnter / Stay / Exit)</li>
+      <li>レイキャスト API でゲームロジックからの線分交差判定</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== S. Play Mode ===== -->
+<section id="scene-play">
+  <h2>S. Scene Editor &mdash; Play Mode</h2>
+  <div class="card">
+    <p>エディタ内でゲームを実行し、リアルタイムにテスト・デバッグを行うモードです。</p>
+    <table>
+      <tr><th>ボタン</th><th>ショートカット</th><th>動作</th></tr>
+      <tr><td>Play</td><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>シーンのスナップショットを保存し、ゲーム実行を開始</td></tr>
+      <tr><td>Pause</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td><td>実行を一時停止。Inspector で値を変更して再開可能</td></tr>
+      <tr><td>Step</td><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>P</kbd></td><td>1フレームだけ進めて再び一時停止</td></tr>
+      <tr><td>Stop</td><td><kbd>Ctrl</kbd>+<kbd>P</kbd> (再押)</td><td>実行を停止し、スナップショットからシーンを復元</td></tr>
+    </table>
+    <h4>スナップショット復元</h4>
+    <p>Play 開始時にシーン全体の状態をメモリに保存。Stop 時に自動復元されるため、Play 中の変更がエディタのシーンデータを破壊することはありません。</p>
+  </div>
+</section>
+
+<!-- ===== T. Prefab ===== -->
+<section id="scene-prefab">
+  <h2>T. Scene Editor &mdash; Prefab</h2>
+  <div class="card">
+    <p>再利用可能なエンティティテンプレート。一度定義すれば複数シーンで使い回せます。</p>
+    <h4>保存/読み込み</h4>
+    <p>Hierarchy で右クリック → 「Save as Prefab」で <code>.prefab</code> ファイルとして書き出し。Asset Browser からシーンへドラッグ&amp;ドロップで配置。</p>
+    <h4>ドラッグ&amp;ドロップ配置</h4>
+    <p>Asset Browser の Prefab アセットをビューポートにドラッグすると、マウス位置にインスタンスを配置します。</p>
+    <h4>ネスト対応</h4>
+    <p>Prefab の中に別の Prefab を含めることができます (Nested Prefab)。外側の Prefab を更新しても、内側の Prefab は独立して管理されます。</p>
+    <h4>Revert / Apply / Unpack</h4>
+    <ul>
+      <li><strong>Revert</strong> — インスタンスのオーバーライドを元の Prefab 値に戻す</li>
+      <li><strong>Apply</strong> — インスタンスの変更を Prefab ソースファイルに反映。全インスタンスに伝播</li>
+      <li><strong>Unpack</strong> — Prefab リンクを切断し、独立したエンティティに変換</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== U. Asset Pipeline ===== -->
+<section id="scene-asset">
+  <h2>U. Scene Editor &mdash; Asset Pipeline</h2>
+  <div class="card">
+    <p>アセットのインポートから管理までを統合するパイプラインです。</p>
+    <h4>Import Settings (.meta)</h4>
+    <p>各アセットファイルに対応する <code>.meta</code> ファイルでインポート設定を保存。テクスチャフォーマット、圧縮レベル、メッシュ最適化オプションなどを管理。</p>
+    <h4>テクスチャリサイズ + ミップマップ</h4>
+    <p>インポート時に最大解像度の制限、POT (Power of Two) リサイズ、ミップマップチェーンの自動生成を行います。</p>
+    <h4>サムネイル生成</h4>
+    <ul>
+      <li><strong>テクスチャ</strong> — 縮小画像をキャッシュしてブラウザに表示</li>
+      <li><strong>3Dモデル</strong> — GPU オフスクリーンレンダリングでサムネイルを自動生成</li>
+    </ul>
+    <h4>依存関係追跡</h4>
+    <p>アセット間の参照関係を自動解析。未使用アセットの検出、参照先の変更時の影響範囲表示、安全な削除確認を実現します。</p>
+  </div>
+</section>
+
+<!-- ===== V. ツール群 ===== -->
+<section id="scene-tools">
+  <h2>V. Scene Editor &mdash; ツール群</h2>
+
+  <div class="card">
+    <h3>Profiler (FPSグラフ)</h3>
+    <p>リアルタイムFPSグラフ、フレームタイム詳細、CPU/GPU 使用率を表示。ボトルネックの特定に。</p>
+  </div>
+
+  <div class="card">
+    <h3>Console</h3>
+    <p>ログメッセージの一覧表示パネル。レベル (Info / Warning / Error) でフィルタ、テキスト検索、ログファイルへの保存に対応。</p>
+  </div>
+
+  <div class="card">
+    <h3>Dockable Tool Panel</h3>
+    <p>すべてのパネルはドラッグでドッキング位置を変更可能。タブ化、フローティング、分割表示に対応し、ワークスペースをカスタマイズできます。</p>
+  </div>
+
+  <div class="card">
+    <h3>Scene Merge (Three-Way Diff)</h3>
+    <p>バイナリではなく RON テキストベースの <code>.bscene</code> フォーマットにより、Git での Three-Way マージが可能。コンフリクトを視覚的に解決します。</p>
+  </div>
+
+  <div class="card">
+    <h3>Build Settings + Pipeline</h3>
+    <p>ターゲットプラットフォーム (Windows / macOS / Linux) の選択、ビルド構成 (Debug / Release)、出力先の設定。ワンクリックでバイナリを生成します。</p>
+  </div>
+
+  <div class="card">
+    <h3>Hot Reload</h3>
+    <p>Rust スクリプトファイルの変更を検出し、Play Mode を停止せずにコードを再読み込み。イテレーション速度を大幅に向上させます。</p>
+  </div>
+
+  <div class="card">
+    <h3>Spline 描画</h3>
+    <p>ビューポート上で制御点をクリックしてスプラインを作成。カメラパス、レール、道路のレイアウトを視覚的に設計できます。</p>
+  </div>
+
+  <div class="card">
+    <h3>Skeleton 表示</h3>
+    <p>SkinnedMesh のボーン構造をワイヤーフレームで可視化。ボーンの選択・Transform 編集が可能で、アニメーションのデバッグに使用します。</p>
+  </div>
+</section>
+
+<!-- ===== W. Bevy専用機能 ===== -->
+<section id="bevy">
+  <h2>W. Bevy 専用機能</h2>
+  <div class="card">
+    <h3>Bevy Templates</h3>
+    <p>Component / Resource / System / Plugin / Event / State のボイラープレートコードを自動生成。設定パネルで名前やフィールドを入力し、ワンクリックでファイルを生成します。</p>
+    <pre class="code"><span class="cmt">// 生成例: Component テンプレート</span>
+<span class="kw">use</span> bevy::prelude::*;
+
+#[derive(Component)]
+<span class="kw">pub struct</span> <span class="fn">Health</span> {
+    <span class="kw">pub</span> current: <span class="fn">f32</span>,
+    <span class="kw">pub</span> max: <span class="fn">f32</span>,
+}</pre>
+  </div>
+
+  <div class="card">
+    <h3>ECS Inspector</h3>
+    <p>Bevy Remote Protocol (BRP) 経由で実行中の Bevy アプリケーションに接続。エンティティ一覧、コンポーネント値のリアルタイム監視・編集が可能です。</p>
+    <ul>
+      <li>エンティティの検索・フィルタリング</li>
+      <li>コンポーネントデータの表示・編集</li>
+      <li>リソースの閲覧</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Scene Preview</h3>
+    <p>RON 形式のシーンファイル (<code>.scn.ron</code>) をパースし、エンティティ構成をツリー表示でプレビューします。</p>
+  </div>
+
+  <div class="card">
+    <h3>Asset Browser</h3>
+    <p>プロジェクト内のアセットディレクトリをスキャンし、以下のカテゴリに分類して表示:</p>
+    <ul>
+      <li>Textures (画像ファイル)</li>
+      <li>Models (3Dモデル)</li>
+      <li>Audio (音声ファイル)</li>
+      <li>Scenes (シーンファイル)</li>
+      <li>Shaders (シェーダー)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>New Project (4テンプレート)</h3>
+    <table>
+      <tr><th>テンプレート</th><th>内容</th></tr>
+      <tr><td>Empty</td><td>最小構成の Bevy プロジェクト</td></tr>
+      <tr><td>2D Game</td><td>スプライト、カメラ、入力の基本セットアップ</td></tr>
+      <tr><td>3D Game</td><td>メッシュ、ライト、カメラ、PBR マテリアルの基本セットアップ</td></tr>
+      <tr><td>UI App</td><td>bevy_ui ベースのアプリケーション</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Run + Game View</h3>
+    <p>ツールバーの Run ボタンで <code>cargo run</code> を実行。Game View パネルにゲームウィンドウを埋め込み、エディタ内でプレイテストが完結します。</p>
+  </div>
+</section>
+
+<!-- ===== X. パフォーマンス比較 ===== -->
+<section id="perf">
+  <h2>X. パフォーマンス比較</h2>
+  <div class="card">
+    <table>
+      <tr>
+        <th>指標</th>
+        <th style="color:#c586c0">BerryCode</th>
+        <th>VS Code</th>
+        <th>Unity</th>
+        <th>Unreal Engine</th>
+      </tr>
+      <tr>
+        <td>バイナリサイズ</td>
+        <td style="color:#6a9955;font-weight:600">31 MB</td>
+        <td>~350 MB</td>
+        <td>~2 GB</td>
+        <td>~40 GB</td>
+      </tr>
+      <tr>
+        <td>起動時メモリ</td>
+        <td style="color:#6a9955;font-weight:600">215 MB</td>
+        <td>~500 MB</td>
+        <td>~1.5 GB</td>
+        <td>~3 GB</td>
+      </tr>
+      <tr>
+        <td>起動時間</td>
+        <td style="color:#6a9955;font-weight:600">&lt;1秒</td>
+        <td>2-5秒</td>
+        <td>30-60秒</td>
+        <td>60-120秒</td>
+      </tr>
+      <tr>
+        <td>レンダリング</td>
+        <td>WGPU (Metal/Vulkan/DX12)</td>
+        <td>Chromium (Electron)</td>
+        <td>独自レンダラ</td>
+        <td>独自レンダラ</td>
+      </tr>
+      <tr>
+        <td>UI フレームワーク</td>
+        <td>egui (即時モード)</td>
+        <td>HTML/CSS/JS</td>
+        <td>IMGUI + Qt</td>
+        <td>Slate (C++)</td>
+      </tr>
+      <tr>
+        <td>言語</td>
+        <td>100% Rust</td>
+        <td>TypeScript</td>
+        <td>C# + C++</td>
+        <td>C++</td>
+      </tr>
+      <tr>
+        <td>ゲームエンジン統合</td>
+        <td style="color:#6a9955;font-weight:600">Bevy ECS ネイティブ</td>
+        <td>なし</td>
+        <td>Unity Engine</td>
+        <td>UE Engine</td>
+      </tr>
+      <tr>
+        <td>テスト数</td>
+        <td>232</td>
+        <td>N/A</td>
+        <td>N/A</td>
+        <td>N/A</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>BerryCode v0.1.0 &mdash; ビルド日: 2026-04-16</p>
+  <p>Bevy 0.15 + bevy_egui 0.32 + WGPU &mdash; 100% Rust ネイティブ</p>
+  <p style="margin-top:8px">MIT License &copy; 2026 BerryCode Contributors</p>
+</footer>
+
+</main>
+</body>
+</html>
