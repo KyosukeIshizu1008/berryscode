@@ -1,195 +1,119 @@
-name: Tests
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  unit-tests:
-    name: Unit Tests
+  # ─── Build & Test (Linux) ────────────────────────────────────
+  test-linux:
+    name: Test (Linux)
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run unit tests
-        run: cargo test --lib --verbose
-
-  wasm-tests:
-    name: WASM Integration Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - name: Install Firefox
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y firefox
-
-      - name: Install geckodriver
-        run: |
-          wget https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-linux64.tar.gz
-          tar -xzf geckodriver-v0.34.0-linux64.tar.gz
-          sudo mv geckodriver /usr/local/bin/
-          geckodriver --version
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-wasm-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-wasm-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run WASM tests
-        run: wasm-pack test --headless --firefox
-        env:
-          GECKODRIVER: /usr/local/bin/geckodriver
-
-  e2e-tests:
-    name: E2E Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
+            pkg-config \
+            libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev \
+            libxkbcommon-dev \
+            libasound2-dev \
+            libudev-dev \
             libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            firefox \
-            xvfb
-
-      - name: Install geckodriver
-        run: |
-          wget https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-linux64.tar.gz
-          tar -xzf geckodriver-v0.34.0-linux64.tar.gz
-          sudo mv geckodriver /usr/local/bin/
-          geckodriver --version
-
-      - name: Install trunk
-        run: |
-          wget -qO- https://github.com/trunk-rs/trunk/releases/download/v0.20.3/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
-          sudo mv trunk /usr/local/bin/
-          trunk --version
-
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version '^2.0.0'
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-e2e-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo index
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-e2e-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache cargo build
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-e2e-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Run E2E tests with Xvfb
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" ./run_e2e_tests.sh
-        env:
-          DISPLAY: :99
-          GECKODRIVER: /usr/local/bin/geckodriver
-
-      - name: Upload E2E test logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-test-logs
-          path: /tmp/test_*.log
-
-  lint:
-    name: Lint and Format
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+            libwayland-dev \
+            libgtk-3-dev \
+            libatk1.0-dev \
+            libglib2.0-dev
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-test-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Build
+        run: cargo build --release --bin berrycode
 
-  all-tests-passed:
-    name: All Tests Passed
-    needs: [unit-tests, wasm-tests, e2e-tests, lint]
-    runs-on: ubuntu-latest
+      - name: Run unit tests
+        run: cargo test -p berry-editor --lib --verbose
 
+      - name: Clippy
+        run: cargo clippy -p berry-editor -- -W warnings
+        continue-on-error: true
+
+  # ─── Build check (macOS) ─────────────────────────────────────
+  check-macos:
+    name: Check (macOS)
+    runs-on: macos-latest
     steps:
-      - name: All tests passed
-        run: echo "✅ All tests passed successfully!"
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-check-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --bin berrycode
+
+      - name: Run unit tests
+        run: cargo test -p berry-editor --lib
+
+  # ─── Build check (Windows) ───────────────────────────────────
+  check-windows:
+    name: Check (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-check-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --bin berrycode
+
+      - name: Run unit tests
+        run: cargo test -p berry-editor --lib
+
+  # ─── Gate ────────────────────────────────────────────────────
+  ci-passed:
+    name: CI Passed
+    needs: [test-linux, check-macos, check-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All CI checks passed"

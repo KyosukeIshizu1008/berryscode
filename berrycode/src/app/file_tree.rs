@@ -7,6 +7,35 @@ use super::file_icon_colors;
 use crate::native;
 use crate::native::fs::DirEntry;
 
+/// Reveal a file or folder in the platform's file manager.
+fn reveal_in_file_manager(path: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("-R")
+            .arg(path)
+            .spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path.replace('/', "\\")))
+            .spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // xdg-open opens the containing directory; dbus method can select the file
+        // but xdg-open is the most portable approach.
+        let parent = std::path::Path::new(path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.to_string());
+        let _ = std::process::Command::new("xdg-open")
+            .arg(&parent)
+            .spawn();
+    }
+}
+
 /// Returns true if the given file name is a 3D asset that can be dragged from
 /// the file tree onto the Scene View to spawn an entity (Phase H).
 fn is_droppable_asset(filename: &str) -> bool {
@@ -692,13 +721,18 @@ impl BerryCodeApp {
                                 close_menu = true;
                             }
 
-                            #[cfg(target_os = "macos")]
-                            if ui.button("Reveal in Finder").clicked() {
-                                let _ = std::process::Command::new("open")
-                                    .arg("-R")
-                                    .arg(&path)
-                                    .spawn();
-                                close_menu = true;
+                            {
+                                let reveal_label = if cfg!(target_os = "macos") {
+                                    "Reveal in Finder"
+                                } else if cfg!(target_os = "windows") {
+                                    "Show in Explorer"
+                                } else {
+                                    "Open Containing Folder"
+                                };
+                                if ui.button(reveal_label).clicked() {
+                                    reveal_in_file_manager(&path);
+                                    close_menu = true;
+                                }
                             }
                         });
                 });

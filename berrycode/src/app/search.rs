@@ -1,7 +1,7 @@
 //! Search panel, search dialog, and search operations
 
 use super::BerryCodeApp;
-use super::types::{SearchMatch, TerminalLine, TerminalStyle};
+use super::types::SearchMatch;
 use crate::buffer::TextBuffer;
 use crate::native;
 
@@ -297,11 +297,6 @@ impl BerryCodeApp {
             }
             Err(e) => {
                 tracing::error!("❌ Project search failed: {}", e);
-                // Add error message to terminal output
-                self.terminal_output.push(TerminalLine {
-                    text: format!("Search error: {}", e),
-                    style: TerminalStyle::Error,
-                });
             }
         }
     }

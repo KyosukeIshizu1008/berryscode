@@ -25,14 +25,20 @@ impl BerryCodeApp {
         });
     }
 
-    /// Trigger LSP completions
+    /// Trigger LSP completions (or Cargo.toml/snippet completions)
     pub(crate) fn trigger_lsp_completions(&mut self) {
-        tracing::info!("💡 Triggering LSP completions");
+        tracing::info!("💡 Triggering completions");
 
         let tab = match self.editor_tabs.get(self.active_tab_idx) {
             Some(t) => t,
             None => return,
         };
+
+        // Cargo.toml → use crates.io completion
+        if tab.file_path.ends_with("Cargo.toml") {
+            self.trigger_cargo_completion();
+            return;
+        }
 
         let file_path = tab.file_path.clone();
         let line = tab.cursor_line;
@@ -81,9 +87,13 @@ impl BerryCodeApp {
                         .into_iter()
                         .map(|item| {
                             use lsp_types::CompletionItemKind;
+                            let is_snippet = item.insert_text_format == Some(lsp_types::InsertTextFormat::SNIPPET);
+                            let insert_text = item.insert_text.clone();
                             LspCompletionItem {
                                 label: item.label,
                                 detail: item.detail,
+                                insert_text,
+                                is_snippet,
                                 kind: match item.kind {
                                     Some(CompletionItemKind::TEXT) => "text",
                                     Some(CompletionItemKind::METHOD) => "method",

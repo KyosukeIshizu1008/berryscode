@@ -176,6 +176,24 @@ impl BerryCodeApp {
                             self.status_message_timestamp = Some(std::time::Instant::now());
                         }
                     }
+                    LspResponse::InlayHints(hints) => {
+                        self.lsp_inlay_hints = hints;
+                    }
+                    LspResponse::CodeActions(actions) => {
+                        self.lsp_code_actions = actions;
+                        self.show_code_actions = !self.lsp_code_actions.is_empty();
+                    }
+                    LspResponse::MacroExpansion(name, text) => {
+                        // Open expansion in a new read-only tab
+                        let title = format!("[Macro] {}", name);
+                        let tab = super::types::EditorTab::new(title, text);
+                        self.editor_tabs.push(tab);
+                        self.active_tab_idx = self.editor_tabs.len() - 1;
+                        // Mark as read-only
+                        if let Some(t) = self.editor_tabs.last_mut() {
+                            t.is_readonly = true;
+                        }
+                    }
                 }
             }
         }

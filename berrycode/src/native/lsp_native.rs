@@ -1061,6 +1061,21 @@ impl NativeLspClient {
         Ok(())
     }
 
+    /// Send a custom LSP request (for extensions like rust-analyzer/expandMacro)
+    pub async fn send_custom_request<P: serde::Serialize>(
+        &self,
+        language: &str,
+        method: &str,
+        params: P,
+    ) -> Result<Value> {
+        let servers = self.servers.read().await;
+        let server = servers
+            .get(language)
+            .context("LSP server not started")?
+            .clone();
+        self.send_request(server, method, params).await
+    }
+
     /// Shutdown all language servers
     pub async fn shutdown_all(&self) -> Result<()> {
         let languages: Vec<String> = self.servers.read().await.keys().cloned().collect();

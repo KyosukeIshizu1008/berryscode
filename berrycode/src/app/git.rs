@@ -1,7 +1,7 @@
 //! Git panel rendering and operations
 
 use super::BerryCodeApp;
-use super::types::{GitTab, TerminalLine, TerminalStyle};
+use super::types::GitTab;
 use super::ui_colors;
 use crate::native;
 
@@ -1173,10 +1173,6 @@ impl BerryCodeApp {
             }
             Err(e) => {
                 tracing::error!("❌ Failed to stage file: {}", e);
-                self.terminal_output.push(TerminalLine {
-                    text: format!("Git stage error: {}", e),
-                    style: TerminalStyle::Error,
-                });
             }
         }
     }
@@ -1192,10 +1188,6 @@ impl BerryCodeApp {
             }
             Err(e) => {
                 tracing::error!("❌ Failed to unstage file: {}", e);
-                self.terminal_output.push(TerminalLine {
-                    text: format!("Git unstage error: {}", e),
-                    style: TerminalStyle::Error,
-                });
             }
         }
     }
@@ -1211,10 +1203,6 @@ impl BerryCodeApp {
             }
             Err(e) => {
                 tracing::error!("❌ Failed to stage all: {}", e);
-                self.terminal_output.push(TerminalLine {
-                    text: format!("Git stage all error: {}", e),
-                    style: TerminalStyle::Error,
-                });
             }
         }
     }
@@ -1223,10 +1211,6 @@ impl BerryCodeApp {
     pub(crate) fn perform_git_commit(&mut self) {
         if self.git_commit_message.trim().is_empty() {
             tracing::warn!("⚠️  Cannot commit with empty message");
-            self.terminal_output.push(TerminalLine {
-                text: "Error: Commit message cannot be empty".to_string(),
-                style: TerminalStyle::Error,
-            });
             return;
         }
 
@@ -1235,19 +1219,11 @@ impl BerryCodeApp {
         match native::git::commit(&self.root_path, &self.git_commit_message) {
             Ok(commit_id) => {
                 tracing::info!("✅ Commit created: {}", commit_id);
-                self.terminal_output.push(TerminalLine {
-                    text: format!("✅ Commit created: {}", commit_id),
-                    style: TerminalStyle::Output,
-                });
                 self.git_commit_message.clear();
                 self.refresh_git_status();
             }
             Err(e) => {
                 tracing::error!("❌ Failed to commit: {}", e);
-                self.terminal_output.push(TerminalLine {
-                    text: format!("Git commit error: {}", e),
-                    style: TerminalStyle::Error,
-                });
             }
         }
     }

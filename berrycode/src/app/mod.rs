@@ -17,6 +17,7 @@ mod sidebar;
 mod git;
 mod search;
 mod terminal;
+pub(crate) mod terminal_emulator;
 mod ai_chat;
 mod lsp;
 mod rename;
@@ -43,6 +44,17 @@ pub(crate) mod ansi;
 pub(crate) mod dock;
 pub(crate) mod keymap;
 pub(crate) mod utils;
+mod inlay_hints;
+mod code_actions;
+mod macro_expand;
+pub(crate) mod snippets;
+mod cargo_completion;
+mod custom_snippets;
+pub(crate) mod test_runner;
+pub(crate) mod vim_mode;
+pub(crate) mod plugin_system;
+pub(crate) mod remote_dev;
+pub(crate) mod live_collab;
 
 // Re-export public types
 pub use types::*;
@@ -176,12 +188,8 @@ pub struct BerryCodeApp {
     pub(crate) file_tree_load_pending: bool,
     pub(crate) expanded_dirs: HashSet<String>, // Set of expanded directory paths
 
-    // === Terminal State ===
-    pub(crate) terminal_output: Vec<TerminalLine>,
-    pub(crate) terminal_input: String,
-    pub(crate) terminal_history: Vec<String>,
-    pub(crate) terminal_history_index: Option<usize>,
-    pub(crate) terminal_working_dir: String,
+    // === Terminal State (iTerm2-style PTY emulator) ===
+    pub(crate) terminal: terminal_emulator::TerminalEmulator,
 
     // === Search State ===
     pub(crate) search_query: String,
@@ -230,6 +238,19 @@ pub struct BerryCodeApp {
     // === Find References State ===
     pub(crate) lsp_references: Vec<LspLocation>,
     pub(crate) show_references_panel: bool,
+
+    // === Inlay Hints State ===
+    pub(crate) lsp_inlay_hints: Vec<LspInlayHint>,
+    pub(crate) inlay_hints_enabled: bool,
+    pub(crate) inlay_hints_last_request: Option<std::time::Instant>,
+
+    // === Code Actions State ===
+    pub(crate) lsp_code_actions: Vec<LspCodeAction>,
+    pub(crate) show_code_actions: bool,
+    pub(crate) code_action_line: usize,
+
+    // === Snippet State ===
+    pub(crate) snippet_session: Option<SnippetSession>,
 
     // === Rename Symbol State ===
     pub(crate) rename_dialog_open: bool,
@@ -318,6 +339,28 @@ pub struct BerryCodeApp {
 
     // === Debug State ===
     pub(crate) debug_state: debugger::DebugState,
+    pub(crate) dap_client: Option<crate::native::dap::DapClient>,
+    pub(crate) dap_event_rx: Option<tokio::sync::mpsc::UnboundedReceiver<crate::native::dap::DapEvent>>,
+
+    // === Test Runner State ===
+    pub(crate) test_runner: test_runner::TestRunnerState,
+
+    // === User Snippets ===
+    pub(crate) user_snippets: Vec<custom_snippets::LoadedSnippet>,
+
+    // === Vim Mode ===
+    pub(crate) vim: vim_mode::VimState,
+
+    // === Plugin System ===
+    pub(crate) plugin_manager: plugin_system::PluginManager,
+
+    // === Remote Development ===
+    pub(crate) remote: remote_dev::RemoteConnection,
+    pub(crate) remote_dialog: remote_dev::RemoteDialogState,
+
+    // === Live Collaboration ===
+    pub(crate) collab: live_collab::CollabState,
+    pub(crate) collab_dialog: live_collab::CollabDialogState,
 
     // === Context Menu State ===
     pub(crate) context_menu_path: Option<String>,
@@ -345,6 +388,7 @@ pub struct BerryCodeApp {
     pub(crate) game_view_open: bool,
     pub(crate) game_view_texture: Option<egui::TextureHandle>,
     pub(crate) game_view_last_capture: Option<std::time::Instant>,
+    pub(crate) game_view_window_hidden: bool,
 
     // === Scene Editor (Unity-like) ===
     pub(crate) scene_model: scene_editor::model::SceneModel,
@@ -682,43 +726,18 @@ impl BerryCodeApp {
         ctx.set_style(style);
     }
 
-    /// Open a native OS folder selection dialog.
+    /// Open a native OS folder selection dialog (cross-platform via rfd).
     /// Returns the selected folder path, or None if cancelled.
     fn native_folder_dialog() -> Option<String> {
-        #[cfg(target_os = "macos")]
-        {
-            let output = std::process::Command::new("osascript")
-                .args(&["-e", "set folderPath to POSIX path of (choose folder with prompt \"Select Bevy Project Folder\")"])
-                .output()
-                .ok()?;
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                // Remove trailing slash if present
-                let path = path.trim_end_matches('/').to_string();
-                if !path.is_empty() {
-                    return Some(path);
-                }
-            }
+        let folder = rfd::FileDialog::new()
+            .set_title("Select Bevy Project Folder")
+            .pick_folder()?;
+        let path = folder.to_string_lossy().to_string();
+        let path = path.trim_end_matches(['/', '\\']).to_string();
+        if path.is_empty() {
             None
-        }
-        #[cfg(target_os = "linux")]
-        {
-            // Try zenity first, then kdialog
-            let output = std::process::Command::new("zenity")
-                .args(&["--file-selection", "--directory", "--title=Select Bevy Project Folder"])
-                .output()
-                .ok()?;
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path.is_empty() {
-                    return Some(path);
-                }
-            }
-            None
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-        {
-            None
+        } else {
+            Some(path)
         }
     }
 
@@ -1058,11 +1077,7 @@ impl BerryCodeApp {
                 }
                 dirs
             },
-            terminal_output: Vec::new(),
-            terminal_input: String::new(),
-            terminal_history: Vec::new(),
-            terminal_history_index: None,
-            terminal_working_dir,
+            terminal: terminal_emulator::TerminalEmulator::new(&terminal_working_dir),
             search_query: String::new(),
             search_dialog_open: false,
             search_case_sensitive: false,
@@ -1099,6 +1114,16 @@ impl BerryCodeApp {
             show_definition_picker: false,
             lsp_references: Vec::new(),
             show_references_panel: false,
+
+            lsp_inlay_hints: Vec::new(),
+            inlay_hints_enabled: true,
+            inlay_hints_last_request: None,
+
+            lsp_code_actions: Vec::new(),
+            show_code_actions: false,
+            code_action_line: 0,
+
+            snippet_session: None,
 
             rename_dialog_open: false,
             rename_new_name: String::new(),
@@ -1167,6 +1192,16 @@ impl BerryCodeApp {
             template_variants: Vec::new(),
 
             debug_state: Default::default(),
+            dap_client: None,
+            dap_event_rx: None,
+            test_runner: Default::default(),
+            user_snippets: custom_snippets::load_user_snippets(),
+            vim: Default::default(),
+            plugin_manager: Default::default(),
+            remote: Default::default(),
+            remote_dialog: Default::default(),
+            collab: Default::default(),
+            collab_dialog: Default::default(),
 
             context_menu_path: None,
             context_menu_is_dir: false,
@@ -1190,6 +1225,7 @@ impl BerryCodeApp {
             game_view_open: false,
             game_view_texture: None,
             game_view_last_capture: None,
+            game_view_window_hidden: false,
 
             scene_model: {
                 // Auto-import entities from main.rs if project has one
@@ -1626,6 +1662,21 @@ pub fn berry_ui_system(
     // Poll LSP responses (non-blocking)
     app.poll_lsp_responses();
 
+    // Poll inlay hints (periodic, throttled)
+    app.poll_inlay_hints();
+
+    // Poll test runner results (non-blocking)
+    app.poll_test_results();
+
+    // Poll DAP events (non-blocking)
+    app.poll_dap_events();
+
+    // Poll remote development responses
+    app.poll_remote_responses();
+
+    // Poll collaboration state
+    app.poll_collab();
+
     // Poll gRPC responses (non-blocking)
     app.poll_grpc_responses();
 
@@ -1648,6 +1699,9 @@ pub fn berry_ui_system(
     app.handle_editor_shortcuts(ctx);
     app.handle_goto_definition_shortcut(ctx);
     app.handle_find_references_shortcut(ctx);
+    app.handle_code_action_shortcut(ctx);
+    app.handle_macro_expand_shortcut(ctx);
+    app.handle_debug_shortcuts(ctx);
     app.handle_settings_shortcuts(ctx);
 
     // Render top header bar (VS Code style)

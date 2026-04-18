@@ -3,6 +3,77 @@
 use super::model::*;
 use crate::app::BerryCodeApp;
 
+/// Play an audio file using the platform's native player.
+fn play_audio_file(path: &str) {
+    let _result = {
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("afplay")
+                .arg(path)
+                .stderr(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .spawn()
+        }
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("aplay")
+                .arg(path)
+                .stderr(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .spawn()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            // PowerShell's built-in SoundPlayer works for .wav;
+            // for .ogg/.mp3, use Start-Process with wmplayer as fallback.
+            std::process::Command::new("powershell")
+                .args(&[
+                    "-WindowStyle", "Hidden", "-Command",
+                    &format!(
+                        "(New-Object Media.SoundPlayer '{}').PlaySync()",
+                        path.replace('\'', "''")
+                    ),
+                ])
+                .stderr(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .spawn()
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+        {
+            Ok::<_, std::io::Error>(std::process::Command::new("true").spawn().unwrap())
+        }
+    };
+}
+
+/// Stop any currently playing audio preview.
+fn stop_audio_preview() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("killall")
+            .arg("afplay")
+            .stderr(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("killall")
+            .arg("aplay")
+            .stderr(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Kill any powershell-spawned audio processes
+        let _ = std::process::Command::new("taskkill")
+            .args(&["/F", "/IM", "powershell.exe"])
+            .stderr(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .spawn();
+    }
+}
+
 /// Create a default [`ScriptValue`] from a Rust type string.
 /// Recognises `Vec<T>`, `Option<T>`, and `HashMap<K,V>` wrappers in addition
 /// to the basic primitive types.
@@ -1903,61 +1974,16 @@ impl BerryCodeApp {
         // Handle audio preview Play / Stop requests (after entity borrow is released).
         if let Some(path) = audio_play_requested {
             // Stop any previously playing preview first.
-            #[cfg(target_os = "macos")]
-            {
-                let _ = std::process::Command::new("killall")
-                    .arg("afplay")
-                    .stderr(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .spawn();
-            }
-            #[cfg(target_os = "linux")]
-            {
-                let _ = std::process::Command::new("killall")
-                    .arg("aplay")
-                    .stderr(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .spawn();
-            }
+            stop_audio_preview();
 
             // Spawn background process to play the audio file.
-            #[cfg(target_os = "macos")]
-            {
-                let _ = std::process::Command::new("afplay")
-                    .arg(&path)
-                    .stderr(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .spawn();
-            }
-            #[cfg(target_os = "linux")]
-            {
-                let _ = std::process::Command::new("aplay")
-                    .arg(&path)
-                    .stderr(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .spawn();
-            }
+            play_audio_file(&path);
 
             self.audio_preview_playing = true;
             self.audio_preview_path = path;
         }
         if audio_stop_requested {
-            #[cfg(target_os = "macos")]
-            {
-                let _ = std::process::Command::new("killall")
-                    .arg("afplay")
-                    .stderr(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .spawn();
-            }
-            #[cfg(target_os = "linux")]
-            {
-                let _ = std::process::Command::new("killall")
-                    .arg("aplay")
-                    .stderr(std::process::Stdio::null())
-                    .stdout(std::process::Stdio::null())
-                    .spawn();
-            }
+            stop_audio_preview();
             self.audio_preview_playing = false;
             self.audio_preview_path.clear();
         }

@@ -105,6 +105,7 @@ impl BerryCodeApp {
                 .push("─── Process terminated ───".to_string());
         }
         self.run_output_rx = None;
+        self.game_view_window_hidden = false;
     }
 
     /// Poll output from the running process

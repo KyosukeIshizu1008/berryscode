@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="berry" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e74c8b"/>
+      <stop offset="50%" style="stop-color:#c2185b"/>
+      <stop offset="100%" style="stop-color:#880e4f"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2e7d32"/>
+      <stop offset="100%" style="stop-color:#66bb6a"/>
+    </linearGradient>
+    <linearGradient id="code" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#64b5f6"/>
+      <stop offset="100%" style="stop-color:#42a5f5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="960" height="960" rx="180" ry="180" fill="url(#bg)"/>
+
+  <!-- Subtle grid pattern (IDE feel) -->
+  <g opacity="0.06" stroke="#ffffff" stroke-width="1">
+    <line x1="200" y1="32" x2="200" y2="992"/>
+    <line x1="400" y1="32" x2="400" y2="992"/>
+    <line x1="600" y1="32" x2="600" y2="992"/>
+    <line x1="800" y1="32" x2="800" y2="992"/>
+    <line x1="32" y1="200" x2="992" y2="200"/>
+    <line x1="32" y1="400" x2="992" y2="400"/>
+    <line x1="32" y1="600" x2="992" y2="600"/>
+    <line x1="32" y1="800" x2="992" y2="800"/>
+  </g>
+
+  <!-- Berry (main icon element) -->
+  <circle cx="512" cy="480" r="200" fill="url(#berry)"/>
+  <!-- Berry highlight -->
+  <ellipse cx="460" cy="420" rx="55" ry="40" fill="#ffffff" opacity="0.2" transform="rotate(-20,460,420)"/>
+  <!-- Berry seeds -->
+  <circle cx="470" cy="440" r="8" fill="#ffffff" opacity="0.3"/>
+  <circle cx="530" cy="420" r="8" fill="#ffffff" opacity="0.3"/>
+  <circle cx="500" cy="490" r="8" fill="#ffffff" opacity="0.3"/>
+  <circle cx="550" cy="480" r="8" fill="#ffffff" opacity="0.3"/>
+  <circle cx="460" cy="510" r="8" fill="#ffffff" opacity="0.3"/>
+
+  <!-- Leaf / stem -->
+  <path d="M512 280 Q530 240 580 220 Q540 260 535 280 Q550 250 590 240 Q555 275 540 290 Q512 310 512 280Z" fill="url(#leaf)"/>
+
+  <!-- Code brackets < / > -->
+  <g fill="none" stroke="url(#code)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <!-- < bracket -->
+    <polyline points="280,620 200,700 280,780"/>
+    <!-- > bracket -->
+    <polyline points="744,620 824,700 744,780"/>
+    <!-- / slash -->
+    <line x1="560" y1="620" x2="464" y2="780"/>
+  </g>
+
+  <!-- "B" text hint -->
+  <text x="512" y="920" text-anchor="middle" font-family="SF Pro Display, Helvetica Neue, Arial, sans-serif" font-size="80" font-weight="700" fill="#ffffff" opacity="0.7">BerryCode</text>
+</svg>

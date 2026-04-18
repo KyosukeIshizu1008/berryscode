@@ -284,12 +284,15 @@ pub struct GrpcMessage {
 /// LSP async response messages
 #[derive(Debug, Clone)]
 pub enum LspResponse {
-    Connected,  // NEW: LSP connection established
+    Connected,
     Diagnostics(Vec<LspDiagnostic>),
     Hover(Option<LspHoverInfo>),
     Completions(Vec<LspCompletionItem>),
     Definition(Vec<LspLocation>),
-    References(Vec<LspLocation>),  // NEW: Find references results
+    References(Vec<LspLocation>),
+    InlayHints(Vec<LspInlayHint>),
+    CodeActions(Vec<LspCodeAction>),
+    MacroExpansion(String, String), // (macro_name, expanded_text)
 }
 
 /// Event produced by file tree rendering (one per frame at most).
@@ -343,6 +346,42 @@ pub struct LspCompletionItem {
     pub label: String,
     pub detail: Option<String>,
     pub kind: String,
+    /// LSP snippet text (e.g. "fn ${1:name}($2) {\n\t$0\n}")
+    pub insert_text: Option<String>,
+    /// Whether insert_text is a snippet (has $1, $2 etc.)
+    pub is_snippet: bool,
+}
+
+/// Inlay hint (type annotation, parameter name, etc.)
+#[derive(Debug, Clone)]
+pub struct LspInlayHint {
+    pub line: usize,
+    pub column: usize,
+    pub label: String,
+    /// "type" or "parameter"
+    pub kind: &'static str,
+}
+
+/// Code action from LSP (quick fix, refactor, etc.)
+#[derive(Debug, Clone)]
+pub struct LspCodeAction {
+    pub title: String,
+    pub kind: Option<String>,
+    /// JSON-serialized workspace edit (applied when selected)
+    pub edit_json: Option<String>,
+    /// JSON-serialized command (executed when selected)
+    pub command_json: Option<String>,
+}
+
+/// Snippet session: active snippet being expanded with tab stops
+#[derive(Debug, Clone)]
+pub struct SnippetSession {
+    /// Tab stop positions: (line, col, placeholder_len)
+    pub tab_stops: Vec<(usize, usize, usize)>,
+    /// Current tab stop index
+    pub current_stop: usize,
+    /// The line where snippet was inserted
+    pub start_line: usize,
 }
 
 /// Simplified LSP location

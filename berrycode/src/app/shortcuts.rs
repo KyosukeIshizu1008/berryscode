@@ -1,7 +1,7 @@
 //! Editor keyboard shortcuts and file operations
 
 use super::BerryCodeApp;
-use super::types::{ActivePanel, TerminalLine, TerminalStyle};
+use super::types::ActivePanel;
 use crate::app::keymap::KeyAction;
 use crate::focus_stack::FocusLayer;
 use crate::native;
@@ -236,10 +236,7 @@ impl BerryCodeApp {
                                 tab.buffer = crate::buffer::TextBuffer::from_str(&formatted_content);
                                 tracing::info!("✅ File formatted successfully");
 
-                                self.terminal_output.push(TerminalLine {
-                                    text: format!("✅ Formatted: {}", tab.file_path),
-                                    style: TerminalStyle::Output,
-                                });
+                                // Logged via tracing above
                             }
                             Err(e) => {
                                 tracing::error!("❌ Failed to reload formatted file: {}", e);
@@ -249,18 +246,12 @@ impl BerryCodeApp {
                         let error_msg = String::from_utf8_lossy(&output.stderr);
                         tracing::error!("❌ Formatter error: {}", error_msg);
 
-                        self.terminal_output.push(TerminalLine {
-                            text: format!("❌ Format error: {}", error_msg),
-                            style: TerminalStyle::Error,
-                        });
+                        // Logged via tracing above
                     }
                 }
                 Err(e) => {
                     tracing::error!("❌ Failed to run formatter: {}", e);
-                    self.terminal_output.push(TerminalLine {
-                        text: format!("❌ Failed to run rustfmt: {}", e),
-                        style: TerminalStyle::Error,
-                    });
+                    // Logged via tracing above
                 }
             }
         }

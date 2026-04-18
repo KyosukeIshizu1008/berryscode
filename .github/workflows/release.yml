@@ -1,0 +1,275 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ─── macOS (Universal Binary: x86_64 + aarch64) ──────────────
+  build-macos:
+    name: macOS Universal
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build x86_64
+        run: cargo build --release --bin berrycode --target x86_64-apple-darwin
+
+      - name: Build aarch64
+        run: cargo build --release --bin berrycode --target aarch64-apple-darwin
+
+      - name: Create Universal Binary
+        run: |
+          lipo -create \
+            target/x86_64-apple-darwin/release/berrycode \
+            target/aarch64-apple-darwin/release/berrycode \
+            -output berrycode-universal
+
+      - name: Create .app bundle
+        run: |
+          APP="BerryCode.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources"
+
+          cp berrycode-universal "$APP/Contents/MacOS/berrycode"
+          chmod +x "$APP/Contents/MacOS/berrycode"
+
+          # Copy icon
+          cp berrycode/assets/icon.icns "$APP/Contents/Resources/AppIcon.icns"
+
+          # Copy assets
+          cp -r berrycode/assets "$APP/Contents/Resources/assets"
+
+          # Create Info.plist
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > "$APP/Contents/Info.plist" << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>BerryCode</string>
+            <key>CFBundleDisplayName</key>
+            <string>BerryCode</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.berrycode.editor</string>
+            <key>CFBundleVersion</key>
+            <string>${VERSION}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${VERSION}</string>
+            <key>CFBundleExecutable</key>
+            <string>berrycode</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSApplicationCategoryType</key>
+            <string>public.app-category.developer-tools</string>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Create DMG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG_NAME="BerryCode-${VERSION}-macOS-universal.dmg"
+
+          # Create a temp directory for DMG contents
+          mkdir -p dmg_contents
+          cp -r BerryCode.app dmg_contents/
+          ln -s /Applications dmg_contents/Applications
+
+          hdiutil create -volname "BerryCode" \
+            -srcfolder dmg_contents \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: "*.dmg"
+
+  # ─── Linux (x86_64) ──────────────────────────────────────────
+  build-linux:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libx11-dev libxi-dev libxcursor-dev libxrandr-dev libxinerama-dev \
+            libxkbcommon-dev \
+            libasound2-dev \
+            libudev-dev \
+            libssl-dev \
+            libwayland-dev \
+            libgtk-3-dev \
+            libatk1.0-dev \
+            libglib2.0-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --bin berrycode
+
+      - name: Create tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DIR="berrycode-${VERSION}-linux-x86_64"
+          mkdir -p "$DIR"
+          cp target/release/berrycode "$DIR/"
+          cp -r berrycode/assets "$DIR/"
+          cp LICENSE "$DIR/"
+          cp README.md "$DIR/"
+
+          # Create .desktop file
+          cat > "$DIR/berrycode.desktop" << DESKTOP
+          [Desktop Entry]
+          Name=BerryCode
+          Comment=Bevy Game Engine IDE
+          Exec=berrycode
+          Icon=berrycode
+          Terminal=false
+          Type=Application
+          Categories=Development;IDE;
+          DESKTOP
+
+          cp berrycode/assets/icon_256.png "$DIR/berrycode.png"
+
+          tar czf "${DIR}.tar.gz" "$DIR"
+          echo "LINUX_ARCHIVE=${DIR}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball
+          path: "*.tar.gz"
+
+  # ─── Windows (x86_64) ────────────────────────────────────────
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --bin berrycode
+
+      - name: Create zip
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $dir = "berrycode-${version}-windows-x86_64"
+          New-Item -ItemType Directory -Path $dir
+          Copy-Item "target\release\berrycode.exe" "$dir\"
+          Copy-Item -Recurse "berrycode\assets" "$dir\assets"
+          Copy-Item "LICENSE" "$dir\"
+          Copy-Item "README.md" "$dir\"
+          Compress-Archive -Path "$dir" -DestinationPath "${dir}.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: "*.zip"
+
+  # ─── Create GitHub Release ───────────────────────────────────
+  release:
+    name: Create Release
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "BerryCode ${{ github.ref_name }}"
+          body: |
+            ## BerryCode ${{ github.ref_name }}
+
+            ### Downloads
+
+            | Platform | File |
+            |---|---|
+            | macOS (Apple Silicon + Intel) | `BerryCode-*-macOS-universal.dmg` |
+            | Linux x86_64 | `berrycode-*-linux-x86_64.tar.gz` |
+            | Windows x86_64 | `berrycode-*-windows-x86_64.zip` |
+
+            ### Installation
+
+            **macOS**: Open the DMG, drag BerryCode to Applications.
+            **Linux**: Extract the tarball, run `./berrycode`. Optionally copy `berrycode.desktop` to `~/.local/share/applications/`.
+            **Windows**: Extract the zip, run `berrycode.exe`.
+
+            ### What's New
+
+            See [CHANGELOG](https://github.com/Oracleberry/berryscode/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/macos-dmg/*.dmg
+            artifacts/linux-tarball/*.tar.gz
+            artifacts/windows-zip/*.zip

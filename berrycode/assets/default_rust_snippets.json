@@ -1,0 +1,132 @@
+{
+  "Function": {
+    "prefix": "fn",
+    "body": ["fn ${1:name}(${2:params}) ${3:-> ${4:ReturnType} }{\n\t$0\n}"],
+    "description": "Function definition"
+  },
+  "Public Function": {
+    "prefix": "pubfn",
+    "body": ["pub fn ${1:name}(${2:params}) ${3:-> ${4:ReturnType} }{\n\t$0\n}"],
+    "description": "Public function definition"
+  },
+  "Struct": {
+    "prefix": "struct",
+    "body": ["#[derive(Debug${1:, Clone})]\nstruct ${2:Name} {\n\t${3:field}: ${4:Type},\n}"],
+    "description": "Struct definition with derive"
+  },
+  "Enum": {
+    "prefix": "enum",
+    "body": ["#[derive(Debug${1:, Clone})]\nenum ${2:Name} {\n\t${3:Variant},\n}"],
+    "description": "Enum definition with derive"
+  },
+  "Impl": {
+    "prefix": "impl",
+    "body": ["impl ${1:Type} {\n\t$0\n}"],
+    "description": "Implementation block"
+  },
+  "Impl Trait": {
+    "prefix": "implt",
+    "body": ["impl ${1:Trait} for ${2:Type} {\n\t$0\n}"],
+    "description": "Trait implementation"
+  },
+  "Test": {
+    "prefix": "test",
+    "body": ["#[test]\nfn ${1:test_name}() {\n\t$0\n}"],
+    "description": "Unit test function"
+  },
+  "Test Module": {
+    "prefix": "testmod",
+    "body": ["#[cfg(test)]\nmod tests {\n\tuse super::*;\n\n\t#[test]\n\tfn ${1:test_name}() {\n\t\t$0\n\t}\n}"],
+    "description": "Test module with use super"
+  },
+  "Print Line": {
+    "prefix": ["println", "pl"],
+    "body": ["println!(\"${1:{}}\", ${2:value});"],
+    "description": "Print line macro"
+  },
+  "Debug Print": {
+    "prefix": ["dbg", "dprintln"],
+    "body": ["println!(\"${1:label}: {:?}\", ${2:value});"],
+    "description": "Debug print with {:?}"
+  },
+  "Match": {
+    "prefix": "match",
+    "body": ["match ${1:expr} {\n\t${2:pattern} => ${3:result},\n\t_ => ${0:todo!()},\n}"],
+    "description": "Match expression"
+  },
+  "If Let": {
+    "prefix": "iflet",
+    "body": ["if let ${1:Some(${2:val})} = ${3:expr} {\n\t$0\n}"],
+    "description": "If let expression"
+  },
+  "While Let": {
+    "prefix": "whilelet",
+    "body": ["while let ${1:Some(${2:val})} = ${3:expr} {\n\t$0\n}"],
+    "description": "While let loop"
+  },
+  "For Loop": {
+    "prefix": "for",
+    "body": ["for ${1:item} in ${2:iter} {\n\t$0\n}"],
+    "description": "For loop"
+  },
+  "Result Type": {
+    "prefix": "result",
+    "body": ["Result<${1:T}, ${2:Error}>"],
+    "description": "Result type"
+  },
+  "Option Type": {
+    "prefix": "option",
+    "body": ["Option<${1:T}>"],
+    "description": "Option type"
+  },
+  "Vec New": {
+    "prefix": "vecnew",
+    "body": ["let ${1:name}: Vec<${2:T}> = Vec::new();"],
+    "description": "New Vec"
+  },
+  "HashMap New": {
+    "prefix": "hashnew",
+    "body": ["let mut ${1:name}: HashMap<${2:K}, ${3:V}> = HashMap::new();"],
+    "description": "New HashMap"
+  },
+  "Closure": {
+    "prefix": "closure",
+    "body": ["|${1:params}| ${2:{\n\t$0\n}}"],
+    "description": "Closure"
+  },
+  "Async Function": {
+    "prefix": "asyncfn",
+    "body": ["async fn ${1:name}(${2:params}) -> ${3:Result<()>} {\n\t$0\n}"],
+    "description": "Async function"
+  },
+  "Derive": {
+    "prefix": "derive",
+    "body": ["#[derive(${1:Debug, Clone})]"],
+    "description": "Derive attribute"
+  },
+  "Todo": {
+    "prefix": "todo",
+    "body": ["todo!(\"${1:implement}\")"],
+    "description": "todo! macro"
+  },
+  "Bevy System": {
+    "prefix": "bevysystem",
+    "body": ["fn ${1:system_name}(\n\t${2:query}: Query<${3:&Transform}>,\n) {\n\t$0\n}"],
+    "description": "Bevy ECS system function"
+  },
+  "Bevy Component": {
+    "prefix": "bevycomp",
+    "body": ["#[derive(Component)]\nstruct ${1:Name} {\n\t${2:field}: ${3:f32},\n}"],
+    "description": "Bevy Component struct"
+  },
+  "Bevy Resource": {
+    "prefix": "bevyres",
+    "body": ["#[derive(Resource)]\nstruct ${1:Name} {\n\t$0\n}"],
+    "description": "Bevy Resource struct"
+  },
+  "Bevy Plugin": {
+    "prefix": "bevyplugin",
+    "body": ["pub struct ${1:Name}Plugin;\n\nimpl Plugin for ${1:Name}Plugin {\n\tfn build(&self, app: &mut App) {\n\t\tapp.add_systems(Update, ${2:system_name});\n\t}\n}"],
+    "description": "Bevy Plugin implementation"
+  }
+}

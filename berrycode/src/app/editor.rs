@@ -1,7 +1,7 @@
 //! Editor area rendering and syntax highlighting
 
 use super::BerryCodeApp;
-use super::types::ColorTheme;
+use super::types::{ColorTheme, LspInlayHint};
 use super::ui_colors;
 use super::peek::render_peek_standalone;
 use crate::syntax::{SyntaxHighlighter, TokenType};
@@ -138,6 +138,15 @@ impl BerryCodeApp {
                 self.render_model_preview(ui);
                 return;
             }
+
+            // Snapshot data that we need from self before taking &mut tab
+            let inlay_hints_snapshot: Vec<LspInlayHint> = if self.inlay_hints_enabled {
+                self.lsp_inlay_hints.clone()
+            } else {
+                Vec::new()
+            };
+            let code_action_line = self.code_action_line;
+            let has_code_actions = !self.lsp_code_actions.is_empty();
 
             // Get active tab (after tab bar to avoid borrowing issues)
             let tab = &mut self.editor_tabs[self.active_tab_idx];
@@ -464,6 +473,58 @@ impl BerryCodeApp {
                                 egui::FontId::monospace(13.0),
                                 num_color,
                             );
+
+                            // --- Inlay hints (ghost text after tokens) ---
+                            let hints: Vec<_> = inlay_hints_snapshot.iter()
+                                .filter(|h| h.line == line_idx)
+                                .collect();
+                            for h in &hints {
+                                let col = h.column;
+                                let label = &h.label;
+                                let kind: &str = h.kind;
+                                // Calculate x position: use galley to find the char position
+                                let line_start = line_char_offsets.get(line_idx).copied().unwrap_or(0);
+                                let hint_offset = line_start + col;
+                                let cc = egui::text::CCursor::new(hint_offset.min(text.len()));
+                                let cursor_obj = galley.from_ccursor(cc);
+                                let hint_pos = galley.pos_from_cursor(&cursor_obj);
+                                let hint_x = text_origin.x + hint_pos.max.x + 2.0;
+
+                                let hint_color = if kind == "parameter" {
+                                    egui::Color32::from_rgba_premultiplied(140, 180, 220, 160)
+                                } else {
+                                    egui::Color32::from_rgba_premultiplied(120, 160, 140, 160)
+                                };
+
+                                let display = if kind == "parameter" {
+                                    format!("{}:", label)
+                                } else {
+                                    format!(": {}", label)
+                                };
+
+                                ui.painter().text(
+                                    egui::pos2(hint_x, y),
+                                    egui::Align2::LEFT_TOP,
+                                    &display,
+                                    egui::FontId::monospace(12.0),
+                                    hint_color,
+                                );
+                            }
+
+                            // --- Code action lightbulb (💡) ---
+                            if line_idx == code_action_line
+                                && has_code_actions
+                                && line_idx == tab.cursor_line
+                            {
+                                let bulb_x = gutter_left + 54.0;
+                                ui.painter().text(
+                                    egui::pos2(bulb_x, y),
+                                    egui::Align2::CENTER_TOP,
+                                    "\u{eb2f}", // codicon: lightbulb
+                                    egui::FontId::proportional(14.0),
+                                    egui::Color32::from_rgb(255, 204, 0),
+                                );
+                            }
                         }
                     }
 
@@ -1041,6 +1102,11 @@ impl BerryCodeApp {
         // Render completion popup
         if self.lsp_show_completions && !self.lsp_completions.is_empty() {
             self.render_lsp_completions(ctx);
+        }
+
+        // Render code actions popup (💡 menu)
+        if self.show_code_actions && !self.lsp_code_actions.is_empty() {
+            self.render_code_actions_window(ctx);
         }
     }
 

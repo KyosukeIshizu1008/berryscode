@@ -2,6 +2,57 @@
 
 use super::BerryCodeApp;
 
+/// Hide an external window by moving it off-screen.
+/// Platform-specific: uses AppleScript on macOS, wmctrl/xdotool on Linux,
+/// and the Windows API concepts via powershell on Windows.
+#[allow(unused_variables)]
+fn hide_external_window(window: &xcap::Window) {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(app_name) = window.app_name() {
+            let script = format!(
+                "tell application \"System Events\" to set position of first window of (first process whose name is \"{}\") to {{-10000, -10000}}",
+                app_name
+            );
+            std::process::Command::new("osascript")
+                .arg("-e")
+                .arg(&script)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .ok();
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Use xdotool to move the window off-screen (X11)
+        if let Ok(app_name) = window.app_name() {
+            let _ = std::process::Command::new("xdotool")
+                .args(&["search", "--name", &app_name, "windowmove", "--", "-10000", "-10000"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Use powershell to move the window off-screen via .NET interop
+        if let Ok(app_name) = window.app_name() {
+            let script = format!(
+                "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class W {{ [DllImport(\"user32.dll\")] public static extern bool MoveWindow(IntPtr h,int x,int y,int w,int ht,bool r); }}'; \
+                 $p = Get-Process -Name '{}' -ErrorAction SilentlyContinue | Select-Object -First 1; \
+                 if ($p) {{ [W]::MoveWindow($p.MainWindowHandle, -10000, -10000, 800, 600, $true) }}",
+                app_name
+            );
+            let _ = std::process::Command::new("powershell")
+                .args(&["-WindowStyle", "Hidden", "-Command", &script])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn();
+        }
+    }
+}
+
 impl BerryCodeApp {
     /// Capture the running game window and update the texture
     pub(crate) fn update_game_view(&mut self, ctx: &egui::Context) {
@@ -66,6 +117,12 @@ impl BerryCodeApp {
                         egui::TextureOptions::LINEAR,
                     ));
                 }
+
+                // Hide the external window by moving it off-screen (capture still works)
+                if !self.game_view_window_hidden {
+                    hide_external_window(window);
+                    self.game_view_window_hidden = true;
+                }
             }
         }
 
@@ -73,9 +130,14 @@ impl BerryCodeApp {
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
     }
 
-    /// Render the game view panel
+    /// Render the game view panel (floating window, only when not in GameView panel)
     pub(crate) fn render_game_view(&mut self, ctx: &egui::Context) {
         if !self.game_view_open {
+            return;
+        }
+
+        // Skip floating window when GameView is the active central panel
+        if self.active_panel == super::types::ActivePanel::GameView {
             return;
         }
 

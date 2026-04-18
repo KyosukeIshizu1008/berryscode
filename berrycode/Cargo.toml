@@ -4,6 +4,9 @@ version = "0.2.0"
 edition = "2021"
 description = "100% Rust Native Desktop Code Editor with egui + WGPU Rendering"
 authors = ["BerryCode Team"]
+license = "MIT"
+repository = "https://github.com/Oracleberry/berryscode"
+homepage = "https://github.com/Oracleberry/berryscode"
 
 # Binaries
 [[bin]]
@@ -46,8 +49,9 @@ git2 = "0.19"
 regex = "1.10"
 rayon = "1.10"  # Parallel processing
 
-# ===== Terminal (PTY) =====
+# ===== Terminal (PTY + VT100) =====
 portable-pty = "0.8"
+vte = "0.13"
 
 # ===== Syntax Highlighting =====
 syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
@@ -92,6 +96,12 @@ tobj = "4.0"       # OBJ parser
 # ===== Clipboard =====
 arboard = "3.4"
 
+# ===== Native File Dialogs (cross-platform) =====
+rfd = "0.15"
+
+# ===== Platform Info =====
+whoami = "1.5"
+
 # ===== Window Capture (Play in Editor) =====
 xcap = "0.9"
 
@@ -105,3 +115,35 @@ lsp-types = "0.95"
 
 [build-dependencies]
 tonic-build = "0.12"
+
+# ═══════════════════════════════════════════════════════════
+# App bundling configuration (cargo-bundle / cargo-packager)
+# ═══════════════════════════════════════════════════════════
+
+[package.metadata.bundle]
+name = "BerryCode"
+identifier = "com.berrycode.editor"
+icon = [
+    "assets/icon_256.png",
+    "assets/icon.icns",
+    "assets/icon.ico",
+]
+category = "public.app-category.developer-tools"
+short_description = "Bevy Game Engine IDE — Unity-class Scene Editor"
+long_description = """
+BerryCode is a 100% Rust native IDE built on Bevy + bevy_egui + WGPU.
+Features: code editor, Git panel, terminal, Scene Editor with 3D viewport,
+animation system, visual scripting, shader graphs, and AI chat.
+"""
+copyright = "Copyright (c) 2026 BerryCode Team"
+osx_minimum_system_version = "11.0"
+osx_frameworks = []
+
+# Linux .deb configuration
+[package.metadata.bundle.deb]
+depends = ["libx11-6", "libxkbcommon0", "libasound2", "libssl3"]
+section = "devel"
+
+# Windows configuration
+[package.metadata.bundle.windows]
+wix = false
