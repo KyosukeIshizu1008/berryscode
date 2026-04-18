@@ -155,6 +155,12 @@ pub struct BerryCodeApp {
     // === Project State ===
     pub(crate) root_path: String,
     pub(crate) selected_file: Option<(String, String)>, // (path, content)
+    /// Whether the project picker should be shown (no project loaded yet)
+    pub(crate) show_project_picker: bool,
+    /// Path being typed in the project picker dialog
+    pub(crate) project_picker_path: String,
+    /// Recently opened projects for quick access
+    pub(crate) recent_projects: Vec<String>,
 
     // === UI State ===
     pub(crate) active_panel: ActivePanel,
@@ -325,6 +331,7 @@ pub struct BerryCodeApp {
     pub(crate) run_output: Vec<String>,
     pub(crate) run_process: Option<std::process::Child>,
     pub(crate) run_panel_open: bool,
+    pub(crate) run_release_mode: bool,
     pub(crate) run_output_rx: Option<std::sync::mpsc::Receiver<String>>,
 
     // === Phase Q: Console filter state ===
@@ -503,6 +510,13 @@ pub struct BerryCodeApp {
     pub(crate) build_process: Option<std::process::Child>,
     pub(crate) build_output_rx: Option<std::sync::mpsc::Receiver<String>>,
 
+    // === Save-time Cargo Check ===
+    pub(crate) cargo_check_rx: Option<std::sync::mpsc::Receiver<String>>,
+
+    // === Test Mode CLI ===
+    pub(crate) test_mode: bool,
+    pub(crate) test_command_rx: Option<std::sync::mpsc::Receiver<String>>,
+
     // === Scanned User Components (bidirectional sync) ===
     pub(crate) scanned_user_components: Vec<scene_editor::script_scan::ScannedComponent>,
 
@@ -541,36 +555,377 @@ pub struct BerryCodeApp {
 }
 
 impl BerryCodeApp {
-    /// Apply the BerryCode egui style to a context (One Dark theme)
+    /// Apply the BerryCode egui style — IntelliJ-inspired dark theme
     pub fn setup_egui_style(ctx: &egui::Context) {
         let mut style = egui::Style::default();
         let mut visuals = egui::Visuals::dark();
-        // CRITICAL: グローバルでは override_text_color を使わない
-        visuals.override_text_color = None;
 
-        // デフォルトのテキスト色を明るい白に設定
-        visuals.text_cursor.stroke.color = ui_colors::TEXT_DEFAULT;
-        visuals.window_fill = ui_colors::SIDEBAR_BG;
-        visuals.panel_fill = ui_colors::SIDEBAR_BG;
-        visuals.extreme_bg_color = ui_colors::EDITOR_BG;
-        visuals.window_stroke = egui::Stroke::new(1.0, ui_colors::BORDER);
+        // === Colors ===
+        let bg_dark = egui::Color32::from_rgb(30, 31, 34);       // main background
+        let bg_panel = egui::Color32::from_rgb(43, 45, 48);      // sidebar/panel
+        let bg_input = egui::Color32::from_rgb(50, 52, 56);      // input fields
+        let bg_hover = egui::Color32::from_rgb(55, 57, 61);      // hover state
+        let bg_active = egui::Color32::from_rgb(65, 68, 74);     // active/pressed
+        let bg_selected = egui::Color32::from_rgb(38, 79, 140);  // brighter blue selection
+        let border = egui::Color32::from_rgb(60, 63, 68);        // borders
+        let border_focus = egui::Color32::from_rgb(75, 110, 175); // focused border (accent)
+        let text = egui::Color32::from_rgb(205, 207, 213);       // primary text
+        let text_dim = egui::Color32::from_rgb(140, 143, 150);   // secondary text
+
+        visuals.override_text_color = None;
+        visuals.window_fill = bg_panel;
+        visuals.panel_fill = bg_dark;
+        visuals.extreme_bg_color = bg_input;
+        visuals.code_bg_color = egui::Color32::from_rgb(35, 36, 40);
+        visuals.faint_bg_color = egui::Color32::from_rgb(38, 40, 43);
+
+        // Window
+        visuals.window_stroke = egui::Stroke::new(1.0, border);
+        visuals.window_shadow = egui::epaint::Shadow {
+            offset: egui::vec2(0.0, 4.0),
+            blur: 12.0,
+            spread: 0.0,
+            color: egui::Color32::from_black_alpha(80),
+        };
+        visuals.window_rounding = egui::Rounding::same(8.0);
+        visuals.menu_rounding = egui::Rounding::same(6.0);
+
+        // Selection
+        visuals.selection.bg_fill = bg_selected;
+        visuals.selection.stroke = egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
+
+        // Text cursor
+        visuals.text_cursor.stroke.color = egui::Color32::from_rgb(180, 190, 220);
+
+        // === Widget Styles ===
+
+        // Non-interactive (labels, separators)
+        visuals.widgets.noninteractive.bg_fill = bg_dark;
+        visuals.widgets.noninteractive.weak_bg_fill = bg_dark;
+        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
+        visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
+        visuals.widgets.noninteractive.rounding = egui::Rounding::same(6.0);
+
+        // Inactive (buttons, checkboxes at rest)
+        visuals.widgets.inactive.bg_fill = bg_panel;
+        visuals.widgets.inactive.weak_bg_fill = bg_panel;
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, border);
+        visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text);
+        visuals.widgets.inactive.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.inactive.expansion = 0.0;
+
+        // Hovered
+        visuals.widgets.hovered.bg_fill = bg_hover;
+        visuals.widgets.hovered.weak_bg_fill = bg_hover;
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, border_focus);
+        visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+        visuals.widgets.hovered.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.hovered.expansion = 1.0;
+
+        // Active (pressed)
+        visuals.widgets.active.bg_fill = bg_active;
+        visuals.widgets.active.weak_bg_fill = bg_active;
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.5, border_focus);
+        visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+        visuals.widgets.active.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.active.expansion = 0.0;
+
+        // Open (combo boxes, menus open state)
+        visuals.widgets.open.bg_fill = bg_active;
+        visuals.widgets.open.weak_bg_fill = bg_active;
+        visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, border_focus);
+        visuals.widgets.open.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+        visuals.widgets.open.rounding = egui::Rounding::same(6.0);
+
+        // Popup shadow
+        visuals.popup_shadow = egui::epaint::Shadow {
+            offset: egui::vec2(0.0, 6.0),
+            blur: 16.0,
+            spread: 2.0,
+            color: egui::Color32::from_black_alpha(100),
+        };
+
+        // Striped backgrounds (tables)
+        visuals.striped = true;
+
+        // Separator
+        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 47, 50));
+
         style.visuals = visuals;
 
-        style.visuals.widgets.noninteractive.fg_stroke.color = ui_colors::TEXT_DEFAULT;
-        style.visuals.widgets.inactive.fg_stroke.color = ui_colors::TEXT_DEFAULT;
-        style.visuals.widgets.hovered.fg_stroke.color = ui_colors::TEXT_DEFAULT;
-        style.visuals.widgets.active.fg_stroke.color = ui_colors::TEXT_DEFAULT;
+        // === Spacing ===
+        style.spacing.item_spacing = egui::vec2(8.0, 6.0);       // more breathing room
+        style.spacing.button_padding = egui::vec2(14.0, 6.0);    // wider, taller buttons
+        style.spacing.window_margin = egui::Margin::same(12.0);  // window inner padding
+        style.spacing.menu_margin = egui::Margin::same(8.0);
+        style.spacing.indent = 18.0;                              // tree indent
+        style.spacing.interact_size = egui::vec2(40.0, 24.0);    // minimum interactive element size
+        style.spacing.slider_width = 160.0;
+        style.spacing.combo_width = 160.0;
+        style.spacing.text_edit_width = 200.0;
+        style.spacing.scroll = egui::style::ScrollStyle {
+            bar_width: 8.0,
+            ..Default::default()
+        };
+
+        // === Text (even pixel sizes for crisp rendering) ===
+        use egui::FontId;
+        style.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(18.0));
+        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.0));
+        style.text_styles.insert(egui::TextStyle::Small, FontId::proportional(12.0));
+        style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.0));
+        style.text_styles.insert(egui::TextStyle::Monospace, FontId::monospace(14.0));
+
+        // === Interaction ===
+        style.interaction.show_tooltips_only_when_still = false;
 
         ctx.set_style(style);
     }
 
+    /// Open a native OS folder selection dialog.
+    /// Returns the selected folder path, or None if cancelled.
+    fn native_folder_dialog() -> Option<String> {
+        #[cfg(target_os = "macos")]
+        {
+            let output = std::process::Command::new("osascript")
+                .args(&["-e", "set folderPath to POSIX path of (choose folder with prompt \"Select Bevy Project Folder\")"])
+                .output()
+                .ok()?;
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                // Remove trailing slash if present
+                let path = path.trim_end_matches('/').to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
+            }
+            None
+        }
+        #[cfg(target_os = "linux")]
+        {
+            // Try zenity first, then kdialog
+            let output = std::process::Command::new("zenity")
+                .args(&["--file-selection", "--directory", "--title=Select Bevy Project Folder"])
+                .output()
+                .ok()?;
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
+            }
+            None
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        {
+            None
+        }
+    }
+
+    /// Resolve the project path: CLI arg > env > prompt user
+    fn resolve_project_path() -> String {
+        // 1. Check command-line arguments: berrycode /path/to/project
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() > 1 {
+            let path = &args[1];
+            if std::path::Path::new(path).is_dir() {
+                tracing::info!("Project path from CLI arg: {}", path);
+                return path.clone();
+            }
+        }
+
+        // 2. Check BERRYCODE_PROJECT env var
+        if let Ok(path) = std::env::var("BERRYCODE_PROJECT") {
+            if std::path::Path::new(&path).is_dir() {
+                tracing::info!("Project path from env: {}", path);
+                return path;
+            }
+        }
+
+        // 3. No project specified — use empty placeholder; the picker will show
+        String::new()
+    }
+
+    /// Load recent projects from ~/.berrycode/recent_projects.txt
+    fn load_recent_projects() -> Vec<String> {
+        let path = dirs::home_dir()
+            .map(|h| format!("{}/.berrycode/recent_projects.txt", h.display()))
+            .unwrap_or_default();
+        std::fs::read_to_string(&path)
+            .unwrap_or_default()
+            .lines()
+            .filter(|l| !l.is_empty() && std::path::Path::new(l).is_dir())
+            .map(|l| l.to_string())
+            .collect()
+    }
+
+    /// Save a project to recent projects list
+    fn save_to_recent_projects(project_path: &str) {
+        let config_dir = dirs::home_dir()
+            .map(|h| format!("{}/.berrycode", h.display()))
+            .unwrap_or_default();
+        let _ = std::fs::create_dir_all(&config_dir);
+        let file_path = format!("{}/recent_projects.txt", config_dir);
+        let mut projects = Self::load_recent_projects();
+        projects.retain(|p| p != project_path);
+        projects.insert(0, project_path.to_string());
+        projects.truncate(10); // Keep last 10
+        let _ = std::fs::write(&file_path, projects.join("\n"));
+    }
+
+    /// Open a project: set root_path, refresh file tree, start LSP, etc.
+    pub(crate) fn open_project(&mut self, path: &str) {
+        self.root_path = path.to_string();
+        self.show_project_picker = false;
+        self.file_tree_cache.clear();
+        self.file_tree_load_pending = true;
+        self.expanded_dirs.clear();
+        self.editor_tabs.clear();
+        self.active_tab_idx = 0;
+        self.git_initialized = false;
+
+        // Start file watcher for new project
+        if let Ok(mut watcher) = crate::native::watcher::FileWatcher::new() {
+            let _ = watcher.watch(&self.root_path);
+            self.file_watcher = Some(watcher);
+        }
+
+        // Save to recent projects
+        Self::save_to_recent_projects(path);
+
+        // Auto-import from main.rs if scene is empty
+        let main_path = format!("{}/src/main.rs", path);
+        if self.scene_model.entities.is_empty() {
+            if let Ok(code) = crate::native::fs::read_file(&main_path) {
+                let imported = crate::app::scene_editor::code_import::import_scene_from_code(&code);
+                if !imported.entities.is_empty() {
+                    self.scene_model = imported;
+                    self.scene_needs_sync = true;
+                    tracing::info!(
+                        "Auto-imported {} entities from main.rs",
+                        self.scene_model.entities.len()
+                    );
+                }
+            }
+        }
+
+        self.status_message = format!("Opened project: {}", path);
+        self.status_message_timestamp = Some(std::time::Instant::now());
+        tracing::info!("Opened project: {}", path);
+    }
+
+    /// Render the project picker screen (shown when no project is loaded)
+    pub(crate) fn render_project_picker(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::none()
+                    .fill(egui::Color32::from_rgb(25, 27, 31))
+            )
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(80.0);
+
+                    // Logo / Title
+                    ui.label(
+                        egui::RichText::new("BerryCode")
+                            .size(48.0)
+                            .color(egui::Color32::from_rgb(126, 89, 161))
+                            .strong(),
+                    );
+                    ui.label(
+                        egui::RichText::new("Bevy Game Engine IDE")
+                            .size(16.0)
+                            .color(egui::Color32::from_gray(140)),
+                    );
+
+                    ui.add_space(40.0);
+
+                    // Open project section
+                    ui.group(|ui| {
+                        ui.set_width(500.0);
+                        ui.vertical(|ui| {
+                            ui.heading("Open Project");
+                            ui.add_space(8.0);
+
+                            ui.horizontal(|ui| {
+                                ui.label("Path:");
+                                ui.add_sized(
+                                    [300.0, 22.0],
+                                    egui::TextEdit::singleline(&mut self.project_picker_path)
+                                        .hint_text("/path/to/your/bevy/project"),
+                                );
+                                if ui.button("Browse...").clicked() {
+                                    // Open native folder picker dialog
+                                    if let Some(path) = Self::native_folder_dialog() {
+                                        self.project_picker_path = path;
+                                    }
+                                }
+                                if ui.button("Open").clicked() && !self.project_picker_path.is_empty() {
+                                    let path = self.project_picker_path.clone();
+                                    if std::path::Path::new(&path).is_dir() {
+                                        self.open_project(&path);
+                                    } else {
+                                        self.status_message = format!("Directory not found: {}", path);
+                                        self.status_message_timestamp = Some(std::time::Instant::now());
+                                    }
+                                }
+                            });
+
+                            ui.add_space(8.0);
+
+                            // New Bevy Project button
+                            if ui.button("+ New Bevy Project").clicked() {
+                                self.new_project_dialog_open = true;
+                            }
+                        });
+                    });
+
+                    ui.add_space(20.0);
+
+                    // Recent projects
+                    if !self.recent_projects.is_empty() {
+                        ui.group(|ui| {
+                            ui.set_width(500.0);
+                            ui.vertical(|ui| {
+                                ui.heading("Recent Projects");
+                                ui.add_space(4.0);
+
+                                let recent = self.recent_projects.clone();
+                                for project in &recent {
+                                    let name = project.rsplit('/').next().unwrap_or(project);
+                                    ui.horizontal(|ui| {
+                                        if ui.add(
+                                            egui::Button::new(
+                                                egui::RichText::new(name).size(14.0)
+                                            ).frame(false)
+                                        ).clicked() {
+                                            self.open_project(project);
+                                        }
+                                        ui.label(
+                                            egui::RichText::new(project)
+                                                .size(11.0)
+                                                .color(egui::Color32::from_gray(120)),
+                                        );
+                                    });
+                                }
+                            });
+                        });
+                    }
+
+                    ui.add_space(40.0);
+                    ui.label(
+                        egui::RichText::new("v0.2.0 | Bevy 0.15 | 285 tests | 31MB binary")
+                            .size(11.0)
+                            .color(egui::Color32::from_gray(100)),
+                    );
+                });
+            });
+    }
+
     /// Create new application instance
     pub fn new() -> Self {
-        // Get project root directory
-        let root_path = native::fs::get_current_dir().unwrap_or_else(|e| {
-            tracing::warn!("⚠️  Failed to get current directory: {}, using fallback", e);
-            ".".to_string()
-        });
+        // Check command-line args for project path, otherwise show picker
+        let root_path = Self::resolve_project_path();
 
         tracing::info!("📁 Project root: {}", root_path);
 
@@ -661,17 +1016,48 @@ impl BerryCodeApp {
 
         let bevy_version = scene_editor::bevy_version::detect_bevy_version(&root_path);
 
-        Self {
+        let show_picker = root_path.is_empty();
+        let recent = Self::load_recent_projects();
+        let home = dirs::home_dir().map(|h| h.to_string_lossy().to_string()).unwrap_or_default();
+        let picker_path = home.clone();
+        if !root_path.is_empty() {
+            Self::save_to_recent_projects(&root_path);
+        }
+        // Keep root_path empty if no project specified — picker will handle it
+        let root_path = if root_path.is_empty() { String::new() } else { root_path };
+        let root_path_ref = root_path.clone();
+
+        let mut app = Self {
             root_path,
             selected_file: None,
+            show_project_picker: show_picker,
+            project_picker_path: picker_path,
+            recent_projects: recent,
             active_panel: ActivePanel::Explorer,
             sidebar_width: 300.0,
-            editor_tabs: Vec::new(),
+            editor_tabs: {
+                // Auto-open src/main.rs if it exists
+                let main_path = format!("{}/src/main.rs", root_path_ref);
+                if std::path::Path::new(&main_path).exists() {
+                    if let Ok(content) = crate::native::fs::read_file(&main_path) {
+                        vec![types::EditorTab::new(main_path, content)]
+                    } else { Vec::new() }
+                } else { Vec::new() }
+            },
             active_tab_idx: 0,
             syntax_highlighter: SyntaxHighlighter::new(),
             file_tree_cache: Vec::new(),
             file_tree_load_pending: true,
-            expanded_dirs: HashSet::new(),
+            expanded_dirs: {
+                let mut dirs = HashSet::new();
+                // Auto-expand src/ directory
+                let src_dir = format!("{}/src", root_path_ref);
+                if std::path::Path::new(&src_dir).is_dir() {
+                    dirs.insert(root_path_ref.clone());
+                    dirs.insert(src_dir);
+                }
+                dirs
+            },
             terminal_output: Vec::new(),
             terminal_input: String::new(),
             terminal_history: Vec::new(),
@@ -792,6 +1178,7 @@ impl BerryCodeApp {
             run_output: Vec::new(),
             run_process: None,
             run_panel_open: false,
+            run_release_mode: false,
             run_output_rx: None,
 
             console_filter_text: String::new(),
@@ -804,7 +1191,21 @@ impl BerryCodeApp {
             game_view_texture: None,
             game_view_last_capture: None,
 
-            scene_model: scene_editor::model::SceneModel::new(),
+            scene_model: {
+                // Auto-import entities from main.rs if project has one
+                let main_path = format!("{}/src/main.rs", root_path_ref);
+                if let Ok(code) = crate::native::fs::read_file(&main_path) {
+                    let imported = scene_editor::code_import::import_scene_from_code(&code);
+                    if !imported.entities.is_empty() {
+                        tracing::info!("Auto-imported {} entities from main.rs", imported.entities.len());
+                        imported
+                    } else {
+                        scene_editor::model::SceneModel::new()
+                    }
+                } else {
+                    scene_editor::model::SceneModel::new()
+                }
+            },
             primary_selected_id: None,
             scene_view_texture_id: None,
             scene_needs_sync: false,
@@ -957,6 +1358,11 @@ impl BerryCodeApp {
             build_process: None,
             build_output_rx: None,
 
+            cargo_check_rx: None,
+
+            test_mode: false,
+            test_command_rx: None,
+
             scanned_user_components: Vec::new(),
 
             merge_panel_open: false,
@@ -984,7 +1390,35 @@ impl BerryCodeApp {
             plugin_search_results: Vec::new(),
 
             bevy_version,
+        };
+
+        // === Test Mode CLI: --test-mode ===
+        if std::env::args().any(|a| a == "--test-mode") {
+            app.test_mode = true;
+            let (tx, rx) = std::sync::mpsc::channel();
+            app.test_command_rx = Some(rx);
+            std::thread::spawn(move || {
+                let listener = match std::net::TcpListener::bind("127.0.0.1:17171") {
+                    Ok(l) => l,
+                    Err(e) => {
+                        tracing::error!("Failed to bind test mode port 17171: {}", e);
+                        return;
+                    }
+                };
+                tracing::info!("Test mode: listening on 127.0.0.1:17171");
+                for stream in listener.incoming().flatten() {
+                    use std::io::{BufRead, BufReader};
+                    let reader = BufReader::new(&stream);
+                    for line in reader.lines().flatten() {
+                        if tx.send(line).is_err() {
+                            return;
+                        }
+                    }
+                }
+            });
         }
+
+        app
     }
 
     /// Take a snapshot of the current scene model so the next destructive edit
@@ -1093,8 +1527,8 @@ pub fn setup_egui_fonts_and_style(
     visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(25, 26, 28);
     visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(45, 47, 50);
     visuals.widgets.active.bg_fill = egui::Color32::from_rgb(60, 63, 65);
-    visuals.selection.bg_fill = egui::Color32::from_rgb(60, 63, 65);
-    visuals.selection.stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(75, 78, 80));
+    visuals.selection.bg_fill = egui::Color32::from_rgb(38, 79, 140);
+    visuals.selection.stroke = egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
     visuals.code_bg_color = egui::Color32::from_rgb(25, 26, 28);
     ctx.set_visuals(visuals);
 
@@ -1153,6 +1587,30 @@ pub fn berry_ui_system(
     {
     let ctx = egui_ctx.ctx_mut();
 
+    // Global panel switching: Ctrl+1..9 — processed BEFORE any panel rendering
+    // so it works regardless of which widget has focus
+    ctx.input(|i| {
+        if i.modifiers.command {
+            if i.key_pressed(egui::Key::Num1) { app.active_panel = types::ActivePanel::Explorer; }
+            if i.key_pressed(egui::Key::Num2) { app.active_panel = types::ActivePanel::Search; }
+            if i.key_pressed(egui::Key::Num3) { app.active_panel = types::ActivePanel::Git; }
+            if i.key_pressed(egui::Key::Num4) { app.active_panel = types::ActivePanel::Terminal; }
+            if i.key_pressed(egui::Key::Num5) { app.active_panel = types::ActivePanel::EcsInspector; }
+            if i.key_pressed(egui::Key::Num6) { app.active_panel = types::ActivePanel::BevyTemplates; }
+            if i.key_pressed(egui::Key::Num7) { app.active_panel = types::ActivePanel::AssetBrowser; }
+            if i.key_pressed(egui::Key::Num8) { app.active_panel = types::ActivePanel::SceneEditor; }
+            if i.key_pressed(egui::Key::Num9) { app.active_panel = types::ActivePanel::GameView; }
+        }
+    });
+
+    // Show project picker if no project loaded
+    if app.show_project_picker {
+        app.render_project_picker(ctx);
+        // Still render the New Project dialog if open
+        app.render_new_project_dialog(ctx);
+        return;
+    }
+
     // Initialize Git repository on first update
     if !app.git_initialized {
         app.git_initialized = true;
@@ -1176,6 +1634,12 @@ pub fn berry_ui_system(
 
     // Poll run process output (non-blocking)
     app.poll_run_output();
+
+    // Poll cargo check results (non-blocking)
+    app.poll_cargo_check();
+
+    // Poll test mode commands (non-blocking)
+    app.poll_test_commands();
 
     // Update game view texture (captures running game window)
     app.update_game_view(ctx);

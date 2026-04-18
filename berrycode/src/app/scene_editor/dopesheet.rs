@@ -7,6 +7,54 @@
 use crate::app::scene_editor::model::*;
 use crate::app::BerryCodeApp;
 
+/// Get all unique keyframe times across all tracks, sorted and deduplicated.
+/// Useful for timeline display without needing UI context.
+pub fn collect_all_keyframe_times(tracks: &[AnimationTrack]) -> Vec<f32> {
+    let mut times = Vec::new();
+    for track in tracks {
+        for kf in &track.keyframes {
+            times.push(kf.time);
+        }
+    }
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    times.dedup();
+    times
+}
+
+/// Check if adding a keyframe at the given time would not overlap with an
+/// existing keyframe (within the specified tolerance).
+pub fn should_add_keyframe_at(track: &AnimationTrack, time: f32, tolerance: f32) -> bool {
+    !track
+        .keyframes
+        .iter()
+        .any(|kf| (kf.time - time).abs() < tolerance)
+}
+
+/// Count total keyframes across all tracks.
+pub fn total_keyframe_count(tracks: &[AnimationTrack]) -> usize {
+    tracks.iter().map(|t| t.keyframes.len()).sum()
+}
+
+/// Get the time range (min, max) of all keyframes across tracks.
+/// Returns None if there are no keyframes.
+pub fn keyframe_time_range(tracks: &[AnimationTrack]) -> Option<(f32, f32)> {
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
+    let mut found = false;
+    for track in tracks {
+        for kf in &track.keyframes {
+            min = min.min(kf.time);
+            max = max.max(kf.time);
+            found = true;
+        }
+    }
+    if found {
+        Some((min, max))
+    } else {
+        None
+    }
+}
+
 impl BerryCodeApp {
     /// Render dopesheet content into a provided `Ui` region (used by the tool panel).
     pub(crate) fn render_dopesheet_content(&mut self, ui: &mut egui::Ui) {
@@ -591,5 +639,106 @@ mod tests {
         let v = crate::app::scene_editor::animation::sample_track(&track, 5.0)
             .expect("single kf");
         assert!((v[0] - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn collect_all_keyframe_times_deduplicates() {
+        let tracks = vec![
+            AnimationTrack {
+                property: AnimProperty::Position,
+                keyframes: vec![
+                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe { time: 1.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+                ],
+                events: vec![],
+            },
+            AnimationTrack {
+                property: AnimProperty::Rotation,
+                keyframes: vec![
+                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe { time: 2.0, value: [0.0, 3.14, 0.0], easing: EasingType::Linear },
+                ],
+                events: vec![],
+            },
+        ];
+        let times = collect_all_keyframe_times(&tracks);
+        assert_eq!(times.len(), 3); // 0.0, 1.0, 2.0
+        assert!((times[0] - 0.0).abs() < 1e-5);
+        assert!((times[1] - 1.0).abs() < 1e-5);
+        assert!((times[2] - 2.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn collect_empty_tracks() {
+        let times = collect_all_keyframe_times(&[]);
+        assert!(times.is_empty());
+    }
+
+    #[test]
+    fn should_add_keyframe_at_empty_track() {
+        let track = AnimationTrack {
+            property: AnimProperty::Position,
+            keyframes: vec![],
+            events: vec![],
+        };
+        assert!(should_add_keyframe_at(&track, 0.5, 0.01));
+    }
+
+    #[test]
+    fn should_add_keyframe_at_existing_time() {
+        let track = AnimationTrack {
+            property: AnimProperty::Position,
+            keyframes: vec![
+                TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
+                TrackKeyframe { time: 1.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+            ],
+            events: vec![],
+        };
+        assert!(!should_add_keyframe_at(&track, 0.005, 0.01)); // too close to 0.0
+        assert!(should_add_keyframe_at(&track, 0.5, 0.01)); // far enough
+    }
+
+    #[test]
+    fn total_keyframe_count_works() {
+        let tracks = vec![
+            AnimationTrack {
+                property: AnimProperty::Position,
+                keyframes: vec![
+                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe { time: 1.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+                ],
+                events: vec![],
+            },
+            AnimationTrack {
+                property: AnimProperty::Scale,
+                keyframes: vec![
+                    TrackKeyframe { time: 0.0, value: [1.0, 1.0, 1.0], easing: EasingType::Linear },
+                ],
+                events: vec![],
+            },
+        ];
+        assert_eq!(total_keyframe_count(&tracks), 3);
+    }
+
+    #[test]
+    fn keyframe_time_range_works() {
+        let tracks = vec![
+            AnimationTrack {
+                property: AnimProperty::Position,
+                keyframes: vec![
+                    TrackKeyframe { time: 0.5, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe { time: 2.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+                ],
+                events: vec![],
+            },
+        ];
+        let (min, max) = keyframe_time_range(&tracks).unwrap();
+        assert!((min - 0.5).abs() < 1e-5);
+        assert!((max - 2.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn keyframe_time_range_empty() {
+        assert!(keyframe_time_range(&[]).is_none());
     }
 }

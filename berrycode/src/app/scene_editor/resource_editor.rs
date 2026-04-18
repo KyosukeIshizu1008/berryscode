@@ -16,6 +16,40 @@ pub struct ResourceDef {
     pub fields: Vec<ScriptField>,
 }
 
+/// Create a new ResourceDef with a default name based on the current count.
+pub fn create_default_resource(current_count: usize) -> ResourceDef {
+    ResourceDef {
+        name: format!("NewResource{}", current_count),
+        fields: Vec::new(),
+    }
+}
+
+/// Add a field of the given type to a resource. Returns true if successful.
+pub fn add_field_to_resource(resource: &mut ResourceDef, field_type: &str) -> bool {
+    let value = match field_type {
+        "f32" => ScriptValue::Float(0.0),
+        "i64" => ScriptValue::Int(0),
+        "bool" => ScriptValue::Bool(false),
+        "String" => ScriptValue::String(String::new()),
+        _ => return false,
+    };
+    resource.fields.push(ScriptField {
+        name: format!("field{}", resource.fields.len()),
+        value,
+    });
+    true
+}
+
+/// Remove a field from a resource by index. Returns true if the index was valid.
+pub fn remove_field_from_resource(resource: &mut ResourceDef, index: usize) -> bool {
+    if index < resource.fields.len() {
+        resource.fields.remove(index);
+        true
+    } else {
+        false
+    }
+}
+
 /// Render the "Scene Resources" section in the Inspector panel.
 /// Returns `true` if any resource was mutated this frame.
 pub fn render_resource_inspector(
@@ -232,5 +266,104 @@ mod tests {
         assert!(code.contains("app.insert_resource(GameConfig"));
         assert!(code.contains("gravity:"));
         assert!(code.contains("debug: true"));
+    }
+
+    #[test]
+    fn create_default_resource_has_correct_name() {
+        let r = create_default_resource(3);
+        assert_eq!(r.name, "NewResource3");
+        assert!(r.fields.is_empty());
+    }
+
+    #[test]
+    fn add_field_to_resource_f32() {
+        let mut r = ResourceDef::default();
+        assert!(add_field_to_resource(&mut r, "f32"));
+        assert_eq!(r.fields.len(), 1);
+        assert_eq!(r.fields[0].name, "field0");
+        match &r.fields[0].value {
+            ScriptValue::Float(v) => assert!((v - 0.0).abs() < 1e-5),
+            other => panic!("Expected Float, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn add_field_to_resource_all_types() {
+        let mut r = ResourceDef::default();
+        assert!(add_field_to_resource(&mut r, "f32"));
+        assert!(add_field_to_resource(&mut r, "i64"));
+        assert!(add_field_to_resource(&mut r, "bool"));
+        assert!(add_field_to_resource(&mut r, "String"));
+        assert_eq!(r.fields.len(), 4);
+    }
+
+    #[test]
+    fn add_field_to_resource_unknown_type_fails() {
+        let mut r = ResourceDef::default();
+        assert!(!add_field_to_resource(&mut r, "CustomType"));
+        assert!(r.fields.is_empty());
+    }
+
+    #[test]
+    fn remove_field_from_resource_valid_index() {
+        let mut r = ResourceDef::default();
+        add_field_to_resource(&mut r, "f32");
+        add_field_to_resource(&mut r, "i64");
+        assert!(remove_field_from_resource(&mut r, 0));
+        assert_eq!(r.fields.len(), 1);
+    }
+
+    #[test]
+    fn remove_field_from_resource_invalid_index() {
+        let mut r = ResourceDef::default();
+        assert!(!remove_field_from_resource(&mut r, 0));
+    }
+
+    #[test]
+    fn generate_resource_code_empty_name_skipped() {
+        let resources = vec![ResourceDef {
+            name: String::new(),
+            fields: vec![ScriptField {
+                name: "x".into(),
+                value: ScriptValue::Float(1.0),
+            }],
+        }];
+        let code = generate_resource_code(&resources);
+        assert!(code.is_empty());
+    }
+
+    #[test]
+    fn generate_resource_code_vec_option_map() {
+        let resources = vec![ResourceDef {
+            name: "ComplexResource".into(),
+            fields: vec![
+                ScriptField {
+                    name: "items".into(),
+                    value: ScriptValue::Vec(vec![ScriptValue::Int(1), ScriptValue::Int(2)]),
+                },
+                ScriptField {
+                    name: "maybe".into(),
+                    value: ScriptValue::Option(Some(Box::new(ScriptValue::Float(3.14)))),
+                },
+                ScriptField {
+                    name: "none_val".into(),
+                    value: ScriptValue::Option(None),
+                },
+                ScriptField {
+                    name: "map".into(),
+                    value: ScriptValue::Map(vec![("key".into(), ScriptValue::Bool(true))]),
+                },
+                ScriptField {
+                    name: "empty_map".into(),
+                    value: ScriptValue::Map(vec![]),
+                },
+            ],
+        }];
+        let code = generate_resource_code(&resources);
+        assert!(code.contains("vec!["));
+        assert!(code.contains("Some("));
+        assert!(code.contains("None"));
+        assert!(code.contains("HashMap::from"));
+        assert!(code.contains("HashMap::new()"));
     }
 }

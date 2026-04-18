@@ -12,13 +12,15 @@ enum Severity {
 }
 
 fn classify_severity(line: &str) -> Severity {
-    // Stderr-prefixed lines are most often errors; otherwise scan for keywords.
     let lower = line.to_lowercase();
-    if line.starts_with("[stderr]")
-        || lower.contains("error")
-        || lower.contains("panic")
-        || lower.contains("failed")
+    // Cargo outputs compilation progress to stderr — these are NOT errors
+    if lower.contains("compiling ") || lower.contains("downloading ")
+        || lower.contains("finished ") || lower.contains("building ")
+        || lower.contains("checking ") || lower.contains("running ")
+        || lower.contains("linking ") || lower.contains("fresh ")
     {
+        Severity::Info
+    } else if lower.contains("error") || lower.contains("panic") || lower.contains("failed") {
         Severity::Error
     } else if lower.contains("warning") || lower.contains("warn:") {
         Severity::Warning
@@ -36,12 +38,17 @@ impl BerryCodeApp {
         self.run_output.clear();
         self.run_output.push("─── Starting cargo run ───".to_string());
         self.run_panel_open = true;
+        self.game_view_open = true;
+        self.active_panel = super::types::ActivePanel::GameView;
 
         let project_path = self.root_path.clone();
 
-        let mut child = match Command::new("cargo")
-            .arg("run")
-            .arg("--release")
+        let mut cmd = Command::new("cargo");
+        cmd.arg("run");
+        if self.run_release_mode {
+            cmd.arg("--release");
+        }
+        let mut child = match cmd
             .current_dir(&project_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

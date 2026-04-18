@@ -86,20 +86,20 @@ impl BerryCodeApp {
                 ui.horizontal(|ui| {
                     let is_running = self.run_process.is_some();
                     if !is_running {
-                        if ui.button("▶ Play").clicked() {
+                        if ui.button("Play").clicked() {
                             self.start_run();
                         }
                         ui.label("Game not running. Click Play to start.");
                     } else {
-                        if ui.button("⏹ Stop").clicked() {
+                        if ui.button("Stop").clicked() {
                             self.stop_run();
                             self.game_view_texture = None;
                         }
-                        ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "● Playing");
+                        ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "Playing");
                     }
 
                     ui.separator();
-                    if ui.button("✕ Close").clicked() {
+                    if ui.button("Close").clicked() {
                         self.game_view_open = false;
                     }
                 });

@@ -111,6 +111,33 @@ impl ThumbnailCache {
     pub fn is_model_extension(ext: &str) -> bool {
         matches!(ext, "glb" | "gltf" | "obj" | "stl" | "ply")
     }
+
+    /// Returns true if the given file extension is a supported image format.
+    pub fn is_image_extension(ext: &str) -> bool {
+        matches!(ext, "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp")
+    }
+
+    /// Returns true if the given file extension is any supported thumbnail format
+    /// (image or 3D model).
+    pub fn is_supported_extension(ext: &str) -> bool {
+        Self::is_model_extension(ext) || Self::is_image_extension(ext)
+    }
+
+    /// Get the color associated with a model format for placeholder rendering.
+    pub fn model_format_color(ext: &str) -> (u8, u8, u8) {
+        match ext {
+            "glb" | "gltf" => (220, 140, 40),
+            "obj" => (60, 120, 220),
+            "stl" => (60, 180, 80),
+            "ply" => (160, 80, 200),
+            _ => (120, 120, 120),
+        }
+    }
+
+    /// Returns the number of cached entries.
+    pub fn cached_count(&self) -> usize {
+        self.cache.len()
+    }
 }
 
 #[cfg(test)]
@@ -189,5 +216,54 @@ mod tests {
         assert!(!ThumbnailCache::is_model_extension("png"));
         assert!(!ThumbnailCache::is_model_extension("rs"));
         assert!(!ThumbnailCache::is_model_extension(""));
+    }
+
+    #[test]
+    fn test_is_image_extension() {
+        assert!(ThumbnailCache::is_image_extension("png"));
+        assert!(ThumbnailCache::is_image_extension("jpg"));
+        assert!(ThumbnailCache::is_image_extension("jpeg"));
+        assert!(ThumbnailCache::is_image_extension("gif"));
+        assert!(ThumbnailCache::is_image_extension("webp"));
+        assert!(ThumbnailCache::is_image_extension("bmp"));
+        assert!(!ThumbnailCache::is_image_extension("glb"));
+        assert!(!ThumbnailCache::is_image_extension("rs"));
+        assert!(!ThumbnailCache::is_image_extension(""));
+    }
+
+    #[test]
+    fn test_is_supported_extension() {
+        // Models
+        assert!(ThumbnailCache::is_supported_extension("glb"));
+        assert!(ThumbnailCache::is_supported_extension("obj"));
+        // Images
+        assert!(ThumbnailCache::is_supported_extension("png"));
+        assert!(ThumbnailCache::is_supported_extension("jpg"));
+        // Unsupported
+        assert!(!ThumbnailCache::is_supported_extension("rs"));
+        assert!(!ThumbnailCache::is_supported_extension("toml"));
+    }
+
+    #[test]
+    fn test_model_format_color() {
+        assert_eq!(ThumbnailCache::model_format_color("glb"), (220, 140, 40));
+        assert_eq!(ThumbnailCache::model_format_color("gltf"), (220, 140, 40));
+        assert_eq!(ThumbnailCache::model_format_color("obj"), (60, 120, 220));
+        assert_eq!(ThumbnailCache::model_format_color("stl"), (60, 180, 80));
+        assert_eq!(ThumbnailCache::model_format_color("ply"), (160, 80, 200));
+        assert_eq!(ThumbnailCache::model_format_color("xyz"), (120, 120, 120));
+    }
+
+    #[test]
+    fn test_cached_count() {
+        let cache = ThumbnailCache::new();
+        assert_eq!(cache.cached_count(), 0);
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut cache = ThumbnailCache::new();
+        cache.clear();
+        assert_eq!(cache.cached_count(), 0);
     }
 }

@@ -121,6 +121,29 @@ impl BerryCodeApp {
                                 }
 
                                 self.new_project_dialog_open = false;
+                                self.show_project_picker = false;
+                                self.active_panel = super::types::ActivePanel::Explorer;
+                                Self::save_to_recent_projects(&self.root_path);
+
+                                // Auto-import template entities into Scene Editor
+                                let main_rs = format!("{}/src/main.rs", self.root_path);
+                                if let Ok(code) = crate::native::fs::read_file(&main_rs) {
+                                    let imported = crate::app::scene_editor::code_import::import_scene_from_code(&code);
+                                    if !imported.entities.is_empty() {
+                                        self.scene_model = imported;
+                                        self.scene_needs_sync = true;
+                                        tracing::info!(
+                                            "Imported {} entities from template",
+                                            self.scene_model.entities.len()
+                                        );
+                                    }
+                                }
+
+                                // Auto-open src/main.rs in the editor
+                                if std::path::Path::new(&main_rs).exists() {
+                                    self.open_file_from_path(&main_rs);
+                                }
+
                                 self.new_project_name.clear();
                             }
                             Err(e) => {
@@ -151,9 +174,9 @@ impl BerryCodeApp {
         fs::create_dir_all(root.join("src"))?;
         fs::create_dir_all(root.join("assets"))?;
 
-        // Cargo.toml
+        // Cargo.toml with fast compile settings
         let cargo_toml = format!(
-            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nbevy = \"0.15\"\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
+            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nbevy = {{ version = \"0.15\", features = [\"dynamic_linking\"] }}\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
             name = project_name
         );
         fs::write(root.join("Cargo.toml"), cargo_toml)?;
@@ -174,6 +197,12 @@ impl BerryCodeApp {
         tracing::info!("Bevy project created at {} with template {:?}", project_path, template);
         Ok(())
     }
+}
+
+/// Expose template code for tests (returns the same string as template_main_rs).
+#[cfg(test)]
+pub fn template_main_rs_for_test(template: ProjectTemplate) -> String {
+    template_main_rs(template)
 }
 
 fn template_main_rs(template: ProjectTemplate) -> String {
@@ -295,38 +324,28 @@ fn setup_world(
         MeshMaterial3d(ground_mat),
     ));
 
-    // Some boxes scattered around
-    let box_mesh = meshes.add(Cuboid::new(1.5, 1.5, 1.5));
-    let colors = [
-        Color::srgb(0.8, 0.3, 0.3),
-        Color::srgb(0.3, 0.8, 0.3),
-        Color::srgb(0.3, 0.3, 0.8),
-        Color::srgb(0.8, 0.8, 0.3),
-        Color::srgb(0.8, 0.3, 0.8),
-    ];
-    for i in 0..15 {
-        let angle = (i as f32) * 0.6;
-        let radius = 4.0 + (i as f32) * 0.8;
-        let x = angle.cos() * radius;
-        let z = angle.sin() * radius;
-        let color = colors[i % colors.len()];
-        commands.spawn((
-            Mesh3d(box_mesh.clone()),
-            MeshMaterial3d(materials.add(color)),
-            Transform::from_xyz(x, 0.75, z),
-        ));
-    }
+    // Scattered boxes (pre-computed positions for editor compatibility)
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.3, 0.3))), Transform::from_xyz(4.000, 0.75, 0.000), Name::new("Box 1")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.3, 0.8, 0.3))), Transform::from_xyz(3.961, 0.75, 2.714), Name::new("Box 2")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.3, 0.3, 0.8))), Transform::from_xyz(1.830, 0.75, 5.095), Name::new("Box 3")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.3))), Transform::from_xyz(-1.797, 0.75, 6.106), Name::new("Box 4")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.3, 0.8))), Transform::from_xyz(-5.541, 0.75, 4.843), Name::new("Box 5")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.3, 0.3))), Transform::from_xyz(-7.676, 0.75, 1.712), Name::new("Box 6")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.3, 0.8, 0.3))), Transform::from_xyz(-7.302, 0.75, -2.730), Name::new("Box 7")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.3, 0.3, 0.8))), Transform::from_xyz(-4.244, 0.75, -6.538), Name::new("Box 8")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.3))), Transform::from_xyz(0.539, 0.75, -8.478), Name::new("Box 9")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.3, 0.8))), Transform::from_xyz(5.493, 0.75, -7.845), Name::new("Box 10")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.3, 0.3))), Transform::from_xyz(8.799, 0.75, -4.675), Name::new("Box 11")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.3, 0.8, 0.3))), Transform::from_xyz(9.395, 0.75, 0.432), Name::new("Box 12")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.3, 0.3, 0.8))), Transform::from_xyz(6.982, 0.75, 5.545), Name::new("Box 13")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.8, 0.3))), Transform::from_xyz(2.134, 0.75, 9.163), Name::new("Box 14")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))), MeshMaterial3d(materials.add(Color::srgb(0.8, 0.3, 0.8))), Transform::from_xyz(-3.661, 0.75, 10.081), Name::new("Box 15")));
 
-    // A few tall pillars
-    let pillar_mesh = meshes.add(Cuboid::new(1.0, 5.0, 1.0));
-    let pillar_mat = materials.add(Color::srgb(0.6, 0.6, 0.7));
-    for (x, z) in [(8.0, 0.0), (-8.0, 0.0), (0.0, 8.0), (0.0, -8.0)] {
-        commands.spawn((
-            Mesh3d(pillar_mesh.clone()),
-            MeshMaterial3d(pillar_mat.clone()),
-            Transform::from_xyz(x, 2.5, z),
-        ));
-    }
+    // Tall pillars
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))), MeshMaterial3d(materials.add(Color::srgb(0.6, 0.6, 0.7))), Transform::from_xyz(8.0, 2.5, 0.0), Name::new("Pillar 1")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))), MeshMaterial3d(materials.add(Color::srgb(0.6, 0.6, 0.7))), Transform::from_xyz(-8.0, 2.5, 0.0), Name::new("Pillar 2")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))), MeshMaterial3d(materials.add(Color::srgb(0.6, 0.6, 0.7))), Transform::from_xyz(0.0, 2.5, 8.0), Name::new("Pillar 3")));
+    commands.spawn((Mesh3d(meshes.add(Cuboid::new(1.0, 5.0, 1.0))), MeshMaterial3d(materials.add(Color::srgb(0.6, 0.6, 0.7))), Transform::from_xyz(0.0, 2.5, -8.0), Name::new("Pillar 4")));
 }
 
 fn setup_player(mut commands: Commands) {

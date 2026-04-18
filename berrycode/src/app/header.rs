@@ -71,6 +71,21 @@ impl BerryCodeApp {
 
                     ui.add_space(16.0);
 
+                    // Close Project button (return to picker)
+                    if ui.add(egui::Button::new(
+                        egui::RichText::new("Close Project")
+                            .size(12.0)
+                            .color(egui::Color32::from_rgb(180, 180, 180))
+                    ).frame(false)).clicked() {
+                        self.show_project_picker = true;
+                        self.editor_tabs.clear();
+                        self.active_tab_idx = 0;
+                        self.file_tree_cache.clear();
+                        self.root_path.clear();
+                    }
+
+                    ui.add_space(4.0);
+
                     // New Project button
                     if ui.add(egui::Button::new(
                         egui::RichText::new("+ New Bevy Project")
@@ -82,14 +97,14 @@ impl BerryCodeApp {
 
                     ui.add_space(8.0);
 
-                    // Run Bevy Project button
+                    // Run Bevy Project button + Release toggle
                     let is_bevy_project = std::path::Path::new(&self.root_path).join("Cargo.toml").exists();
                     if is_bevy_project {
                         let is_running = self.run_process.is_some();
                         let (label, color) = if is_running {
-                            ("⏹ Stop", egui::Color32::from_rgb(255, 100, 100))
+                            ("Stop", egui::Color32::from_rgb(255, 100, 100))
                         } else {
-                            ("▶ Run", egui::Color32::from_rgb(120, 220, 120))
+                            ("Run", egui::Color32::from_rgb(120, 220, 120))
                         };
 
                         if ui.add(egui::Button::new(
@@ -103,13 +118,26 @@ impl BerryCodeApp {
                                 self.start_run();
                             }
                         }
+
+                        // Release mode toggle
+                        let mode_label = if self.run_release_mode { "Release" } else { "Debug" };
+                        let mode_color = if self.run_release_mode {
+                            egui::Color32::from_rgb(255, 180, 80)
+                        } else {
+                            egui::Color32::from_rgb(150, 150, 150)
+                        };
+                        if ui.add(egui::Button::new(
+                            egui::RichText::new(mode_label).size(10.0).color(mode_color)
+                        ).frame(false)).clicked() {
+                            self.run_release_mode = !self.run_release_mode;
+                        }
                     }
 
                     ui.add_space(8.0);
 
                     if is_bevy_project {
                         if ui.add(egui::Button::new(
-                            egui::RichText::new("🎮 Play in Editor")
+                            egui::RichText::new("Play in Editor")
                                 .size(12.0)
                                 .color(egui::Color32::from_rgb(180, 220, 255))
                         ).frame(false)).clicked() {

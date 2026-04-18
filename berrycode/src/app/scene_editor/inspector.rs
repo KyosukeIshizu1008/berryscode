@@ -6,7 +6,7 @@ use crate::app::BerryCodeApp;
 /// Create a default [`ScriptValue`] from a Rust type string.
 /// Recognises `Vec<T>`, `Option<T>`, and `HashMap<K,V>` wrappers in addition
 /// to the basic primitive types.
-fn script_value_from_type(ty: &str) -> ScriptValue {
+pub fn script_value_from_type(ty: &str) -> ScriptValue {
     let ty = ty.trim();
     if let Some(inner) = ty.strip_prefix("Vec<").and_then(|s| s.strip_suffix('>')) {
         // Vec<T> -> empty vec (element type preserved conceptually)
@@ -28,6 +28,20 @@ fn script_value_from_type(ty: &str) -> ScriptValue {
 }
 
 impl BerryCodeApp {
+    /// Get a summary of component labels for an entity (testable without UI).
+    pub fn get_entity_component_summary(&self, entity_id: u64) -> Vec<String> {
+        let entity = match self.scene_model.entities.get(&entity_id) {
+            Some(e) => e,
+            None => return vec![],
+        };
+        entity.components.iter().map(|c| c.label().to_string()).collect()
+    }
+
+    /// Get entity name by id (testable without UI).
+    pub fn get_entity_name(&self, entity_id: u64) -> Option<String> {
+        self.scene_model.entities.get(&entity_id).map(|e| e.name.clone())
+    }
+
     /// Render the Inspector panel for the currently selected entity.
     pub(crate) fn render_scene_inspector(&mut self, ui: &mut egui::Ui) {
         ui.heading("Inspector");
@@ -1978,6 +1992,99 @@ impl BerryCodeApp {
             &mut self.scene_model.resources,
         ) {
             self.scene_model.modified = true;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn script_value_from_type_float() {
+        match script_value_from_type("f32") {
+            ScriptValue::Float(v) => assert!((v - 0.0).abs() < 1e-5),
+            other => panic!("Expected Float, got {:?}", other),
+        }
+        match script_value_from_type("f64") {
+            ScriptValue::Float(v) => assert!((v - 0.0).abs() < 1e-5),
+            other => panic!("Expected Float, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_int() {
+        match script_value_from_type("i32") {
+            ScriptValue::Int(v) => assert_eq!(v, 0),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+        match script_value_from_type("u64") {
+            ScriptValue::Int(v) => assert_eq!(v, 0),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+        match script_value_from_type("usize") {
+            ScriptValue::Int(v) => assert_eq!(v, 0),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_bool() {
+        match script_value_from_type("bool") {
+            ScriptValue::Bool(v) => assert!(!v),
+            other => panic!("Expected Bool, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_string() {
+        match script_value_from_type("String") {
+            ScriptValue::String(v) => assert!(v.is_empty()),
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_vec() {
+        match script_value_from_type("Vec<f32>") {
+            ScriptValue::Vec(v) => assert!(v.is_empty()),
+            other => panic!("Expected Vec, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_option() {
+        match script_value_from_type("Option<i32>") {
+            ScriptValue::Option(v) => assert!(v.is_none()),
+            other => panic!("Expected Option, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_hashmap() {
+        match script_value_from_type("HashMap<String, i32>") {
+            ScriptValue::Map(v) => assert!(v.is_empty()),
+            other => panic!("Expected Map, got {:?}", other),
+        }
+        match script_value_from_type("BTreeMap<String, i32>") {
+            ScriptValue::Map(v) => assert!(v.is_empty()),
+            other => panic!("Expected Map, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_unknown_defaults_to_string() {
+        match script_value_from_type("MyCustomType") {
+            ScriptValue::String(v) => assert!(v.is_empty()),
+            other => panic!("Expected String for unknown type, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn script_value_from_type_trims_whitespace() {
+        match script_value_from_type("  f32  ") {
+            ScriptValue::Float(_) => {}
+            other => panic!("Expected Float, got {:?}", other),
         }
     }
 }

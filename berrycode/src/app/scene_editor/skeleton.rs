@@ -56,6 +56,96 @@ pub fn extract_bones_from_gltf(path: &str) -> Result<Vec<BoneData>, String> {
     Ok(bones)
 }
 
+/// Public wrapper for quaternion-to-euler conversion, callable from tests.
+pub fn quat_to_euler_pub(q: [f32; 4]) -> [f32; 3] {
+    quat_to_euler(q)
+}
+
+/// Create a test skeleton hierarchy for testing without a .glb file.
+pub fn create_test_skeleton() -> Vec<BoneData> {
+    vec![
+        BoneData {
+            name: "Root".into(),
+            parent_idx: None,
+            bind_pose: super::model::TransformData::default(),
+        },
+        BoneData {
+            name: "Spine".into(),
+            parent_idx: Some(0),
+            bind_pose: super::model::TransformData {
+                translation: [0.0, 1.0, 0.0],
+                ..super::model::TransformData::default()
+            },
+        },
+        BoneData {
+            name: "Head".into(),
+            parent_idx: Some(1),
+            bind_pose: super::model::TransformData {
+                translation: [0.0, 0.5, 0.0],
+                ..super::model::TransformData::default()
+            },
+        },
+        BoneData {
+            name: "LeftArm".into(),
+            parent_idx: Some(1),
+            bind_pose: super::model::TransformData {
+                translation: [-0.5, 0.0, 0.0],
+                ..super::model::TransformData::default()
+            },
+        },
+        BoneData {
+            name: "RightArm".into(),
+            parent_idx: Some(1),
+            bind_pose: super::model::TransformData {
+                translation: [0.5, 0.0, 0.0],
+                ..super::model::TransformData::default()
+            },
+        },
+    ]
+}
+
+/// Validate a skeleton hierarchy: checks that all parent indices are valid
+/// and that there are no cycles. Returns a list of error descriptions.
+pub fn validate_skeleton(bones: &[BoneData]) -> Vec<String> {
+    let mut errors = Vec::new();
+    for (i, bone) in bones.iter().enumerate() {
+        if let Some(parent_idx) = bone.parent_idx {
+            if parent_idx >= bones.len() {
+                errors.push(format!(
+                    "Bone '{}' (idx {}) has invalid parent_idx {}",
+                    bone.name, i, parent_idx
+                ));
+            } else if parent_idx >= i {
+                errors.push(format!(
+                    "Bone '{}' (idx {}) references forward parent_idx {}",
+                    bone.name, i, parent_idx
+                ));
+            }
+        }
+    }
+    errors
+}
+
+/// Count root bones (bones with no parent) in a skeleton.
+pub fn count_root_bones(bones: &[BoneData]) -> usize {
+    bones.iter().filter(|b| b.parent_idx.is_none()).count()
+}
+
+/// Get the depth of a bone in the hierarchy (0 for root bones).
+pub fn bone_depth(bones: &[BoneData], idx: usize) -> usize {
+    let mut depth = 0;
+    let mut current = bones[idx].parent_idx;
+    while let Some(parent) = current {
+        depth += 1;
+        if parent < bones.len() {
+            current = bones[parent].parent_idx;
+        } else {
+            break;
+        }
+    }
+    depth
+}
+
 fn quat_to_euler(q: [f32; 4]) -> [f32; 3] {
     let [x, y, z, w] = q;
     let sinr_cosp = 2.0 * (w * x + y * z);
@@ -91,5 +181,48 @@ mod tests {
     fn quat_identity_gives_zero_euler() {
         let e = quat_to_euler([0.0, 0.0, 0.0, 1.0]);
         assert!(e[0].abs() < 0.01 && e[1].abs() < 0.01 && e[2].abs() < 0.01);
+    }
+    #[test]
+    fn create_test_skeleton_has_correct_structure() {
+        let bones = create_test_skeleton();
+        assert_eq!(bones.len(), 5);
+        assert_eq!(bones[0].name, "Root");
+        assert!(bones[0].parent_idx.is_none());
+        assert_eq!(bones[1].parent_idx, Some(0));
+        assert_eq!(bones[2].parent_idx, Some(1));
+    }
+    #[test]
+    fn validate_valid_skeleton() {
+        let bones = create_test_skeleton();
+        let errors = validate_skeleton(&bones);
+        assert!(errors.is_empty());
+    }
+    #[test]
+    fn validate_invalid_parent_idx() {
+        let bones = vec![
+            BoneData { name: "Root".into(), parent_idx: None, bind_pose: super::super::model::TransformData::default() },
+            BoneData { name: "Bad".into(), parent_idx: Some(99), bind_pose: super::super::model::TransformData::default() },
+        ];
+        let errors = validate_skeleton(&bones);
+        assert_eq!(errors.len(), 1);
+    }
+    #[test]
+    fn count_root_bones_works() {
+        let bones = create_test_skeleton();
+        assert_eq!(count_root_bones(&bones), 1);
+    }
+    #[test]
+    fn bone_depth_works() {
+        let bones = create_test_skeleton();
+        assert_eq!(bone_depth(&bones, 0), 0); // Root
+        assert_eq!(bone_depth(&bones, 1), 1); // Spine
+        assert_eq!(bone_depth(&bones, 2), 2); // Head
+    }
+    #[test]
+    fn quat_to_euler_pub_matches_private() {
+        let q = [0.1, 0.2, 0.3, 0.9];
+        let pub_result = quat_to_euler_pub(q);
+        let priv_result = quat_to_euler(q);
+        assert_eq!(pub_result, priv_result);
     }
 }

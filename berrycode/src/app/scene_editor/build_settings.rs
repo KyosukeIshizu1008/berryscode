@@ -126,13 +126,41 @@ impl PlayerSettings {
 impl Platform {
     /// Map platform to Rust target triple.
     pub fn target_triple(&self) -> &'static str {
-        match self {
-            Platform::MacOS => "aarch64-apple-darwin",
-            Platform::Windows => "x86_64-pc-windows-msvc",
-            Platform::Linux => "x86_64-unknown-linux-gnu",
-            Platform::Web => "wasm32-unknown-unknown",
-        }
+        get_target_triple(*self)
     }
+}
+
+/// Standalone function to get target triple for a platform (testable without self).
+pub fn get_target_triple(platform: Platform) -> &'static str {
+    match platform {
+        Platform::MacOS => "aarch64-apple-darwin",
+        Platform::Windows => "x86_64-pc-windows-msvc",
+        Platform::Linux => "x86_64-unknown-linux-gnu",
+        Platform::Web => "wasm32-unknown-unknown",
+    }
+}
+
+/// Validate build settings: check that resolution is within reasonable bounds.
+pub fn validate_build_settings(settings: &BuildSettings) -> Vec<String> {
+    let mut errors = Vec::new();
+    if settings.resolution[0] < 320 || settings.resolution[0] > 7680 {
+        errors.push(format!("Invalid width: {}", settings.resolution[0]));
+    }
+    if settings.resolution[1] < 240 || settings.resolution[1] > 4320 {
+        errors.push(format!("Invalid height: {}", settings.resolution[1]));
+    }
+    errors
+}
+
+/// Generate the cargo build command arguments for a given build settings config.
+pub fn build_command_args(settings: &BuildSettings) -> Vec<String> {
+    let triple = get_target_triple(settings.target_platform);
+    vec![
+        "build".into(),
+        "--release".into(),
+        "--target".into(),
+        triple.into(),
+    ]
 }
 
 /// Execute a release build for the configured platform. Returns a channel
@@ -372,5 +400,86 @@ mod tests {
     fn player_settings_default() {
         let ps = PlayerSettings::default();
         assert_eq!(ps.window_title, "My Bevy Game");
+    }
+
+    #[test]
+    fn get_target_triple_all_platforms() {
+        assert_eq!(get_target_triple(Platform::MacOS), "aarch64-apple-darwin");
+        assert_eq!(get_target_triple(Platform::Windows), "x86_64-pc-windows-msvc");
+        assert_eq!(get_target_triple(Platform::Linux), "x86_64-unknown-linux-gnu");
+        assert_eq!(get_target_triple(Platform::Web), "wasm32-unknown-unknown");
+    }
+
+    #[test]
+    fn target_triple_method_matches_function() {
+        for &p in Platform::ALL {
+            assert_eq!(p.target_triple(), get_target_triple(p));
+        }
+    }
+
+    #[test]
+    fn validate_build_settings_valid() {
+        let bs = BuildSettings::default();
+        let errors = validate_build_settings(&bs);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn validate_build_settings_invalid_resolution() {
+        let bs = BuildSettings {
+            resolution: [100, 100],
+            ..BuildSettings::default()
+        };
+        let errors = validate_build_settings(&bs);
+        assert_eq!(errors.len(), 2);
+    }
+
+    #[test]
+    fn build_command_args_contains_target() {
+        let bs = BuildSettings::default();
+        let args = build_command_args(&bs);
+        assert!(args.contains(&"--release".to_string()));
+        assert!(args.contains(&"--target".to_string()));
+        assert!(args.contains(&"aarch64-apple-darwin".to_string()));
+    }
+
+    #[test]
+    fn build_command_args_web() {
+        let bs = BuildSettings {
+            target_platform: Platform::Web,
+            ..BuildSettings::default()
+        };
+        let args = build_command_args(&bs);
+        assert!(args.contains(&"wasm32-unknown-unknown".to_string()));
+    }
+
+    #[test]
+    fn platform_labels() {
+        for &p in Platform::ALL {
+            assert!(!p.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn quality_labels() {
+        for &q in QualityLevel::ALL {
+            assert!(!q.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn build_settings_roundtrip() {
+        let bs = BuildSettings {
+            target_platform: Platform::Linux,
+            resolution: [1920, 1080],
+            fullscreen: true,
+            quality: QualityLevel::Ultra,
+        };
+        let s = ron::ser::to_string(&bs).unwrap();
+        let loaded: BuildSettings = ron::from_str(&s).unwrap();
+        assert_eq!(loaded.target_platform, Platform::Linux);
+        assert_eq!(loaded.resolution, [1920, 1080]);
+        assert!(loaded.fullscreen);
+        assert_eq!(loaded.quality, QualityLevel::Ultra);
     }
 }

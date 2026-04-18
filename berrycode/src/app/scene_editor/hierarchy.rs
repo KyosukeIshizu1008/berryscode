@@ -46,64 +46,51 @@ impl BerryCodeApp {
             self.primary_selected_id = None;
         }
 
-        // Scene file toolbar (New / Save)
+        // Compact toolbar: essential buttons + dropdown menus
         ui.horizontal(|ui| {
-            if ui.button("New Scene").clicked() {
+            if ui.small_button("New").clicked() {
                 self.scene_snapshot();
                 self.scene_model = SceneModel::new();
                 self.scene_needs_sync = true;
             }
-            if ui.button("Save").clicked() {
+            if ui.small_button("Save").clicked() {
                 self.save_current_scene();
             }
-            if ui.button("Profiler").clicked() {
-                self.profiler.open = true;
-                self.tool_panel_open = true;
-                self.active_tool_tab = crate::app::dock::ToolTab::Profiler;
-            }
-            if ui.button("Timeline").clicked() {
-                self.timeline_open = true;
-                self.tool_panel_open = true;
-                self.active_tool_tab = crate::app::dock::ToolTab::Timeline;
-            }
-            if ui.button("Dopesheet").clicked() {
-                self.dopesheet_open = true;
-                self.tool_panel_open = true;
-                self.active_tool_tab = crate::app::dock::ToolTab::Dopesheet;
-            }
-            if ui.button("Systems").clicked() {
-                self.system_graph_open = !self.system_graph_open;
-            }
-            if ui.button("Events").clicked() {
-                self.event_monitor_open = !self.event_monitor_open;
-            }
-            if ui.button("Queries").clicked() {
-                self.query_viz_open = !self.query_viz_open;
-            }
-            if ui.button("States").clicked() {
-                self.state_editor_open = !self.state_editor_open;
-            }
-            if ui.button("Plugins").clicked() {
-                self.plugin_browser_open = !self.plugin_browser_open;
-            }
-            if ui.button("Export .scn.ron").clicked() {
-                let path = self.scene_model.file_path.clone().unwrap_or_else(|| {
-                    format!("{}/scenes/scene.bscene", self.root_path)
-                });
-                match crate::app::scene_editor::bevy_scene_export::save_bevy_scene(
-                    &self.scene_model,
-                    &path,
-                ) {
-                    Ok(p) => {
-                        self.status_message = format!("Exported: {}", p);
-                        self.status_message_timestamp = Some(std::time::Instant::now());
-                    }
-                    Err(e) => {
-                        self.status_message = format!("Export failed: {}", e);
-                        self.status_message_timestamp = Some(std::time::Instant::now());
-                    }
+            // Tools dropdown
+            ui.menu_button("Tools", |ui| {
+                if ui.button("Profiler").clicked() {
+                    self.profiler.open = true;
+                    self.tool_panel_open = true;
+                    self.active_tool_tab = crate::app::dock::ToolTab::Profiler;
+                    ui.close_menu();
                 }
-            }
+                if ui.button("Timeline").clicked() {
+                    self.tool_panel_open = true;
+                    self.active_tool_tab = crate::app::dock::ToolTab::Timeline;
+                    ui.close_menu();
+                }
+                if ui.button("Dopesheet").clicked() {
+                    self.tool_panel_open = true;
+                    self.active_tool_tab = crate::app::dock::ToolTab::Dopesheet;
+                    ui.close_menu();
+                }
+                if ui.button("Systems").clicked() { self.system_graph_open = !self.system_graph_open; ui.close_menu(); }
+                if ui.button("Events").clicked() { self.event_monitor_open = !self.event_monitor_open; ui.close_menu(); }
+                if ui.button("Queries").clicked() { self.query_viz_open = !self.query_viz_open; ui.close_menu(); }
+                if ui.button("States").clicked() { self.state_editor_open = !self.state_editor_open; ui.close_menu(); }
+                if ui.button("Plugins").clicked() { self.plugin_browser_open = !self.plugin_browser_open; ui.close_menu(); }
+                ui.separator();
+                if ui.button("Export .scn.ron").clicked() {
+                    let path = self.scene_model.file_path.clone().unwrap_or_else(|| {
+                        format!("{}/scenes/scene.bscene", self.root_path)
+                    });
+                    match crate::app::scene_editor::bevy_scene_export::save_bevy_scene(&self.scene_model, &path) {
+                        Ok(p) => { self.status_message = format!("Exported: {}", p); self.status_message_timestamp = Some(std::time::Instant::now()); }
+                        Err(e) => { self.status_message = format!("Export failed: {}", e); self.status_message_timestamp = Some(std::time::Instant::now()); }
+                    }
+                    ui.close_menu();
+                }
+            });
             if let Some(path) = &self.scene_model.file_path {
                 let file_name = std::path::Path::new(path)
                     .file_name()
@@ -126,8 +113,8 @@ impl BerryCodeApp {
 
         ui.separator();
 
-        // Creation toolbar
-        ui.horizontal_wrapped(|ui| {
+        // Creation toolbar (dropdown to save space)
+        ui.menu_button("+ Add Entity", |ui| {
             if ui.button("+ Cube").clicked() {
                 self.scene_snapshot();
                 self.scene_model.add_entity(
@@ -496,10 +483,39 @@ impl BerryCodeApp {
         }
     }
 
+    /// Count entities whose name contains the filter string (case-insensitive).
+    /// Testable without UI context.
+    pub fn count_filtered_entities(&self, filter: &str) -> usize {
+        if filter.is_empty() {
+            return self.scene_model.entities.len();
+        }
+        let lower = filter.to_lowercase();
+        self.scene_model
+            .entities
+            .values()
+            .filter(|e| e.name.to_lowercase().contains(&lower))
+            .count()
+    }
+
+    /// Get names of all entities matching a filter (case-insensitive).
+    /// Testable without UI context.
+    pub fn get_filtered_entity_names(&self, filter: &str) -> Vec<String> {
+        if filter.is_empty() {
+            return self.scene_model.entities.values().map(|e| e.name.clone()).collect();
+        }
+        let lower = filter.to_lowercase();
+        self.scene_model
+            .entities
+            .values()
+            .filter(|e| e.name.to_lowercase().contains(&lower))
+            .map(|e| e.name.clone())
+            .collect()
+    }
+
     /// Compute the set of entity IDs that should be visible given a non-empty
     /// (already lower-cased) name filter. Includes matched entities and all of
     /// their ancestors so the path to the match stays expanded.
-    fn compute_visible_entities(&self, filter: &str) -> std::collections::HashSet<u64> {
+    pub fn compute_visible_entities(&self, filter: &str) -> std::collections::HashSet<u64> {
         let mut visible = std::collections::HashSet::new();
         for (id, entity) in &self.scene_model.entities {
             if entity.name.to_lowercase().contains(filter) {

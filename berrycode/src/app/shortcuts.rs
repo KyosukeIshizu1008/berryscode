@@ -9,6 +9,21 @@ use crate::native;
 impl BerryCodeApp {
     /// Handle global keyboard shortcuts
     pub(crate) fn handle_editor_shortcuts(&mut self, ctx: &egui::Context) {
+        // Panel switching: Ctrl+1..9 (Cmd+number is intercepted by macOS)
+        ctx.input(|i| {
+            if i.modifiers.ctrl {
+                if i.key_pressed(egui::Key::Num1) { self.active_panel = ActivePanel::Explorer; }
+                if i.key_pressed(egui::Key::Num2) { self.active_panel = ActivePanel::Search; }
+                if i.key_pressed(egui::Key::Num3) { self.active_panel = ActivePanel::Git; }
+                if i.key_pressed(egui::Key::Num4) { self.active_panel = ActivePanel::Terminal; }
+                if i.key_pressed(egui::Key::Num5) { self.active_panel = ActivePanel::EcsInspector; }
+                if i.key_pressed(egui::Key::Num6) { self.active_panel = ActivePanel::BevyTemplates; }
+                if i.key_pressed(egui::Key::Num7) { self.active_panel = ActivePanel::AssetBrowser; }
+                if i.key_pressed(egui::Key::Num8) { self.active_panel = ActivePanel::SceneEditor; }
+                if i.key_pressed(egui::Key::Num9) { self.active_panel = ActivePanel::GameView; }
+            }
+        });
+
         // Scene editor has its own Cmd+S binding; dispatch before falling
         // through to the regular editor shortcuts so we don't trample an
         // in-memory scene by "saving" an unrelated focused tab.
@@ -435,6 +450,35 @@ impl BerryCodeApp {
                 match crate::app::scene_editor::codegen::save_scene_code(&self.scene_model, &path) {
                     Ok(rs_path) => {
                         tracing::info!("Code generated: {}", rs_path);
+
+                        // Run cargo check in background after generating scene code
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        self.cargo_check_rx = Some(rx);
+                        let project_root = self.root_path.clone();
+                        std::thread::spawn(move || {
+                            let _ = tx.send("[cargo check] Running...".to_string());
+                            let output = std::process::Command::new("cargo")
+                                .arg("check")
+                                .current_dir(&project_root)
+                                .stderr(std::process::Stdio::piped())
+                                .stdout(std::process::Stdio::piped())
+                                .output();
+                            match output {
+                                Ok(out) => {
+                                    if out.status.success() {
+                                        let _ = tx.send("[cargo check] OK - no errors".to_string());
+                                    } else {
+                                        let stderr = String::from_utf8_lossy(&out.stderr);
+                                        for line in stderr.lines() {
+                                            let _ = tx.send(format!("[cargo check] {}", line));
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(format!("[cargo check] Failed: {}", e));
+                                }
+                            }
+                        });
                     }
                     Err(e) => {
                         tracing::warn!("Code generation failed: {}", e);
