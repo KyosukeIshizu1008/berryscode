@@ -8,6 +8,9 @@
 .idea/
 .vscode/
 *.swp
+
+# Claude
+CLAUDE.md
 *.swo
 *~
 
