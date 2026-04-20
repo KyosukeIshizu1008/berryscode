@@ -73,7 +73,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install protobuf
-        run: brew install protobuf
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -101,7 +103,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install protobuf
-        run: choco install protoc -y
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
