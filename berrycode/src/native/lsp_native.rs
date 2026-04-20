@@ -1159,9 +1159,18 @@ mod tests {
 
     #[test]
     fn test_file_path_to_uri() {
-        let uri = file_path_to_uri("/tmp/test.rs").unwrap();
-        assert_eq!(uri.scheme(), "file");
-        assert!(uri.path().ends_with("/tmp/test.rs"));
+        #[cfg(not(target_os = "windows"))]
+        {
+            let uri = file_path_to_uri("/tmp/test.rs").unwrap();
+            assert_eq!(uri.scheme(), "file");
+            assert!(uri.path().ends_with("/tmp/test.rs"));
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let uri = file_path_to_uri("C:\\Users\\test\\file.rs").unwrap();
+            assert_eq!(uri.scheme(), "file");
+            assert!(uri.path().contains("file.rs"));
+        }
     }
 
     #[test]
