@@ -39,6 +39,7 @@ mod model_preview;
 pub(crate) mod new_project;
 mod run_panel;
 mod game_view;
+pub(crate) mod demo_capture;
 pub(crate) mod preview_3d;
 pub(crate) mod ansi;
 pub(crate) mod dock;
@@ -560,6 +561,9 @@ pub struct BerryCodeApp {
     // === Test Mode CLI ===
     pub(crate) test_mode: bool,
     pub(crate) test_command_rx: Option<std::sync::mpsc::Receiver<String>>,
+
+    // === Demo Capture (screenshots + video) ===
+    pub(crate) demo_capture: demo_capture::DemoCapture,
 
     // === Scanned User Components (bidirectional sync) ===
     pub(crate) scanned_user_components: Vec<scene_editor::script_scan::ScannedComponent>,
@@ -1399,6 +1403,8 @@ impl BerryCodeApp {
             test_mode: false,
             test_command_rx: None,
 
+            demo_capture: demo_capture::DemoCapture::new(),
+
             scanned_user_components: Vec::new(),
 
             merge_panel_open: false,
@@ -1976,6 +1982,109 @@ pub fn berry_ui_system(
             let tex_id = egui_ctx.add_image(handle);
             mat_preview.egui_texture_id = Some(tex_id);
             app.material_preview_texture_id = Some(tex_id);
+        }
+    }
+}
+
+/// Bevy system for demo capture — uses Screenshot API to read GPU framebuffer.
+/// Cycles through all features, taking per-feature screenshots while recording video.
+pub fn demo_capture_system(
+    mut app: bevy::ecs::system::NonSendMut<BerryCodeApp>,
+    mut commands: bevy::ecs::system::Commands,
+) {
+    use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+    use demo_capture::{DemoAction, SetupAction};
+
+    if !app.demo_capture.active {
+        return;
+    }
+
+    let action = app.demo_capture.tick();
+
+    match action {
+        DemoAction::None => {}
+        DemoAction::CaptureVideo => {
+            // Capture a frame for video only
+            let encoder = app.demo_capture.encoder.clone();
+            commands.spawn(Screenshot::primary_window()).observe(
+                move |trigger: bevy::prelude::Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                    let img = trigger.event();
+                    let w = img.width();
+                    let h = img.height();
+                    if let Ok(mut enc) = encoder.lock() {
+                        enc.feed(&img.data, w, h);
+                    }
+                },
+            );
+        }
+        DemoAction::SetupUi { panel, setup } => {
+            // Switch sidebar panel if specified
+            if let Some(p) = panel {
+                app.active_panel = p;
+            }
+
+            // Apply extra UI setup
+            match setup {
+                SetupAction::None => {}
+                SetupAction::OpenDebugger => {
+                    app.debug_state.active = true;
+                    // Close other panels that might overlap
+                    app.run_panel_open = false;
+                    app.tool_panel_open = false;
+                }
+                SetupAction::OpenRunPanel => {
+                    app.run_panel_open = true;
+                    app.debug_state.active = false;
+                    app.tool_panel_open = false;
+                }
+                SetupAction::OpenToolPanel => {
+                    app.tool_panel_open = true;
+                    app.debug_state.active = false;
+                    app.run_panel_open = false;
+                }
+            }
+
+            // Also capture a video frame during setup
+            let encoder = app.demo_capture.encoder.clone();
+            commands.spawn(Screenshot::primary_window()).observe(
+                move |trigger: bevy::prelude::Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                    let img = trigger.event();
+                    let w = img.width();
+                    let h = img.height();
+                    if let Ok(mut enc) = encoder.lock() {
+                        enc.feed(&img.data, w, h);
+                    }
+                },
+            );
+        }
+        DemoAction::CaptureScreenshotAndVideo(name) => {
+            // Capture for both screenshot and video
+            let encoder = app.demo_capture.encoder.clone();
+            let output_dir = std::path::PathBuf::from("docs/demo");
+            let name_clone = name.clone();
+
+            // Save screenshot to disk
+            let path = output_dir.join(&name);
+            commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+
+            // Also feed to video encoder
+            commands.spawn(Screenshot::primary_window()).observe(
+                move |trigger: bevy::prelude::Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                    let img = trigger.event();
+                    let w = img.width();
+                    let h = img.height();
+                    if let Ok(mut enc) = encoder.lock() {
+                        enc.feed(&img.data, w, h);
+                    }
+                    tracing::info!("📸 Saved: docs/demo/{}", name_clone);
+                },
+            );
+
+            app.demo_capture.mark_screenshot(name);
+        }
+        DemoAction::Finish => {
+            app.demo_capture.finalize();
+            std::process::exit(0);
         }
     }
 }

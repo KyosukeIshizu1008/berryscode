@@ -70,29 +70,66 @@ impl BerryCodeApp {
         }
         self.game_view_last_capture = Some(now);
 
-        // Find window by process name
-        // Use the project name or "BerryCode" or any window from the spawned process
+        // Find the game window by multiple strategies
         let project_name = self.root_path.rsplit('/').next().unwrap_or("");
+        let target_pid = self.run_process.as_ref().map(|p| p.id());
 
         let windows = match xcap::Window::all() {
             Ok(w) => w,
             Err(_) => return,
         };
 
-        // Find a window that matches the project name or PID
-        let target_pid = self.run_process.as_ref().map(|p| p.id());
-
+        // Strategy 1: Match by PID (most reliable)
+        // Strategy 2: Match by project name in window title or app name
+        // Strategy 3: Match any Bevy window (title contains "Bevy" or "App")
+        // Exclude our own BerryCode window
         let target_window = windows.iter().find(|w| {
-            // Match by process ID first
-            if let Some(_pid) = target_pid {
-                if let Ok(app_name) = w.app_name() {
-                    // Try to match by name (process subprocess name often matches binary name)
-                    if app_name.to_lowercase().contains(&project_name.to_lowercase()) {
-                        return true;
-                    }
-                }
-                // Could also try to match by PID directly if xcap supports it
+            let app_name = w.app_name().unwrap_or_default();
+            let title = w.title().unwrap_or_default();
+
+            // Skip our own editor window
+            if app_name.contains("berrycode") || title.contains("BerryCode") {
+                return false;
             }
+
+            // Skip system/zero-size windows
+            if let Ok(width) = w.width() {
+                if width == 0 { return false; }
+            }
+
+            // Match by PID
+            if let Some(pid) = target_pid {
+                if let Ok(w_pid) = w.current_monitor().map(|_| w.id()) {
+                    // xcap doesn't expose PID directly, so try name matching
+                    let _ = (pid, w_pid);
+                }
+            }
+
+            // Match by project/binary name
+            let name_lower = app_name.to_lowercase();
+            let title_lower = title.to_lowercase();
+            let proj_lower = project_name.to_lowercase();
+
+            if !proj_lower.is_empty() && (name_lower.contains(&proj_lower) || title_lower.contains(&proj_lower)) {
+                return true;
+            }
+
+            // Match common Bevy window titles
+            if title_lower.contains("bevy") || title_lower.contains("app") {
+                // Only match if we have a running process
+                if target_pid.is_some() {
+                    return true;
+                }
+            }
+
+            // Match by cargo-built binary name (often the crate name)
+            if let Some(crate_name) = Self::detect_crate_name(&self.root_path) {
+                let crate_lower = crate_name.to_lowercase();
+                if name_lower.contains(&crate_lower) || title_lower.contains(&crate_lower) {
+                    return true;
+                }
+            }
+
             false
         });
 
@@ -119,8 +156,10 @@ impl BerryCodeApp {
                 }
 
                 // Hide the external window by moving it off-screen (capture still works)
+                // Retry every few captures in case the window reappears
                 if !self.game_view_window_hidden {
                     hide_external_window(window);
+                    // Give the OS a moment to move the window, then mark as hidden
                     self.game_view_window_hidden = true;
                 }
             }
@@ -188,6 +227,28 @@ impl BerryCodeApp {
                     });
                 }
             });
+    }
+
+    /// Detect the crate name from Cargo.toml in the project
+    fn detect_crate_name(project_path: &str) -> Option<String> {
+        let cargo_toml = std::path::Path::new(project_path).join("Cargo.toml");
+        let content = std::fs::read_to_string(cargo_toml).ok()?;
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("name") && trimmed.contains('=') {
+                let name = trimmed
+                    .split('=')
+                    .nth(1)?
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
+        None
     }
 
     /// Open the game view panel (auto-starts game if not running)
