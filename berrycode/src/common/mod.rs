@@ -3,8 +3,8 @@
 //! Framework-agnostic utilities (no Dioxus, HTML, CSS, or JS)
 
 // Platform abstraction layer
-pub mod platform;
 pub mod events;
+pub mod platform;
 
 // Fuzzy matching for search
 pub mod fuzzy;

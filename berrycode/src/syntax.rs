@@ -2,7 +2,6 @@
 //! 100% Rust - No JavaScript!
 //! WASM-compatible without tree-sitter
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
     Keyword,
@@ -10,8 +9,8 @@ pub enum TokenType {
     Type,
     String,
     Number,
-    Comment,        // Normal comments: //, /* */
-    DocComment,     // Doc comments: //!, ///
+    Comment,    // Normal comments: //, /* */
+    DocComment, // Doc comments: //!, ///
     Operator,
     Identifier,
     Macro,          // NEW: println!, vec!, derive! etc.
@@ -86,7 +85,11 @@ impl SyntaxHighlighter {
             let is_doc_comment = comment_text.starts_with("//!") || comment_text.starts_with("///");
 
             tokens.push(SyntaxToken {
-                token_type: if is_doc_comment { TokenType::DocComment } else { TokenType::Comment },
+                token_type: if is_doc_comment {
+                    TokenType::DocComment
+                } else {
+                    TokenType::Comment
+                },
                 text: comment_text.to_string(),
                 start: pos,
                 end: line.len(),
@@ -150,8 +153,25 @@ impl SyntaxHighlighter {
         ];
 
         let types = [
-            "String", "str", "Vec", "Option", "Result", "Box", "Rc", "Arc", "i32", "i64", "u32",
-            "u64", "f32", "f64", "bool", "char", "usize", "isize", "TextBuffer",
+            "String",
+            "str",
+            "Vec",
+            "Option",
+            "Result",
+            "Box",
+            "Rc",
+            "Arc",
+            "i32",
+            "i64",
+            "u32",
+            "u64",
+            "f32",
+            "f64",
+            "bool",
+            "char",
+            "usize",
+            "isize",
+            "TextBuffer",
         ];
 
         let mut pos = 0;
@@ -204,10 +224,13 @@ impl SyntaxHighlighter {
             }
 
             // Lifetime ('a, 'static)
-            if bytes[pos] == b'\'' && pos + 1 < bytes.len() && bytes[pos + 1].is_ascii_alphabetic() {
+            if bytes[pos] == b'\'' && pos + 1 < bytes.len() && bytes[pos + 1].is_ascii_alphabetic()
+            {
                 pos += 1; // Skip '
                 let _lifetime_start = pos;
-                while pos < bytes.len() && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_') {
+                while pos < bytes.len()
+                    && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_')
+                {
                     pos += 1;
                 }
                 tokens.push(SyntaxToken {
@@ -242,7 +265,9 @@ impl SyntaxHighlighter {
 
             // Identifiers and keywords
             if bytes[pos].is_ascii_alphabetic() || bytes[pos] == b'_' {
-                while pos < bytes.len() && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_') {
+                while pos < bytes.len()
+                    && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_')
+                {
                     pos += 1;
                 }
                 let word = &text[start..pos];
@@ -258,7 +283,8 @@ impl SyntaxHighlighter {
                 let is_function_call = temp_pos < bytes.len() && bytes[temp_pos] == b'(';
 
                 // Check if this is a constant (all uppercase with optional underscores)
-                let is_constant = word.chars().all(|c| c.is_uppercase() || c == '_') && word.len() > 1;
+                let is_constant =
+                    word.chars().all(|c| c.is_uppercase() || c == '_') && word.len() > 1;
 
                 if keywords.contains(&word) {
                     tokens.push(SyntaxToken {
@@ -291,7 +317,9 @@ impl SyntaxHighlighter {
                         start: offset + start,
                         end: offset + pos,
                     });
-                } else if types.contains(&word) || (!word.is_empty() && word.chars().next().unwrap().is_uppercase()) {
+                } else if types.contains(&word)
+                    || (!word.is_empty() && word.chars().next().unwrap().is_uppercase())
+                {
                     tokens.push(SyntaxToken {
                         token_type: TokenType::Type,
                         text: word.to_string(),
@@ -427,10 +455,35 @@ impl SyntaxHighlighter {
 
         // CSS selectors, properties, and values
         let css_keywords = [
-            "color", "background", "margin", "padding", "border", "width", "height",
-            "display", "position", "top", "left", "right", "bottom", "flex", "grid",
-            "font", "text", "line", "letter", "word", "white", "opacity", "transform",
-            "transition", "animation", "cursor", "overflow", "z-index", "visibility",
+            "color",
+            "background",
+            "margin",
+            "padding",
+            "border",
+            "width",
+            "height",
+            "display",
+            "position",
+            "top",
+            "left",
+            "right",
+            "bottom",
+            "flex",
+            "grid",
+            "font",
+            "text",
+            "line",
+            "letter",
+            "word",
+            "white",
+            "opacity",
+            "transform",
+            "transition",
+            "animation",
+            "cursor",
+            "overflow",
+            "z-index",
+            "visibility",
         ];
 
         while pos < line_bytes.len() {
@@ -440,7 +493,10 @@ impl SyntaxHighlighter {
                 pos += 1;
 
                 while pos < line_bytes.len()
-                    && (line_bytes[pos].is_ascii_alphanumeric() || line_bytes[pos] == b'-' || line_bytes[pos] == b'_') {
+                    && (line_bytes[pos].is_ascii_alphanumeric()
+                        || line_bytes[pos] == b'-'
+                        || line_bytes[pos] == b'_')
+                {
                     pos += 1;
                 }
 
@@ -493,13 +549,13 @@ impl SyntaxHighlighter {
                 } else {
                     // Regular number
                     while pos < line_bytes.len()
-                        && (line_bytes[pos].is_ascii_digit() || line_bytes[pos] == b'.') {
+                        && (line_bytes[pos].is_ascii_digit() || line_bytes[pos] == b'.')
+                    {
                         pos += 1;
                     }
 
                     // CSS units: px, em, rem, %, vh, vw, etc.
-                    while pos < line_bytes.len()
-                        && line_bytes[pos].is_ascii_alphabetic() {
+                    while pos < line_bytes.len() && line_bytes[pos].is_ascii_alphabetic() {
                         pos += 1;
                     }
                 }
@@ -518,7 +574,8 @@ impl SyntaxHighlighter {
                 let word_start = pos;
 
                 while pos < line_bytes.len()
-                    && (line_bytes[pos].is_ascii_alphanumeric() || line_bytes[pos] == b'-') {
+                    && (line_bytes[pos].is_ascii_alphanumeric() || line_bytes[pos] == b'-')
+                {
                     pos += 1;
                 }
 
@@ -567,7 +624,6 @@ impl Default for SyntaxHighlighter {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_highlight_rust_keyword() {

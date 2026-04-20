@@ -92,9 +92,12 @@ impl BerryCodeApp {
         ui.heading(format!("Entities ({})", entity_count));
 
         let filter = self.ecs_inspector.filter_query.to_lowercase();
-        let entities_snapshot: Vec<_> = self.ecs_inspector.entities.iter().map(|e| {
-            (e.id, e.name.clone(), e.components.len())
-        }).collect();
+        let entities_snapshot: Vec<_> = self
+            .ecs_inspector
+            .entities
+            .iter()
+            .map(|e| (e.id, e.name.clone(), e.components.len()))
+            .collect();
 
         egui::ScrollArea::vertical()
             .id_salt("entity_list")
@@ -102,8 +105,10 @@ impl BerryCodeApp {
             .show(ui, |ui| {
                 for (id, name, comp_count) in &entities_snapshot {
                     let display_name = name.as_deref().unwrap_or("(unnamed)");
-                    let label = format!("Entity {} - {} ({} components)",
-                        id, display_name, comp_count);
+                    let label = format!(
+                        "Entity {} - {} ({} components)",
+                        id, display_name, comp_count
+                    );
 
                     if !filter.is_empty() && !label.to_lowercase().contains(&filter) {
                         continue;
@@ -125,14 +130,20 @@ impl BerryCodeApp {
             egui::ScrollArea::vertical()
                 .id_salt("component_details")
                 .show(ui, |ui| {
-                    let keys: Vec<_> = self.ecs_inspector.component_values
+                    let keys: Vec<_> = self
+                        .ecs_inspector
+                        .component_values
                         .keys()
                         .filter(|(eid, _)| *eid == entity_id)
                         .cloned()
                         .collect();
 
                     for (_, comp_name) in &keys {
-                        if let Some(value) = self.ecs_inspector.component_values.get(&(entity_id, comp_name.clone())) {
+                        if let Some(value) = self
+                            .ecs_inspector
+                            .component_values
+                            .get(&(entity_id, comp_name.clone()))
+                        {
                             let json_str = serde_json::to_string_pretty(value)
                                 .unwrap_or_else(|_| "Error serializing".to_string());
                             ui.collapsing(comp_name, |ui| {
@@ -172,7 +183,8 @@ impl BerryCodeApp {
                         continue;
                     }
 
-                    let selected = self.ecs_inspector.selected_resource.as_deref() == Some(type_name.as_str());
+                    let selected =
+                        self.ecs_inspector.selected_resource.as_deref() == Some(type_name.as_str());
                     if ui.selectable_label(selected, type_name).clicked() {
                         self.ecs_inspector.selected_resource = Some(type_name.clone());
                     }

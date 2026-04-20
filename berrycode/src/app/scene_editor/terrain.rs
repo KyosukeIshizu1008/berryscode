@@ -2,7 +2,9 @@
 
 /// Bilinear interpolation of height at world position (x, z).
 pub fn height_at(heights: &[f32], resolution: u32, world_size: [f32; 2], x: f32, z: f32) -> f32 {
-    if resolution == 0 || heights.is_empty() { return 0.0; }
+    if resolution == 0 || heights.is_empty() {
+        return 0.0;
+    }
     let res = resolution as f32;
     // Normalize x, z to grid coordinates
     let gx = ((x / world_size[0] + 0.5) * res).clamp(0.0, res - 1.001);
@@ -13,16 +15,31 @@ pub fn height_at(heights: &[f32], resolution: u32, world_size: [f32; 2], x: f32,
     let fz = gz - iz as f32;
     let r = resolution as usize;
     let h00 = heights.get(iz * r + ix).copied().unwrap_or(0.0);
-    let h10 = heights.get(iz * r + (ix + 1).min(r - 1)).copied().unwrap_or(0.0);
-    let h01 = heights.get((iz + 1).min(r - 1) * r + ix).copied().unwrap_or(0.0);
-    let h11 = heights.get((iz + 1).min(r - 1) * r + (ix + 1).min(r - 1)).copied().unwrap_or(0.0);
+    let h10 = heights
+        .get(iz * r + (ix + 1).min(r - 1))
+        .copied()
+        .unwrap_or(0.0);
+    let h01 = heights
+        .get((iz + 1).min(r - 1) * r + ix)
+        .copied()
+        .unwrap_or(0.0);
+    let h11 = heights
+        .get((iz + 1).min(r - 1) * r + (ix + 1).min(r - 1))
+        .copied()
+        .unwrap_or(0.0);
     let h0 = h00 + (h10 - h00) * fx;
     let h1 = h01 + (h11 - h01) * fx;
     h0 + (h1 - h0) * fz
 }
 
 /// Compute approximate normal at a grid position.
-pub fn normal_at(heights: &[f32], resolution: u32, world_size: [f32; 2], x: f32, z: f32) -> [f32; 3] {
+pub fn normal_at(
+    heights: &[f32],
+    resolution: u32,
+    world_size: [f32; 2],
+    x: f32,
+    z: f32,
+) -> [f32; 3] {
     let step_x = world_size[0] / resolution as f32;
     let step_z = world_size[1] / resolution as f32;
     let hx0 = height_at(heights, resolution, world_size, x - step_x, z);
@@ -83,7 +100,10 @@ pub fn generate_terrain_mesh(
         }
     }
 
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, bevy::render::render_asset::RenderAssetUsages::default());
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        bevy::render::render_asset::RenderAssetUsages::default(),
+    );
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);

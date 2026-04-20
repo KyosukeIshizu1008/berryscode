@@ -62,8 +62,8 @@ impl EditorTab {
             image_texture: None,
             is_model: false,
             model_data: None,
-            model_rot_y: std::f32::consts::PI * 0.25,  // 45 degrees
-            model_rot_x: std::f32::consts::PI * 0.15,  // slight tilt
+            model_rot_y: std::f32::consts::PI * 0.25, // 45 degrees
+            model_rot_x: std::f32::consts::PI * 0.15, // slight tilt
             model_zoom: 1.0,
             gpu_preview_texture_id: None,
         }
@@ -131,7 +131,7 @@ pub struct GitHistoryState {
     pub show_all_branches: bool,
     pub filter_author: String,
     pub filter_message: String,
-    pub page_limit: usize, // Number of commits to load per page
+    pub page_limit: usize,   // Number of commits to load per page
     pub loaded_count: usize, // Number of commits currently loaded
 }
 
@@ -309,9 +309,9 @@ pub(crate) enum FileTreeEvent {
 /// gRPC response types
 #[derive(Debug, Clone)]
 pub enum GrpcResponse {
-    SessionStarted(String),  // Session ID
-    ChatChunk(String),  // Streaming chat response chunk
-    ChatStreamCompleted,  // Stream finished
+    SessionStarted(String), // Session ID
+    ChatChunk(String),      // Streaming chat response chunk
+    ChatStreamCompleted,    // Stream finished
 }
 
 /// Simplified LSP diagnostic
@@ -425,8 +425,8 @@ pub(crate) struct ColorTheme {
     pub type_: egui::Color32,
     pub string: egui::Color32,
     pub number: egui::Color32,
-    pub comment: egui::Color32,       // Normal comments: //
-    pub doc_comment: egui::Color32,   // Doc comments: //!, ///
+    pub comment: egui::Color32,     // Normal comments: //
+    pub doc_comment: egui::Color32, // Doc comments: //!, ///
     pub macro_: egui::Color32,
     pub attribute: egui::Color32,
     pub constant: egui::Color32,

@@ -3,11 +3,7 @@
 
 /// Render a minimap (code overview) on the right side of the editor.
 /// Standalone function to avoid borrow conflicts with BerryCodeApp.
-pub(crate) fn render_minimap_standalone(
-    ui: &mut egui::Ui,
-    text: &str,
-    editor_rect: egui::Rect,
-) {
+pub(crate) fn render_minimap_standalone(ui: &mut egui::Ui, text: &str, editor_rect: egui::Rect) {
     let minimap_width = 60.0_f32;
     let minimap_rect = egui::Rect::from_min_size(
         egui::pos2(editor_rect.max.x - minimap_width, editor_rect.min.y),
@@ -15,16 +11,16 @@ pub(crate) fn render_minimap_standalone(
     );
 
     // Background - match editor background (#191A1C)
-    ui.painter().rect_filled(
-        minimap_rect,
-        0.0,
-        egui::Color32::from_rgb(25, 26, 28),
-    );
+    ui.painter()
+        .rect_filled(minimap_rect, 0.0, egui::Color32::from_rgb(25, 26, 28));
 
     // Left border separator
     ui.painter().line_segment(
         [minimap_rect.left_top(), minimap_rect.left_bottom()],
-        egui::Stroke::new(0.5, egui::Color32::from_rgba_premultiplied(255, 255, 255, 15)),
+        egui::Stroke::new(
+            0.5,
+            egui::Color32::from_rgba_premultiplied(255, 255, 255, 15),
+        ),
     );
 
     let lines: Vec<&str> = text.lines().collect();

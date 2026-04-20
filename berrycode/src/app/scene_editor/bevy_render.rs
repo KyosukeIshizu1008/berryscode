@@ -345,9 +345,7 @@ pub fn update_scene_editor_camera(
                     .entity(cam_entity)
                     .insert(TemporalAntiAliasing::default());
             } else {
-                commands
-                    .entity(cam_entity)
-                    .remove::<TemporalAntiAliasing>();
+                commands.entity(cam_entity).remove::<TemporalAntiAliasing>();
             }
         }
 
@@ -378,9 +376,7 @@ pub fn update_scene_editor_camera(
                     ..default()
                 });
             } else {
-                commands
-                    .entity(cam_entity)
-                    .remove::<DepthOfField>();
+                commands.entity(cam_entity).remove::<DepthOfField>();
             }
         }
     }

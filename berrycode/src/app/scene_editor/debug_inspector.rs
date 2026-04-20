@@ -17,10 +17,7 @@ impl BerryCodeApp {
         }
 
         ui.separator();
-        ui.colored_label(
-            egui::Color32::from_rgb(255, 200, 80),
-            "Live Debug",
-        );
+        ui.colored_label(egui::Color32::from_rgb(255, 200, 80), "Live Debug");
         ui.label(
             egui::RichText::new("Transform is editable. Custom component values are not reflected at runtime — stop and re-run to apply changes.")
                 .size(10.0)
@@ -95,10 +92,7 @@ impl BerryCodeApp {
         if let Some(vel) = self.physics_state.velocities.get(&selected_id) {
             ui.separator();
             ui.label("Velocity:");
-            ui.monospace(format!(
-                "[{:.3}, {:.3}, {:.3}]",
-                vel[0], vel[1], vel[2]
-            ));
+            ui.monospace(format!("[{:.3}, {:.3}, {:.3}]", vel[0], vel[1], vel[2]));
             let speed = (vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]).sqrt();
             ui.monospace(format!("speed: {:.3} m/s", speed));
         }

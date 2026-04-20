@@ -61,12 +61,27 @@ impl VideoEncoder {
         let out = self.output_dir.join("demo.mp4");
         match std::process::Command::new("ffmpeg")
             .args([
-                "-y", "-f", "rawvideo", "-pixel_format", "rgba",
-                "-video_size", &format!("{}x{}", w, h),
-                "-framerate", "30", "-i", "pipe:0",
-                "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                "-preset", "fast", "-crf", "23",
-                "-movflags", "+faststart",
+                "-y",
+                "-f",
+                "rawvideo",
+                "-pixel_format",
+                "rgba",
+                "-video_size",
+                &format!("{}x{}", w, h),
+                "-framerate",
+                "30",
+                "-i",
+                "pipe:0",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-preset",
+                "fast",
+                "-crf",
+                "23",
+                "-movflags",
+                "+faststart",
                 out.to_str().unwrap(),
             ])
             .stdin(std::process::Stdio::piped())
@@ -87,7 +102,9 @@ impl VideoEncoder {
 
     pub fn feed(&mut self, pixels: &[u8], w: u32, h: u32) {
         self.ensure_started(w, h);
-        if self.broken { return; }
+        if self.broken {
+            return;
+        }
         if let Some(ref mut child) = self.ffmpeg {
             if let Some(ref mut stdin) = child.stdin {
                 if stdin.write_all(pixels).is_err() {
@@ -241,8 +258,10 @@ impl DemoCapture {
         let output_dir = PathBuf::from("docs/demo");
         if active {
             eprintln!("[DemoCapture] BERRYCODE_DEMO detected — feature showcase enabled");
-            eprintln!("[DemoCapture] Will capture {} feature screenshots + video",
-                      feature_steps().len());
+            eprintln!(
+                "[DemoCapture] Will capture {} feature screenshots + video",
+                feature_steps().len()
+            );
         }
         Self {
             active,
@@ -268,7 +287,10 @@ impl DemoCapture {
         if self.start_time.is_none() {
             self.start_time = Some(Instant::now());
             std::fs::create_dir_all(&self.output_dir).ok();
-            tracing::info!("🎬 Feature showcase started → {}", self.output_dir.display());
+            tracing::info!(
+                "🎬 Feature showcase started → {}",
+                self.output_dir.display()
+            );
         }
 
         let elapsed = self.start_time.unwrap().elapsed().as_secs_f32();
@@ -282,8 +304,8 @@ impl DemoCapture {
 
         // Trailing video phase (after all screenshots are done)
         if self.trailing_video {
-            let last_shot_time = INITIAL_WAIT_SECS
-                + (steps.len() as f32) * (SETTLE_FRAMES as f32 / 30.0 + 0.1);
+            let last_shot_time =
+                INITIAL_WAIT_SECS + (steps.len() as f32) * (SETTLE_FRAMES as f32 / 30.0 + 0.1);
             if elapsed >= last_shot_time + TRAILING_VIDEO_SECS {
                 return DemoAction::Finish;
             }

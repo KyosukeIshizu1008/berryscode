@@ -129,8 +129,7 @@ impl BerryCodeApp {
             ui.checkbox(&mut self.scene_bloom_enabled, "Bloom");
             if self.scene_bloom_enabled {
                 ui.add(
-                    egui::Slider::new(&mut self.scene_bloom_intensity, 0.0..=1.0)
-                        .text("intensity"),
+                    egui::Slider::new(&mut self.scene_bloom_intensity, 0.0..=1.0).text("intensity"),
                 );
             }
 
@@ -222,7 +221,10 @@ impl BerryCodeApp {
             }
 
             ui.separator();
-            if ui.selectable_label(self.quad_view_enabled, "Quad").clicked() {
+            if ui
+                .selectable_label(self.quad_view_enabled, "Quad")
+                .clicked()
+            {
                 self.quad_view_enabled = !self.quad_view_enabled;
             }
 
@@ -258,7 +260,9 @@ impl BerryCodeApp {
             }
 
             ui.separator();
-            let undo_tip = self.command_history.undo_description()
+            let undo_tip = self
+                .command_history
+                .undo_description()
                 .map(|d| format!("Undo: {}", d))
                 .unwrap_or_else(|| "Undo".into());
             ui.add_enabled_ui(self.command_history.can_undo(), |ui| {
@@ -269,7 +273,9 @@ impl BerryCodeApp {
                     }
                 }
             });
-            let redo_tip = self.command_history.redo_description()
+            let redo_tip = self
+                .command_history
+                .redo_description()
                 .map(|d| format!("Redo: {}", d))
                 .unwrap_or_else(|| "Redo".into());
             ui.add_enabled_ui(self.command_history.can_redo(), |ui| {
@@ -387,10 +393,7 @@ impl BerryCodeApp {
             );
             let text_pos = egui::pos2(rect.left() + 12.0, rect.top() + 12.0);
             ui.painter().rect_filled(
-                egui::Rect::from_min_size(
-                    text_pos - egui::vec2(4.0, 2.0),
-                    egui::vec2(280.0, 22.0),
-                ),
+                egui::Rect::from_min_size(text_pos - egui::vec2(4.0, 2.0), egui::vec2(280.0, 22.0)),
                 4.0,
                 egui::Color32::from_rgba_premultiplied(0, 0, 0, 180),
             );
@@ -429,8 +432,7 @@ impl BerryCodeApp {
             let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
             for (i, qr) in quad_rects.iter().enumerate() {
                 // Draw the same texture in each quadrant.
-                ui.painter()
-                    .image(tex_id, *qr, uv, egui::Color32::WHITE);
+                ui.painter().image(tex_id, *qr, uv, egui::Color32::WHITE);
                 // Label overlay.
                 let label = &self.quad_camera_states[i].label;
                 let is_active = i == self.active_quad_idx;
@@ -453,11 +455,8 @@ impl BerryCodeApp {
                     egui::Color32::from_gray(60)
                 };
                 let border_width = if is_active { 2.0 } else { 1.0 };
-                ui.painter().rect_stroke(
-                    *qr,
-                    0.0,
-                    egui::Stroke::new(border_width, border_color),
-                );
+                ui.painter()
+                    .rect_stroke(*qr, 0.0, egui::Stroke::new(border_width, border_color));
             }
 
             // Click in a quadrant to switch the camera to that quadrant's
@@ -505,7 +504,14 @@ impl BerryCodeApp {
         let ortho_scale = self.scene_ortho_scale;
 
         // World-space grid overlay on the Y=0 plane.
-        draw_world_grid(ui.painter(), cam_pos, orbit_target, rect, ortho, ortho_scale);
+        draw_world_grid(
+            ui.painter(),
+            cam_pos,
+            orbit_target,
+            rect,
+            ortho,
+            ortho_scale,
+        );
 
         // Collider wireframe overlay (green) for all entities with a Collider component.
         for (id, entity) in &self.scene_model.entities {
@@ -549,11 +555,7 @@ impl BerryCodeApp {
                             half_height,
                             radius,
                         } => {
-                            let h = bevy::math::Vec3::new(
-                                *radius,
-                                *half_height + *radius,
-                                *radius,
-                            );
+                            let h = bevy::math::Vec3::new(*radius, *half_height + *radius, *radius);
                             draw_wireframe_aabb(
                                 ui.painter(),
                                 pos - h,
@@ -574,19 +576,36 @@ impl BerryCodeApp {
 
         // Spline curve overlay
         for (_id, entity) in &self.scene_model.entities {
-            if !entity.enabled { continue; }
+            if !entity.enabled {
+                continue;
+            }
             let world_t = self.scene_model.compute_world_transform(entity.id);
             let offset = Vec3::from_array(world_t.translation);
             for component in &entity.components {
-                if let crate::app::scene_editor::model::ComponentData::Spline { points, closed } = component {
-                    if points.len() < 2 { continue; }
-                    let samples = crate::app::scene_editor::spline::sample_spline(points, *closed, 20);
+                if let crate::app::scene_editor::model::ComponentData::Spline { points, closed } =
+                    component
+                {
+                    if points.len() < 2 {
+                        continue;
+                    }
+                    let samples =
+                        crate::app::scene_editor::spline::sample_spline(points, *closed, 20);
                     let mut prev_screen: Option<egui::Pos2> = None;
                     for sample in &samples {
                         let world_pt = Vec3::new(sample[0], sample[1], sample[2]) + offset;
-                        if let Some(sp) = project_to_screen(world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                        if let Some(sp) = project_to_screen(
+                            world_pt,
+                            cam_pos,
+                            orbit_target,
+                            rect,
+                            ortho,
+                            ortho_scale,
+                        ) {
                             if let Some(pp) = prev_screen {
-                                ui.painter().line_segment([pp, sp], egui::Stroke::new(2.0, egui::Color32::from_rgb(80, 220, 220)));
+                                ui.painter().line_segment(
+                                    [pp, sp],
+                                    egui::Stroke::new(2.0, egui::Color32::from_rgb(80, 220, 220)),
+                                );
                             }
                             prev_screen = Some(sp);
                         }
@@ -594,7 +613,14 @@ impl BerryCodeApp {
                     // Draw control points
                     for pt in points {
                         let world_pt = Vec3::from_array(pt.position) + offset;
-                        if let Some(sp) = project_to_screen(world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                        if let Some(sp) = project_to_screen(
+                            world_pt,
+                            cam_pos,
+                            orbit_target,
+                            rect,
+                            ortho,
+                            ortho_scale,
+                        ) {
                             ui.painter().circle_filled(sp, 4.0, egui::Color32::WHITE);
                         }
                     }
@@ -605,31 +631,55 @@ impl BerryCodeApp {
         // Skeleton bone overlay (Phase 69): for entities with SkinnedMesh,
         // draw bone hierarchy as lines between joints + circles at joints.
         for (_id, entity) in &self.scene_model.entities {
-            if !entity.enabled { continue; }
+            if !entity.enabled {
+                continue;
+            }
             let world_t = self.scene_model.compute_world_transform(entity.id);
             let entity_pos = Vec3::from_array(world_t.translation);
             for component in &entity.components {
-                if let crate::app::scene_editor::model::ComponentData::SkinnedMesh { bones, .. } = component {
-                    if bones.is_empty() { continue; }
+                if let crate::app::scene_editor::model::ComponentData::SkinnedMesh {
+                    bones, ..
+                } = component
+                {
+                    if bones.is_empty() {
+                        continue;
+                    }
                     // Compute world positions of each bone
-                    let bone_positions: Vec<Vec3> = bones.iter().map(|b| {
-                        entity_pos + Vec3::from_array(b.bind_pose.translation)
-                    }).collect();
+                    let bone_positions: Vec<Vec3> = bones
+                        .iter()
+                        .map(|b| entity_pos + Vec3::from_array(b.bind_pose.translation))
+                        .collect();
 
                     // Draw lines from each bone to its parent
                     for (i, bone) in bones.iter().enumerate() {
                         let pos = bone_positions[i];
-                        if let Some(sp) = project_to_screen(pos, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                        if let Some(sp) =
+                            project_to_screen(pos, cam_pos, orbit_target, rect, ortho, ortho_scale)
+                        {
                             // Draw circle at joint
-                            ui.painter().circle_filled(sp, 4.0, egui::Color32::from_rgb(255, 200, 50));
+                            ui.painter().circle_filled(
+                                sp,
+                                4.0,
+                                egui::Color32::from_rgb(255, 200, 50),
+                            );
                             // Draw line to parent
                             if let Some(parent_idx) = bone.parent_idx {
                                 if parent_idx < bone_positions.len() {
                                     let parent_pos = bone_positions[parent_idx];
-                                    if let Some(pp) = project_to_screen(parent_pos, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                                    if let Some(pp) = project_to_screen(
+                                        parent_pos,
+                                        cam_pos,
+                                        orbit_target,
+                                        rect,
+                                        ortho,
+                                        ortho_scale,
+                                    ) {
                                         ui.painter().line_segment(
                                             [pp, sp],
-                                            egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 200, 50)),
+                                            egui::Stroke::new(
+                                                2.0,
+                                                egui::Color32::from_rgb(255, 200, 50),
+                                            ),
                                         );
                                     }
                                 }
@@ -642,10 +692,20 @@ impl BerryCodeApp {
 
         // NavMesh grid overlay (Phase 70): draw green/red cells on Y=0 plane.
         for (_id, entity) in &self.scene_model.entities {
-            if !entity.enabled { continue; }
+            if !entity.enabled {
+                continue;
+            }
             for component in &entity.components {
-                if let crate::app::scene_editor::model::ComponentData::NavMesh { cell_size, grid, width, height } = component {
-                    if grid.is_empty() || *width == 0 || *height == 0 { continue; }
+                if let crate::app::scene_editor::model::ComponentData::NavMesh {
+                    cell_size,
+                    grid,
+                    width,
+                    height,
+                } = component
+                {
+                    if grid.is_empty() || *width == 0 || *height == 0 {
+                        continue;
+                    }
                     let world_half = (*width as f32 * cell_size) / 2.0;
                     for gz in 0..*height {
                         for gx in 0..*width {
@@ -653,7 +713,14 @@ impl BerryCodeApp {
                             let wx = gx as f32 * cell_size - world_half + cell_size * 0.5;
                             let wz = gz as f32 * cell_size - world_half + cell_size * 0.5;
                             let world_pt = Vec3::new(wx, 0.01, wz);
-                            if let Some(sp) = project_to_screen(world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                            if let Some(sp) = project_to_screen(
+                                world_pt,
+                                cam_pos,
+                                orbit_target,
+                                rect,
+                                ortho,
+                                ortho_scale,
+                            ) {
                                 let color = if walkable {
                                     egui::Color32::from_rgba_premultiplied(0, 180, 0, 40)
                                 } else {
@@ -661,7 +728,8 @@ impl BerryCodeApp {
                                 };
                                 // Draw a small filled square
                                 let half = 2.0;
-                                let cell_rect = egui::Rect::from_center_size(sp, egui::Vec2::splat(half * 2.0));
+                                let cell_rect =
+                                    egui::Rect::from_center_size(sp, egui::Vec2::splat(half * 2.0));
                                 if rect.contains(sp) {
                                     ui.painter().rect_filled(cell_rect, 0.0, color);
                                 }
@@ -697,9 +765,8 @@ impl BerryCodeApp {
         // before the gizmo so the gizmo handles stay on top.
         self.particle_preview.tick(&self.scene_model);
         let painter = ui.painter().clone();
-        self.particle_preview.for_each_particle(
-            &self.scene_model,
-            |pos, t, component| {
+        self.particle_preview
+            .for_each_particle(&self.scene_model, |pos, t, component| {
                 if let crate::app::scene_editor::model::ComponentData::ParticleEmitter {
                     start_size,
                     end_size,
@@ -708,9 +775,14 @@ impl BerryCodeApp {
                     ..
                 } = component
                 {
-                    if let Some(screen) =
-                        crate::app::scene_editor::gizmo::project_to_screen(pos, cam_pos, orbit_target, rect, ortho, ortho_scale)
-                    {
+                    if let Some(screen) = crate::app::scene_editor::gizmo::project_to_screen(
+                        pos,
+                        cam_pos,
+                        orbit_target,
+                        rect,
+                        ortho,
+                        ortho_scale,
+                    ) {
                         let size = lerp(*start_size, *end_size, t);
                         // Pixel size — scale by 200 so small world sizes are
                         // visible (heuristic; not physically accurate).
@@ -728,8 +800,7 @@ impl BerryCodeApp {
                         );
                     }
                 }
-            },
-        );
+            });
 
         // Keep the scene view repainting so particles animate even when no
         // input is happening.
@@ -758,7 +829,8 @@ impl BerryCodeApp {
         // clicking the gizmo) and not while orbit-dragging.
         if editing_enabled && response.clicked() && self.gizmo_dragging.is_none() {
             if let Some(click_pos) = response.interact_pointer_pos() {
-                let (origin, dir) = screen_to_ray(click_pos, cam_pos, orbit_target, rect, ortho, ortho_scale);
+                let (origin, dir) =
+                    screen_to_ray(click_pos, cam_pos, orbit_target, rect, ortho, ortho_scale);
                 let mut closest: Option<(u64, f32)> = None;
                 for (id, entity) in &self.scene_model.entities {
                     if !entity.enabled {
@@ -798,7 +870,8 @@ impl BerryCodeApp {
             && editing_enabled
         {
             if let Some(drag_pos) = response.interact_pointer_pos() {
-                let (origin, dir) = screen_to_ray(drag_pos, cam_pos, orbit_target, rect, ortho, ortho_scale);
+                let (origin, dir) =
+                    screen_to_ray(drag_pos, cam_pos, orbit_target, rect, ortho, ortho_scale);
                 // Intersect ray with Y=0 plane
                 if dir.y.abs() > 1e-6 {
                     let t_hit = -origin.y / dir.y;
@@ -904,9 +977,14 @@ impl BerryCodeApp {
                             }
                             let world_t = self.scene_model.compute_world_transform(id);
                             let world_pos = Vec3::from_array(world_t.translation);
-                            if let Some(screen_pos) =
-                                project_to_screen(world_pos, cam_pos, orbit_target, rect, ortho, ortho_scale)
-                            {
+                            if let Some(screen_pos) = project_to_screen(
+                                world_pos,
+                                cam_pos,
+                                orbit_target,
+                                rect,
+                                ortho,
+                                ortho_scale,
+                            ) {
                                 if box_rect.contains(screen_pos) {
                                     self.scene_model.select_add(id);
                                     self.primary_selected_id = Some(id);
@@ -938,21 +1016,29 @@ impl BerryCodeApp {
                 -self.scene_orbit_pitch.sin(),
                 self.scene_orbit_yaw.cos() * self.scene_orbit_pitch.cos(),
             ) * -1.0;
-            let right_dir = Vec3::new(
-                self.scene_orbit_yaw.cos(),
-                0.0,
-                -self.scene_orbit_yaw.sin(),
-            );
+            let right_dir = Vec3::new(self.scene_orbit_yaw.cos(), 0.0, -self.scene_orbit_yaw.sin());
 
             let speed = self.fly_camera_speed * 0.016; // assume ~60 fps
             let mut move_delta = Vec3::ZERO;
             ui.input(|i| {
-                if i.key_down(egui::Key::W) { move_delta += forward; }
-                if i.key_down(egui::Key::S) { move_delta -= forward; }
-                if i.key_down(egui::Key::D) { move_delta += right_dir; }
-                if i.key_down(egui::Key::A) { move_delta -= right_dir; }
-                if i.key_down(egui::Key::Q) { move_delta -= Vec3::Y; }
-                if i.key_down(egui::Key::E) { move_delta += Vec3::Y; }
+                if i.key_down(egui::Key::W) {
+                    move_delta += forward;
+                }
+                if i.key_down(egui::Key::S) {
+                    move_delta -= forward;
+                }
+                if i.key_down(egui::Key::D) {
+                    move_delta += right_dir;
+                }
+                if i.key_down(egui::Key::A) {
+                    move_delta -= right_dir;
+                }
+                if i.key_down(egui::Key::Q) {
+                    move_delta -= Vec3::Y;
+                }
+                if i.key_down(egui::Key::E) {
+                    move_delta += Vec3::Y;
+                }
             });
 
             if move_delta.length_squared() > 0.0 {
@@ -965,7 +1051,8 @@ impl BerryCodeApp {
             // Scroll wheel adjusts fly speed while in fly mode.
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
             if scroll.abs() > 0.0 {
-                self.fly_camera_speed = (self.fly_camera_speed * (1.0 + scroll * 0.01)).clamp(0.5, 100.0);
+                self.fly_camera_speed =
+                    (self.fly_camera_speed * (1.0 + scroll * 0.01)).clamp(0.5, 100.0);
             }
         }
         if !rmb_held {
@@ -998,7 +1085,14 @@ impl BerryCodeApp {
             if let Some(drop_pos) = ui.input(|i| i.pointer.interact_pos()) {
                 if rect.contains(drop_pos) {
                     if let Some(asset_path) = self.dragged_asset_path.take() {
-                        let (origin, dir) = screen_to_ray(drop_pos, cam_pos, orbit_target, rect, ortho, ortho_scale);
+                        let (origin, dir) = screen_to_ray(
+                            drop_pos,
+                            cam_pos,
+                            orbit_target,
+                            rect,
+                            ortho,
+                            ortho_scale,
+                        );
                         // Intersect with Y=0 plane: origin.y + t * dir.y = 0
                         // -> t = -origin.y / dir.y. Fall back to the origin if
                         // the ray is nearly parallel to the ground or points
@@ -1035,8 +1129,7 @@ impl BerryCodeApp {
                                     self.scene_needs_sync = true;
                                     self.status_message =
                                         format!("Instantiated prefab: {}", asset_path);
-                                    self.status_message_timestamp =
-                                        Some(std::time::Instant::now());
+                                    self.status_message_timestamp = Some(std::time::Instant::now());
                                     tracing::info!(
                                         "Instantiated prefab {} at {:?}",
                                         asset_path,
@@ -1044,10 +1137,8 @@ impl BerryCodeApp {
                                     );
                                 }
                                 Err(e) => {
-                                    self.status_message =
-                                        format!("Failed to load prefab: {}", e);
-                                    self.status_message_timestamp =
-                                        Some(std::time::Instant::now());
+                                    self.status_message = format!("Failed to load prefab: {}", e);
+                                    self.status_message_timestamp = Some(std::time::Instant::now());
                                     tracing::error!(
                                         "Failed to load prefab {}: {:#}",
                                         asset_path,
@@ -1065,11 +1156,13 @@ impl BerryCodeApp {
                             self.scene_snapshot();
                             let new_id = self.scene_model.add_entity(
                                 name,
-                                vec![crate::app::scene_editor::model::ComponentData::MeshFromFile {
-                                    path: asset_path.clone(),
-                                    texture_path: None,
-                                    normal_map_path: None,
-                                }],
+                                vec![
+                                    crate::app::scene_editor::model::ComponentData::MeshFromFile {
+                                        path: asset_path.clone(),
+                                        texture_path: None,
+                                        normal_map_path: None,
+                                    },
+                                ],
                             );
                             if let Some(entity) = self.scene_model.entities.get_mut(&new_id) {
                                 entity.transform.translation =
@@ -1130,10 +1223,11 @@ impl BerryCodeApp {
         let orbit_target = Vec3::from_array(self.scene_orbit_target);
         let ortho = self.scene_ortho;
         let ortho_scale = self.scene_ortho_scale;
-        let center_screen = match project_to_screen(pos, cam_pos, orbit_target, rect, ortho, ortho_scale) {
-            Some(p) => p,
-            None => return, // Selected entity is behind the camera.
-        };
+        let center_screen =
+            match project_to_screen(pos, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                Some(p) => p,
+                None => return, // Selected entity is behind the camera.
+            };
 
         let axes: [(Vec3, egui::Color32, usize); 3] = [
             (Vec3::X, egui::Color32::from_rgb(230, 70, 70), 0_usize),
@@ -1155,7 +1249,14 @@ impl BerryCodeApp {
             if !active {
                 if let Some(p) = pointer {
                     let world_end = pos + axis_dir;
-                    if let Some(end_screen) = project_to_screen(world_end, cam_pos, orbit_target, rect, ortho, ortho_scale) {
+                    if let Some(end_screen) = project_to_screen(
+                        world_end,
+                        cam_pos,
+                        orbit_target,
+                        rect,
+                        ortho,
+                        ortho_scale,
+                    ) {
                         if distance_point_to_segment(p, center_screen, end_screen) < 8.0 {
                             hot = true;
                             hovered_axis = Some(idx);
@@ -1180,14 +1281,12 @@ impl BerryCodeApp {
 
                 let mut prev_pt: Option<egui::Pos2> = None;
                 for seg in 0..=arc_segments {
-                    let angle = (seg as f32 / arc_segments as f32)
-                        * std::f32::consts::TAU
-                        * 0.75; // 270 degrees
+                    let angle = (seg as f32 / arc_segments as f32) * std::f32::consts::TAU * 0.75; // 270 degrees
                     let world_pt =
                         pos + (perp1 * angle.cos() + perp2 * angle.sin()) * arc_radius_world;
-                    if let Some(sp) = project_to_screen(
-                        world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale,
-                    ) {
+                    if let Some(sp) =
+                        project_to_screen(world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale)
+                    {
                         if let Some(pp) = prev_pt {
                             painter.line_segment(
                                 [pp, sp],
@@ -1203,7 +1302,12 @@ impl BerryCodeApp {
                 // --- Move / Scale modes: draw axis line + tip shape ---
                 let world_end = pos + axis_dir;
                 let end_screen = match project_to_screen(
-                    world_end, cam_pos, orbit_target, rect, ortho, ortho_scale,
+                    world_end,
+                    cam_pos,
+                    orbit_target,
+                    rect,
+                    ortho,
+                    ortho_scale,
                 ) {
                     Some(p) => p,
                     None => continue,
@@ -1244,24 +1348,23 @@ impl BerryCodeApp {
         // --- Plane drag handles (Move mode only) ---
         if self.gizmo_mode == GizmoMode::Move {
             let plane_pairs: [(usize, usize, egui::Color32); 3] = [
-                (0, 2, egui::Color32::from_rgb(200, 200, 80)),  // XZ (yellow-ish)
-                (0, 1, egui::Color32::from_rgb(80, 200, 200)),  // XY (cyan-ish)
-                (1, 2, egui::Color32::from_rgb(200, 80, 200)),  // YZ (magenta-ish)
+                (0, 2, egui::Color32::from_rgb(200, 200, 80)), // XZ (yellow-ish)
+                (0, 1, egui::Color32::from_rgb(80, 200, 200)), // XY (cyan-ish)
+                (1, 2, egui::Color32::from_rgb(200, 80, 200)), // YZ (magenta-ish)
             ];
 
             for (a_idx, b_idx, color) in plane_pairs {
                 let offset = (axes[a_idx].0 + axes[b_idx].0) * 0.3;
                 let world_pt = pos + offset;
-                if let Some(sp) = project_to_screen(
-                    world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale,
-                ) {
+                if let Some(sp) =
+                    project_to_screen(world_pt, cam_pos, orbit_target, rect, ortho, ortho_scale)
+                {
                     let half = 6.0;
                     let sq_rect =
                         egui::Rect::from_center_size(sp, egui::vec2(half * 2.0, half * 2.0));
 
                     let plane_hot = pointer.map_or(false, |p| sq_rect.contains(p));
-                    let plane_active =
-                        self.gizmo_dragging == Some(GizmoDrag::Plane(a_idx, b_idx));
+                    let plane_active = self.gizmo_dragging == Some(GizmoDrag::Plane(a_idx, b_idx));
                     let draw_col = if plane_hot || plane_active {
                         egui::Color32::WHITE
                     } else {
@@ -1318,7 +1421,12 @@ impl BerryCodeApp {
                         };
                         let world_end = pos + axis_dir;
                         let end_screen = match project_to_screen(
-                            world_end, cam_pos, orbit_target, rect, ortho, ortho_scale,
+                            world_end,
+                            cam_pos,
+                            orbit_target,
+                            rect,
+                            ortho,
+                            ortho_scale,
                         ) {
                             Some(p) => p,
                             None => continue,
@@ -1335,8 +1443,7 @@ impl BerryCodeApp {
                         axis_deltas.push((axis_idx, world_delta));
                     }
 
-                    let ids: Vec<u64> =
-                        self.scene_model.selected_ids.iter().copied().collect();
+                    let ids: Vec<u64> = self.scene_model.selected_ids.iter().copied().collect();
                     for eid in ids {
                         if let Some(entity) = self.scene_model.entities.get_mut(&eid) {
                             for &(axis_idx, world_delta) in &axis_deltas {
@@ -1362,8 +1469,7 @@ impl BerryCodeApp {
                                     }
                                     GizmoMode::Scale => {
                                         entity.transform.scale[axis_idx] =
-                                            (entity.transform.scale[axis_idx]
-                                                + world_delta * 0.3)
+                                            (entity.transform.scale[axis_idx] + world_delta * 0.3)
                                                 .max(0.01);
                                         if snap_enabled {
                                             let v = entity.transform.scale[axis_idx];
@@ -1502,9 +1608,18 @@ fn draw_wireframe_aabb(
 
     // Indices into `corners` for the 12 edges of the box.
     const EDGES: [(usize, usize); 12] = [
-        (0, 1), (1, 2), (2, 3), (3, 0), // bottom face
-        (4, 5), (5, 6), (6, 7), (7, 4), // top face
-        (0, 4), (1, 5), (2, 6), (3, 7), // verticals
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 0), // bottom face
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 4), // top face
+        (0, 4),
+        (1, 5),
+        (2, 6),
+        (3, 7), // verticals
     ];
 
     let projected: Vec<Option<egui::Pos2>> = corners

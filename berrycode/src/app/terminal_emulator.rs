@@ -593,7 +593,11 @@ impl vte::Perform for TerminalGrid {
     ) {
         let params_vec: Vec<u16> = params.iter().map(|p| p[0]).collect();
         let p = |idx: usize, default: u16| -> u16 {
-            params_vec.get(idx).copied().filter(|&v| v != 0).unwrap_or(default)
+            params_vec
+                .get(idx)
+                .copied()
+                .filter(|&v| v != 0)
+                .unwrap_or(default)
         };
         let is_private = intermediates.first() == Some(&b'?');
 
@@ -772,11 +776,7 @@ impl vte::Perform for TerminalGrid {
                 };
                 self.scroll_top = top.min(self.rows.saturating_sub(1));
                 self.scroll_bottom = bottom.min(self.rows.saturating_sub(1));
-                self.cursor_row = if self.origin_mode {
-                    self.scroll_top
-                } else {
-                    0
-                };
+                self.cursor_row = if self.origin_mode { self.scroll_top } else { 0 };
                 self.cursor_col = 0;
             }
             's' => {
@@ -942,7 +942,10 @@ impl TerminalTab {
         cmd.cwd(working_dir);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
-        cmd.env("LANG", std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()));
+        cmd.env(
+            "LANG",
+            std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string()),
+        );
 
         let _child = pair.slave.spawn_command(cmd).ok()?;
         drop(pair.slave);
@@ -1144,14 +1147,17 @@ fn default_shell() -> (String, Option<&'static str>) {
     #[cfg(target_os = "windows")]
     {
         // Prefer PowerShell if available, fall back to cmd.exe
-        let ps = std::env::var("COMSPEC")
-            .unwrap_or_else(|_| {
-                if std::path::Path::new("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe").exists() {
-                    "powershell.exe".to_string()
-                } else {
-                    "cmd.exe".to_string()
-                }
-            });
+        let ps = std::env::var("COMSPEC").unwrap_or_else(|_| {
+            if std::path::Path::new(
+                "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            )
+            .exists()
+            {
+                "powershell.exe".to_string()
+            } else {
+                "cmd.exe".to_string()
+            }
+        });
         (ps, None) // no login flag for Windows shells
     }
     #[cfg(not(target_os = "windows"))]

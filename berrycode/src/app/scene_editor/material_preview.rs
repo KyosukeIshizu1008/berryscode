@@ -208,8 +208,7 @@ pub fn draw_material_preview(
     emissive: [f32; 3],
 ) {
     let size = 64.0;
-    let (rect, _response) =
-        ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
+    let (rect, _response) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
 
     let painter = ui.painter();
     let center = rect.center();
@@ -230,7 +229,7 @@ pub fn draw_material_preview(
         let light_len = (light_dir[0] * light_dir[0]
             + light_dir[1] * light_dir[1]
             + light_dir[2] * light_dir[2])
-        .sqrt();
+            .sqrt();
         let ndotl = (normal_z * light_dir[2] / light_len).max(0.0);
 
         // Diffuse contribution.
@@ -246,15 +245,12 @@ pub fn draw_material_preview(
             [1.0, 1.0, 1.0]
         };
 
-        let cr =
-            ((base_color[0] * diffuse + spec_color[0] * spec + emissive[0]) * 255.0).min(255.0)
-                as u8;
-        let cg =
-            ((base_color[1] * diffuse + spec_color[1] * spec + emissive[1]) * 255.0).min(255.0)
-                as u8;
-        let cb =
-            ((base_color[2] * diffuse + spec_color[2] * spec + emissive[2]) * 255.0).min(255.0)
-                as u8;
+        let cr = ((base_color[0] * diffuse + spec_color[0] * spec + emissive[0]) * 255.0).min(255.0)
+            as u8;
+        let cg = ((base_color[1] * diffuse + spec_color[1] * spec + emissive[1]) * 255.0).min(255.0)
+            as u8;
+        let cb = ((base_color[2] * diffuse + spec_color[2] * spec + emissive[2]) * 255.0).min(255.0)
+            as u8;
 
         painter.circle_filled(center, r, egui::Color32::from_rgb(cr, cg, cb));
     }

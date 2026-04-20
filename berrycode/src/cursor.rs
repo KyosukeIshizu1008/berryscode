@@ -1,7 +1,6 @@
 //! Multi-Cursor Support
 //! 100% Rust - No JavaScript!
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CursorPosition {
     pub line: usize,
@@ -157,7 +156,10 @@ impl MultiCursor {
     }
 
     /// Select word at all cursor positions
-    pub fn select_word_at_cursors(&mut self, get_word_bounds: impl Fn(CursorPosition) -> (CursorPosition, CursorPosition)) {
+    pub fn select_word_at_cursors(
+        &mut self,
+        get_word_bounds: impl Fn(CursorPosition) -> (CursorPosition, CursorPosition),
+    ) {
         for selection in &mut self.selections {
             let (start, end) = get_word_bounds(selection.cursor);
             selection.anchor = start;
@@ -255,7 +257,6 @@ impl Default for MultiCursor {
 mod tests {
     use super::*;
 
-
     #[test]
     fn test_cursor_position_new() {
         let pos = CursorPosition::new(5, 10);
@@ -265,10 +266,7 @@ mod tests {
 
     #[test]
     fn test_selection_new() {
-        let sel = Selection::new(
-            CursorPosition::new(1, 5),
-            CursorPosition::new(1, 10),
-        );
+        let sel = Selection::new(CursorPosition::new(1, 5), CursorPosition::new(1, 10));
         assert_eq!(sel.anchor, CursorPosition::new(1, 5));
         assert_eq!(sel.cursor, CursorPosition::new(1, 10));
     }
@@ -287,29 +285,20 @@ mod tests {
         let collapsed = Selection::collapsed(CursorPosition::new(1, 5));
         assert!(collapsed.is_collapsed());
 
-        let not_collapsed = Selection::new(
-            CursorPosition::new(1, 5),
-            CursorPosition::new(1, 10),
-        );
+        let not_collapsed = Selection::new(CursorPosition::new(1, 5), CursorPosition::new(1, 10));
         assert!(!not_collapsed.is_collapsed());
     }
 
     #[test]
     fn test_selection_start_end() {
-        let sel = Selection::new(
-            CursorPosition::new(1, 10),
-            CursorPosition::new(1, 5),
-        );
+        let sel = Selection::new(CursorPosition::new(1, 10), CursorPosition::new(1, 5));
         assert_eq!(sel.start(), CursorPosition::new(1, 5));
         assert_eq!(sel.end(), CursorPosition::new(1, 10));
     }
 
     #[test]
     fn test_selection_start_end_multiline() {
-        let sel = Selection::new(
-            CursorPosition::new(2, 0),
-            CursorPosition::new(1, 5),
-        );
+        let sel = Selection::new(CursorPosition::new(2, 0), CursorPosition::new(1, 5));
         assert_eq!(sel.start(), CursorPosition::new(1, 5));
         assert_eq!(sel.end(), CursorPosition::new(2, 0));
     }

@@ -12,7 +12,11 @@ impl BerryCodeApp {
         };
 
         // Check if this line is already folded
-        if let Some(idx) = tab.folded_regions.iter().position(|(start, _)| *start == line) {
+        if let Some(idx) = tab
+            .folded_regions
+            .iter()
+            .position(|(start, _)| *start == line)
+        {
             tab.folded_regions.remove(idx);
             tab.text_cache_version = 0; // invalidate cache
             return;

@@ -76,7 +76,11 @@ mod tests {
         assert_eq!(platform, Platform::Web);
 
         // Should detect as Desktop on standard targets (unless mobile)
-        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "ios"), not(target_os = "android")))]
+        #[cfg(all(
+            not(target_arch = "wasm32"),
+            not(target_os = "ios"),
+            not(target_os = "android")
+        ))]
         assert_eq!(platform, Platform::Desktop);
     }
 

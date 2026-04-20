@@ -11,7 +11,7 @@ use std::path::Path;
 pub struct GitStatus {
     pub path: String,
     pub status: String,  // "modified", "added", "deleted", "untracked"
-    pub is_staged: bool,  // Whether the file is staged in the index
+    pub is_staged: bool, // Whether the file is staged in the index
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,7 +94,7 @@ pub struct GitStash {
 pub struct GitFileChange {
     pub path: String,
     pub old_path: Option<String>, // For renames
-    pub status: String, // "added", "modified", "deleted", "renamed"
+    pub status: String,           // "added", "modified", "deleted", "renamed"
     pub additions: u32,
     pub deletions: u32,
 }
@@ -110,8 +110,8 @@ pub struct GitCommitDetail {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GraphLineType {
-    Direct,   // Straight line (parent-child)
-    Merge,    // Bezier curve (merge line)
+    Direct, // Straight line (parent-child)
+    Merge,  // Bezier curve (merge line)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,7 +129,7 @@ pub struct GitGraphNode {
     pub children: Vec<String>,
     pub branch_names: Vec<String>,
     pub tag_names: Vec<String>,
-    pub graph_column: usize, // Column position in the graph (0-based)
+    pub graph_column: usize,         // Column position in the graph (0-based)
     pub graph_lines: Vec<GraphLine>, // Lines to draw from this node
 }
 
@@ -158,7 +158,9 @@ pub fn get_status(repo_path: impl AsRef<Path>) -> Result<Vec<GitStatus>> {
     opts.include_untracked(true);
     opts.recurse_untracked_dirs(true);
 
-    let statuses = repo.statuses(Some(&mut opts)).context("Failed to get status")?;
+    let statuses = repo
+        .statuses(Some(&mut opts))
+        .context("Failed to get status")?;
 
     let mut results = Vec::new();
 
@@ -167,15 +169,20 @@ pub fn get_status(repo_path: impl AsRef<Path>) -> Result<Vec<GitStatus>> {
         let status_flags = entry.status();
 
         // Determine status based on working tree or index changes
-        let status = if status_flags.contains(Status::INDEX_NEW) || status_flags.contains(Status::WT_NEW) {
-            "added"
-        } else if status_flags.contains(Status::INDEX_MODIFIED) || status_flags.contains(Status::WT_MODIFIED) {
-            "modified"
-        } else if status_flags.contains(Status::INDEX_DELETED) || status_flags.contains(Status::WT_DELETED) {
-            "deleted"
-        } else {
-            "untracked"
-        };
+        let status =
+            if status_flags.contains(Status::INDEX_NEW) || status_flags.contains(Status::WT_NEW) {
+                "added"
+            } else if status_flags.contains(Status::INDEX_MODIFIED)
+                || status_flags.contains(Status::WT_MODIFIED)
+            {
+                "modified"
+            } else if status_flags.contains(Status::INDEX_DELETED)
+                || status_flags.contains(Status::WT_DELETED)
+            {
+                "deleted"
+            } else {
+                "untracked"
+            };
 
         // File is staged if it has INDEX_ flags
         let is_staged = status_flags.intersects(
@@ -239,20 +246,22 @@ pub fn unstage_file(repo_path: impl AsRef<Path>, file_path: &str) -> Result<()> 
         .get_path(Path::new(file_path))
         .context("File not found in HEAD")?;
 
-    index.add(&git2::IndexEntry {
-        ctime: git2::IndexTime::new(0, 0),
-        mtime: git2::IndexTime::new(0, 0),
-        dev: 0,
-        ino: 0,
-        mode: entry.filemode() as u32,
-        uid: 0,
-        gid: 0,
-        file_size: 0,
-        id: entry.id(),
-        flags: 0,
-        flags_extended: 0,
-        path: file_path.as_bytes().to_vec(),
-    }).context("Failed to unstage file")?;
+    index
+        .add(&git2::IndexEntry {
+            ctime: git2::IndexTime::new(0, 0),
+            mtime: git2::IndexTime::new(0, 0),
+            dev: 0,
+            ino: 0,
+            mode: entry.filemode() as u32,
+            uid: 0,
+            gid: 0,
+            file_size: 0,
+            id: entry.id(),
+            flags: 0,
+            flags_extended: 0,
+            path: file_path.as_bytes().to_vec(),
+        })
+        .context("Failed to unstage file")?;
 
     index.write().context("Failed to write index")?;
 
@@ -343,7 +352,8 @@ pub fn create_branch(repo_path: impl AsRef<Path>, branch_name: &str) -> Result<(
 /// Delete a branch
 pub fn delete_branch(repo_path: impl AsRef<Path>, branch_name: &str) -> Result<()> {
     let repo = open_repo(repo_path)?;
-    let mut branch = repo.find_branch(branch_name, git2::BranchType::Local)
+    let mut branch = repo
+        .find_branch(branch_name, git2::BranchType::Local)
         .context("Failed to find branch")?;
 
     branch.delete().context("Failed to delete branch")?;
@@ -445,15 +455,22 @@ pub fn get_diff(repo_path: impl AsRef<Path>, file_path: &str) -> Result<GitDiff>
     // Parse diff hunks and lines
     diff.foreach(
         &mut |delta, _progress| {
-            *old_path.borrow_mut() = delta.old_file().path().map(|p| p.to_string_lossy().to_string());
-            *new_path.borrow_mut() = delta.new_file().path().map(|p| p.to_string_lossy().to_string());
+            *old_path.borrow_mut() = delta
+                .old_file()
+                .path()
+                .map(|p| p.to_string_lossy().to_string());
+            *new_path.borrow_mut() = delta
+                .new_file()
+                .path()
+                .map(|p| p.to_string_lossy().to_string());
             *status.borrow_mut() = match delta.status() {
                 git2::Delta::Added => "added",
                 git2::Delta::Deleted => "deleted",
                 git2::Delta::Modified => "modified",
                 git2::Delta::Renamed => "renamed",
                 _ => "modified",
-            }.to_string();
+            }
+            .to_string();
             true
         },
         None,
@@ -505,14 +522,16 @@ pub fn get_blame(repo_path: impl AsRef<Path>, file_path: &str) -> Result<Vec<Git
     let repo = open_repo(repo_path)?;
 
     let mut blame_options = git2::BlameOptions::new();
-    let blame = repo.blame_file(Path::new(file_path), Some(&mut blame_options))
+    let blame = repo
+        .blame_file(Path::new(file_path), Some(&mut blame_options))
         .context("Failed to get blame")?;
 
     let mut results = Vec::new();
 
     for i in 0..blame.len() {
         let hunk = blame.get_index(i).context("Failed to get blame hunk")?;
-        let commit = repo.find_commit(hunk.final_commit_id())
+        let commit = repo
+            .find_commit(hunk.final_commit_id())
             .context("Failed to find commit")?;
 
         // Get file content for this line (simplified - just showing line number)
@@ -555,12 +574,14 @@ pub fn get_detailed_log(
     }
 
     let mut nodes = Vec::new();
-    let mut column_map: std::collections::HashMap<git2::Oid, usize> = std::collections::HashMap::new();
+    let mut column_map: std::collections::HashMap<git2::Oid, usize> =
+        std::collections::HashMap::new();
     let mut next_column = 0;
 
     // Collect branch and tag references
     let branches = repo.branches(None)?;
-    let mut branch_map: std::collections::HashMap<git2::Oid, Vec<String>> = std::collections::HashMap::new();
+    let mut branch_map: std::collections::HashMap<git2::Oid, Vec<String>> =
+        std::collections::HashMap::new();
     for branch_result in branches {
         let (branch, _) = branch_result?;
         if let Some(oid) = branch.get().target() {
@@ -570,11 +591,15 @@ pub fn get_detailed_log(
     }
 
     let tags = repo.tag_names(None)?;
-    let mut tag_map: std::collections::HashMap<git2::Oid, Vec<String>> = std::collections::HashMap::new();
+    let mut tag_map: std::collections::HashMap<git2::Oid, Vec<String>> =
+        std::collections::HashMap::new();
     for tag_name in tags.iter().flatten() {
         if let Ok(reference) = repo.find_reference(&format!("refs/tags/{}", tag_name)) {
             if let Some(oid) = reference.target() {
-                tag_map.entry(oid).or_insert_with(Vec::new).push(tag_name.to_string());
+                tag_map
+                    .entry(oid)
+                    .or_insert_with(Vec::new)
+                    .push(tag_name.to_string());
             }
         }
     }
@@ -619,7 +644,11 @@ pub fn get_detailed_log(
                 graph_lines.push(GraphLine {
                     from_column: column,
                     to_column: parent_column,
-                    line_type: if idx == 0 { GraphLineType::Direct } else { GraphLineType::Merge },
+                    line_type: if idx == 0 {
+                        GraphLineType::Direct
+                    } else {
+                        GraphLineType::Merge
+                    },
                     color_index: column % 8, // 8 color palette
                 });
             }
@@ -662,15 +691,24 @@ pub fn get_commit_detail(repo_path: impl AsRef<Path>, commit_id: &str) -> Result
     };
 
     let mut diff_options = git2::DiffOptions::new();
-    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut diff_options))?;
+    let diff =
+        repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut diff_options))?;
 
     let mut changed_files = Vec::new();
     let mut total_additions = 0;
     let mut total_deletions = 0;
 
     for delta in diff.deltas() {
-        let old_path = delta.old_file().path().and_then(|p| p.to_str()).map(String::from);
-        let new_path = delta.new_file().path().and_then(|p| p.to_str()).map(String::from);
+        let old_path = delta
+            .old_file()
+            .path()
+            .and_then(|p| p.to_str())
+            .map(String::from);
+        let new_path = delta
+            .new_file()
+            .path()
+            .and_then(|p| p.to_str())
+            .map(String::from);
 
         let status = match delta.status() {
             git2::Delta::Added => "added",
@@ -689,7 +727,9 @@ pub fn get_commit_detail(repo_path: impl AsRef<Path>, commit_id: &str) -> Result
         total_deletions += deletions;
 
         changed_files.push(GitFileChange {
-            path: new_path.clone().unwrap_or_else(|| old_path.clone().unwrap_or_default()),
+            path: new_path
+                .clone()
+                .unwrap_or_else(|| old_path.clone().unwrap_or_default()),
             old_path,
             status: status.to_string(),
             additions,
@@ -738,8 +778,16 @@ pub fn get_commit_diff(
     let mut results = Vec::new();
 
     for delta in diff.deltas() {
-        let old_path = delta.old_file().path().and_then(|p| p.to_str()).map(String::from);
-        let new_path = delta.new_file().path().and_then(|p| p.to_str()).map(String::from);
+        let old_path = delta
+            .old_file()
+            .path()
+            .and_then(|p| p.to_str())
+            .map(String::from);
+        let new_path = delta
+            .new_file()
+            .path()
+            .and_then(|p| p.to_str())
+            .map(String::from);
 
         let status = match delta.status() {
             git2::Delta::Added => "added",
@@ -794,7 +842,10 @@ pub fn list_remotes(repo_path: impl AsRef<Path>) -> Result<Vec<GitRemote>> {
         if let Ok(remote) = repo.find_remote(name) {
             let url = remote.url().unwrap_or("").to_string();
             let fetch_url = remote.url().unwrap_or("").to_string();
-            let push_url = remote.pushurl().unwrap_or(remote.url().unwrap_or("")).to_string();
+            let push_url = remote
+                .pushurl()
+                .unwrap_or(remote.url().unwrap_or(""))
+                .to_string();
 
             results.push(GitRemote {
                 name: name.to_string(),
@@ -818,7 +869,8 @@ pub fn add_remote(repo_path: impl AsRef<Path>, name: &str, url: &str) -> Result<
 /// Remove a remote
 pub fn remove_remote(repo_path: impl AsRef<Path>, name: &str) -> Result<()> {
     let repo = open_repo(repo_path)?;
-    repo.remote_delete(name).context("Failed to remove remote")?;
+    repo.remote_delete(name)
+        .context("Failed to remove remote")?;
     Ok(())
 }
 
@@ -828,7 +880,9 @@ pub fn fetch(repo_path: impl AsRef<Path>, remote_name: &str) -> Result<()> {
     let mut remote = repo.find_remote(remote_name).context("Remote not found")?;
 
     // Fetch with default refspecs
-    remote.fetch(&[] as &[&str], None, None).context("Failed to fetch")?;
+    remote
+        .fetch(&[] as &[&str], None, None)
+        .context("Failed to fetch")?;
 
     Ok(())
 }
@@ -841,7 +895,9 @@ pub fn pull(repo_path: impl AsRef<Path>, remote_name: &str, branch_name: &str) -
     fetch(&repo_path, remote_name)?;
 
     // Get the remote branch reference
-    let fetch_head = repo.find_reference("FETCH_HEAD").context("FETCH_HEAD not found")?;
+    let fetch_head = repo
+        .find_reference("FETCH_HEAD")
+        .context("FETCH_HEAD not found")?;
     let fetch_commit = repo.reference_to_annotated_commit(&fetch_head)?;
 
     // Perform merge
@@ -914,7 +970,11 @@ pub fn list_tags(repo_path: impl AsRef<Path>) -> Result<Vec<GitTag>> {
 }
 
 /// Create a lightweight tag
-pub fn create_tag(repo_path: impl AsRef<Path>, tag_name: &str, commit_id: Option<&str>) -> Result<()> {
+pub fn create_tag(
+    repo_path: impl AsRef<Path>,
+    tag_name: &str,
+    commit_id: Option<&str>,
+) -> Result<()> {
     let repo = open_repo(repo_path)?;
 
     let target_oid = if let Some(id) = commit_id {
@@ -1110,7 +1170,7 @@ pub fn merge_branch(repo_path: impl AsRef<Path>, branch_name: &str) -> Result<()
 
 #[derive(Debug, Clone)]
 pub struct LineChange {
-    pub line: usize,      // 0-indexed line number in the current file
+    pub line: usize, // 0-indexed line number in the current file
     pub change_type: LineChangeType,
 }
 
@@ -1128,7 +1188,8 @@ pub fn get_line_changes(root_path: &str, file_path: &str) -> Result<Vec<LineChan
         .context("Failed to open git repository")?;
 
     // Get relative path
-    let relative = file_path.strip_prefix(root_path)
+    let relative = file_path
+        .strip_prefix(root_path)
         .unwrap_or(file_path)
         .trim_start_matches('/');
 
@@ -1139,13 +1200,23 @@ pub fn get_line_changes(root_path: &str, file_path: &str) -> Result<Vec<LineChan
                 // No commits yet, all lines are Added
                 let content = std::fs::read_to_string(file_path)?;
                 let count = content.lines().count();
-                return Ok((0..count).map(|i| LineChange { line: i, change_type: LineChangeType::Added }).collect());
+                return Ok((0..count)
+                    .map(|i| LineChange {
+                        line: i,
+                        change_type: LineChangeType::Added,
+                    })
+                    .collect());
             }
         },
         Err(_) => {
             let content = std::fs::read_to_string(file_path)?;
             let count = content.lines().count();
-            return Ok((0..count).map(|i| LineChange { line: i, change_type: LineChangeType::Added }).collect());
+            return Ok((0..count)
+                .map(|i| LineChange {
+                    line: i,
+                    change_type: LineChangeType::Added,
+                })
+                .collect());
         }
     };
 
@@ -1155,7 +1226,12 @@ pub fn get_line_changes(root_path: &str, file_path: &str) -> Result<Vec<LineChan
             // File not in HEAD, all lines are Added
             let content = std::fs::read_to_string(file_path)?;
             let count = content.lines().count();
-            return Ok((0..count).map(|i| LineChange { line: i, change_type: LineChangeType::Added }).collect());
+            return Ok((0..count)
+                .map(|i| LineChange {
+                    line: i,
+                    change_type: LineChangeType::Added,
+                })
+                .collect());
         }
     };
 
@@ -1173,11 +1249,17 @@ pub fn get_line_changes(root_path: &str, file_path: &str) -> Result<Vec<LineChan
         match (old_lines.get(i), new_lines.get(i)) {
             (Some(old), Some(new)) => {
                 if old != new {
-                    changes.push(LineChange { line: i, change_type: LineChangeType::Modified });
+                    changes.push(LineChange {
+                        line: i,
+                        change_type: LineChangeType::Modified,
+                    });
                 }
             }
             (None, Some(_)) => {
-                changes.push(LineChange { line: i, change_type: LineChangeType::Added });
+                changes.push(LineChange {
+                    line: i,
+                    change_type: LineChangeType::Added,
+                });
             }
             (Some(_), None) => {
                 changes.push(LineChange {
@@ -1207,11 +1289,13 @@ pub fn get_line_blame(root_path: &str, file_path: &str, line: usize) -> Result<O
         .or_else(|_| Repository::discover(root_path))
         .context("Failed to open git repository")?;
 
-    let relative = file_path.strip_prefix(root_path)
+    let relative = file_path
+        .strip_prefix(root_path)
         .unwrap_or(file_path)
         .trim_start_matches('/');
 
-    let blame = repo.blame_file(Path::new(relative), None)
+    let blame = repo
+        .blame_file(Path::new(relative), None)
         .context("Failed to get blame")?;
 
     // git blame get_line is 1-indexed
@@ -1221,7 +1305,8 @@ pub fn get_line_blame(root_path: &str, file_path: &str, line: usize) -> Result<O
         let time = sig.when();
         let commit_id = hunk.final_commit_id();
 
-        let message = repo.find_commit(commit_id)
+        let message = repo
+            .find_commit(commit_id)
             .map(|c| c.summary().unwrap_or("").to_string())
             .unwrap_or_default();
 
@@ -1249,12 +1334,7 @@ pub fn rebase_branch(repo_path: impl AsRef<Path>, target_branch: &str) -> Result
     let head_annotated = repo.reference_to_annotated_commit(&head_ref)?;
 
     // Perform rebase
-    let mut rebase = repo.rebase(
-        Some(&head_annotated),
-        Some(&target_annotated),
-        None,
-        None,
-    )?;
+    let mut rebase = repo.rebase(Some(&head_annotated), Some(&target_annotated), None, None)?;
 
     // Iterate through rebase operations
     while let Some(op) = rebase.next() {

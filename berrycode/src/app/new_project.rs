@@ -162,7 +162,11 @@ impl BerryCodeApp {
     }
 
     /// Create a new Bevy project with the chosen template
-    fn create_bevy_project(project_path: &str, project_name: &str, template: ProjectTemplate) -> anyhow::Result<()> {
+    fn create_bevy_project(
+        project_path: &str,
+        project_name: &str,
+        template: ProjectTemplate,
+    ) -> anyhow::Result<()> {
         use std::fs;
         use std::path::Path;
 
@@ -194,7 +198,11 @@ impl BerryCodeApp {
             Err(e) => tracing::warn!("Failed to init git: {}", e),
         }
 
-        tracing::info!("Bevy project created at {} with template {:?}", project_path, template);
+        tracing::info!(
+            "Bevy project created at {} with template {:?}",
+            project_path,
+            template
+        );
         Ok(())
     }
 }

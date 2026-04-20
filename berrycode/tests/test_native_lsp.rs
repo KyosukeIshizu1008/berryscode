@@ -42,7 +42,10 @@ async fn test_native_lsp_rust_analyzer() {
                     }
                 }
                 Err(e) => {
-                    println!("⚠️  Completions failed (expected if file doesn't exist): {}", e);
+                    println!(
+                        "⚠️  Completions failed (expected if file doesn't exist): {}",
+                        e
+                    );
                 }
             }
 
@@ -85,10 +88,7 @@ async fn test_native_lsp_shutdown_all() {
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Shutdown all
-    client
-        .shutdown_all()
-        .await
-        .expect("Failed to shutdown all");
+    client.shutdown_all().await.expect("Failed to shutdown all");
 
     println!("✅ All servers shut down successfully");
 }

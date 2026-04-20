@@ -101,10 +101,11 @@ fn effective_transform(app: &BerryCodeApp, id: u64, entity: &SceneEntity) -> Tra
         if let ComponentData::Animation { tracks, .. } = component {
             if let Some(&t) = app.animation_playback.times.get(&id) {
                 if !tracks.is_empty() {
-                    let sampled =
-                        crate::app::scene_editor::animation::sample_animation_tracks(
-                            tracks, t, &entity.transform,
-                        );
+                    let sampled = crate::app::scene_editor::animation::sample_animation_tracks(
+                        tracks,
+                        t,
+                        &entity.transform,
+                    );
                     // Animation samples are in local space; compose with parent world.
                     return compose_with_parent(&app.scene_model, id, &sampled);
                 }
@@ -437,7 +438,9 @@ fn spawn_scene_entity(
                 // Spawn the first (highest detail) level's mesh if available.
                 if let Some(first) = levels.first() {
                     if !first.mesh_path.is_empty() {
-                        let asset_path = if first.mesh_path.starts_with('/') || first.mesh_path.contains(":\\") {
+                        let asset_path = if first.mesh_path.starts_with('/')
+                            || first.mesh_path.contains(":\\")
+                        {
                             format!("file://{}", first.mesh_path)
                         } else {
                             first.mesh_path.clone()
@@ -451,8 +454,14 @@ fn spawn_scene_entity(
             ComponentData::Spline { .. } => {
                 // Data-only; spline visualization is handled by gizmos.
             }
-            ComponentData::Terrain { resolution, world_size, heights, base_color } => {
-                let terrain_mesh = super::terrain::generate_terrain_mesh(heights, *resolution, *world_size);
+            ComponentData::Terrain {
+                resolution,
+                world_size,
+                heights,
+                base_color,
+            } => {
+                let terrain_mesh =
+                    super::terrain::generate_terrain_mesh(heights, *resolution, *world_size);
                 let mesh = meshes.add(terrain_mesh);
                 let mat = materials.add(StandardMaterial {
                     base_color: Color::srgb(base_color[0], base_color[1], base_color[2]),
@@ -597,7 +606,11 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     shadows.hash(&mut hasher);
                 }
                 ComponentData::Camera => {}
-                ComponentData::MeshFromFile { path, texture_path, normal_map_path } => {
+                ComponentData::MeshFromFile {
+                    path,
+                    texture_path,
+                    normal_map_path,
+                } => {
                     path.hash(&mut hasher);
                     texture_path.hash(&mut hasher);
                     normal_map_path.hash(&mut hasher);
@@ -781,7 +794,12 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                         }
                     }
                 }
-                ComponentData::Terrain { resolution, world_size, heights, base_color } => {
+                ComponentData::Terrain {
+                    resolution,
+                    world_size,
+                    heights,
+                    base_color,
+                } => {
                     resolution.hash(&mut hasher);
                     for v in world_size {
                         v.to_bits().hash(&mut hasher);
@@ -805,7 +823,12 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                 ComponentData::VisualScript { path } => {
                     path.hash(&mut hasher);
                 }
-                ComponentData::NavMesh { cell_size, grid, width, height } => {
+                ComponentData::NavMesh {
+                    cell_size,
+                    grid,
+                    width,
+                    height,
+                } => {
                     cell_size.to_bits().hash(&mut hasher);
                     grid.len().hash(&mut hasher);
                     width.hash(&mut hasher);

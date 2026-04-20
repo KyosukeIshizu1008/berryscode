@@ -100,9 +100,8 @@ impl TextBuffer {
     /// 🚀 PERFORMANCE: Clear token cache for edited lines
     fn invalidate_cache_range(&mut self, start_line: usize, end_line: usize) {
         // Remove cached tokens for lines that were modified
-        self.token_cache.retain(|&line_idx, _| {
-            line_idx < start_line || line_idx > end_line
-        });
+        self.token_cache
+            .retain(|&line_idx, _| line_idx < start_line || line_idx > end_line);
     }
 
     pub fn to_string(&self) -> String {
@@ -167,7 +166,10 @@ impl TextBuffer {
 
     /// 🚀 PERFORMANCE: Get cached tokens for a line
     /// Returns None if not cached yet
-    pub fn get_cached_tokens(&self, line_idx: usize) -> Option<&Vec<(InternedString, InternedString)>> {
+    pub fn get_cached_tokens(
+        &self,
+        line_idx: usize,
+    ) -> Option<&Vec<(InternedString, InternedString)>> {
         self.token_cache.get(&line_idx)
     }
 
@@ -184,13 +186,17 @@ impl TextBuffer {
 
     /// 🚀 PERFORMANCE: Trim token cache to visible range only
     /// Prevents unbounded memory growth during scrolling
-    pub fn trim_token_cache(&mut self, visible_start: usize, visible_end: usize, keep_margin: usize) {
+    pub fn trim_token_cache(
+        &mut self,
+        visible_start: usize,
+        visible_end: usize,
+        keep_margin: usize,
+    ) {
         let keep_start = visible_start.saturating_sub(keep_margin);
         let keep_end = visible_end + keep_margin;
 
-        self.token_cache.retain(|&line_idx, _| {
-            line_idx >= keep_start && line_idx <= keep_end
-        });
+        self.token_cache
+            .retain(|&line_idx, _| line_idx >= keep_start && line_idx <= keep_end);
     }
 
     /// 🚀 PERFORMANCE: Get cache statistics for monitoring
@@ -216,7 +222,12 @@ impl TextBuffer {
 
     /// ✅ IntelliJ Pro: Get horizontal segment of a line (for long-line rendering)
     /// Only returns visible characters within viewport bounds
-    pub fn line_segment(&self, line_idx: usize, start_col: usize, end_col: usize) -> Option<String> {
+    pub fn line_segment(
+        &self,
+        line_idx: usize,
+        start_col: usize,
+        end_col: usize,
+    ) -> Option<String> {
         let line = self.line(line_idx)?;
         let chars: Vec<char> = line.chars().collect();
         let end = end_col.min(chars.len());
@@ -242,7 +253,12 @@ mod tests {
     fn test_large_file_memory_efficiency() {
         // Generate ~5MB of data (100,000 lines)
         let large_text = (0..100000)
-            .map(|i| format!("Line {}: some repetitive text to fill memory and simulate real files...\n", i))
+            .map(|i| {
+                format!(
+                    "Line {}: some repetitive text to fill memory and simulate real files...\n",
+                    i
+                )
+            })
             .collect::<String>();
 
         let start_lines = 100000;
@@ -633,9 +649,7 @@ mod tests {
 
         // Simulate caching all 1000 lines
         for i in 0..1000 {
-            let tokens = vec![
-                ("line".to_string(), "identifier".to_string()),
-            ];
+            let tokens = vec![("line".to_string(), "identifier".to_string())];
             buffer.cache_tokens(i, tokens);
         }
 
@@ -650,18 +664,42 @@ mod tests {
         assert!(cache_size <= 91, "Cache size after trim: {}", cache_size); // 570-480+1 = 91 lines
 
         // Verify out-of-range lines are cleared
-        assert!(buffer.get_cached_tokens(0).is_none(), "Line 0 should be cleared");
-        assert!(buffer.get_cached_tokens(100).is_none(), "Line 100 should be cleared");
-        assert!(buffer.get_cached_tokens(999).is_none(), "Line 999 should be cleared");
+        assert!(
+            buffer.get_cached_tokens(0).is_none(),
+            "Line 0 should be cleared"
+        );
+        assert!(
+            buffer.get_cached_tokens(100).is_none(),
+            "Line 100 should be cleared"
+        );
+        assert!(
+            buffer.get_cached_tokens(999).is_none(),
+            "Line 999 should be cleared"
+        );
 
         // Verify in-range lines are preserved
-        assert!(buffer.get_cached_tokens(500).is_some(), "Line 500 should be preserved");
-        assert!(buffer.get_cached_tokens(525).is_some(), "Line 525 should be preserved");
-        assert!(buffer.get_cached_tokens(550).is_some(), "Line 550 should be preserved");
+        assert!(
+            buffer.get_cached_tokens(500).is_some(),
+            "Line 500 should be preserved"
+        );
+        assert!(
+            buffer.get_cached_tokens(525).is_some(),
+            "Line 525 should be preserved"
+        );
+        assert!(
+            buffer.get_cached_tokens(550).is_some(),
+            "Line 550 should be preserved"
+        );
 
         // Verify margin lines are preserved
-        assert!(buffer.get_cached_tokens(480).is_some(), "Line 480 (start margin) should be preserved");
-        assert!(buffer.get_cached_tokens(570).is_some(), "Line 570 (end margin) should be preserved");
+        assert!(
+            buffer.get_cached_tokens(480).is_some(),
+            "Line 480 (start margin) should be preserved"
+        );
+        assert!(
+            buffer.get_cached_tokens(570).is_some(),
+            "Line 570 (end margin) should be preserved"
+        );
     }
 
     #[test]
@@ -670,9 +708,7 @@ mod tests {
 
         // Cache all lines
         for i in 0..5 {
-            let tokens = vec![
-                (format!("line {}", i + 1), "identifier".to_string()),
-            ];
+            let tokens = vec![(format!("line {}", i + 1), "identifier".to_string())];
             buffer.cache_tokens(i, tokens);
         }
 
@@ -686,9 +722,18 @@ mod tests {
         // Lines 2+ should be cleared because edit happened on line 2
         assert!(buffer.get_cached_tokens(0).is_some(), "Line 0 unaffected");
         assert!(buffer.get_cached_tokens(1).is_some(), "Line 1 unaffected");
-        assert!(buffer.get_cached_tokens(2).is_none(), "Line 2 edited - should be cleared");
-        assert!(buffer.get_cached_tokens(3).is_none(), "Line 3+ may shift - should be cleared");
-        assert!(buffer.get_cached_tokens(4).is_none(), "Line 4+ may shift - should be cleared");
+        assert!(
+            buffer.get_cached_tokens(2).is_none(),
+            "Line 2 edited - should be cleared"
+        );
+        assert!(
+            buffer.get_cached_tokens(3).is_none(),
+            "Line 3+ may shift - should be cleared"
+        );
+        assert!(
+            buffer.get_cached_tokens(4).is_none(),
+            "Line 4+ may shift - should be cleared"
+        );
     }
 
     #[test]
@@ -697,9 +742,7 @@ mod tests {
 
         // Cache all lines
         for i in 0..3 {
-            let tokens = vec![
-                (format!("line {}", i + 1), "identifier".to_string()),
-            ];
+            let tokens = vec![(format!("line {}", i + 1), "identifier".to_string())];
             buffer.cache_tokens(i, tokens);
         }
 
@@ -711,8 +754,14 @@ mod tests {
 
         // Lines from edit point onward should be invalidated
         assert!(buffer.get_cached_tokens(0).is_some(), "Line 0 before edit");
-        assert!(buffer.get_cached_tokens(1).is_none(), "Line 1 edited - should be cleared");
-        assert!(buffer.get_cached_tokens(2).is_none(), "Line 2+ shifted - should be cleared");
+        assert!(
+            buffer.get_cached_tokens(1).is_none(),
+            "Line 1 edited - should be cleared"
+        );
+        assert!(
+            buffer.get_cached_tokens(2).is_none(),
+            "Line 2+ shifted - should be cleared"
+        );
     }
 
     #[test]
@@ -721,9 +770,7 @@ mod tests {
 
         // Cache all lines
         for i in 0..4 {
-            let tokens = vec![
-                (format!("line {}", i + 1), "identifier".to_string()),
-            ];
+            let tokens = vec![(format!("line {}", i + 1), "identifier".to_string())];
             buffer.cache_tokens(i, tokens);
         }
 
@@ -736,8 +783,14 @@ mod tests {
         // Lines from edit point onward should be invalidated
         assert!(buffer.get_cached_tokens(0).is_some(), "Line 0 before edit");
         assert!(buffer.get_cached_tokens(1).is_some(), "Line 1 before edit");
-        assert!(buffer.get_cached_tokens(2).is_none(), "Line 2 edited - should be cleared");
-        assert!(buffer.get_cached_tokens(3).is_none(), "Line 3+ may shift - should be cleared");
+        assert!(
+            buffer.get_cached_tokens(2).is_none(),
+            "Line 2 edited - should be cleared"
+        );
+        assert!(
+            buffer.get_cached_tokens(3).is_none(),
+            "Line 3+ may shift - should be cleared"
+        );
     }
 
     #[test]
@@ -754,7 +807,11 @@ mod tests {
         // Test 1: Trim with start_line = 0 (edge of file)
         buffer.trim_token_cache(0, 10, 5);
         let size = buffer.token_cache_size();
-        assert!(size <= 16, "Trimmed to 0-15 (margin saturates at 0): {}", size);
+        assert!(
+            size <= 16,
+            "Trimmed to 0-15 (margin saturates at 0): {}",
+            size
+        );
         assert!(buffer.get_cached_tokens(0).is_some());
         assert!(buffer.get_cached_tokens(15).is_some());
         assert!(buffer.get_cached_tokens(50).is_none());
@@ -785,7 +842,11 @@ mod tests {
     #[test]
     fn test_token_cache_memory_efficiency_with_large_file() {
         // Simulate rendering loop on 1000-line file
-        let mut buffer = TextBuffer::from_str("fn example() { println!(\"Hello\"); }\n".repeat(1000).as_str());
+        let mut buffer = TextBuffer::from_str(
+            "fn example() { println!(\"Hello\"); }\n"
+                .repeat(1000)
+                .as_str(),
+        );
 
         // Simulate scrolling through file with 50-line viewport
         for viewport_start in (0..950).step_by(50) {
@@ -796,7 +857,10 @@ mod tests {
                 // Simulate tokenization result
                 let tokens = vec![
                     ("fn".to_string(), "keyword".to_string()),
-                    (" example() { println!(\"Hello\"); }".to_string(), "identifier".to_string()),
+                    (
+                        " example() { println!(\"Hello\"); }".to_string(),
+                        "identifier".to_string(),
+                    ),
                 ];
                 buffer.cache_tokens(line_idx, tokens);
             }
@@ -806,12 +870,16 @@ mod tests {
 
             // Verify cache stays bounded
             let cache_size = buffer.token_cache_size();
-            assert!(cache_size <= 90, "Viewport {}-{}: cache size {} exceeds limit",
-                viewport_start, viewport_end, cache_size);
+            assert!(
+                cache_size <= 90,
+                "Viewport {}-{}: cache size {} exceeds limit",
+                viewport_start,
+                viewport_end,
+                cache_size
+            );
         }
 
         // Final cache should only contain last viewport + margin
         assert!(buffer.token_cache_size() <= 90);
     }
 }
-

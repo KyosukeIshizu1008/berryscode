@@ -53,8 +53,10 @@ pub fn fuzzy_match_score(text: &str, pattern: &str) -> i32 {
     // Substring match
     if text_lower.contains(&pattern_lower) {
         // Bonus if substring is at word boundary
-        let bonus = if text_lower.split(|c: char| !c.is_alphanumeric())
-            .any(|word| word.starts_with(&pattern_lower)) {
+        let bonus = if text_lower
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|word| word.starts_with(&pattern_lower))
+        {
             200
         } else {
             0
@@ -205,7 +207,11 @@ mod tests {
     #[test]
     fn test_word_boundary_match() {
         let score = fuzzy_match_score("src/common/fuzzy.rs", "fuzzy");
-        assert!(score > 1000, "Expected word boundary score > 1000, got {}", score);
+        assert!(
+            score > 1000,
+            "Expected word boundary score > 1000, got {}",
+            score
+        );
     }
 
     #[test]

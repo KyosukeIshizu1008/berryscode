@@ -96,7 +96,13 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
         // Generate components
         for component in &entity.components {
             match component {
-                ComponentData::MeshCube { size, color, metallic, roughness, .. } => {
+                ComponentData::MeshCube {
+                    size,
+                    color,
+                    metallic,
+                    roughness,
+                    ..
+                } => {
                     code.push_str(&format!(
                         "        Mesh3d(meshes.add(Cuboid::new({:.6}, {:.6}, {:.6}))),\n",
                         size, size, size
@@ -111,7 +117,13 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         color[0], color[1], color[2], metallic, roughness
                     ));
                 }
-                ComponentData::MeshSphere { radius, color, metallic, roughness, .. } => {
+                ComponentData::MeshSphere {
+                    radius,
+                    color,
+                    metallic,
+                    roughness,
+                    ..
+                } => {
                     code.push_str(&format!(
                         "        Mesh3d(meshes.add(Sphere::new({:.6}).mesh().uv(32, 16))),\n",
                         radius
@@ -146,7 +158,11 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         intensity, color[0], color[1], color[2]
                     ));
                 }
-                ComponentData::DirectionalLight { intensity, color, shadows } => {
+                ComponentData::DirectionalLight {
+                    intensity,
+                    color,
+                    shadows,
+                } => {
                     code.push_str(&format!(
                         "        DirectionalLight {{\n\
                          \x20           illuminance: {:.6},\n\
@@ -160,7 +176,13 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 ComponentData::Camera => {
                     code.push_str("        Camera3d::default(),\n");
                 }
-                ComponentData::SpotLight { intensity, color, range, inner_angle, outer_angle } => {
+                ComponentData::SpotLight {
+                    intensity,
+                    color,
+                    range,
+                    inner_angle,
+                    outer_angle,
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:SpotLight] intensity={:.6} color_r={:.6} color_g={:.6} color_b={:.6} range={:.6} inner_angle={:.6} outer_angle={:.6}\n",
                         intensity, color[0], color[1], color[2], range, inner_angle, outer_angle
@@ -172,7 +194,12 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         path
                     ));
                 }
-                ComponentData::AudioSource { path, volume, looped, autoplay } => {
+                ComponentData::AudioSource {
+                    path,
+                    volume,
+                    looped,
+                    autoplay,
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:AudioSource] path={} volume={:.6} looped={} autoplay={}\n",
                         path, volume, looped, autoplay
@@ -184,20 +211,29 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 ComponentData::RigidBody { body_type, mass } => {
                     code.push_str(&format!(
                         "        // [BerryCode:RigidBody] body_type={} mass={:.6}\n",
-                        body_type.label(), mass
+                        body_type.label(),
+                        mass
                     ));
                 }
-                ComponentData::Collider { shape, friction, restitution } => {
+                ComponentData::Collider {
+                    shape,
+                    friction,
+                    restitution,
+                } => {
                     let shape_str = match shape {
                         ColliderShape::Box { half_extents } => format!(
                             "shape=Box half_x={:.6} half_y={:.6} half_z={:.6}",
                             half_extents[0], half_extents[1], half_extents[2]
                         ),
-                        ColliderShape::Sphere { radius } => format!(
-                            "shape=Sphere radius={:.6}", radius
-                        ),
-                        ColliderShape::Capsule { half_height, radius } => format!(
-                            "shape=Capsule half_height={:.6} radius={:.6}", half_height, radius
+                        ColliderShape::Sphere { radius } => {
+                            format!("shape=Sphere radius={:.6}", radius)
+                        }
+                        ColliderShape::Capsule {
+                            half_height,
+                            radius,
+                        } => format!(
+                            "shape=Capsule half_height={:.6} radius={:.6}",
+                            half_height, radius
                         ),
                     };
                     code.push_str(&format!(
@@ -205,7 +241,11 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         shape_str, friction, restitution
                     ));
                 }
-                ComponentData::UiText { text, font_size, color } => {
+                ComponentData::UiText {
+                    text,
+                    font_size,
+                    color,
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:UiText] text={} font_size={:.6} color_r={:.6} color_g={:.6} color_b={:.6} color_a={:.6}\n",
                         text, font_size, color[0], color[1], color[2], color[3]
@@ -224,8 +264,16 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     ));
                 }
                 ComponentData::ParticleEmitter {
-                    rate, lifetime, speed, spread, start_size, end_size,
-                    start_color, end_color, max_particles, gravity,
+                    rate,
+                    lifetime,
+                    speed,
+                    spread,
+                    start_size,
+                    end_size,
+                    start_color,
+                    end_color,
+                    max_particles,
+                    gravity,
                 } => {
                     code.push_str(&format!(
                         "        // [BerryCode:ParticleEmitter] rate={:.6} lifetime={:.6} speed={:.6} spread={:.6} start_size={:.6} end_size={:.6} sc_r={:.6} sc_g={:.6} sc_b={:.6} sc_a={:.6} ec_r={:.6} ec_g={:.6} ec_b={:.6} ec_a={:.6} max_particles={} gravity={:.6}\n",
@@ -235,16 +283,23 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         max_particles, gravity
                     ));
                 }
-                ComponentData::Animation { duration, tracks, looped } => {
+                ComponentData::Animation {
+                    duration,
+                    tracks,
+                    looped,
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:Animation] duration={:.6} looped={} tracks={}\n",
-                        duration, looped, tracks.len()
+                        duration,
+                        looped,
+                        tracks.len()
                     ));
                 }
                 ComponentData::CustomScript { type_name, fields } => {
                     code.push_str(&format!(
                         "        // [BerryCode:CustomScript] type_name={} fields={}\n",
-                        type_name, fields.len()
+                        type_name,
+                        fields.len()
                     ));
                     for field in fields {
                         let val = format_script_value(&field.value);
@@ -255,27 +310,33 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     }
                 }
                 ComponentData::Skybox { path } => {
-                    code.push_str(&format!(
-                        "        // [BerryCode:Skybox] path={}\n", path
-                    ));
+                    code.push_str(&format!("        // [BerryCode:Skybox] path={}\n", path));
                 }
                 ComponentData::Animator { controller_path } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:Animator] controller_path={}\n", controller_path
+                        "        // [BerryCode:Animator] controller_path={}\n",
+                        controller_path
                     ));
                 }
                 ComponentData::LodGroup { levels } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:LodGroup] levels={}\n", levels.len()
+                        "        // [BerryCode:LodGroup] levels={}\n",
+                        levels.len()
                     ));
                 }
                 ComponentData::Spline { points, closed } => {
                     code.push_str(&format!(
                         "        // [BerryCode:Spline] points={} closed={}\n",
-                        points.len(), closed
+                        points.len(),
+                        closed
                     ));
                 }
-                ComponentData::Terrain { resolution, world_size, base_color, .. } => {
+                ComponentData::Terrain {
+                    resolution,
+                    world_size,
+                    base_color,
+                    ..
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:Terrain] resolution={} world_w={:.6} world_h={:.6} base_r={:.6} base_g={:.6} base_b={:.6}\n",
                         resolution, world_size[0], world_size[1],
@@ -284,15 +345,22 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 }
                 ComponentData::SkinnedMesh { path, .. } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:SkinnedMesh] path={}\n", path
+                        "        // [BerryCode:SkinnedMesh] path={}\n",
+                        path
                     ));
                 }
                 ComponentData::VisualScript { path } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:VisualScript] path={}\n", path
+                        "        // [BerryCode:VisualScript] path={}\n",
+                        path
                     ));
                 }
-                ComponentData::NavMesh { cell_size, width, height, .. } => {
+                ComponentData::NavMesh {
+                    cell_size,
+                    width,
+                    height,
+                    ..
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:NavMesh] cell_size={:.6} width={} height={}\n",
                         cell_size, width, height
@@ -310,7 +378,9 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
     // Generate resource insertion function if any resources are defined.
     if !scene.resources.is_empty() {
         code.push_str("pub fn insert_scene_resources(app: &mut App) {\n");
-        code.push_str(&super::resource_editor::generate_resource_code(&scene.resources));
+        code.push_str(&super::resource_editor::generate_resource_code(
+            &scene.resources,
+        ));
         code.push_str("}\n");
     }
 
@@ -429,10 +499,7 @@ mod tests {
                 type_name: "Inventory".into(),
                 fields: vec![ScriptField {
                     name: "items".into(),
-                    value: ScriptValue::Vec(vec![
-                        ScriptValue::Float(1.0),
-                        ScriptValue::Float(2.5),
-                    ]),
+                    value: ScriptValue::Vec(vec![ScriptValue::Float(1.0), ScriptValue::Float(2.5)]),
                 }],
             }],
         );
@@ -1084,10 +1151,7 @@ mod extended_tests {
     #[test]
     fn codegen_special_chars_in_name() {
         let mut scene = SceneModel::new();
-        scene.add_entity(
-            "Player's \"Ship\" <3>".into(),
-            vec![ComponentData::Camera],
-        );
+        scene.add_entity("Player's \"Ship\" <3>".into(), vec![ComponentData::Camera]);
         assert_valid_code(&scene);
         let code = generate_scene_code(&scene);
         // The entity name appears in a comment and in Name::new(...), but must
@@ -1236,84 +1300,200 @@ mod extended_tests {
     fn codegen_all_component_types_at_once() {
         let mut scene = SceneModel::new();
         // Add one entity per component type to ensure nothing crashes
-        scene.add_entity("E1".into(), vec![ComponentData::MeshCube {
-            size: 1.0, color: [1.0, 1.0, 1.0], metallic: 0.0, roughness: 0.5,
-            emissive: [0.0, 0.0, 0.0], texture_path: None, normal_map_path: None,
-        }]);
-        scene.add_entity("E2".into(), vec![ComponentData::MeshSphere {
-            radius: 0.5, color: [1.0, 0.0, 0.0], metallic: 0.0, roughness: 0.5,
-            emissive: [0.0, 0.0, 0.0], texture_path: None, normal_map_path: None,
-        }]);
-        scene.add_entity("E3".into(), vec![ComponentData::MeshPlane {
-            size: 10.0, color: [0.5, 0.5, 0.5], metallic: 0.0, roughness: 0.5,
-            emissive: [0.0, 0.0, 0.0], texture_path: None, normal_map_path: None,
-        }]);
-        scene.add_entity("E4".into(), vec![ComponentData::Light {
-            intensity: 1000.0, color: [1.0, 1.0, 1.0],
-        }]);
-        scene.add_entity("E5".into(), vec![ComponentData::SpotLight {
-            intensity: 5000.0, color: [1.0, 1.0, 1.0], range: 10.0,
-            inner_angle: 0.3, outer_angle: 0.5,
-        }]);
-        scene.add_entity("E6".into(), vec![ComponentData::DirectionalLight {
-            intensity: 10000.0, color: [1.0, 1.0, 0.9], shadows: false,
-        }]);
+        scene.add_entity(
+            "E1".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        scene.add_entity(
+            "E2".into(),
+            vec![ComponentData::MeshSphere {
+                radius: 0.5,
+                color: [1.0, 0.0, 0.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        scene.add_entity(
+            "E3".into(),
+            vec![ComponentData::MeshPlane {
+                size: 10.0,
+                color: [0.5, 0.5, 0.5],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        scene.add_entity(
+            "E4".into(),
+            vec![ComponentData::Light {
+                intensity: 1000.0,
+                color: [1.0, 1.0, 1.0],
+            }],
+        );
+        scene.add_entity(
+            "E5".into(),
+            vec![ComponentData::SpotLight {
+                intensity: 5000.0,
+                color: [1.0, 1.0, 1.0],
+                range: 10.0,
+                inner_angle: 0.3,
+                outer_angle: 0.5,
+            }],
+        );
+        scene.add_entity(
+            "E6".into(),
+            vec![ComponentData::DirectionalLight {
+                intensity: 10000.0,
+                color: [1.0, 1.0, 0.9],
+                shadows: false,
+            }],
+        );
         scene.add_entity("E7".into(), vec![ComponentData::Camera]);
-        scene.add_entity("E8".into(), vec![ComponentData::MeshFromFile {
-            path: "model.glb".into(), texture_path: None, normal_map_path: None,
-        }]);
-        scene.add_entity("E9".into(), vec![ComponentData::AudioSource {
-            path: "a.wav".into(), volume: 1.0, looped: false, autoplay: true,
-        }]);
+        scene.add_entity(
+            "E8".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "model.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        scene.add_entity(
+            "E9".into(),
+            vec![ComponentData::AudioSource {
+                path: "a.wav".into(),
+                volume: 1.0,
+                looped: false,
+                autoplay: true,
+            }],
+        );
         scene.add_entity("E10".into(), vec![ComponentData::AudioListener]);
-        scene.add_entity("E11".into(), vec![ComponentData::RigidBody {
-            body_type: RigidBodyType::Static, mass: 0.0,
-        }]);
-        scene.add_entity("E12".into(), vec![ComponentData::Collider {
-            shape: ColliderShape::Sphere { radius: 1.0 }, friction: 0.5, restitution: 0.0,
-        }]);
-        scene.add_entity("E13".into(), vec![ComponentData::UiText {
-            text: "Hi".into(), font_size: 16.0, color: [1.0, 1.0, 1.0, 1.0],
-        }]);
-        scene.add_entity("E14".into(), vec![ComponentData::UiButton {
-            label: "OK".into(), background: [0.2, 0.2, 0.3, 1.0],
-        }]);
-        scene.add_entity("E15".into(), vec![ComponentData::UiImage {
-            path: "img.png".into(), tint: [1.0, 1.0, 1.0, 1.0],
-        }]);
-        scene.add_entity("E16".into(), vec![ComponentData::ParticleEmitter {
-            rate: 30.0, lifetime: 1.0, speed: 2.0, spread: 0.2, start_size: 0.1,
-            end_size: 0.0, start_color: [1.0, 1.0, 0.0, 1.0],
-            end_color: [1.0, 0.0, 0.0, 0.0], max_particles: 100, gravity: -1.0,
-        }]);
-        scene.add_entity("E17".into(), vec![ComponentData::Animation {
-            duration: 1.0, tracks: vec![], looped: false,
-        }]);
-        scene.add_entity("E18".into(), vec![ComponentData::CustomScript {
-            type_name: "T".into(), fields: vec![],
-        }]);
-        scene.add_entity("E19".into(), vec![ComponentData::Skybox {
-            path: "sky.hdr".into(),
-        }]);
-        scene.add_entity("E20".into(), vec![ComponentData::Animator {
-            controller_path: "c.banimator".into(),
-        }]);
-        scene.add_entity("E21".into(), vec![ComponentData::LodGroup {
-            levels: vec![],
-        }]);
-        scene.add_entity("E22".into(), vec![ComponentData::Terrain {
-            resolution: 4, world_size: [10.0, 10.0], heights: vec![0.0; 16],
-            base_color: [0.3, 0.5, 0.3],
-        }]);
-        scene.add_entity("E23".into(), vec![ComponentData::NavMesh {
-            cell_size: 1.0, grid: vec![], width: 0, height: 0,
-        }]);
-        scene.add_entity("E24".into(), vec![ComponentData::SkinnedMesh {
-            path: "s.glb".into(), bones: vec![],
-        }]);
-        scene.add_entity("E25".into(), vec![ComponentData::VisualScript {
-            path: "v.bscript".into(),
-        }]);
+        scene.add_entity(
+            "E11".into(),
+            vec![ComponentData::RigidBody {
+                body_type: RigidBodyType::Static,
+                mass: 0.0,
+            }],
+        );
+        scene.add_entity(
+            "E12".into(),
+            vec![ComponentData::Collider {
+                shape: ColliderShape::Sphere { radius: 1.0 },
+                friction: 0.5,
+                restitution: 0.0,
+            }],
+        );
+        scene.add_entity(
+            "E13".into(),
+            vec![ComponentData::UiText {
+                text: "Hi".into(),
+                font_size: 16.0,
+                color: [1.0, 1.0, 1.0, 1.0],
+            }],
+        );
+        scene.add_entity(
+            "E14".into(),
+            vec![ComponentData::UiButton {
+                label: "OK".into(),
+                background: [0.2, 0.2, 0.3, 1.0],
+            }],
+        );
+        scene.add_entity(
+            "E15".into(),
+            vec![ComponentData::UiImage {
+                path: "img.png".into(),
+                tint: [1.0, 1.0, 1.0, 1.0],
+            }],
+        );
+        scene.add_entity(
+            "E16".into(),
+            vec![ComponentData::ParticleEmitter {
+                rate: 30.0,
+                lifetime: 1.0,
+                speed: 2.0,
+                spread: 0.2,
+                start_size: 0.1,
+                end_size: 0.0,
+                start_color: [1.0, 1.0, 0.0, 1.0],
+                end_color: [1.0, 0.0, 0.0, 0.0],
+                max_particles: 100,
+                gravity: -1.0,
+            }],
+        );
+        scene.add_entity(
+            "E17".into(),
+            vec![ComponentData::Animation {
+                duration: 1.0,
+                tracks: vec![],
+                looped: false,
+            }],
+        );
+        scene.add_entity(
+            "E18".into(),
+            vec![ComponentData::CustomScript {
+                type_name: "T".into(),
+                fields: vec![],
+            }],
+        );
+        scene.add_entity(
+            "E19".into(),
+            vec![ComponentData::Skybox {
+                path: "sky.hdr".into(),
+            }],
+        );
+        scene.add_entity(
+            "E20".into(),
+            vec![ComponentData::Animator {
+                controller_path: "c.banimator".into(),
+            }],
+        );
+        scene.add_entity(
+            "E21".into(),
+            vec![ComponentData::LodGroup { levels: vec![] }],
+        );
+        scene.add_entity(
+            "E22".into(),
+            vec![ComponentData::Terrain {
+                resolution: 4,
+                world_size: [10.0, 10.0],
+                heights: vec![0.0; 16],
+                base_color: [0.3, 0.5, 0.3],
+            }],
+        );
+        scene.add_entity(
+            "E23".into(),
+            vec![ComponentData::NavMesh {
+                cell_size: 1.0,
+                grid: vec![],
+                width: 0,
+                height: 0,
+            }],
+        );
+        scene.add_entity(
+            "E24".into(),
+            vec![ComponentData::SkinnedMesh {
+                path: "s.glb".into(),
+                bones: vec![],
+            }],
+        );
+        scene.add_entity(
+            "E25".into(),
+            vec![ComponentData::VisualScript {
+                path: "v.bscript".into(),
+            }],
+        );
 
         assert_valid_code(&scene);
         let code = generate_scene_code(&scene);
@@ -1385,14 +1565,8 @@ mod extended_tests {
                 fields: vec![ScriptField {
                     name: "rows".into(),
                     value: ScriptValue::Vec(vec![
-                        ScriptValue::Vec(vec![
-                            ScriptValue::Float(1.0),
-                            ScriptValue::Float(0.0),
-                        ]),
-                        ScriptValue::Vec(vec![
-                            ScriptValue::Float(0.0),
-                            ScriptValue::Float(1.0),
-                        ]),
+                        ScriptValue::Vec(vec![ScriptValue::Float(1.0), ScriptValue::Float(0.0)]),
+                        ScriptValue::Vec(vec![ScriptValue::Float(0.0), ScriptValue::Float(1.0)]),
                     ]),
                 }],
             }],

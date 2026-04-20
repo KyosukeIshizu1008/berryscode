@@ -24,12 +24,21 @@ fn normalize_code(code: &str) -> String {
         for (i, ch) in remainder.chars().enumerate() {
             match ch {
                 '(' => depth += 1,
-                ')' => { depth -= 1; if depth == 0 { end_pos = i; break; } }
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end_pos = i;
+                        break;
+                    }
+                }
                 _ => {}
             }
         }
         let mesh_expr = &remainder[..end_pos];
-        var_replacements.push((format!("{}.clone()", var_name), format!("meshes.add({})", mesh_expr)));
+        var_replacements.push((
+            format!("{}.clone()", var_name),
+            format!("meshes.add({})", mesh_expr),
+        ));
         var_replacements.push((var_name, format!("meshes.add({})", mesh_expr)));
     }
 
@@ -147,8 +156,8 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
         }
 
         // Parse Transform
-        let transform_re =
-            Regex::new(r"Transform::from_xyz\(([^,]+),\s*([^,]+),\s*([^)]+)\)").expect("valid regex");
+        let transform_re = Regex::new(r"Transform::from_xyz\(([^,]+),\s*([^,]+),\s*([^)]+)\)")
+            .expect("valid regex");
         if let Some(cap) = transform_re.captures(block) {
             transform.translation = [
                 cap[1].trim().parse().unwrap_or(0.0),
@@ -171,8 +180,8 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
         }
 
         // Parse scale if present
-        let scale_re =
-            Regex::new(r"with_scale\(Vec3::new\(([^,]+),\s*([^,]+),\s*([^)]+)\)\)").expect("valid regex");
+        let scale_re = Regex::new(r"with_scale\(Vec3::new\(([^,]+),\s*([^,]+),\s*([^)]+)\)\)")
+            .expect("valid regex");
         if let Some(cap) = scale_re.captures(block) {
             transform.scale = [
                 cap[1].trim().parse().unwrap_or(1.0),
@@ -280,9 +289,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
         // Parse CustomScript blocks (TypeName { field: value, ... })
         // After normalization everything is on one line, so we match braced blocks.
         // Also works on the original multi-line format thanks to the `(?s)` flag.
-        let custom_re =
-            Regex::new(r"(\b[A-Z][a-zA-Z0-9]+)\s*\{([^}]*)\}")
-                .expect("valid regex");
+        let custom_re = Regex::new(r"(\b[A-Z][a-zA-Z0-9]+)\s*\{([^}]*)\}").expect("valid regex");
         for cap in custom_re.captures_iter(block) {
             let type_name = cap[1].to_string();
             // Skip known Bevy types
@@ -302,8 +309,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
             let field_block = &cap[2];
             let mut fields = Vec::new();
             // Match field: value patterns (works both newline-separated and space-separated)
-            let field_re = Regex::new(r"(\w+):\s*([^,}]+)")
-                .expect("valid regex");
+            let field_re = Regex::new(r"(\w+):\s*([^,}]+)").expect("valid regex");
             for fcap in field_re.captures_iter(field_block) {
                 let fname = fcap[1].to_string();
                 // Skip known Bevy material/light fields and ..default()
@@ -478,12 +484,17 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                     let field_count = parse_param_u32(params, "fields", 0);
                     // Parse subsequent [BerryCode:CustomField] markers for this script
                     let mut fields = Vec::new();
-                    let field_re = Regex::new(r"\[BerryCode:CustomField\]\s*name=(\S+)\s+value=(.+?)(?:\s*//|\s*$)").expect("valid regex");
+                    let field_re = Regex::new(
+                        r"\[BerryCode:CustomField\]\s*name=(\S+)\s+value=(.+?)(?:\s*//|\s*$)",
+                    )
+                    .expect("valid regex");
                     // We need to re-scan for CustomField markers in the block
                     // They appear after the CustomScript marker
                     let cf_re = Regex::new(r"\[BerryCode:CustomField\]\s+name=(\S+)\s+value=(.+?)(?:\s+//\s*\[BerryCode|\s*$)").expect("valid regex");
                     // Simpler approach: find all CustomField markers sequentially
-                    let cf_simple = Regex::new(r"\[BerryCode:CustomField\]\s+name=(\S+)\s+value=(\S+)").expect("valid regex");
+                    let cf_simple =
+                        Regex::new(r"\[BerryCode:CustomField\]\s+name=(\S+)\s+value=(\S+)")
+                            .expect("valid regex");
                     for fcap in cf_simple.captures_iter(block) {
                         if fields.len() >= field_count as usize {
                             break;
@@ -509,9 +520,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                     });
                 }
                 "LodGroup" => {
-                    components.push(ComponentData::LodGroup {
-                        levels: vec![],
-                    });
+                    components.push(ComponentData::LodGroup { levels: vec![] });
                 }
                 "Spline" => {
                     components.push(ComponentData::Spline {
@@ -575,7 +584,8 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
 /// Parse a float parameter from a `key=value` parameter string.
 fn parse_param_f32(params: &str, key: &str, default: f32) -> f32 {
     let pattern = format!("{}=", key);
-    params.split_whitespace()
+    params
+        .split_whitespace()
         .find(|s| s.starts_with(&pattern))
         .and_then(|s| s[pattern.len()..].parse().ok())
         .unwrap_or(default)
@@ -584,7 +594,8 @@ fn parse_param_f32(params: &str, key: &str, default: f32) -> f32 {
 /// Parse a boolean parameter from a `key=value` parameter string.
 fn parse_param_bool(params: &str, key: &str, default: bool) -> bool {
     let pattern = format!("{}=", key);
-    params.split_whitespace()
+    params
+        .split_whitespace()
         .find(|s| s.starts_with(&pattern))
         .map(|s| &s[pattern.len()..] == "true")
         .unwrap_or(default)
@@ -593,7 +604,8 @@ fn parse_param_bool(params: &str, key: &str, default: bool) -> bool {
 /// Parse a string parameter from a `key=value` parameter string.
 fn parse_param_str(params: &str, key: &str, default: &str) -> String {
     let pattern = format!("{}=", key);
-    params.split_whitespace()
+    params
+        .split_whitespace()
         .find(|s| s.starts_with(&pattern))
         .map(|s| s[pattern.len()..].to_string())
         .unwrap_or_else(|| default.to_string())
@@ -602,7 +614,8 @@ fn parse_param_str(params: &str, key: &str, default: &str) -> String {
 /// Parse a u32 parameter from a `key=value` parameter string.
 fn parse_param_u32(params: &str, key: &str, default: u32) -> u32 {
     let pattern = format!("{}=", key);
-    params.split_whitespace()
+    params
+        .split_whitespace()
         .find(|s| s.starts_with(&pattern))
         .and_then(|s| s[pattern.len()..].parse().ok())
         .unwrap_or(default)
@@ -611,7 +624,8 @@ fn parse_param_u32(params: &str, key: &str, default: u32) -> u32 {
 /// Parse a usize parameter from a `key=value` parameter string.
 fn parse_param_usize(params: &str, key: &str, default: usize) -> usize {
     let pattern = format!("{}=", key);
-    params.split_whitespace()
+    params
+        .split_whitespace()
         .find(|s| s.starts_with(&pattern))
         .and_then(|s| s[pattern.len()..].parse().ok())
         .unwrap_or(default)
@@ -789,8 +803,14 @@ mod tests {
             vec![ComponentData::CustomScript {
                 type_name: "PlayerStats".into(),
                 fields: vec![
-                    ScriptField { name: "health".into(), value: ScriptValue::Float(100.0) },
-                    ScriptField { name: "alive".into(), value: ScriptValue::Bool(true) },
+                    ScriptField {
+                        name: "health".into(),
+                        value: ScriptValue::Float(100.0),
+                    },
+                    ScriptField {
+                        name: "alive".into(),
+                        value: ScriptValue::Bool(true),
+                    },
                 ],
             }],
         );
@@ -803,7 +823,10 @@ mod tests {
         assert_eq!(imported.entities.len(), 1);
         let entity = imported.entities.values().next().unwrap();
         assert!(
-            entity.components.iter().any(|c| matches!(c, ComponentData::CustomScript { .. })),
+            entity
+                .components
+                .iter()
+                .any(|c| matches!(c, ComponentData::CustomScript { .. })),
             "CustomScript component should survive roundtrip"
         );
     }
@@ -959,16 +982,32 @@ pub fn setup_scene(
 
     #[test]
     fn parse_script_value_primitives() {
-        assert!(matches!(super::parse_script_value("true"), ScriptValue::Bool(true)));
-        assert!(matches!(super::parse_script_value("false"), ScriptValue::Bool(false)));
-        assert!(matches!(super::parse_script_value("42"), ScriptValue::Int(42)));
-        assert!(matches!(super::parse_script_value("3.14"), ScriptValue::Float(f) if (f - 3.14).abs() < 0.01));
-        assert!(matches!(super::parse_script_value("\"hello\""), ScriptValue::String(s) if s == "hello"));
+        assert!(matches!(
+            super::parse_script_value("true"),
+            ScriptValue::Bool(true)
+        ));
+        assert!(matches!(
+            super::parse_script_value("false"),
+            ScriptValue::Bool(false)
+        ));
+        assert!(matches!(
+            super::parse_script_value("42"),
+            ScriptValue::Int(42)
+        ));
+        assert!(
+            matches!(super::parse_script_value("3.14"), ScriptValue::Float(f) if (f - 3.14).abs() < 0.01)
+        );
+        assert!(
+            matches!(super::parse_script_value("\"hello\""), ScriptValue::String(s) if s == "hello")
+        );
     }
 
     #[test]
     fn parse_script_value_option() {
-        assert!(matches!(super::parse_script_value("None"), ScriptValue::Option(None)));
+        assert!(matches!(
+            super::parse_script_value("None"),
+            ScriptValue::Option(None)
+        ));
         match super::parse_script_value("Some(42)") {
             ScriptValue::Option(Some(inner)) => {
                 assert!(matches!(*inner, ScriptValue::Int(42)));
@@ -1018,25 +1057,33 @@ pub fn setup_scene(
 
         // Verify we got a DirectionalLight
         let has_dir_light = scene.entities.values().any(|e| {
-            e.components.iter().any(|c| matches!(c, ComponentData::DirectionalLight { .. }))
+            e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::DirectionalLight { .. }))
         });
         assert!(has_dir_light, "Should have a DirectionalLight entity");
 
         // Verify we got a Camera
         let has_camera = scene.entities.values().any(|e| {
-            e.components.iter().any(|c| matches!(c, ComponentData::Camera))
+            e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::Camera))
         });
         assert!(has_camera, "Should have a Camera entity");
 
         // Verify we got a ground plane
         let has_plane = scene.entities.values().any(|e| {
-            e.components.iter().any(|c| matches!(c, ComponentData::MeshPlane { .. }))
+            e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::MeshPlane { .. }))
         });
         assert!(has_plane, "Should have a Ground plane entity");
 
         // Verify we got at least one cube
         let has_cube = scene.entities.values().any(|e| {
-            e.components.iter().any(|c| matches!(c, ComponentData::MeshCube { .. }))
+            e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::MeshCube { .. }))
         });
         assert!(has_cube, "Should have at least one Cube entity");
     }
@@ -1048,15 +1095,24 @@ pub fn setup_scene(
         );
         let scene = import_scene_from_code(&code);
         // Empty3D: Camera, DirectionalLight, Cube (Cuboid::default()), Ground
-        assert_eq!(scene.entities.len(), 4, "Expected 4 entities, got {}", scene.entities.len());
+        assert_eq!(
+            scene.entities.len(),
+            4,
+            "Expected 4 entities, got {}",
+            scene.entities.len()
+        );
 
         let has_camera = scene.entities.values().any(|e| {
-            e.components.iter().any(|c| matches!(c, ComponentData::Camera))
+            e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::Camera))
         });
         assert!(has_camera);
 
         let has_cube = scene.entities.values().any(|e| {
-            e.components.iter().any(|c| matches!(c, ComponentData::MeshCube { .. }))
+            e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::MeshCube { .. }))
         });
         assert!(has_cube, "Cuboid::default() should be parsed as MeshCube");
     }
@@ -1075,7 +1131,12 @@ pub fn setup_scene(
         }
 
         let original_count = scene.entities.len();
-        assert_eq!(original_count, defaults.len(), "Should have {} entities", defaults.len());
+        assert_eq!(
+            original_count,
+            defaults.len(),
+            "Should have {} entities",
+            defaults.len()
+        );
 
         // Generate code
         let code = super::super::codegen::generate_scene_code(&scene);
@@ -1095,12 +1156,14 @@ pub fn setup_scene(
         );
 
         // Verify each entity name exists
-        let imported_names: Vec<String> = imported.entities.values().map(|e| e.name.clone()).collect();
+        let imported_names: Vec<String> =
+            imported.entities.values().map(|e| e.name.clone()).collect();
         for (name, _) in &defaults {
             assert!(
                 imported_names.iter().any(|n| n == name),
                 "Entity '{}' not found in imported scene. Found: {:?}",
-                name, imported_names
+                name,
+                imported_names
             );
         }
 
@@ -1110,7 +1173,8 @@ pub fn setup_scene(
             assert!(
                 (t[0] - 1.0).abs() < 0.01 && (t[1] - 2.0).abs() < 0.01 && (t[2] - 3.0).abs() < 0.01,
                 "Entity '{}' transform mismatch: {:?}",
-                entity.name, t
+                entity.name,
+                t
             );
         }
 
@@ -1122,32 +1186,188 @@ pub fn setup_scene(
                 entity.name
             );
             match entity.name.as_str() {
-                "Mesh Cube" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::MeshCube { .. })), "MeshCube missing"),
-                "Mesh Sphere" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::MeshSphere { .. })), "MeshSphere missing"),
-                "Mesh Plane" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::MeshPlane { .. })), "MeshPlane missing"),
-                "Light" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Light { .. })), "Light missing"),
-                "Directional Light" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::DirectionalLight { .. })), "DirectionalLight missing"),
-                "Camera" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Camera)), "Camera missing"),
-                "Spot Light" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::SpotLight { .. })), "SpotLight missing"),
-                "Mesh From File" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::MeshFromFile { .. })), "MeshFromFile missing"),
-                "Audio Source" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::AudioSource { .. })), "AudioSource missing"),
-                "Audio Listener" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::AudioListener)), "AudioListener missing"),
-                "Rigidbody" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::RigidBody { .. })), "RigidBody missing"),
-                "Collider" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Collider { .. })), "Collider missing"),
-                "UI Text" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::UiText { .. })), "UiText missing"),
-                "UI Button" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::UiButton { .. })), "UiButton missing"),
-                "UI Image" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::UiImage { .. })), "UiImage missing"),
-                "Particle Emitter" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::ParticleEmitter { .. })), "ParticleEmitter missing"),
-                "Animation" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Animation { .. })), "Animation missing"),
-                "Custom Script" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::CustomScript { .. })), "CustomScript missing"),
-                "Skybox" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Skybox { .. })), "Skybox missing"),
-                "Animator" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Animator { .. })), "Animator missing"),
-                "LOD Group" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::LodGroup { .. })), "LodGroup missing"),
-                "Spline" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Spline { .. })), "Spline missing"),
-                "Terrain" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::Terrain { .. })), "Terrain missing"),
-                "Skinned Mesh" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::SkinnedMesh { .. })), "SkinnedMesh missing"),
-                "Visual Script" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::VisualScript { .. })), "VisualScript missing"),
-                "NavMesh" => assert!(entity.components.iter().any(|c| matches!(c, ComponentData::NavMesh { .. })), "NavMesh missing"),
+                "Mesh Cube" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::MeshCube { .. })),
+                    "MeshCube missing"
+                ),
+                "Mesh Sphere" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::MeshSphere { .. })),
+                    "MeshSphere missing"
+                ),
+                "Mesh Plane" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::MeshPlane { .. })),
+                    "MeshPlane missing"
+                ),
+                "Light" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Light { .. })),
+                    "Light missing"
+                ),
+                "Directional Light" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::DirectionalLight { .. })),
+                    "DirectionalLight missing"
+                ),
+                "Camera" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Camera)),
+                    "Camera missing"
+                ),
+                "Spot Light" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::SpotLight { .. })),
+                    "SpotLight missing"
+                ),
+                "Mesh From File" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::MeshFromFile { .. })),
+                    "MeshFromFile missing"
+                ),
+                "Audio Source" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::AudioSource { .. })),
+                    "AudioSource missing"
+                ),
+                "Audio Listener" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::AudioListener)),
+                    "AudioListener missing"
+                ),
+                "Rigidbody" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::RigidBody { .. })),
+                    "RigidBody missing"
+                ),
+                "Collider" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Collider { .. })),
+                    "Collider missing"
+                ),
+                "UI Text" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::UiText { .. })),
+                    "UiText missing"
+                ),
+                "UI Button" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::UiButton { .. })),
+                    "UiButton missing"
+                ),
+                "UI Image" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::UiImage { .. })),
+                    "UiImage missing"
+                ),
+                "Particle Emitter" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::ParticleEmitter { .. })),
+                    "ParticleEmitter missing"
+                ),
+                "Animation" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Animation { .. })),
+                    "Animation missing"
+                ),
+                "Custom Script" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::CustomScript { .. })),
+                    "CustomScript missing"
+                ),
+                "Skybox" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Skybox { .. })),
+                    "Skybox missing"
+                ),
+                "Animator" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Animator { .. })),
+                    "Animator missing"
+                ),
+                "LOD Group" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::LodGroup { .. })),
+                    "LodGroup missing"
+                ),
+                "Spline" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Spline { .. })),
+                    "Spline missing"
+                ),
+                "Terrain" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::Terrain { .. })),
+                    "Terrain missing"
+                ),
+                "Skinned Mesh" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::SkinnedMesh { .. })),
+                    "SkinnedMesh missing"
+                ),
+                "Visual Script" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::VisualScript { .. })),
+                    "VisualScript missing"
+                ),
+                "NavMesh" => assert!(
+                    entity
+                        .components
+                        .iter()
+                        .any(|c| matches!(c, ComponentData::NavMesh { .. })),
+                    "NavMesh missing"
+                ),
                 other => panic!("Unexpected entity name: {}", other),
             }
         }

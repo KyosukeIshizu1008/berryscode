@@ -3,9 +3,9 @@
 //! Parses user code for `Query<(...)>` patterns and compares query requirements
 //! against entities in the scene model to determine matches.
 
-use serde::{Deserialize, Serialize};
-use crate::app::BerryCodeApp;
 use super::model::*;
+use crate::app::BerryCodeApp;
+use serde::{Deserialize, Serialize};
 
 /// A parsed Bevy query definition.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -118,7 +118,10 @@ fn parse_query_params(content: &str) -> (Vec<String>, Vec<String>, Vec<String>) 
     for part in &parts {
         let trimmed = part.trim();
 
-        if let Some(inner) = trimmed.strip_prefix("With<").and_then(|s| s.strip_suffix('>')) {
+        if let Some(inner) = trimmed
+            .strip_prefix("With<")
+            .and_then(|s| s.strip_suffix('>'))
+        {
             with_filters.push(inner.trim().to_string());
         } else if let Some(inner) = trimmed
             .strip_prefix("Without<")
@@ -129,7 +132,10 @@ fn parse_query_params(content: &str) -> (Vec<String>, Vec<String>, Vec<String>) 
             // Tuple of component references: (&Transform, &Velocity)
             let inner = trimmed.trim_start_matches('(').trim_end_matches(')');
             for comp in inner.split(',') {
-                let c = comp.trim().trim_start_matches('&').trim_start_matches("mut ");
+                let c = comp
+                    .trim()
+                    .trim_start_matches('&')
+                    .trim_start_matches("mut ");
                 let c = c.trim();
                 if !c.is_empty() {
                     components.push(c.to_string());
@@ -178,11 +184,8 @@ fn split_top_level(s: &str, delim: char) -> Vec<String> {
 /// An entity matches if it has ALL required component types and none of the
 /// Without filter types, based on component labels.
 pub fn entity_matches_query(entity: &SceneEntity, query: &QueryDef) -> bool {
-    let entity_types: std::collections::HashSet<&str> = entity
-        .components
-        .iter()
-        .map(|c| c.label())
-        .collect();
+    let entity_types: std::collections::HashSet<&str> =
+        entity.components.iter().map(|c| c.label()).collect();
 
     // Check all required components are present
     for required in &query.components {
@@ -302,7 +305,10 @@ impl BerryCodeApp {
                                 let mut match_count = 0;
                                 for (eid, ename, ecomps) in &entities_snapshot {
                                     // Check if entity matches
-                                    let has_all = query.components.iter().all(|c| ecomps.contains(c))
+                                    let has_all = query
+                                        .components
+                                        .iter()
+                                        .all(|c| ecomps.contains(c))
                                         && query.with_filters.iter().all(|c| ecomps.contains(c))
                                         && query
                                             .without_filters
@@ -421,17 +427,15 @@ fn player_system(query: Query<&Transform, With<Player>, Without<Enemy>>) {
         let entity = SceneEntity::new(
             1,
             "Player".into(),
-            vec![
-                ComponentData::MeshCube {
-                    size: 1.0,
-                    color: [1.0, 1.0, 1.0],
-                    metallic: 0.0,
-                    roughness: 0.5,
-                    emissive: [0.0, 0.0, 0.0],
-                    texture_path: None,
-                    normal_map_path: None,
-                },
-            ],
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
         );
 
         // ComponentData::MeshCube has label() == "Cube"

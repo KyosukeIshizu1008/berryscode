@@ -290,8 +290,7 @@ mod tests {
     fn keymap_roundtrip_ron() {
         let km = Keymap::default();
         let serialized =
-            ron::ser::to_string_pretty(&km, ron::ser::PrettyConfig::default())
-                .expect("serialize");
+            ron::ser::to_string_pretty(&km, ron::ser::PrettyConfig::default()).expect("serialize");
         let deserialized: Keymap = ron::from_str(&serialized).expect("deserialize");
         assert_eq!(km.bindings.len(), deserialized.bindings.len());
         for action in KeyAction::ALL {

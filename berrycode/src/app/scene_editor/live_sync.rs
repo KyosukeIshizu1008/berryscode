@@ -96,7 +96,16 @@ pub fn query_live_components(
 /// Returns `true` if the endpoint responds within 500ms.
 pub fn is_game_running(brp_endpoint: &str) -> bool {
     let output = std::process::Command::new("curl")
-        .args(["-s", "--max-time", "1", "-o", "/dev/null", "-w", "%{http_code}", brp_endpoint])
+        .args([
+            "-s",
+            "--max-time",
+            "1",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            brp_endpoint,
+        ])
         .output();
 
     match output {

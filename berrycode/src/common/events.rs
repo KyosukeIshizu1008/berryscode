@@ -260,8 +260,14 @@ mod tests {
 
     #[test]
     fn test_modifier_matching() {
-        assert!(matches_modifier(true, false, false, false, true, false, false, false));
-        assert!(!matches_modifier(true, false, false, false, false, false, false, false));
-        assert!(matches_modifier(true, true, false, false, true, true, false, false));
+        assert!(matches_modifier(
+            true, false, false, false, true, false, false, false
+        ));
+        assert!(!matches_modifier(
+            true, false, false, false, false, false, false, false
+        ));
+        assert!(matches_modifier(
+            true, true, false, false, true, true, false, false
+        ));
     }
 }

@@ -60,10 +60,7 @@ impl BerryCodeApp {
 
                 // Header with file info
                 ui.horizontal(|ui| {
-                    ui.label(format!(
-                        "{}x{}",
-                        tex_size.x as u32, tex_size.y as u32
-                    ));
+                    ui.label(format!("{}x{}", tex_size.x as u32, tex_size.y as u32));
                     ui.separator();
                     let file_size = std::fs::metadata(&tab.file_path)
                         .map(|m| m.len())
@@ -73,10 +70,7 @@ impl BerryCodeApp {
                     } else if file_size < 1024 * 1024 {
                         ui.label(format!("{:.1} KB", file_size as f64 / 1024.0));
                     } else {
-                        ui.label(format!(
-                            "{:.1} MB",
-                            file_size as f64 / (1024.0 * 1024.0)
-                        ));
+                        ui.label(format!("{:.1} MB", file_size as f64 / (1024.0 * 1024.0)));
                     }
                 });
                 ui.separator();
@@ -95,10 +89,7 @@ impl BerryCodeApp {
                     ui.add_space(padding_y);
                     ui.horizontal(|ui| {
                         ui.add_space(padding_x);
-                        ui.image(egui::load::SizedTexture::new(
-                            texture.id(),
-                            display_size,
-                        ));
+                        ui.image(egui::load::SizedTexture::new(texture.id(), display_size));
                     });
                 });
             }

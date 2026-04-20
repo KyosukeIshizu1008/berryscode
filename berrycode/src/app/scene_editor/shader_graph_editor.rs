@@ -1,7 +1,7 @@
 //! Shader Graph Editor: node-based material parameter graph editor UI.
 
-use crate::app::BerryCodeApp;
 use super::shader_graph::*;
+use crate::app::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Render the Shader Graph Editor floating window.
@@ -53,7 +53,8 @@ impl BerryCodeApp {
 
                 // Canvas area
                 let available = ui.available_size();
-                let (response, painter) = ui.allocate_painter(available, egui::Sense::click_and_drag());
+                let (response, painter) =
+                    ui.allocate_painter(available, egui::Sense::click_and_drag());
                 let canvas_rect = response.rect;
 
                 // Background grid
@@ -62,7 +63,10 @@ impl BerryCodeApp {
                 let mut x = canvas_rect.min.x;
                 while x < canvas_rect.max.x {
                     painter.line_segment(
-                        [egui::Pos2::new(x, canvas_rect.min.y), egui::Pos2::new(x, canvas_rect.max.y)],
+                        [
+                            egui::Pos2::new(x, canvas_rect.min.y),
+                            egui::Pos2::new(x, canvas_rect.max.y),
+                        ],
                         egui::Stroke::new(1.0, grid_color),
                     );
                     x += grid_spacing;
@@ -70,7 +74,10 @@ impl BerryCodeApp {
                 let mut y = canvas_rect.min.y;
                 while y < canvas_rect.max.y {
                     painter.line_segment(
-                        [egui::Pos2::new(canvas_rect.min.x, y), egui::Pos2::new(canvas_rect.max.x, y)],
+                        [
+                            egui::Pos2::new(canvas_rect.min.x, y),
+                            egui::Pos2::new(canvas_rect.max.x, y),
+                        ],
                         egui::Stroke::new(1.0, grid_color),
                     );
                     y += grid_spacing;
@@ -85,11 +92,17 @@ impl BerryCodeApp {
                         let node_h = 40.0;
                         let from_pt = egui::Pos2::new(
                             canvas_rect.min.x + from.position[0] + node_w,
-                            canvas_rect.min.y + from.position[1] + node_h * 0.5 + edge.from_pin as f32 * 15.0,
+                            canvas_rect.min.y
+                                + from.position[1]
+                                + node_h * 0.5
+                                + edge.from_pin as f32 * 15.0,
                         );
                         let to_pt = egui::Pos2::new(
                             canvas_rect.min.x + to.position[0],
-                            canvas_rect.min.y + to.position[1] + node_h * 0.5 + edge.to_pin as f32 * 15.0,
+                            canvas_rect.min.y
+                                + to.position[1]
+                                + node_h * 0.5
+                                + edge.to_pin as f32 * 15.0,
                         );
                         let mid_x = (from_pt.x + to_pt.x) * 0.5;
                         let cp1 = egui::Pos2::new(mid_x, from_pt.y);
@@ -114,15 +127,24 @@ impl BerryCodeApp {
                         canvas_rect.min.x + node.position[0],
                         canvas_rect.min.y + node.position[1],
                     );
-                    let node_rect = egui::Rect::from_min_size(node_pos, egui::Vec2::new(node_w, node_h));
+                    let node_rect =
+                        egui::Rect::from_min_size(node_pos, egui::Vec2::new(node_w, node_h));
 
                     // Color by shader node type
                     let color = match &node.node_type {
                         ShaderNodeType::OutputPBR => egui::Color32::from_rgb(200, 60, 60),
-                        ShaderNodeType::TextureSample { .. } => egui::Color32::from_rgb(80, 140, 80),
-                        ShaderNodeType::ColorConstant { .. } => egui::Color32::from_rgb(200, 150, 50),
-                        ShaderNodeType::FloatConstant { .. } => egui::Color32::from_rgb(100, 100, 180),
-                        ShaderNodeType::Multiply | ShaderNodeType::Add => egui::Color32::from_rgb(120, 120, 120),
+                        ShaderNodeType::TextureSample { .. } => {
+                            egui::Color32::from_rgb(80, 140, 80)
+                        }
+                        ShaderNodeType::ColorConstant { .. } => {
+                            egui::Color32::from_rgb(200, 150, 50)
+                        }
+                        ShaderNodeType::FloatConstant { .. } => {
+                            egui::Color32::from_rgb(100, 100, 180)
+                        }
+                        ShaderNodeType::Multiply | ShaderNodeType::Add => {
+                            egui::Color32::from_rgb(120, 120, 120)
+                        }
                         ShaderNodeType::Lerp => egui::Color32::from_rgb(150, 100, 150),
                         ShaderNodeType::UVCoord => egui::Color32::from_rgb(50, 150, 150),
                         ShaderNodeType::Time => egui::Color32::from_rgb(150, 150, 50),
@@ -130,7 +152,11 @@ impl BerryCodeApp {
                     };
 
                     painter.rect_filled(node_rect, 4.0, color);
-                    painter.rect_stroke(node_rect, 4.0, egui::Stroke::new(1.0, egui::Color32::WHITE));
+                    painter.rect_stroke(
+                        node_rect,
+                        4.0,
+                        egui::Stroke::new(1.0, egui::Color32::WHITE),
+                    );
                     painter.text(
                         node_rect.center(),
                         egui::Align2::CENTER_CENTER,
@@ -172,7 +198,9 @@ impl BerryCodeApp {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
                         graph.nodes.push(ShaderNode {
                             id: next_id,
-                            node_type: ShaderNodeType::ColorConstant { value: [1.0, 1.0, 1.0, 1.0] },
+                            node_type: ShaderNodeType::ColorConstant {
+                                value: [1.0, 1.0, 1.0, 1.0],
+                            },
                             position: [100.0, 200.0],
                         });
                         ui.close_menu();
@@ -190,7 +218,9 @@ impl BerryCodeApp {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
                         graph.nodes.push(ShaderNode {
                             id: next_id,
-                            node_type: ShaderNodeType::TextureSample { path: String::new() },
+                            node_type: ShaderNodeType::TextureSample {
+                                path: String::new(),
+                            },
                             position: [100.0, 200.0],
                         });
                         ui.close_menu();

@@ -8,10 +8,10 @@ use super::BerryCodeApp;
 #[derive(Clone)]
 pub struct GaussianSplat {
     pub position: [f32; 3],
-    pub color: [u8; 3],      // RGB
-    pub opacity: f32,         // 0.0-1.0
-    pub scale: [f32; 3],     // Full 3D scale
-    pub rotation: [f32; 4],  // Quaternion (w, x, y, z)
+    pub color: [u8; 3],     // RGB
+    pub opacity: f32,       // 0.0-1.0
+    pub scale: [f32; 3],    // Full 3D scale
+    pub rotation: [f32; 4], // Quaternion (w, x, y, z)
 }
 
 /// Parsed 3D model data for preview
@@ -238,8 +238,7 @@ impl BerryCodeApp {
 
     /// Load and parse an OBJ file using tobj
     fn load_obj(file_path: &str) -> Option<ModelPreviewData> {
-        let (models, materials_result) =
-            tobj::load_obj(file_path, &tobj::GPU_LOAD_OPTIONS).ok()?;
+        let (models, materials_result) = tobj::load_obj(file_path, &tobj::GPU_LOAD_OPTIONS).ok()?;
 
         let mut all_vertices: Vec<[f32; 3]> = Vec::new();
         let mut all_edges: Vec<(usize, usize)> = Vec::new();
@@ -284,9 +283,7 @@ impl BerryCodeApp {
             });
         }
 
-        let materials_count = materials_result
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let materials_count = materials_result.map(|m| m.len()).unwrap_or(0);
 
         Some(ModelPreviewData {
             meshes: meshes_info,
@@ -381,11 +378,7 @@ impl BerryCodeApp {
         let triangle_count = all_edges.len() / 3;
         Some(ModelPreviewData {
             meshes: vec![MeshInfo {
-                name: file_path
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or("model")
-                    .to_string(),
+                name: file_path.rsplit('/').next().unwrap_or("model").to_string(),
                 vertex_count: all_vertices.len(),
                 triangle_count,
             }],
@@ -408,9 +401,15 @@ impl BerryCodeApp {
         // Find end_header by scanning raw bytes (works for both ASCII and binary)
         let header_end_marker = b"end_header\n";
         let header_end_marker_r = b"end_header\r\n";
-        let header_end_offset = if let Some(pos) = data.windows(header_end_marker.len()).position(|w| w == header_end_marker) {
+        let header_end_offset = if let Some(pos) = data
+            .windows(header_end_marker.len())
+            .position(|w| w == header_end_marker)
+        {
             pos + header_end_marker.len()
-        } else if let Some(pos) = data.windows(header_end_marker_r.len()).position(|w| w == header_end_marker_r) {
+        } else if let Some(pos) = data
+            .windows(header_end_marker_r.len())
+            .position(|w| w == header_end_marker_r)
+        {
             pos + header_end_marker_r.len()
         } else {
             return None;
@@ -431,17 +430,28 @@ impl BerryCodeApp {
         for line in header_text.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with("element vertex ") {
-                vertex_count = trimmed.split_whitespace().nth(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+                vertex_count = trimmed
+                    .split_whitespace()
+                    .nth(2)
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
                 in_vertex_element = true;
                 in_face_element = false;
             } else if trimmed.starts_with("element face ") {
-                face_count = trimmed.split_whitespace().nth(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+                face_count = trimmed
+                    .split_whitespace()
+                    .nth(2)
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
                 in_vertex_element = false;
                 in_face_element = true;
             } else if trimmed.starts_with("element ") {
                 in_vertex_element = false;
                 in_face_element = false;
-            } else if trimmed.starts_with("property ") && in_vertex_element && !trimmed.contains("list") {
+            } else if trimmed.starts_with("property ")
+                && in_vertex_element
+                && !trimmed.contains("list")
+            {
                 let parts: Vec<&str> = trimmed.split_whitespace().collect();
                 if parts.len() >= 3 {
                     vertex_props.push((parts[2].to_string(), parts[1].to_string()));
@@ -463,7 +473,10 @@ impl BerryCodeApp {
         // Calculate property byte offsets for binary mode
         let prop_infos: Vec<PlyPropertyInfo> = calculate_property_offsets(&vertex_props);
         let vertex_stride: usize = if is_binary {
-            prop_infos.last().map(|p| p.byte_offset + p.byte_size).unwrap_or(0)
+            prop_infos
+                .last()
+                .map(|p| p.byte_offset + p.byte_size)
+                .unwrap_or(0)
         } else {
             0
         };
@@ -527,17 +540,33 @@ impl BerryCodeApp {
             if is_binary {
                 let mut offset = header_end_offset;
                 for _ in 0..vertex_count {
-                    if offset + vertex_stride > data.len() { break; }
+                    if offset + vertex_stride > data.len() {
+                        break;
+                    }
 
-                    let x = off_x.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
-                    let y = off_y.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
-                    let z = off_z.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
+                    let x = off_x
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
+                    let y = off_y
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
+                    let z = off_z
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
 
-                    let fdc0 = off_fdc0.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
-                    let fdc1 = off_fdc1.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
-                    let fdc2 = off_fdc2.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
+                    let fdc0 = off_fdc0
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
+                    let fdc1 = off_fdc1
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
+                    let fdc2 = off_fdc2
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
 
-                    let raw_opacity = off_opacity.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0);
+                    let raw_opacity = off_opacity
+                        .map(|o| read_f32_le(&data[offset + o..]))
+                        .unwrap_or(0.0);
 
                     let position = [x, y, z];
                     for j in 0..3 {
@@ -546,15 +575,29 @@ impl BerryCodeApp {
                     }
 
                     let scale = [
-                        off_scale0.map(|o| read_f32_le(&data[offset + o..]).exp()).unwrap_or(0.01),
-                        off_scale1.map(|o| read_f32_le(&data[offset + o..]).exp()).unwrap_or(0.01),
-                        off_scale2.map(|o| read_f32_le(&data[offset + o..]).exp()).unwrap_or(0.01),
+                        off_scale0
+                            .map(|o| read_f32_le(&data[offset + o..]).exp())
+                            .unwrap_or(0.01),
+                        off_scale1
+                            .map(|o| read_f32_le(&data[offset + o..]).exp())
+                            .unwrap_or(0.01),
+                        off_scale2
+                            .map(|o| read_f32_le(&data[offset + o..]).exp())
+                            .unwrap_or(0.01),
                     ];
                     let rotation = [
-                        off_rot0.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(1.0), // w
-                        off_rot1.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0), // x
-                        off_rot2.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0), // y
-                        off_rot3.map(|o| read_f32_le(&data[offset + o..])).unwrap_or(0.0), // z
+                        off_rot0
+                            .map(|o| read_f32_le(&data[offset + o..]))
+                            .unwrap_or(1.0), // w
+                        off_rot1
+                            .map(|o| read_f32_le(&data[offset + o..]))
+                            .unwrap_or(0.0), // x
+                        off_rot2
+                            .map(|o| read_f32_le(&data[offset + o..]))
+                            .unwrap_or(0.0), // y
+                        off_rot3
+                            .map(|o| read_f32_le(&data[offset + o..]))
+                            .unwrap_or(0.0), // z
                     ];
 
                     let color = [sh_to_u8(fdc0), sh_to_u8(fdc1), sh_to_u8(fdc2)];
@@ -661,21 +704,30 @@ impl BerryCodeApp {
             if is_binary {
                 let mut offset = header_end_offset;
                 for _ in 0..vertex_count {
-                    if offset + vertex_stride > data.len() { break; }
+                    if offset + vertex_stride > data.len() {
+                        break;
+                    }
                     let x = read_f32_le(&data[offset..]);
                     let y = read_f32_le(&data[offset + 4..]);
                     let z = read_f32_le(&data[offset + 8..]);
                     let v = [x, y, z];
-                    for j in 0..3 { bounds_min[j] = bounds_min[j].min(v[j]); bounds_max[j] = bounds_max[j].max(v[j]); }
+                    for j in 0..3 {
+                        bounds_min[j] = bounds_min[j].min(v[j]);
+                        bounds_max[j] = bounds_max[j].max(v[j]);
+                    }
                     all_vertices.push(v);
                     offset += vertex_stride;
                 }
 
                 for _ in 0..face_count {
-                    if offset >= data.len() { break; }
+                    if offset >= data.len() {
+                        break;
+                    }
                     let count = data[offset] as usize;
                     offset += 1;
-                    if offset + count * 4 > data.len() { break; }
+                    if offset + count * 4 > data.len() {
+                        break;
+                    }
                     let mut indices = Vec::with_capacity(count);
                     for _ in 0..count {
                         indices.push(read_u32_le(&data[offset..]) as usize);
@@ -699,7 +751,10 @@ impl BerryCodeApp {
                             let y: f32 = parts[1].parse().unwrap_or(0.0);
                             let z: f32 = parts[2].parse().unwrap_or(0.0);
                             let v = [x, y, z];
-                            for j in 0..3 { bounds_min[j] = bounds_min[j].min(v[j]); bounds_max[j] = bounds_max[j].max(v[j]); }
+                            for j in 0..3 {
+                                bounds_min[j] = bounds_min[j].min(v[j]);
+                                bounds_max[j] = bounds_max[j].max(v[j]);
+                            }
                             all_vertices.push(v);
                         }
                     }
@@ -711,7 +766,10 @@ impl BerryCodeApp {
                         if !parts.is_empty() {
                             let count: usize = parts[0].parse().unwrap_or(0);
                             if count >= 3 && parts.len() >= count + 1 {
-                                let indices: Vec<usize> = parts[1..=count].iter().filter_map(|s| s.parse().ok()).collect();
+                                let indices: Vec<usize> = parts[1..=count]
+                                    .iter()
+                                    .filter_map(|s| s.parse().ok())
+                                    .collect();
                                 for i in 1..indices.len().saturating_sub(1) {
                                     all_edges.push((indices[0], indices[i]));
                                     all_edges.push((indices[i], indices[i + 1]));
@@ -747,7 +805,12 @@ impl BerryCodeApp {
         let tab = &mut self.editor_tabs[self.active_tab_idx];
 
         // GPU-accelerated preview for GLB/GLTF via Bevy's PBR renderer
-        let ext = tab.file_path.rsplit('.').next().unwrap_or("").to_lowercase();
+        let ext = tab
+            .file_path
+            .rsplit('.')
+            .next()
+            .unwrap_or("")
+            .to_lowercase();
         if (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
             let texture_id = tab.gpu_preview_texture_id.unwrap();
 
@@ -896,14 +959,23 @@ impl BerryCodeApp {
                     tab.model_rot_y += delta.x * 0.01;
                     tab.model_rot_x += delta.y * 0.01;
                     // Clamp pitch to avoid flipping
-                    tab.model_rot_x = tab.model_rot_x.clamp(-std::f32::consts::FRAC_PI_2 + 0.1, std::f32::consts::FRAC_PI_2 - 0.1);
+                    tab.model_rot_x = tab.model_rot_x.clamp(
+                        -std::f32::consts::FRAC_PI_2 + 0.1,
+                        std::f32::consts::FRAC_PI_2 - 0.1,
+                    );
                 }
 
                 // Scroll to zoom
                 let scroll_delta = ui.input(|i| {
                     if let Some(pos) = i.pointer.hover_pos() {
-                        if rect.contains(pos) { i.smooth_scroll_delta.y } else { 0.0 }
-                    } else { 0.0 }
+                        if rect.contains(pos) {
+                            i.smooth_scroll_delta.y
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    }
                 });
                 if scroll_delta != 0.0 {
                     tab.model_zoom *= 1.0 + scroll_delta * 0.002;
@@ -1006,39 +1078,57 @@ impl BerryCodeApp {
                         ];
 
                         // Calculate depth and sort back-to-front
-                        let mut sorted: Vec<(usize, f32)> = data.splats.iter().enumerate()
+                        let mut sorted: Vec<(usize, f32)> = data
+                            .splats
+                            .iter()
+                            .enumerate()
                             .map(|(i, s)| {
                                 let d = s.position[0] * cam_fwd[0]
-                                      + s.position[1] * cam_fwd[1]
-                                      + s.position[2] * cam_fwd[2];
+                                    + s.position[1] * cam_fwd[1]
+                                    + s.position[2] * cam_fwd[2];
                                 (i, d)
                             })
                             .collect();
-                        sorted.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+                        sorted.sort_by(|a, b| {
+                            a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
+                        });
 
                         // Subsample for performance
                         let max_splats = 300_000;
-                        let step = if sorted.len() > max_splats { sorted.len() / max_splats } else { 1 };
+                        let step = if sorted.len() > max_splats {
+                            sorted.len() / max_splats
+                        } else {
+                            1
+                        };
 
                         // Show splat count in stats area
                         painter.text(
                             egui::pos2(rect.min.x + 8.0, rect.min.y + 12.0),
                             egui::Align2::LEFT_TOP,
-                            format!("Gaussian Splats: {} (showing: {})", data.splats.len(), data.splats.len() / step),
+                            format!(
+                                "Gaussian Splats: {} (showing: {})",
+                                data.splats.len(),
+                                data.splats.len() / step
+                            ),
                             egui::FontId::proportional(10.0),
                             egui::Color32::from_rgb(180, 180, 80),
                         );
 
                         // Calculate scale normalization: auto-adjust so splats are visible
                         let avg_max_scale: f32 = if data.splats.len() > 100 {
-                            let sample: f32 = data.splats.iter().take(1000)
+                            let sample: f32 = data
+                                .splats
+                                .iter()
+                                .take(1000)
                                 .map(|s| s.scale[0].max(s.scale[1]).max(s.scale[2]))
                                 .sum();
                             sample / data.splats.len().min(1000) as f32
                         } else {
-                            data.splats.iter()
+                            data.splats
+                                .iter()
                                 .map(|s| s.scale[0].max(s.scale[1]).max(s.scale[2]))
-                                .sum::<f32>() / data.splats.len().max(1) as f32
+                                .sum::<f32>()
+                                / data.splats.len().max(1) as f32
                         };
                         // Target: average splat should be ~2px on screen
                         let scale_multiplier = if avg_max_scale > 0.0001 {
@@ -1048,15 +1138,21 @@ impl BerryCodeApp {
                         };
 
                         for (draw_idx, &(idx, _depth)) in sorted.iter().enumerate() {
-                            if draw_idx % step != 0 { continue; }
+                            if draw_idx % step != 0 {
+                                continue;
+                            }
                             let splat = &data.splats[idx];
 
                             let p = project(&splat.position);
-                            if !rect.contains(p) { continue; }
+                            if !rect.contains(p) {
+                                continue;
+                            }
 
                             // Alpha from opacity
                             let alpha = (splat.opacity * 255.0).min(255.0) as u8;
-                            if alpha < 3 { continue; }
+                            if alpha < 3 {
+                                continue;
+                            }
 
                             // Boost dark colors: lift shadows so structure is visible
                             let boost = |c: u8| -> u8 {
@@ -1084,7 +1180,11 @@ impl BerryCodeApp {
                         painter.text(
                             egui::pos2(rect.min.x + 8.0, rect.max.y - 16.0),
                             egui::Align2::LEFT_BOTTOM,
-                            format!("{} splats (showing {})", data.splats.len(), data.splats.len() / step),
+                            format!(
+                                "{} splats (showing {})",
+                                data.splats.len(),
+                                data.splats.len() / step
+                            ),
                             egui::FontId::proportional(11.0),
                             egui::Color32::from_rgb(150, 150, 150),
                         );
@@ -1109,16 +1209,14 @@ impl BerryCodeApp {
 
                             // Clip to rect
                             if rect.contains(p0) || rect.contains(p1) {
-                                painter.line_segment(
-                                    [p0, p1],
-                                    egui::Stroke::new(0.5, edge_color),
-                                );
+                                painter.line_segment([p0, p1], egui::Stroke::new(0.5, edge_color));
                             }
                         }
                     }
 
                     // If no edges and no splats (plain point cloud), render individual points
-                    if data.edges.is_empty() && data.splats.is_empty() && !data.vertices.is_empty() {
+                    if data.edges.is_empty() && data.splats.is_empty() && !data.vertices.is_empty()
+                    {
                         let point_color = egui::Color32::from_rgb(100, 200, 255);
                         let max_points = 100000;
                         let step = if data.vertices.len() > max_points {

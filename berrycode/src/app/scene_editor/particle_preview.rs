@@ -50,7 +50,8 @@ impl ParticlePreview {
         self.last_update = Some(now);
 
         // Drop emitters whose entity no longer exists.
-        self.emitters.retain(|id, _| scene.entities.contains_key(id));
+        self.emitters
+            .retain(|id, _| scene.entities.contains_key(id));
 
         for (id, entity) in &scene.entities {
             for component in &entity.components {
@@ -81,8 +82,7 @@ impl ParticlePreview {
                     let origin = Vec3::from_array(world_t.translation);
                     while runtime.spawn_accumulator >= 1.0 && runtime.particles.len() < max {
                         runtime.spawn_accumulator -= 1.0;
-                        let (rx, ry, rz) =
-                            pseudo_random_dir(runtime.particles.len() as u32, *id);
+                        let (rx, ry, rz) = pseudo_random_dir(runtime.particles.len() as u32, *id);
                         let lateral = Vec3::new(rx, 0.0, rz) * *spread;
                         let vel = Vec3::new(0.0, *speed, 0.0)
                             + lateral * *speed

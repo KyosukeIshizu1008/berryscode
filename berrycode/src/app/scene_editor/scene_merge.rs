@@ -38,7 +38,8 @@ pub fn three_way_merge(base: &SceneModel, ours: &SceneModel, theirs: &SceneModel
 
     // Entities added by theirs (not in base)
     for &id in theirs_ids.difference(&base_ids) {
-        if !ours_ids.contains(&id) { // avoid duplicate if both added same id
+        if !ours_ids.contains(&id) {
+            // avoid duplicate if both added same id
             if let Some(entity) = theirs.entities.get(&id) {
                 merged.entities.insert(id, entity.clone());
                 if !merged.root_entities.contains(&id) && entity.parent.is_none() {
@@ -91,7 +92,9 @@ pub fn three_way_merge(base: &SceneModel, ours: &SceneModel, theirs: &SceneModel
 
     // Entities modified by both
     for &id in &base_ids {
-        if !ours_ids.contains(&id) || !theirs_ids.contains(&id) { continue; }
+        if !ours_ids.contains(&id) || !theirs_ids.contains(&id) {
+            continue;
+        }
         let base_e = base.entities.get(&id);
         let ours_e = ours.entities.get(&id);
         let theirs_e = theirs.entities.get(&id);
@@ -110,9 +113,13 @@ pub fn three_way_merge(base: &SceneModel, ours: &SceneModel, theirs: &SceneModel
                 });
             }
         } else if ours_changed {
-            if let Some(o) = ours_e { merged.entities.insert(id, o.clone()); }
+            if let Some(o) = ours_e {
+                merged.entities.insert(id, o.clone());
+            }
         } else if theirs_changed {
-            if let Some(t) = theirs_e { merged.entities.insert(id, t.clone()); }
+            if let Some(t) = theirs_e {
+                merged.entities.insert(id, t.clone());
+            }
         }
     }
 
@@ -172,7 +179,8 @@ impl BerryCodeApp {
                 if ui.button("Merge").clicked() {
                     let base_res = super::serialization::load_scene_from_ron(&self.merge_base_path);
                     let ours_res = super::serialization::load_scene_from_ron(&self.merge_ours_path);
-                    let theirs_res = super::serialization::load_scene_from_ron(&self.merge_theirs_path);
+                    let theirs_res =
+                        super::serialization::load_scene_from_ron(&self.merge_theirs_path);
 
                     match (base_res, ours_res, theirs_res) {
                         (Ok(base), Ok(ours), Ok(theirs)) => {
@@ -182,7 +190,8 @@ impl BerryCodeApp {
                             self.status_message_timestamp = Some(std::time::Instant::now());
                         }
                         _ => {
-                            self.status_message = "Failed to load one or more scene files".to_string();
+                            self.status_message =
+                                "Failed to load one or more scene files".to_string();
                             self.status_message_timestamp = Some(std::time::Instant::now());
                         }
                     }
@@ -214,31 +223,41 @@ impl BerryCodeApp {
                         );
 
                         let mut resolve_action: Option<(u64, bool)> = None;
-                        egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                            for conflict in &result.conflicts {
-                                ui.group(|ui| {
-                                    ui.label(format!(
-                                        "Entity #{}: \"{}\"",
-                                        conflict.entity_id, conflict.entity_name
-                                    ));
-                                    ui.horizontal(|ui| {
-                                        if ui.button("Use Ours").clicked() {
-                                            resolve_action = Some((conflict.entity_id, true));
-                                        }
-                                        if ui.button("Use Theirs").clicked() {
-                                            resolve_action = Some((conflict.entity_id, false));
-                                        }
+                        egui::ScrollArea::vertical()
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                for conflict in &result.conflicts {
+                                    ui.group(|ui| {
+                                        ui.label(format!(
+                                            "Entity #{}: \"{}\"",
+                                            conflict.entity_id, conflict.entity_name
+                                        ));
+                                        ui.horizontal(|ui| {
+                                            if ui.button("Use Ours").clicked() {
+                                                resolve_action = Some((conflict.entity_id, true));
+                                            }
+                                            if ui.button("Use Theirs").clicked() {
+                                                resolve_action = Some((conflict.entity_id, false));
+                                            }
+                                        });
                                     });
-                                });
-                            }
-                        });
+                                }
+                            });
 
                         // Apply conflict resolution
                         if let Some((entity_id, use_ours)) = resolve_action {
                             if let Some(ref mut result) = self.merge_result {
-                                if let Some(idx) = result.conflicts.iter().position(|c| c.entity_id == entity_id) {
+                                if let Some(idx) = result
+                                    .conflicts
+                                    .iter()
+                                    .position(|c| c.entity_id == entity_id)
+                                {
                                     let conflict = result.conflicts.remove(idx);
-                                    let entity = if use_ours { conflict.ours } else { conflict.theirs };
+                                    let entity = if use_ours {
+                                        conflict.ours
+                                    } else {
+                                        conflict.theirs
+                                    };
                                     result.merged.entities.insert(entity_id, entity);
                                 }
                             }
@@ -277,10 +296,14 @@ mod tests {
         let id = base.add_entity("Shared".into(), vec![]);
 
         let mut ours = base.clone();
-        if let Some(e) = ours.entities.get_mut(&id) { e.name = "OursName".into(); }
+        if let Some(e) = ours.entities.get_mut(&id) {
+            e.name = "OursName".into();
+        }
 
         let mut theirs = base.clone();
-        if let Some(e) = theirs.entities.get_mut(&id) { e.name = "TheirsName".into(); }
+        if let Some(e) = theirs.entities.get_mut(&id) {
+            e.name = "TheirsName".into();
+        }
 
         let result = three_way_merge(&base, &ours, &theirs);
         assert_eq!(result.conflicts.len(), 1);
@@ -294,14 +317,24 @@ mod tests {
         let id_b = base.add_entity("B".into(), vec![]);
 
         let mut ours = base.clone();
-        if let Some(e) = ours.entities.get_mut(&id_a) { e.name = "A_modified".into(); }
+        if let Some(e) = ours.entities.get_mut(&id_a) {
+            e.name = "A_modified".into();
+        }
 
         let mut theirs = base.clone();
-        if let Some(e) = theirs.entities.get_mut(&id_b) { e.name = "B_modified".into(); }
+        if let Some(e) = theirs.entities.get_mut(&id_b) {
+            e.name = "B_modified".into();
+        }
 
         let result = three_way_merge(&base, &ours, &theirs);
         assert!(result.conflicts.is_empty());
-        assert_eq!(result.merged.entities.get(&id_a).map(|e| e.name.as_str()), Some("A_modified"));
-        assert_eq!(result.merged.entities.get(&id_b).map(|e| e.name.as_str()), Some("B_modified"));
+        assert_eq!(
+            result.merged.entities.get(&id_a).map(|e| e.name.as_str()),
+            Some("A_modified")
+        );
+        assert_eq!(
+            result.merged.entities.get(&id_b).map(|e| e.name.as_str()),
+            Some("B_modified")
+        );
     }
 }

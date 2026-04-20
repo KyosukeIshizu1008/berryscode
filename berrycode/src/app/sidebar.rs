@@ -1,8 +1,8 @@
 //! Sidebar panel rendering
 
-use super::BerryCodeApp;
 use super::types::ActivePanel;
 use super::ui_colors;
+use super::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Render Sidebar (file tree, chat, terminal, etc.)
@@ -15,7 +15,7 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::none()
                     .fill(ui_colors::SIDEBAR_BG) // #191A1C
-                    .inner_margin(egui::Margin::same(8.0))
+                    .inner_margin(egui::Margin::same(8.0)),
             )
             .show(ctx, |ui| {
                 // Update sidebar width from UI

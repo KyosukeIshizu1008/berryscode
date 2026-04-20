@@ -90,10 +90,7 @@ fn apply_sgr(params: &str, color: &mut egui::Color32, bold: &mut bool) {
         return;
     }
 
-    let codes: Vec<u32> = params
-        .split(';')
-        .map(|s| s.parse().unwrap_or(0))
-        .collect();
+    let codes: Vec<u32> = params.split(';').map(|s| s.parse().unwrap_or(0)).collect();
 
     let mut i = 0;
     while i < codes.len() {
@@ -108,13 +105,13 @@ fn apply_sgr(params: &str, color: &mut egui::Color32, bold: &mut bool) {
             22 => *bold = false,
 
             // Standard foreground colors (30-37)
-            30 => *color = egui::Color32::from_rgb(40, 40, 40),    // black
-            31 => *color = egui::Color32::from_rgb(220, 80, 80),   // red
-            32 => *color = egui::Color32::from_rgb(80, 200, 80),   // green
-            33 => *color = egui::Color32::from_rgb(220, 180, 60),  // yellow
-            34 => *color = egui::Color32::from_rgb(80, 140, 220),  // blue
-            35 => *color = egui::Color32::from_rgb(180, 80, 200),  // magenta
-            36 => *color = egui::Color32::from_rgb(80, 200, 200),  // cyan
+            30 => *color = egui::Color32::from_rgb(40, 40, 40), // black
+            31 => *color = egui::Color32::from_rgb(220, 80, 80), // red
+            32 => *color = egui::Color32::from_rgb(80, 200, 80), // green
+            33 => *color = egui::Color32::from_rgb(220, 180, 60), // yellow
+            34 => *color = egui::Color32::from_rgb(80, 140, 220), // blue
+            35 => *color = egui::Color32::from_rgb(180, 80, 200), // magenta
+            36 => *color = egui::Color32::from_rgb(80, 200, 200), // cyan
             37 => *color = egui::Color32::from_rgb(204, 204, 204), // white
 
             // Bright foreground colors (90-97)
@@ -176,9 +173,21 @@ fn ansi_256_color(n: u32) -> egui::Color32 {
             let r_idx = idx / 36;
             let g_idx = (idx % 36) / 6;
             let b_idx = idx % 6;
-            let r = if r_idx == 0 { 0 } else { (r_idx * 40 + 55) as u8 };
-            let g = if g_idx == 0 { 0 } else { (g_idx * 40 + 55) as u8 };
-            let b = if b_idx == 0 { 0 } else { (b_idx * 40 + 55) as u8 };
+            let r = if r_idx == 0 {
+                0
+            } else {
+                (r_idx * 40 + 55) as u8
+            };
+            let g = if g_idx == 0 {
+                0
+            } else {
+                (g_idx * 40 + 55) as u8
+            };
+            let b = if b_idx == 0 {
+                0
+            } else {
+                (b_idx * 40 + 55) as u8
+            };
             egui::Color32::from_rgb(r, g, b)
         }
         // Grayscale (232-255)

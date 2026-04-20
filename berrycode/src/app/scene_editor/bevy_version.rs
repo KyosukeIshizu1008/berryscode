@@ -58,9 +58,7 @@ pub fn update_bevy_version(root: &str, new_version: &str) -> Result<(), String> 
                 .map_err(|e| e.to_string())?
                 .replace(line, &format!("version = \"{}\"", new_version));
             new_content.push_str(&new_line);
-        } else if line.trim().starts_with("bevy")
-            && line.contains('"')
-            && !line.contains("version")
+        } else if line.trim().starts_with("bevy") && line.contains('"') && !line.contains("version")
         {
             // Replace version in: bevy = "0.15"
             let new_line = regex::Regex::new(r#""[^"]*""#)

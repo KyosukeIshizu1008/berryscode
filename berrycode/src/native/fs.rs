@@ -53,14 +53,21 @@ pub fn read_file(path: impl AsRef<Path>) -> Result<String> {
     // Safety limit: 10MB
     const MAX_SIZE: u64 = 10 * 1024 * 1024;
     if metadata.len() > MAX_SIZE {
-        anyhow::bail!("File too large: {} bytes (max: {} bytes)", metadata.len(), MAX_SIZE);
+        anyhow::bail!(
+            "File too large: {} bytes (max: {} bytes)",
+            metadata.len(),
+            MAX_SIZE
+        );
     }
 
     fs::read_to_string(path).context("Failed to read file")
 }
 
 /// Read file contents partially (for large files)
-pub fn read_file_partial(path: impl AsRef<Path>, max_bytes: Option<usize>) -> Result<(String, bool, u64)> {
+pub fn read_file_partial(
+    path: impl AsRef<Path>,
+    max_bytes: Option<usize>,
+) -> Result<(String, bool, u64)> {
     let path = path.as_ref();
     let metadata = fs::metadata(path).context("Failed to read file metadata")?;
     let total_size = metadata.len();
@@ -163,10 +170,7 @@ fn read_dir_internal(path: &Path, max_depth: usize, current_depth: usize) -> Res
     for entry in fs::read_dir(path).context("Failed to read directory")? {
         let entry = entry.context("Failed to read directory entry")?;
         let entry_path = entry.path();
-        let name = entry
-            .file_name()
-            .to_string_lossy()
-            .to_string();
+        let name = entry.file_name().to_string_lossy().to_string();
 
         let is_dir = entry
             .file_type()
@@ -255,4 +259,3 @@ where
     let _ = callback;
     Ok(())
 }
-

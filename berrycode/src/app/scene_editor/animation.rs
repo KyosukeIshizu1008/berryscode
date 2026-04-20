@@ -38,7 +38,13 @@ impl AnimationPlayback {
         // Advance each entity that has an Animation component.
         for (id, entity) in &scene.entities {
             for component in &entity.components {
-                if let ComponentData::Animation { duration, looped, tracks, .. } = component {
+                if let ComponentData::Animation {
+                    duration,
+                    looped,
+                    tracks,
+                    ..
+                } = component
+                {
                     let entry = self.times.entry(*id).or_insert(0.0);
                     let prev_time = *entry;
                     *entry += dt;
@@ -170,25 +176,22 @@ impl BerryCodeApp {
 
         // Find which selected entity has an Animation component.
         let selected_id = self.primary_selected_id;
-        let (entity_id, duration, tracks_snapshot): (
-            Option<u64>,
-            f32,
-            Vec<AnimationTrack>,
-        ) = match selected_id.and_then(|id| self.scene_model.entities.get(&id).map(|e| (id, e))) {
-            Some((id, e)) => {
-                let anim = e.components.iter().find_map(|c| match c {
-                    ComponentData::Animation { duration, tracks, .. } => {
-                        Some((*duration, tracks.clone()))
+        let (entity_id, duration, tracks_snapshot): (Option<u64>, f32, Vec<AnimationTrack>) =
+            match selected_id.and_then(|id| self.scene_model.entities.get(&id).map(|e| (id, e))) {
+                Some((id, e)) => {
+                    let anim = e.components.iter().find_map(|c| match c {
+                        ComponentData::Animation {
+                            duration, tracks, ..
+                        } => Some((*duration, tracks.clone())),
+                        _ => None,
+                    });
+                    match anim {
+                        Some((d, ts)) => (Some(id), d, ts),
+                        None => (None, 0.0, vec![]),
                     }
-                    _ => None,
-                });
-                match anim {
-                    Some((d, ts)) => (Some(id), d, ts),
-                    None => (None, 0.0, vec![]),
                 }
-            }
-            None => (None, 0.0, vec![]),
-        };
+                None => (None, 0.0, vec![]),
+            };
 
         let playback_time = entity_id
             .and_then(|id| self.animation_playback.times.get(&id).copied())
@@ -240,15 +243,10 @@ impl BerryCodeApp {
         ui.separator();
 
         // Timeline bar: draw keyframe markers.
-        let (rect, _resp) = ui.allocate_exact_size(
-            egui::vec2(ui.available_width(), 32.0),
-            egui::Sense::hover(),
-        );
-        ui.painter().rect_filled(
-            rect,
-            2.0,
-            egui::Color32::from_rgb(25, 27, 31),
-        );
+        let (rect, _resp) =
+            ui.allocate_exact_size(egui::vec2(ui.available_width(), 32.0), egui::Sense::hover());
+        ui.painter()
+            .rect_filled(rect, 2.0, egui::Color32::from_rgb(25, 27, 31));
         let d = duration.max(0.001);
         let track_colors = [
             egui::Color32::from_rgb(120, 200, 255),
@@ -286,34 +284,36 @@ impl BerryCodeApp {
         ui.separator();
 
         // Per-track keyframe list.
-        egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
-            for (t_idx, track) in tracks_snapshot.iter().enumerate() {
-                ui.label(
-                    egui::RichText::new(format!(
-                        "{} ({} kf)",
-                        track.property.label(),
-                        track.keyframes.len()
-                    ))
-                    .strong(),
-                );
-                for (k_idx, kf) in track.keyframes.iter().enumerate() {
-                    ui.horizontal(|ui| {
-                        ui.monospace(format!(
-                            "  #{:>2}  t={:>6.2}s  [{:+.2},{:+.2},{:+.2}]  {}",
-                            k_idx,
-                            kf.time,
-                            kf.value[0],
-                            kf.value[1],
-                            kf.value[2],
-                            kf.easing.label(),
-                        ));
-                        if ui.small_button("Delete").clicked() {
-                            delete_idx = Some(t_idx * 10000 + k_idx);
-                        }
-                    });
+        egui::ScrollArea::vertical()
+            .max_height(160.0)
+            .show(ui, |ui| {
+                for (t_idx, track) in tracks_snapshot.iter().enumerate() {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{} ({} kf)",
+                            track.property.label(),
+                            track.keyframes.len()
+                        ))
+                        .strong(),
+                    );
+                    for (k_idx, kf) in track.keyframes.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            ui.monospace(format!(
+                                "  #{:>2}  t={:>6.2}s  [{:+.2},{:+.2},{:+.2}]  {}",
+                                k_idx,
+                                kf.time,
+                                kf.value[0],
+                                kf.value[1],
+                                kf.value[2],
+                                kf.easing.label(),
+                            ));
+                            if ui.small_button("Delete").clicked() {
+                                delete_idx = Some(t_idx * 10000 + k_idx);
+                            }
+                        });
+                    }
                 }
-            }
-        });
+            });
 
         // Apply requests.
         if toggle_play {
@@ -393,25 +393,22 @@ impl BerryCodeApp {
 
         // Find which selected entity has an Animation component.
         let selected_id = self.primary_selected_id;
-        let (entity_id, duration, tracks_snapshot): (
-            Option<u64>,
-            f32,
-            Vec<AnimationTrack>,
-        ) = match selected_id.and_then(|id| self.scene_model.entities.get(&id).map(|e| (id, e))) {
-            Some((id, e)) => {
-                let anim = e.components.iter().find_map(|c| match c {
-                    ComponentData::Animation { duration, tracks, .. } => {
-                        Some((*duration, tracks.clone()))
+        let (entity_id, duration, tracks_snapshot): (Option<u64>, f32, Vec<AnimationTrack>) =
+            match selected_id.and_then(|id| self.scene_model.entities.get(&id).map(|e| (id, e))) {
+                Some((id, e)) => {
+                    let anim = e.components.iter().find_map(|c| match c {
+                        ComponentData::Animation {
+                            duration, tracks, ..
+                        } => Some((*duration, tracks.clone())),
+                        _ => None,
+                    });
+                    match anim {
+                        Some((d, ts)) => (Some(id), d, ts),
+                        None => (None, 0.0, vec![]),
                     }
-                    _ => None,
-                });
-                match anim {
-                    Some((d, ts)) => (Some(id), d, ts),
-                    None => (None, 0.0, vec![]),
                 }
-            }
-            None => (None, 0.0, vec![]),
-        };
+                None => (None, 0.0, vec![]),
+            };
 
         let mut open = self.timeline_open;
         let playback_time = entity_id
@@ -472,11 +469,8 @@ impl BerryCodeApp {
                     egui::vec2(ui.available_width(), 32.0),
                     egui::Sense::hover(),
                 );
-                ui.painter().rect_filled(
-                    rect,
-                    2.0,
-                    egui::Color32::from_rgb(25, 27, 31),
-                );
+                ui.painter()
+                    .rect_filled(rect, 2.0, egui::Color32::from_rgb(25, 27, 31));
                 let d = duration.max(0.001);
                 let track_colors = [
                     egui::Color32::from_rgb(120, 200, 255), // Position
@@ -514,34 +508,36 @@ impl BerryCodeApp {
                 ui.separator();
 
                 // Per-track keyframe list.
-                egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
-                    for (t_idx, track) in tracks_snapshot.iter().enumerate() {
-                        ui.label(
-                            egui::RichText::new(format!(
-                                "{} ({} kf)",
-                                track.property.label(),
-                                track.keyframes.len()
-                            ))
-                            .strong(),
-                        );
-                        for (k_idx, kf) in track.keyframes.iter().enumerate() {
-                            ui.horizontal(|ui| {
-                                ui.monospace(format!(
-                                    "  #{:>2}  t={:>6.2}s  [{:+.2},{:+.2},{:+.2}]  {}",
-                                    k_idx,
-                                    kf.time,
-                                    kf.value[0],
-                                    kf.value[1],
-                                    kf.value[2],
-                                    kf.easing.label(),
-                                ));
-                                if ui.small_button("Delete").clicked() {
-                                    delete_idx = Some(t_idx * 10000 + k_idx);
-                                }
-                            });
+                egui::ScrollArea::vertical()
+                    .max_height(160.0)
+                    .show(ui, |ui| {
+                        for (t_idx, track) in tracks_snapshot.iter().enumerate() {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{} ({} kf)",
+                                    track.property.label(),
+                                    track.keyframes.len()
+                                ))
+                                .strong(),
+                            );
+                            for (k_idx, kf) in track.keyframes.iter().enumerate() {
+                                ui.horizontal(|ui| {
+                                    ui.monospace(format!(
+                                        "  #{:>2}  t={:>6.2}s  [{:+.2},{:+.2},{:+.2}]  {}",
+                                        k_idx,
+                                        kf.time,
+                                        kf.value[0],
+                                        kf.value[1],
+                                        kf.value[2],
+                                        kf.easing.label(),
+                                    ));
+                                    if ui.small_button("Delete").clicked() {
+                                        delete_idx = Some(t_idx * 10000 + k_idx);
+                                    }
+                                });
+                            }
                         }
-                    }
-                });
+                    });
             });
         self.timeline_open = open;
 
@@ -724,16 +720,32 @@ mod tests {
             AnimationTrack {
                 property: AnimProperty::Position,
                 keyframes: vec![
-                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
-                    TrackKeyframe { time: 1.0, value: [10.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe {
+                        time: 0.0,
+                        value: [0.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
+                    TrackKeyframe {
+                        time: 1.0,
+                        value: [10.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
                 ],
                 events: vec![],
             },
             AnimationTrack {
                 property: AnimProperty::Scale,
                 keyframes: vec![
-                    TrackKeyframe { time: 0.0, value: [1.0, 1.0, 1.0], easing: EasingType::Linear },
-                    TrackKeyframe { time: 1.0, value: [2.0, 2.0, 2.0], easing: EasingType::Linear },
+                    TrackKeyframe {
+                        time: 0.0,
+                        value: [1.0, 1.0, 1.0],
+                        easing: EasingType::Linear,
+                    },
+                    TrackKeyframe {
+                        time: 1.0,
+                        value: [2.0, 2.0, 2.0],
+                        easing: EasingType::Linear,
+                    },
                 ],
                 events: vec![],
             },

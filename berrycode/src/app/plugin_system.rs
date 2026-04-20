@@ -155,7 +155,12 @@ impl BerryCodeApp {
     pub(crate) fn execute_plugin_command(&mut self, command_id: &str) {
         // Find the plugin that provides this command
         let plugin = self.plugin_manager.plugins.iter().find(|p| {
-            p.enabled && p.manifest.contributes.commands.iter().any(|c| c.command == command_id)
+            p.enabled
+                && p.manifest
+                    .contributes
+                    .commands
+                    .iter()
+                    .any(|c| c.command == command_id)
         });
 
         let plugin = match plugin {
@@ -173,10 +178,14 @@ impl BerryCodeApp {
         }
 
         // Prepare environment variables for the script
-        let current_file = self.editor_tabs.get(self.active_tab_idx)
+        let current_file = self
+            .editor_tabs
+            .get(self.active_tab_idx)
             .map(|t| t.file_path.clone())
             .unwrap_or_default();
-        let cursor_line = self.editor_tabs.get(self.active_tab_idx)
+        let cursor_line = self
+            .editor_tabs
+            .get(self.active_tab_idx)
             .map(|t| t.cursor_line.to_string())
             .unwrap_or_default();
 
@@ -201,7 +210,11 @@ impl BerryCodeApp {
                 if !stderr.is_empty() {
                     tracing::warn!("Plugin stderr: {}", stderr);
                 }
-                tracing::info!("Plugin {} executed command {}", plugin.manifest.name, command_id);
+                tracing::info!(
+                    "Plugin {} executed command {}",
+                    plugin.manifest.name,
+                    command_id
+                );
             }
             Err(e) => {
                 tracing::error!("Failed to execute plugin: {}", e);
@@ -213,10 +226,15 @@ impl BerryCodeApp {
 
     /// Get all registered plugin commands
     pub(crate) fn get_plugin_commands(&self) -> Vec<(&str, &str)> {
-        self.plugin_manager.plugins.iter()
+        self.plugin_manager
+            .plugins
+            .iter()
             .filter(|p| p.enabled)
             .flat_map(|p| {
-                p.manifest.contributes.commands.iter()
+                p.manifest
+                    .contributes
+                    .commands
+                    .iter()
                     .map(|c| (c.command.as_str(), c.title.as_str()))
             })
             .collect()
@@ -334,11 +352,8 @@ impl BerryCodeApp {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        let btn_text = if plugin.enabled {
-                                            "Disable"
-                                        } else {
-                                            "Enable"
-                                        };
+                                        let btn_text =
+                                            if plugin.enabled { "Disable" } else { "Enable" };
                                         if ui.small_button(btn_text).clicked() {
                                             toggle_idx = Some(idx);
                                         }
@@ -377,11 +392,7 @@ impl BerryCodeApp {
                             );
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new(&plugin.name)
-                                            .size(12.0)
-                                            .strong(),
-                                    );
+                                    ui.label(egui::RichText::new(&plugin.name).size(12.0).strong());
                                     ui.label(
                                         egui::RichText::new(format!("v{}", plugin.version))
                                             .size(10.0)
@@ -398,7 +409,10 @@ impl BerryCodeApp {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if plugin.installed {
-                                        ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "Installed");
+                                        ui.colored_label(
+                                            egui::Color32::from_rgb(80, 200, 80),
+                                            "Installed",
+                                        );
                                     } else {
                                         if ui.small_button("Install").clicked() {
                                             // Would download and install the plugin

@@ -32,9 +32,9 @@ struct OllamaChatRequest {
 struct OllamaOptions {
     temperature: f32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    num_ctx: Option<u32>,      // context window (tokens)
+    num_ctx: Option<u32>, // context window (tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
-    num_predict: Option<i32>,  // max output tokens (-1 = unlimited)
+    num_predict: Option<i32>, // max output tokens (-1 = unlimited)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +90,9 @@ struct ToolCall {
 /// Used to suppress spurious tool call output in non-autonomous mode.
 fn is_tool_call_json(text: &str) -> bool {
     let t = text.trim();
-    (t.starts_with('{') && (t.contains("\"type\"") || t.contains("\"name\"")) && t.contains("\"function\""))
+    (t.starts_with('{')
+        && (t.contains("\"type\"") || t.contains("\"name\""))
+        && t.contains("\"function\""))
         || t.starts_with("<function=")
 }
 
@@ -175,10 +177,9 @@ fn parse_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
 
     // Format 1: Ollama qwen output — {"name": "tool", "arguments": {...}}
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
-        if let (Some(name), Some(args)) = (
-            v.get("name").and_then(|n| n.as_str()),
-            v.get("arguments"),
-        ) {
+        if let (Some(name), Some(args)) =
+            (v.get("name").and_then(|n| n.as_str()), v.get("arguments"))
+        {
             if !name.is_empty() {
                 return Some((name.to_string(), args.clone()));
             }
@@ -234,11 +235,15 @@ fn parse_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
             let name_start = param_start + "<parameter=".len();
 
             if let Some(name_end) = content[name_start..].find('>') {
-                let param_name = content[name_start..name_start + name_end].trim().to_string();
+                let param_name = content[name_start..name_start + name_end]
+                    .trim()
+                    .to_string();
                 let value_start = name_start + name_end + 1;
 
                 if let Some(value_end) = content[value_start..].find("</parameter>") {
-                    let param_value = content[value_start..value_start + value_end].trim().to_string();
+                    let param_value = content[value_start..value_start + value_end]
+                        .trim()
+                        .to_string();
                     parameters.insert(param_name, serde_json::Value::String(param_value));
                     search_pos = value_start + value_end + "</parameter>".len();
                 } else {
@@ -250,13 +255,23 @@ fn parse_tool_call(content: &str) -> Option<(String, serde_json::Value)> {
         }
 
         if !parameters.is_empty() {
-            tracing::debug!("📝 Parsed XML tool call: {} with {} parameters", function_name, parameters.len());
+            tracing::debug!(
+                "📝 Parsed XML tool call: {} with {} parameters",
+                function_name,
+                parameters.len()
+            );
             return Some((function_name, serde_json::Value::Object(parameters)));
         }
     }
 
     // Format: "tool_name {json}" — e.g. "list_files {"path": "."}"
-    let known_tools = ["list_files", "read_file", "write_file", "execute_command", "search_code"];
+    let known_tools = [
+        "list_files",
+        "read_file",
+        "write_file",
+        "execute_command",
+        "search_code",
+    ];
     for tool in &known_tools {
         if let Some(stripped) = trimmed.strip_prefix(*tool) {
             let rest = stripped.trim();
@@ -307,14 +322,14 @@ impl Role {
     /// Ollama model name for this role
     pub fn model_name(&self) -> &'static str {
         match self {
-            Role::Router     => "llama3.2:3b-instruct-q8_0",
-            Role::Coder      => "qwen2.5-coder:32b-instruct-q8_0",
-            Role::Architect  => "deepseek-r1:32b",
-            Role::Vision     => "llama3.2-vision:11b",
+            Role::Router => "llama3.2:3b-instruct-q8_0",
+            Role::Coder => "qwen2.5-coder:32b-instruct-q8_0",
+            Role::Architect => "deepseek-r1:32b",
+            Role::Vision => "llama3.2-vision:11b",
             Role::Summarizer => "deepseek-r1:32b", // 推論モデルで要約
-            Role::CliGit     => "llama3.2:1b-instruct-q8_0",
-            Role::Reviewer   => "qwen2.5-coder:32b-instruct-q8_0",      // Rustの静的解析力で監査
-            Role::DocRag     => "deepseek-r1:32b", // 推論モデルで文書作成
+            Role::CliGit => "llama3.2:1b-instruct-q8_0",
+            Role::Reviewer => "qwen2.5-coder:32b-instruct-q8_0", // Rustの静的解析力で監査
+            Role::DocRag => "deepseek-r1:32b",                   // 推論モデルで文書作成
         }
     }
 
@@ -441,12 +456,12 @@ impl Role {
         match self {
             Role::Router => OllamaOptions {
                 temperature: 0.0,
-                num_ctx: Some(16_384),  // must fit system prompt + ~70 few-shot examples
-                num_predict: Some(10),  // hard cap: we only need one token
+                num_ctx: Some(16_384), // must fit system prompt + ~70 few-shot examples
+                num_predict: Some(10), // hard cap: we only need one token
             },
             Role::Coder => OllamaOptions {
                 temperature: 0.2,
-                num_ctx: Some(65_536),  // 64k: large enough for most code files
+                num_ctx: Some(65_536), // 64k: large enough for most code files
                 num_predict: None,
             },
             Role::Architect => OllamaOptions {
@@ -490,24 +505,38 @@ impl Role {
 
         // Exact match (temperature=0 makes this the common path)
         match lower.as_str() {
-            "architect"  => return Role::Architect,
-            "vision"     => return Role::Vision,
+            "architect" => return Role::Architect,
+            "vision" => return Role::Vision,
             "summarizer" => return Role::Summarizer,
-            "cli_git"    => return Role::CliGit,
-            "reviewer"   => return Role::Reviewer,
-            "doc_rag"    => return Role::DocRag,
-            "coder"      => return Role::Coder,
+            "cli_git" => return Role::CliGit,
+            "reviewer" => return Role::Reviewer,
+            "doc_rag" => return Role::DocRag,
+            "coder" => return Role::Coder,
             _ => {}
         }
 
         // Substring search (handles "coder." / "I choose: architect" edge cases)
-        if lower.contains("cli_git") || lower.contains("cli git") { return Role::CliGit; }
-        if lower.contains("doc_rag") || lower.contains("doc rag") { return Role::DocRag; }
-        if lower.contains("architect")  { return Role::Architect; }
-        if lower.contains("vision")     { return Role::Vision; }
-        if lower.contains("summarizer") { return Role::Summarizer; }
-        if lower.contains("reviewer")   { return Role::Reviewer; }
-        if lower.contains("coder")      { return Role::Coder; }
+        if lower.contains("cli_git") || lower.contains("cli git") {
+            return Role::CliGit;
+        }
+        if lower.contains("doc_rag") || lower.contains("doc rag") {
+            return Role::DocRag;
+        }
+        if lower.contains("architect") {
+            return Role::Architect;
+        }
+        if lower.contains("vision") {
+            return Role::Vision;
+        }
+        if lower.contains("summarizer") {
+            return Role::Summarizer;
+        }
+        if lower.contains("reviewer") {
+            return Role::Reviewer;
+        }
+        if lower.contains("coder") {
+            return Role::Coder;
+        }
 
         Role::Coder // ultimate fallback
     }
@@ -532,9 +561,15 @@ impl LlmClient {
         // Surface Ollama parallel execution settings so operators know what's active.
         // Set OLLAMA_NUM_PARALLEL=4 and OLLAMA_MAX_LOADED_MODELS=4 on the Ollama server
         // to run multiple models simultaneously on 128GB RAM.
-        let num_parallel   = std::env::var("OLLAMA_NUM_PARALLEL").unwrap_or_else(|_| "1 (default)".to_string());
-        let max_models     = std::env::var("OLLAMA_MAX_LOADED_MODELS").unwrap_or_else(|_| "1 (default)".to_string());
-        tracing::info!("🚀 Ollama parallel config: NUM_PARALLEL={}, MAX_LOADED_MODELS={}", num_parallel, max_models);
+        let num_parallel =
+            std::env::var("OLLAMA_NUM_PARALLEL").unwrap_or_else(|_| "1 (default)".to_string());
+        let max_models =
+            std::env::var("OLLAMA_MAX_LOADED_MODELS").unwrap_or_else(|_| "1 (default)".to_string());
+        tracing::info!(
+            "🚀 Ollama parallel config: NUM_PARALLEL={}, MAX_LOADED_MODELS={}",
+            num_parallel,
+            max_models
+        );
 
         Self {
             base_url,
@@ -555,95 +590,101 @@ impl LlmClient {
         // (user_message, expected_label)
         let examples: &[(&str, &str)] = &[
             // coder — context traps: negation / "設計" mentioned but goal is fix
-            ("設計は変えなくていい、バグだけ直して",         "coder"),
-            ("設計はそのままでいいのでエラーを修正して",     "coder"),
-            ("コミットはまだしないで。コードを直して",       "coder"),
+            ("設計は変えなくていい、バグだけ直して", "coder"),
+            ("設計はそのままでいいのでエラーを修正して", "coder"),
+            ("コミットはまだしないで。コードを直して", "coder"),
             // coder — normal
-            ("Rustでバグを修正して",                        "coder"),
-            ("この関数にエラーハンドリングを追加して",        "coder"),
-            ("パニックしているのを直して",                   "coder"),
-            ("新しいAPIエンドポイントを実装して",             "coder"),
-            ("リファクタリングして",                         "coder"),
-            ("Fix the compilation error",                   "coder"),
-            ("Fix the compilation error in main.rs",        "coder"),
-            ("コンパイルエラーを直して",                     "coder"),
-            ("Implement this feature in Rust",              "coder"),
-            ("このクラッシュ何？",                           "coder"),
-            ("なんかエラー出てる",                           "coder"),
-            ("it's broken",                                 "coder"),
-            ("直して",                                      "coder"),
-            ("write some tests for this",                   "coder"),
-            ("テストを書いて",                              "coder"),
+            ("Rustでバグを修正して", "coder"),
+            ("この関数にエラーハンドリングを追加して", "coder"),
+            ("パニックしているのを直して", "coder"),
+            ("新しいAPIエンドポイントを実装して", "coder"),
+            ("リファクタリングして", "coder"),
+            ("Fix the compilation error", "coder"),
+            ("Fix the compilation error in main.rs", "coder"),
+            ("コンパイルエラーを直して", "coder"),
+            ("Implement this feature in Rust", "coder"),
+            ("このクラッシュ何？", "coder"),
+            ("なんかエラー出てる", "coder"),
+            ("it's broken", "coder"),
+            ("直して", "coder"),
+            ("write some tests for this", "coder"),
+            ("テストを書いて", "coder"),
             // architect — action verbs: して/考えて/提案して/すべきか
-            ("システム設計のアドバイスをして",               "architect"),
-            ("モジュール構成をどう設計すべきか",             "architect"),
-            ("この機能のアーキテクチャを考えて",             "architect"),
-            ("How should I structure this codebase?",       "architect"),
-            ("Design the module boundaries",                "architect"),
-            ("どんな設計にすべきか",                        "architect"),
-            ("設計を提案して",                              "architect"),
-            ("このシステムをどう設計するか考えて",           "architect"),
+            ("システム設計のアドバイスをして", "architect"),
+            ("モジュール構成をどう設計すべきか", "architect"),
+            ("この機能のアーキテクチャを考えて", "architect"),
+            ("How should I structure this codebase?", "architect"),
+            ("Design the module boundaries", "architect"),
+            ("どんな設計にすべきか", "architect"),
+            ("設計を提案して", "architect"),
+            ("このシステムをどう設計するか考えて", "architect"),
             // vision
-            ("スクリーンショットのUIを確認して",             "vision"),
-            ("このレイアウトのズレを指摘して",               "vision"),
-            ("画像を見てUIの問題点を教えて",                 "vision"),
-            ("Check the UI screenshot for issues",          "vision"),
+            ("スクリーンショットのUIを確認して", "vision"),
+            ("このレイアウトのズレを指摘して", "vision"),
+            ("画像を見てUIの問題点を教えて", "vision"),
+            ("Check the UI screenshot for issues", "vision"),
             // summarizer — explain/describe verbs: 教えて/説明して/要約して/について
-            ("このコードを要約して",                         "summarizer"),
-            ("このエラーログを解説して",                     "summarizer"),
-            ("このファイルが何をしているか教えて",            "summarizer"),
-            ("このプロジェクトについて教えて",               "summarizer"),
-            ("このプロジェクトの概要と設計教えて",           "summarizer"),  // 設計+教えて → explain
-            ("このプロジェクトの設計を教えて",               "summarizer"),  // 設計+教えて → explain
-            ("設計を教えて",                                "summarizer"),  // 教えて dominates
-            ("設計を説明して",                              "summarizer"),  // 説明して dominates
-            ("現在の設計を概要を教えて",                    "summarizer"),
-            ("アーキテクチャを教えて",                      "summarizer"),  // 教えて dominates
-            ("アーキテクチャを説明して",                    "summarizer"),
-            ("このモジュールについて教えて",                 "summarizer"),
-            ("このコードについて教えて",                     "summarizer"),
-            ("このリポジトリについて説明して",               "summarizer"),
-            ("このクラスが何をしているか説明して",           "summarizer"),
-            ("Explain what this project does",              "summarizer"),
-            ("Tell me about this codebase",                 "summarizer"),
-            ("What does this module do?",                   "summarizer"),
-            ("Explain what this function does",             "summarizer"),
-            ("Summarize this build log",                    "summarizer"),
-            ("Explain the architecture of this project",   "summarizer"),  // explain+architecture → summarizer
-            ("Describe the design of this module",         "summarizer"),  // describe → summarizer
+            ("このコードを要約して", "summarizer"),
+            ("このエラーログを解説して", "summarizer"),
+            ("このファイルが何をしているか教えて", "summarizer"),
+            ("このプロジェクトについて教えて", "summarizer"),
+            ("このプロジェクトの概要と設計教えて", "summarizer"), // 設計+教えて → explain
+            ("このプロジェクトの設計を教えて", "summarizer"),     // 設計+教えて → explain
+            ("設計を教えて", "summarizer"),                       // 教えて dominates
+            ("設計を説明して", "summarizer"),                     // 説明して dominates
+            ("現在の設計を概要を教えて", "summarizer"),
+            ("アーキテクチャを教えて", "summarizer"), // 教えて dominates
+            ("アーキテクチャを説明して", "summarizer"),
+            ("このモジュールについて教えて", "summarizer"),
+            ("このコードについて教えて", "summarizer"),
+            ("このリポジトリについて説明して", "summarizer"),
+            ("このクラスが何をしているか説明して", "summarizer"),
+            ("Explain what this project does", "summarizer"),
+            ("Tell me about this codebase", "summarizer"),
+            ("What does this module do?", "summarizer"),
+            ("Explain what this function does", "summarizer"),
+            ("Summarize this build log", "summarizer"),
+            ("Explain the architecture of this project", "summarizer"), // explain+architecture → summarizer
+            ("Describe the design of this module", "summarizer"),       // describe → summarizer
             // cli_git
-            ("コミットメッセージを作って",                   "cli_git"),
-            ("コミットメッセージを生成して",                 "cli_git"),
-            ("git rebaseのやり方を教えて",                   "cli_git"),
-            ("ブランチを切って",                             "cli_git"),
-            ("Generate a commit message",                   "cli_git"),
-            ("How do I git stash?",                         "cli_git"),
+            ("コミットメッセージを作って", "cli_git"),
+            ("コミットメッセージを生成して", "cli_git"),
+            ("git rebaseのやり方を教えて", "cli_git"),
+            ("ブランチを切って", "cli_git"),
+            ("Generate a commit message", "cli_git"),
+            ("How do I git stash?", "cli_git"),
             // reviewer — context trap: "commit" appears but security is the goal
-            ("コミットはまだしないで。まず脆弱性を探して",   "reviewer"),
-            ("pushする前にセキュリティチェックして",         "reviewer"),
+            ("コミットはまだしないで。まず脆弱性を探して", "reviewer"),
+            ("pushする前にセキュリティチェックして", "reviewer"),
             // reviewer — normal
-            ("セキュリティ脆弱性をチェックして",             "reviewer"),
-            ("このunsafeブロックは安全か監査して",           "reviewer"),
-            ("メモリリークがないか確認して",                 "reviewer"),
-            ("Audit this code for security issues",        "reviewer"),
-            ("Check for memory safety problems",           "reviewer"),
+            ("セキュリティ脆弱性をチェックして", "reviewer"),
+            ("このunsafeブロックは安全か監査して", "reviewer"),
+            ("メモリリークがないか確認して", "reviewer"),
+            ("Audit this code for security issues", "reviewer"),
+            ("Check for memory safety problems", "reviewer"),
             // doc_rag — context trap: "git" is the topic, not the operation
-            ("GitのREADMEを書いて",                         "doc_rag"),
-            ("Gitの使い方を解説しているドキュメントを書いて","doc_rag"),
+            ("GitのREADMEを書いて", "doc_rag"),
+            ("Gitの使い方を解説しているドキュメントを書いて", "doc_rag"),
             // doc_rag — normal
-            ("READMEを書いて",                              "doc_rag"),
-            ("tokioクレートの使い方を教えて",               "doc_rag"),
-            ("このライブラリのAPIドキュメントを整備して",    "doc_rag"),
-            ("Write the API documentation",                "doc_rag"),
-            ("How do I use the serde crate?",              "doc_rag"),
+            ("READMEを書いて", "doc_rag"),
+            ("tokioクレートの使い方を教えて", "doc_rag"),
+            ("このライブラリのAPIドキュメントを整備して", "doc_rag"),
+            ("Write the API documentation", "doc_rag"),
+            ("How do I use the serde crate?", "doc_rag"),
         ];
 
         examples
             .iter()
             .flat_map(|(user, label)| {
                 [
-                    OllamaMessage { role: "user".to_string(),      content: user.to_string() },
-                    OllamaMessage { role: "assistant".to_string(), content: label.to_string() },
+                    OllamaMessage {
+                        role: "user".to_string(),
+                        content: user.to_string(),
+                    },
+                    OllamaMessage {
+                        role: "assistant".to_string(),
+                        content: label.to_string(),
+                    },
                 ]
             })
             .collect()
@@ -664,10 +705,12 @@ impl LlmClient {
             self.client.post(&url).json(&request).send(),
         )
         .await
-        .ok()?   // timeout
-        .ok()?;  // network error
+        .ok()? // timeout
+        .ok()?; // network error
 
-        if !resp.status().is_success() { return None; }
+        if !resp.status().is_success() {
+            return None;
+        }
         let chat = resp.json::<OllamaChatResponse>().await.ok()?;
         Some(chat.message.content)
     }
@@ -675,9 +718,17 @@ impl LlmClient {
     /// Returns true if the raw router reply contains a recognisable role keyword.
     fn is_valid_router_reply(reply: &str) -> bool {
         let lower = reply.trim().to_lowercase();
-        ["coder", "architect", "vision", "summarizer", "cli_git", "reviewer", "doc_rag"]
-            .iter()
-            .any(|&kw| lower.contains(kw))
+        [
+            "coder",
+            "architect",
+            "vision",
+            "summarizer",
+            "cli_git",
+            "reviewer",
+            "doc_rag",
+        ]
+        .iter()
+        .any(|&kw| lower.contains(kw))
     }
 
     /// Detects if a message has signals from two different role categories,
@@ -688,27 +739,70 @@ impl LlmClient {
         // Use only high-precision multi-word anchors to avoid false positives.
         // Single-word patterns like "fix", "設計", "commit" are intentionally excluded
         // because they appear in sentences where they are NOT the primary intent.
-        let has_coder    = ["fix the bug", "バグを修正", "エラーを直", "コードを直",
-                            "実装して", "implement", "refactor"]
-                            .iter().any(|kw| lower.contains(kw));
-        let has_git      = ["git commit", "git push", "git add", "git branch",
-                            "コミットして", "ブランチを切", "rebase"]
-                            .iter().any(|kw| lower.contains(kw));
-        let has_reviewer = ["security audit", "脆弱性を", "audit this", "unsafe block",
-                            "memory leak", "セキュリティチェック"]
-                            .iter().any(|kw| lower.contains(kw));
-        let has_arch     = ["architecture", "module structure", "system design",
-                            "モジュール構成", "アーキテクチャ"]
-                            .iter().any(|kw| lower.contains(kw));
-        let has_doc      = ["readme", "api documentation", "write the docs",
-                            "ドキュメントを書", "クレートの使い方"]
-                            .iter().any(|kw| lower.contains(kw));
+        let has_coder = [
+            "fix the bug",
+            "バグを修正",
+            "エラーを直",
+            "コードを直",
+            "実装して",
+            "implement",
+            "refactor",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw));
+        let has_git = [
+            "git commit",
+            "git push",
+            "git add",
+            "git branch",
+            "コミットして",
+            "ブランチを切",
+            "rebase",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw));
+        let has_reviewer = [
+            "security audit",
+            "脆弱性を",
+            "audit this",
+            "unsafe block",
+            "memory leak",
+            "セキュリティチェック",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw));
+        let has_arch = [
+            "architecture",
+            "module structure",
+            "system design",
+            "モジュール構成",
+            "アーキテクチャ",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw));
+        let has_doc = [
+            "readme",
+            "api documentation",
+            "write the docs",
+            "ドキュメントを書",
+            "クレートの使い方",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw));
 
         // Ranked by historically most-confused pairs (from integration test failures)
-        if has_coder && has_git      { return Some(("coder",     "cli_git")); }
-        if has_coder && has_reviewer { return Some(("coder",     "reviewer")); }
-        if has_arch  && has_coder    { return Some(("architect",  "coder")); }
-        if has_coder && has_doc      { return Some(("coder",     "doc_rag")); }
+        if has_coder && has_git {
+            return Some(("coder", "cli_git"));
+        }
+        if has_coder && has_reviewer {
+            return Some(("coder", "reviewer"));
+        }
+        if has_arch && has_coder {
+            return Some(("architect", "coder"));
+        }
+        if has_coder && has_doc {
+            return Some(("coder", "doc_rag"));
+        }
 
         None
     }
@@ -723,12 +817,12 @@ impl LlmClient {
 
         // Only reflect if the initial answer is one of the ambiguous pair
         let initial = match &role {
-            Role::Coder     => "coder",
-            Role::CliGit    => "cli_git",
-            Role::Reviewer  => "reviewer",
+            Role::Coder => "coder",
+            Role::CliGit => "cli_git",
+            Role::Reviewer => "reviewer",
             Role::Architect => "architect",
-            Role::DocRag    => "doc_rag",
-            _               => return role,
+            Role::DocRag => "doc_rag",
+            _ => return role,
         };
         if initial != cat_a && initial != cat_b {
             return role; // initial answer is outside the confused pair — trust it
@@ -741,15 +835,26 @@ impl LlmClient {
             original_msg, cat_a, cat_b
         );
         let messages = vec![
-            OllamaMessage { role: "system".to_string(), content: Role::Router.system_prompt().to_string() },
-            OllamaMessage { role: "user".to_string(),   content: q },
+            OllamaMessage {
+                role: "system".to_string(),
+                content: Role::Router.system_prompt().to_string(),
+            },
+            OllamaMessage {
+                role: "user".to_string(),
+                content: q,
+            },
         ];
 
         if let Some(reply) = self.call_router_once(&messages).await {
             let reflected = Role::from_router_reply(&reply);
             if reflected != role {
-                tracing::info!("🔮 Self-reflection: {:?} → {:?} (ambiguous: {}/{})",
-                    role, reflected, cat_a, cat_b);
+                tracing::info!(
+                    "🔮 Self-reflection: {:?} → {:?} (ambiguous: {}/{})",
+                    role,
+                    reflected,
+                    cat_a,
+                    cat_b
+                );
             }
             reflected
         } else {
@@ -778,7 +883,10 @@ impl LlmClient {
                 tracing::info!("🗂 Router reply {:?} → {:?}", reply.trim(), role);
                 return self.reflect_on_classification(role, message).await;
             }
-            tracing::warn!("⚠️  Router returned ambiguous '{}', retrying once...", reply.trim());
+            tracing::warn!(
+                "⚠️  Router returned ambiguous '{}', retrying once...",
+                reply.trim()
+            );
         } else {
             tracing::warn!("⚠️  Router call failed, retrying once...");
         }
@@ -803,7 +911,7 @@ impl LlmClient {
             "rm -rf ~",
             "rm -rf *",
             "rm -fr /",
-            ":(){:|:&};:",   // fork bomb
+            ":(){:|:&};:", // fork bomb
             ":(){ :|:",
             "git push --force",
             "git push -f",
@@ -834,7 +942,8 @@ impl LlmClient {
                 Component::ParentDir => {
                     if !normalized.pop() {
                         return Err(format!(
-                            "🚫 Access denied: '{}' escapes the project root", rel_path
+                            "🚫 Access denied: '{}' escapes the project root",
+                            rel_path
                         ));
                     }
                 }
@@ -843,26 +952,40 @@ impl LlmClient {
         }
         if !normalized.starts_with(&root_path) {
             return Err(format!(
-                "🚫 Access denied: '{}' is outside the project root", rel_path
+                "🚫 Access denied: '{}' is outside the project root",
+                rel_path
             ));
         }
         Ok(normalized)
     }
 
     /// Execute a tool call
-    async fn execute_tool(&self, tool_name: &str, parameters: &serde_json::Value, project_path: Option<&str>) -> Result<String> {
-        tracing::info!("🔧 Executing tool: {} with params: {}", tool_name, parameters);
+    async fn execute_tool(
+        &self,
+        tool_name: &str,
+        parameters: &serde_json::Value,
+        project_path: Option<&str>,
+    ) -> Result<String> {
+        tracing::info!(
+            "🔧 Executing tool: {} with params: {}",
+            tool_name,
+            parameters
+        );
 
         match tool_name {
             "read_file" => {
-                let path = parameters.get("path")
+                let path = parameters
+                    .get("path")
                     .and_then(|v| v.as_str())
                     .context("Missing 'path' parameter")?;
 
                 let full_path = if let Some(proj_path) = project_path {
                     match Self::safe_join(proj_path, path) {
                         Ok(p) => p,
-                        Err(msg) => { tracing::warn!("{}", msg); return Ok(msg); }
+                        Err(msg) => {
+                            tracing::warn!("{}", msg);
+                            return Ok(msg);
+                        }
                     }
                 } else {
                     std::path::PathBuf::from(path)
@@ -870,7 +993,11 @@ impl LlmClient {
 
                 match tokio::fs::read_to_string(&full_path).await {
                     Ok(content) => {
-                        tracing::info!("✅ Read file: {} ({} bytes)", full_path.display(), content.len());
+                        tracing::info!(
+                            "✅ Read file: {} ({} bytes)",
+                            full_path.display(),
+                            content.len()
+                        );
                         Ok(content)
                     }
                     Err(e) => {
@@ -881,17 +1008,22 @@ impl LlmClient {
                 }
             }
             "write_file" => {
-                let path = parameters.get("path")
+                let path = parameters
+                    .get("path")
                     .and_then(|v| v.as_str())
                     .context("Missing 'path' parameter")?;
-                let content = parameters.get("content")
+                let content = parameters
+                    .get("content")
                     .and_then(|v| v.as_str())
                     .context("Missing 'content' parameter")?;
 
                 let full_path = if let Some(proj_path) = project_path {
                     match Self::safe_join(proj_path, path) {
                         Ok(p) => p,
-                        Err(msg) => { tracing::warn!("{}", msg); return Ok(msg); }
+                        Err(msg) => {
+                            tracing::warn!("{}", msg);
+                            return Ok(msg);
+                        }
                     }
                 } else {
                     std::path::PathBuf::from(path)
@@ -900,7 +1032,11 @@ impl LlmClient {
                 match tokio::fs::write(&full_path, content).await {
                     Ok(_) => {
                         tracing::info!("✅ Wrote file: {}", full_path.display());
-                        Ok(format!("Successfully wrote {} bytes to {}", content.len(), full_path.display()))
+                        Ok(format!(
+                            "Successfully wrote {} bytes to {}",
+                            content.len(),
+                            full_path.display()
+                        ))
                     }
                     Err(e) => {
                         let error = format!("Failed to write file {}: {}", full_path.display(), e);
@@ -910,13 +1046,17 @@ impl LlmClient {
                 }
             }
             "execute_command" => {
-                let command = parameters.get("command")
+                let command = parameters
+                    .get("command")
                     .and_then(|v| v.as_str())
                     .context("Missing 'command' parameter")?;
 
                 // Security: block destructive patterns before execution
                 if let Some(pattern) = Self::check_blocked_command(command) {
-                    let msg = format!("🚫 Blocked: command contains '{}' which is not permitted", pattern);
+                    let msg = format!(
+                        "🚫 Blocked: command contains '{}' which is not permitted",
+                        pattern
+                    );
                     tracing::warn!("{}", msg);
                     return Ok(msg);
                 }
@@ -937,7 +1077,9 @@ impl LlmClient {
                 let output = match tokio::time::timeout(
                     std::time::Duration::from_secs(OLLAMA_COMMAND_TIMEOUT_SECS),
                     child.wait_with_output(),
-                ).await {
+                )
+                .await
+                {
                     Ok(Ok(out)) => out,
                     Ok(Err(e)) => return Err(anyhow::anyhow!("Command execution failed: {}", e)),
                     Err(_) => {
@@ -961,7 +1103,10 @@ impl LlmClient {
                 } else {
                     format!(
                         "❌ FAILED: '{}' failed (exit code: {}).\nSTDOUT:\n{}\nSTDERR:\n{}",
-                        command, output.status.code().unwrap_or(-1), stdout, stderr
+                        command,
+                        output.status.code().unwrap_or(-1),
+                        stdout,
+                        stderr
                     )
                 };
 
@@ -969,7 +1114,8 @@ impl LlmClient {
                 Ok(result)
             }
             "search_code" => {
-                let query = parameters.get("query")
+                let query = parameters
+                    .get("query")
                     .and_then(|v| v.as_str())
                     .context("Missing 'query' parameter")?;
 
@@ -1009,11 +1155,17 @@ impl LlmClient {
                 Ok(result.to_string())
             }
             "list_files" => {
-                let path_str = parameters.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+                let path_str = parameters
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(".");
                 let root = if let Some(proj) = project_path {
                     match Self::safe_join(proj, path_str) {
                         Ok(p) => p,
-                        Err(msg) => { tracing::warn!("{}", msg); return Ok(msg); }
+                        Err(msg) => {
+                            tracing::warn!("{}", msg);
+                            return Ok(msg);
+                        }
                     }
                 } else {
                     std::path::PathBuf::from(path_str)
@@ -1024,7 +1176,11 @@ impl LlmClient {
                     let cache = self.list_cache.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some((ts, cached)) = cache.get(&root) {
                         if ts.elapsed() < std::time::Duration::from_secs(LIST_CACHE_TTL_SECS) {
-                            tracing::info!("📂 list_files cache hit: {} ({} bytes)", root.display(), cached.len());
+                            tracing::info!(
+                                "📂 list_files cache hit: {} ({} bytes)",
+                                root.display(),
+                                cached.len()
+                            );
                             return Ok(cached.clone());
                         }
                     }
@@ -1034,7 +1190,9 @@ impl LlmClient {
                 let tree = tokio::task::spawn_blocking(move || {
                     let header = format!("{}/\n", root_clone.display());
                     header + &LlmClient::build_file_tree(&root_clone, "  ", 0, 3)
-                }).await.context("list_files spawn failed")?;
+                })
+                .await
+                .context("list_files spawn failed")?;
 
                 // Store in cache, evicting expired entries first
                 {
@@ -1044,7 +1202,11 @@ impl LlmClient {
                     cache.insert(root, (std::time::Instant::now(), tree.clone()));
                 }
 
-                tracing::info!("📂 list_files: {} bytes (cached for {}s)", tree.len(), LIST_CACHE_TTL_SECS);
+                tracing::info!(
+                    "📂 list_files: {} bytes (cached for {}s)",
+                    tree.len(),
+                    LIST_CACHE_TTL_SECS
+                );
                 Ok(tree)
             }
             _ => {
@@ -1057,8 +1219,15 @@ impl LlmClient {
 
     /// Build an indented file tree string synchronously (max_depth levels).
     /// Skips hidden files, `target/`, `node_modules/`, `__pycache__/`.
-    fn build_file_tree(path: &std::path::Path, prefix: &str, depth: usize, max_depth: usize) -> String {
-        if depth > max_depth { return String::new(); }
+    fn build_file_tree(
+        path: &std::path::Path,
+        prefix: &str,
+        depth: usize,
+        max_depth: usize,
+    ) -> String {
+        if depth > max_depth {
+            return String::new();
+        }
 
         let mut entries: Vec<_> = match std::fs::read_dir(path) {
             Ok(e) => e.flatten().collect(),
@@ -1076,7 +1245,12 @@ impl LlmClient {
             let entry_path = entry.path();
             if entry_path.is_dir() {
                 out.push_str(&format!("{}{}/\n", prefix, s));
-                out.push_str(&Self::build_file_tree(&entry_path, &format!("{}  ", prefix), depth + 1, max_depth));
+                out.push_str(&Self::build_file_tree(
+                    &entry_path,
+                    &format!("{}  ", prefix),
+                    depth + 1,
+                    max_depth,
+                ));
             } else {
                 out.push_str(&format!("{}{}\n", prefix, s));
             }
@@ -1165,7 +1339,8 @@ impl LlmClient {
                     name: "list_files".to_string(),
                     description: "List files and directories in a tree view (max 3 levels deep). \
                         Use this BEFORE read_file to identify which files are relevant, \
-                        avoiding unnecessary context usage.".to_string(),
+                        avoiding unnecessary context usage."
+                        .to_string(),
                     parameters: json!({
                         "type": "object",
                         "properties": {
@@ -1196,21 +1371,25 @@ impl LlmClient {
                     || result.contains("TypeError:");
                 is_error.then(|| {
                     "The command produced errors. Read each error carefully, \
-                    fix the root cause with read_file + write_file, then re-run to verify.".to_string()
+                    fix the root cause with read_file + write_file, then re-run to verify."
+                        .to_string()
                 })
             }
-            "read_file" if result.contains("Failed to read") => {
-                Some("That file path does not exist. \
-                    Call list_files to find the correct path, then retry read_file.".to_string())
-            }
-            "write_file" if result.contains("Failed to write") => {
-                Some("The write failed — the directory may not exist. \
-                    Use execute_command('mkdir -p <dir>') to create it, then retry write_file.".to_string())
-            }
-            _ if result.starts_with("❌") => {
-                Some("The previous tool call failed. Inspect the error above and retry \
-                    with corrected parameters.".to_string())
-            }
+            "read_file" if result.contains("Failed to read") => Some(
+                "That file path does not exist. \
+                    Call list_files to find the correct path, then retry read_file."
+                    .to_string(),
+            ),
+            "write_file" if result.contains("Failed to write") => Some(
+                "The write failed — the directory may not exist. \
+                    Use execute_command('mkdir -p <dir>') to create it, then retry write_file."
+                    .to_string(),
+            ),
+            _ if result.starts_with("❌") => Some(
+                "The previous tool call failed. Inspect the error above and retry \
+                    with corrected parameters."
+                    .to_string(),
+            ),
             _ => None,
         }
     }
@@ -1239,8 +1418,13 @@ impl LlmClient {
         };
         let inference_opts = role.inference_options();
 
-        tracing::info!("🤖 Using model: {} (role: {:?}, autonomous: {}, project_path: {:?})",
-            model, role, autonomous, project_path);
+        tracing::info!(
+            "🤖 Using model: {} (role: {:?}, autonomous: {}, project_path: {:?})",
+            model,
+            role,
+            autonomous,
+            project_path
+        );
 
         let stream = async_stream::stream! {
             if autonomous {
@@ -1572,7 +1756,6 @@ impl LlmClient {
 
         Ok(Box::pin(stream))
     }
-
 }
 
 #[cfg(test)]
@@ -1587,14 +1770,17 @@ mod tests {
 
     #[test]
     fn test_role_model_name_all_variants() {
-        assert_eq!(Role::Router.model_name(),     "llama3.2:3b-instruct-q8_0");
-        assert_eq!(Role::Coder.model_name(),      "qwen2.5-coder:32b-instruct-q8_0");
-        assert_eq!(Role::Architect.model_name(),  "deepseek-r1:32b");
-        assert_eq!(Role::Vision.model_name(),     "llama3.2-vision:11b");
+        assert_eq!(Role::Router.model_name(), "llama3.2:3b-instruct-q8_0");
+        assert_eq!(Role::Coder.model_name(), "qwen2.5-coder:32b-instruct-q8_0");
+        assert_eq!(Role::Architect.model_name(), "deepseek-r1:32b");
+        assert_eq!(Role::Vision.model_name(), "llama3.2-vision:11b");
         assert_eq!(Role::Summarizer.model_name(), "deepseek-r1:32b");
-        assert_eq!(Role::CliGit.model_name(),     "llama3.2:1b-instruct-q8_0");
-        assert_eq!(Role::Reviewer.model_name(),   "qwen2.5-coder:32b-instruct-q8_0");
-        assert_eq!(Role::DocRag.model_name(),     "deepseek-r1:32b");
+        assert_eq!(Role::CliGit.model_name(), "llama3.2:1b-instruct-q8_0");
+        assert_eq!(
+            Role::Reviewer.model_name(),
+            "qwen2.5-coder:32b-instruct-q8_0"
+        );
+        assert_eq!(Role::DocRag.model_name(), "deepseek-r1:32b");
     }
 
     #[test]
@@ -1608,13 +1794,20 @@ mod tests {
             "llama3.2:1b-instruct-q8_0",
         ];
         for role in &[
-            Role::Router, Role::Coder, Role::Architect, Role::Vision,
-            Role::Summarizer, Role::CliGit, Role::Reviewer, Role::DocRag,
+            Role::Router,
+            Role::Coder,
+            Role::Architect,
+            Role::Vision,
+            Role::Summarizer,
+            Role::CliGit,
+            Role::Reviewer,
+            Role::DocRag,
         ] {
             assert!(
                 INSTALLED.contains(&role.model_name()),
                 "{:?} uses '{}' which is not in the installed model list",
-                role, role.model_name()
+                role,
+                role.model_name()
             );
         }
     }
@@ -1626,8 +1819,14 @@ mod tests {
     #[test]
     fn test_role_system_prompts_not_empty() {
         for role in &[
-            Role::Router, Role::Coder, Role::Architect, Role::Vision,
-            Role::Summarizer, Role::CliGit, Role::Reviewer, Role::DocRag,
+            Role::Router,
+            Role::Coder,
+            Role::Architect,
+            Role::Vision,
+            Role::Summarizer,
+            Role::CliGit,
+            Role::Reviewer,
+            Role::DocRag,
         ] {
             assert!(
                 !role.system_prompt().is_empty(),
@@ -1640,8 +1839,14 @@ mod tests {
     #[test]
     fn test_role_system_prompts_unique() {
         let prompts: HashSet<_> = [
-            Role::Router, Role::Coder, Role::Architect, Role::Vision,
-            Role::Summarizer, Role::CliGit, Role::Reviewer, Role::DocRag,
+            Role::Router,
+            Role::Coder,
+            Role::Architect,
+            Role::Vision,
+            Role::Summarizer,
+            Role::CliGit,
+            Role::Reviewer,
+            Role::DocRag,
         ]
         .iter()
         .map(|r| r.system_prompt())
@@ -1660,7 +1865,10 @@ mod tests {
     #[test]
     fn test_role_system_prompt_reviewer_mentions_severity() {
         let prompt = Role::Reviewer.system_prompt();
-        assert!(prompt.to_lowercase().contains("critical") || prompt.to_lowercase().contains("severity"));
+        assert!(
+            prompt.to_lowercase().contains("critical")
+                || prompt.to_lowercase().contains("severity")
+        );
     }
 
     // =========================================================
@@ -1711,19 +1919,41 @@ mod tests {
     #[test]
     fn test_cli_git_prompt_commands_tool_use() {
         let prompt = Role::CliGit.system_prompt();
-        assert!(prompt.contains("execute_command"), "CliGit prompt must reference execute_command");
-        assert!(prompt.contains("git add"),         "CliGit prompt must mention git add step");
-        assert!(prompt.contains("git commit"),      "CliGit prompt must mention git commit step");
-        assert!(prompt.contains("Conventional Commits") || prompt.contains("feat") || prompt.contains("<type>"),
-            "CliGit prompt must reference Conventional Commits format");
+        assert!(
+            prompt.contains("execute_command"),
+            "CliGit prompt must reference execute_command"
+        );
+        assert!(
+            prompt.contains("git add"),
+            "CliGit prompt must mention git add step"
+        );
+        assert!(
+            prompt.contains("git commit"),
+            "CliGit prompt must mention git commit step"
+        );
+        assert!(
+            prompt.contains("Conventional Commits")
+                || prompt.contains("feat")
+                || prompt.contains("<type>"),
+            "CliGit prompt must reference Conventional Commits format"
+        );
     }
 
     #[test]
     fn test_reviewer_prompt_enforces_tool_workflow() {
         let prompt = Role::Reviewer.system_prompt();
-        assert!(prompt.contains("read_file"),    "Reviewer prompt must reference read_file");
-        assert!(prompt.contains("write_file"),   "Reviewer prompt must reference write_file");
-        assert!(prompt.contains("cargo clippy"), "Reviewer prompt must mention cargo clippy");
+        assert!(
+            prompt.contains("read_file"),
+            "Reviewer prompt must reference read_file"
+        );
+        assert!(
+            prompt.contains("write_file"),
+            "Reviewer prompt must reference write_file"
+        );
+        assert!(
+            prompt.contains("cargo clippy"),
+            "Reviewer prompt must mention cargo clippy"
+        );
     }
 
     // =========================================================
@@ -1734,18 +1964,36 @@ mod tests {
     async fn test_execute_command_success_contains_success_keyword() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"command": "echo ok"});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
-        assert!(result.contains("SUCCESS"), "success result must contain SUCCESS");
-        assert!(!result.contains("FAILED"), "success result must not contain FAILED");
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
+        assert!(
+            result.contains("SUCCESS"),
+            "success result must contain SUCCESS"
+        );
+        assert!(
+            !result.contains("FAILED"),
+            "success result must not contain FAILED"
+        );
     }
 
     #[tokio::test]
     async fn test_execute_command_failure_contains_failed_keyword() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"command": "exit 1"});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
-        assert!(result.contains("FAILED"), "failure result must contain FAILED");
-        assert!(!result.contains("SUCCESS"), "failure result must not contain SUCCESS");
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
+        assert!(
+            result.contains("FAILED"),
+            "failure result must contain FAILED"
+        );
+        assert!(
+            !result.contains("SUCCESS"),
+            "failure result must not contain SUCCESS"
+        );
     }
 
     #[tokio::test]
@@ -1753,8 +2001,14 @@ mod tests {
         let client = LlmClient::new_with_base_url(String::new());
         let cmd = "echo hello_marker_xyz";
         let params = json!({"command": cmd});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
-        assert!(result.contains(cmd), "result must echo the command name for AI context");
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
+        assert!(
+            result.contains(cmd),
+            "result must echo the command name for AI context"
+        );
     }
 
     // =========================================================
@@ -1763,7 +2017,8 @@ mod tests {
 
     #[test]
     fn test_parse_tool_call_json_exact() {
-        let content = r#"{"type": "function", "name": "read_file", "parameters": {"path": "src/main.rs"}}"#;
+        let content =
+            r#"{"type": "function", "name": "read_file", "parameters": {"path": "src/main.rs"}}"#;
         let result = parse_tool_call(content).expect("should parse");
         assert_eq!(result.0, "read_file");
         assert_eq!(result.1["path"], "src/main.rs");
@@ -1805,7 +2060,8 @@ mod tests {
 
     #[test]
     fn test_parse_tool_call_xml_execute_command() {
-        let content = "<function=execute_command><parameter=command>cargo test</parameter></function>";
+        let content =
+            "<function=execute_command><parameter=command>cargo test</parameter></function>";
         let result = parse_tool_call(content).expect("should parse execute_command");
         assert_eq!(result.0, "execute_command");
         assert_eq!(result.1["command"], "cargo test");
@@ -1880,7 +2136,10 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": tmp.path().to_str().unwrap()});
-        let result = client.execute_tool("read_file", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("read_file", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("hello from test"));
     }
 
@@ -1888,7 +2147,10 @@ mod tests {
     async fn test_execute_tool_read_file_not_found_returns_error_string() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": "/nonexistent/__does_not_exist__.rs"});
-        let result = client.execute_tool("read_file", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("read_file", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("Failed to read file"));
     }
 
@@ -1899,7 +2161,10 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": "relative.txt"});
-        let result = client.execute_tool("read_file", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        let result = client
+            .execute_tool("read_file", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
         assert!(result.contains("relative content"));
     }
 
@@ -1907,7 +2172,10 @@ mod tests {
     async fn test_execute_tool_read_file_missing_path_param_returns_err() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({});
-        let err = client.execute_tool("read_file", &params, None).await.unwrap_err();
+        let err = client
+            .execute_tool("read_file", &params, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Missing 'path' parameter"));
     }
 
@@ -1918,10 +2186,16 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": out.to_str().unwrap(), "content": "written by unit test"});
-        let result = client.execute_tool("write_file", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("write_file", &params, None)
+            .await
+            .unwrap();
 
         assert!(result.contains("Successfully wrote"));
-        assert_eq!(std::fs::read_to_string(&out).unwrap(), "written by unit test");
+        assert_eq!(
+            std::fs::read_to_string(&out).unwrap(),
+            "written by unit test"
+        );
     }
 
     #[tokio::test]
@@ -1930,17 +2204,26 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": "subfile.txt", "content": "via project_path"});
-        let result = client.execute_tool("write_file", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        let result = client
+            .execute_tool("write_file", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
 
         assert!(result.contains("Successfully wrote"));
-        assert_eq!(std::fs::read_to_string(dir.path().join("subfile.txt")).unwrap(), "via project_path");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("subfile.txt")).unwrap(),
+            "via project_path"
+        );
     }
 
     #[tokio::test]
     async fn test_execute_tool_write_file_missing_path_param_returns_err() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"content": "no path given"});
-        let err = client.execute_tool("write_file", &params, None).await.unwrap_err();
+        let err = client
+            .execute_tool("write_file", &params, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Missing 'path' parameter"));
     }
 
@@ -1948,7 +2231,10 @@ mod tests {
     async fn test_execute_tool_write_file_missing_content_param_returns_err() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": "/tmp/berry_test_no_content.txt"});
-        let err = client.execute_tool("write_file", &params, None).await.unwrap_err();
+        let err = client
+            .execute_tool("write_file", &params, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Missing 'content' parameter"));
     }
 
@@ -1956,7 +2242,10 @@ mod tests {
     async fn test_execute_tool_execute_command_success() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"command": "echo berry_unit_test_marker"});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("SUCCESS"));
         assert!(result.contains("berry_unit_test_marker"));
     }
@@ -1965,7 +2254,10 @@ mod tests {
     async fn test_execute_tool_execute_command_failure_shows_exit_code() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"command": "exit 42"});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("FAILED"));
     }
 
@@ -1974,7 +2266,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"command": "pwd"});
-        let result = client.execute_tool("execute_command", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        let result = client
+            .execute_tool(
+                "execute_command",
+                &params,
+                Some(dir.path().to_str().unwrap()),
+            )
+            .await
+            .unwrap();
         // The output should include the temp dir path
         assert!(result.contains(dir.path().to_str().unwrap()));
     }
@@ -1983,14 +2282,21 @@ mod tests {
     async fn test_execute_tool_execute_command_missing_command_param_returns_err() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({});
-        let err = client.execute_tool("execute_command", &params, None).await.unwrap_err();
+        let err = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("Missing 'command' parameter"));
     }
 
     #[tokio::test]
     async fn test_execute_tool_search_code_returns_result() {
         // Skip if rg (ripgrep) is not installed in PATH
-        if std::process::Command::new("rg").arg("--version").output().is_err() {
+        if std::process::Command::new("rg")
+            .arg("--version")
+            .output()
+            .is_err()
+        {
             eprintln!("Skipping: rg not found in PATH");
             return;
         }
@@ -2000,7 +2306,10 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"query": "hello_search_target"});
-        let result = client.execute_tool("search_code", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        let result = client
+            .execute_tool("search_code", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
         assert!(result.contains("hello_search_target"));
     }
 
@@ -2012,10 +2321,21 @@ mod tests {
         std::fs::write(dir.path().join("src").join("lib.rs"), "").unwrap();
 
         let client = LlmClient::new_with_base_url(String::new());
-        let params = json!({});  // default path
-        let result = client.execute_tool("list_files", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
-        assert!(result.contains("main.rs"), "should list main.rs, got: {}", result);
-        assert!(result.contains("src/"), "should list src/ dir, got: {}", result);
+        let params = json!({}); // default path
+        let result = client
+            .execute_tool("list_files", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(
+            result.contains("main.rs"),
+            "should list main.rs, got: {}",
+            result
+        );
+        assert!(
+            result.contains("src/"),
+            "should list src/ dir, got: {}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -2027,15 +2347,25 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"path": "subdir"});
-        let result = client.execute_tool("list_files", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
-        assert!(result.contains("hello.txt"), "should list hello.txt, got: {}", result);
+        let result = client
+            .execute_tool("list_files", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(
+            result.contains("hello.txt"),
+            "should list hello.txt, got: {}",
+            result
+        );
     }
 
     #[tokio::test]
     async fn test_execute_tool_unknown_tool_returns_error_string() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({});
-        let result = client.execute_tool("nonexistent_tool", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("nonexistent_tool", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("Unknown tool: nonexistent_tool"));
     }
 
@@ -2090,7 +2420,10 @@ mod tests {
     async fn test_execute_tool_blocked_command_returns_error_string() {
         let client = LlmClient::new_with_base_url(String::new());
         let params = json!({"command": "rm -rf /"});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("Blocked"));
         assert!(result.contains("rm -rf /"));
     }
@@ -2104,7 +2437,10 @@ mod tests {
         let client = LlmClient::new_with_base_url(String::new());
         // Write to both stdout and stderr
         let params = json!({"command": "echo OUT && echo ERR >&2"});
-        let result = client.execute_tool("execute_command", &params, None).await.unwrap();
+        let result = client
+            .execute_tool("execute_command", &params, None)
+            .await
+            .unwrap();
         assert!(result.contains("STDOUT"), "should contain STDOUT section");
         assert!(result.contains("STDERR"), "should contain STDERR section");
         assert!(result.contains("OUT"));
@@ -2121,13 +2457,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let cases = [
-            ("coder",      Role::Coder),
-            ("architect",  Role::Architect),
-            ("vision",     Role::Vision),
+            ("coder", Role::Coder),
+            ("architect", Role::Architect),
+            ("vision", Role::Vision),
             ("summarizer", Role::Summarizer),
-            ("cli_git",    Role::CliGit),
-            ("reviewer",   Role::Reviewer),
-            ("doc_rag",    Role::DocRag),
+            ("cli_git", Role::CliGit),
+            ("reviewer", Role::Reviewer),
+            ("doc_rag", Role::DocRag),
         ];
 
         for (reply, expected) in cases {
@@ -2143,13 +2479,17 @@ mod tests {
 
             let client = LlmClient::new_with_base_url(mock_server.uri());
             let role = client.classify_with_router("test message").await;
-            assert_eq!(role, expected, "reply '{}' should map to {:?}", reply, expected);
+            assert_eq!(
+                role, expected,
+                "reply '{}' should map to {:?}",
+                reply, expected
+            );
         }
     }
 
     #[tokio::test]
     async fn test_classify_with_router_uses_router_model_in_request() {
-        use wiremock::matchers::{method, path, body_json};
+        use wiremock::matchers::{body_json, method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
@@ -2292,7 +2632,11 @@ mod tests {
 
         let client = LlmClient::new_with_base_url(mock_server.uri());
         let role = client.classify_with_router("design this system").await;
-        assert_eq!(role, Role::Architect, "should retry and return Architect on second attempt");
+        assert_eq!(
+            role,
+            Role::Architect,
+            "should retry and return Architect on second attempt"
+        );
     }
 
     // =========================================================
@@ -2308,15 +2652,24 @@ mod tests {
         let params = json!({});
 
         // First call: populates cache
-        let first = client.execute_tool("list_files", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
+        let first = client
+            .execute_tool("list_files", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
         assert!(first.contains("a.rs"));
 
         // Add a new file — but the cache should still return the old result
         std::fs::write(dir.path().join("b.rs"), "").unwrap();
 
         // Second call: should come from cache (b.rs absent)
-        let second = client.execute_tool("list_files", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
-        assert!(!second.contains("b.rs"), "second call should be served from cache");
+        let second = client
+            .execute_tool("list_files", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(
+            !second.contains("b.rs"),
+            "second call should be served from cache"
+        );
         assert_eq!(first, second, "cached result must match first call");
     }
 
@@ -2364,8 +2717,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let client = LlmClient::new_with_base_url(String::new());
         let params = serde_json::json!({"path": "../../"});
-        let result = client.execute_tool("list_files", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
-        assert!(result.contains("Access denied"), "list_files must block path traversal, got: {}", result);
+        let result = client
+            .execute_tool("list_files", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(
+            result.contains("Access denied"),
+            "list_files must block path traversal, got: {}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -2373,8 +2733,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let client = LlmClient::new_with_base_url(String::new());
         let params = serde_json::json!({"path": "../../etc/passwd"});
-        let result = client.execute_tool("read_file", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
-        assert!(result.contains("Access denied"), "read_file must block path traversal, got: {}", result);
+        let result = client
+            .execute_tool("read_file", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(
+            result.contains("Access denied"),
+            "read_file must block path traversal, got: {}",
+            result
+        );
     }
 
     #[tokio::test]
@@ -2382,8 +2749,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let client = LlmClient::new_with_base_url(String::new());
         let params = serde_json::json!({"path": "../../tmp/injected.txt", "content": "pwned"});
-        let result = client.execute_tool("write_file", &params, Some(dir.path().to_str().unwrap())).await.unwrap();
-        assert!(result.contains("Access denied"), "write_file must block path traversal, got: {}", result);
+        let result = client
+            .execute_tool("write_file", &params, Some(dir.path().to_str().unwrap()))
+            .await
+            .unwrap();
+        assert!(
+            result.contains("Access denied"),
+            "write_file must block path traversal, got: {}",
+            result
+        );
     }
 
     // =========================================================
@@ -2395,14 +2769,23 @@ mod tests {
         let opts = Role::Router.inference_options();
         assert_eq!(opts.temperature, 0.0, "Router must be deterministic");
         // 16_384 is the minimum to fit the system prompt + ~70 few-shot examples
-        assert!(opts.num_ctx.unwrap_or(u32::MAX) <= 32_768, "Router context must be reasonable (≤32k)");
-        assert!(opts.num_predict.is_some(), "Router must have output token cap");
+        assert!(
+            opts.num_ctx.unwrap_or(u32::MAX) <= 32_768,
+            "Router context must be reasonable (≤32k)"
+        );
+        assert!(
+            opts.num_predict.is_some(),
+            "Router must have output token cap"
+        );
     }
 
     #[test]
     fn test_inference_options_cli_git_is_low_temperature() {
         let opts = Role::CliGit.inference_options();
-        assert!(opts.temperature <= 0.2, "CliGit must be near-deterministic for commands");
+        assert!(
+            opts.temperature <= 0.2,
+            "CliGit must be near-deterministic for commands"
+        );
         assert!(opts.num_predict.is_some(), "CliGit must have output cap");
     }
 
@@ -2411,18 +2794,31 @@ mod tests {
         let opts = Role::Architect.inference_options();
         // deepseek-r1:32b uses most VRAM for weights; 16K is the practical limit.
         let ctx = opts.num_ctx.unwrap_or(0);
-        assert!(ctx >= 8_192 && ctx <= 32_768, "Architect ctx should be within deepseek-r1:32b VRAM budget");
+        assert!(
+            ctx >= 8_192 && ctx <= 32_768,
+            "Architect ctx should be within deepseek-r1:32b VRAM budget"
+        );
     }
 
     #[test]
     fn test_inference_options_all_roles_have_valid_temperature() {
         for role in &[
-            Role::Router, Role::Coder, Role::Architect, Role::Vision,
-            Role::Summarizer, Role::CliGit, Role::Reviewer, Role::DocRag,
+            Role::Router,
+            Role::Coder,
+            Role::Architect,
+            Role::Vision,
+            Role::Summarizer,
+            Role::CliGit,
+            Role::Reviewer,
+            Role::DocRag,
         ] {
             let opts = role.inference_options();
-            assert!(opts.temperature >= 0.0 && opts.temperature <= 1.0,
-                "{:?} has invalid temperature {}", role, opts.temperature);
+            assert!(
+                opts.temperature >= 0.0 && opts.temperature <= 1.0,
+                "{:?} has invalid temperature {}",
+                role,
+                opts.temperature
+            );
         }
     }
 
@@ -2458,7 +2854,9 @@ mod tests {
         // "設計" alone must NOT trigger — not in multi-word anchors
         assert!(LlmClient::detect_mixed_signals("設計は変えなくていい、バグだけ直して").is_none());
         // "コミット" alone must NOT trigger
-        assert!(LlmClient::detect_mixed_signals("コミットはまだしないで、脆弱性を探して").is_none());
+        assert!(
+            LlmClient::detect_mixed_signals("コミットはまだしないで、脆弱性を探して").is_none()
+        );
         // "Git" as topic must NOT trigger cli_git mixed signal
         assert!(LlmClient::detect_mixed_signals("GitのREADMEを書いて").is_none());
     }
@@ -2473,7 +2871,10 @@ mod tests {
             "execute_command",
             "❌ FAILED: 'cargo build' failed.\nSTDERR:\nerror[E0308]: mismatched types",
         );
-        assert!(result.is_some(), "Rust compile error should trigger correction");
+        assert!(
+            result.is_some(),
+            "Rust compile error should trigger correction"
+        );
     }
 
     #[test]
@@ -2482,7 +2883,10 @@ mod tests {
             "execute_command",
             "❌ FAILED:\nTraceback (most recent call last):\n  File 'script.py'",
         );
-        assert!(result.is_some(), "Python traceback should trigger correction");
+        assert!(
+            result.is_some(),
+            "Python traceback should trigger correction"
+        );
     }
 
     #[test]
@@ -2491,7 +2895,10 @@ mod tests {
             "read_file",
             "Failed to read file /nonexistent/path: No such file",
         );
-        assert!(result.is_some(), "Missing file should trigger path correction");
+        assert!(
+            result.is_some(),
+            "Missing file should trigger path correction"
+        );
         assert!(result.unwrap().contains("list_files"));
     }
 
@@ -2501,17 +2908,21 @@ mod tests {
             "write_file",
             "Failed to write file /no/such/dir/file.txt: No such file or directory",
         );
-        assert!(result.is_some(), "Write failure should trigger mkdir guidance");
+        assert!(
+            result.is_some(),
+            "Write failure should trigger mkdir guidance"
+        );
         assert!(result.unwrap().contains("mkdir"));
     }
 
     #[test]
     fn test_correction_needed_generic_error_marker() {
-        let result = LlmClient::detect_correction_needed(
-            "search_code",
-            "❌ Some unexpected search failure",
+        let result =
+            LlmClient::detect_correction_needed("search_code", "❌ Some unexpected search failure");
+        assert!(
+            result.is_some(),
+            "❌ prefix on any tool should trigger correction"
         );
-        assert!(result.is_some(), "❌ prefix on any tool should trigger correction");
     }
 
     #[test]
@@ -2520,7 +2931,10 @@ mod tests {
             "execute_command",
             "✅ SUCCESS: 'cargo build' completed.\nSTDOUT:\n   Compiling foo v0.1.0",
         );
-        assert!(result.is_none(), "successful output must not trigger correction");
+        assert!(
+            result.is_none(),
+            "successful output must not trigger correction"
+        );
     }
 
     // =========================================================

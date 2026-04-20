@@ -100,7 +100,8 @@ impl AssetImportSettings {
                 generate_mipmaps,
                 ..
             } => {
-                let img = image::open(asset_path).map_err(|e| format!("Failed to open image: {e}"))?;
+                let img =
+                    image::open(asset_path).map_err(|e| format!("Failed to open image: {e}"))?;
 
                 let (w, h) = (img.width(), img.height());
                 let limit = *max_size;
@@ -123,7 +124,10 @@ impl AssetImportSettings {
 
                 // Generate simple mipmap chain (half-size levels saved alongside)
                 if *generate_mipmaps {
-                    let stem = asset_path.rsplit_once('.').map(|(s, _)| s).unwrap_or(asset_path);
+                    let stem = asset_path
+                        .rsplit_once('.')
+                        .map(|(s, _)| s)
+                        .unwrap_or(asset_path);
                     let ext = asset_path.rsplit('.').next().unwrap_or("png");
                     let mut mip = img.clone();
                     let mut level = 1u32;
@@ -156,7 +160,10 @@ impl AssetImportSettings {
                 if w > limit || h > limit {
                     Ok(format!("Resized to {}x{}", final_w, final_h))
                 } else {
-                    Ok(format!("Image already within limits ({}x{})", final_w, final_h))
+                    Ok(format!(
+                        "Image already within limits ({}x{})",
+                        final_w, final_h
+                    ))
                 }
             }
             AssetImportSettings::Model { .. } => {
@@ -223,12 +230,24 @@ mod tests {
         let result = settings.process(img_path.to_str().unwrap());
         assert!(result.is_ok(), "process should succeed: {:?}", result);
         let msg = result.unwrap();
-        assert!(msg.contains("Resized to"), "expected resize message, got: {}", msg);
+        assert!(
+            msg.contains("Resized to"),
+            "expected resize message, got: {}",
+            msg
+        );
 
         // Verify the saved image dimensions
         let processed = image::open(&img_path).unwrap();
-        assert!(processed.width() <= 128, "width should be <= 128, got {}", processed.width());
-        assert!(processed.height() <= 128, "height should be <= 128, got {}", processed.height());
+        assert!(
+            processed.width() <= 128,
+            "width should be <= 128, got {}",
+            processed.width()
+        );
+        assert!(
+            processed.height() <= 128,
+            "height should be <= 128, got {}",
+            processed.height()
+        );
     }
 
     #[test]

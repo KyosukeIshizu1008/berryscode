@@ -132,8 +132,7 @@ mod tests {
             to_node: 2,
             to_pin: 0,
         });
-        let ron_str =
-            ron::ser::to_string_pretty(&s, ron::ser::PrettyConfig::default()).unwrap();
+        let ron_str = ron::ser::to_string_pretty(&s, ron::ser::PrettyConfig::default()).unwrap();
         let loaded: VisualScript = ron::from_str(&ron_str).unwrap();
         assert_eq!(loaded.nodes.len(), 2);
         assert_eq!(loaded.edges.len(), 1);

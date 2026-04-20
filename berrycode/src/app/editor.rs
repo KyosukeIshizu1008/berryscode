@@ -1,9 +1,9 @@
 //! Editor area rendering and syntax highlighting
 
-use super::BerryCodeApp;
+use super::peek::render_peek_standalone;
 use super::types::{ColorTheme, LspInlayHint};
 use super::ui_colors;
-use super::peek::render_peek_standalone;
+use super::BerryCodeApp;
 use crate::syntax::{SyntaxHighlighter, TokenType};
 
 impl BerryCodeApp {
@@ -13,254 +13,284 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::none()
                     .fill(ui_colors::SIDEBAR_BG) // #191A1C - Match sidebar background
-                    .inner_margin(egui::Margin::same(8.0))
+                    .inner_margin(egui::Margin::same(8.0)),
             )
             .show(ctx, |ui| {
-            // Save the full panel rect before any layout happens
-            let _full_panel_rect = ui.max_rect();
+                // Save the full panel rect before any layout happens
+                let _full_panel_rect = ui.max_rect();
 
-            if self.editor_tabs.is_empty() {
-                // No file open - show placeholder
-                ui.vertical_centered(|ui| {
-                    ui.add_space(100.0);
-                    ui.heading("BerryCode Editor");
-                    ui.add_space(16.0);
-                    ui.label("ファイルツリーからファイルを選択してください");
-                    ui.add_space(8.0);
-                    ui.label(format!("プロジェクト: {}", self.root_path));
-                });
-                return;
-            }
-
-            // Tab bar with close buttons
-            let mut tab_to_close: Option<usize> = None;
-
-            ui.horizontal(|ui| {
-                // Larger font for tabs
-                ui.style_mut().text_styles.insert(
-                    egui::TextStyle::Body,
-                    egui::FontId::proportional(14.0),
-                );
-
-                // Collect tab info first to avoid borrow checker issues
-                let tab_info: Vec<(usize, String, &'static str, egui::Color32)> = self.editor_tabs.iter().enumerate().map(|(idx, t)| {
-                    let filename = t.file_path.split('/').last().unwrap_or(&t.file_path).to_string();
-                    let (icon, color) = Self::get_file_icon_with_color(&filename);
-                    (idx, filename, icon, color)
-                }).collect();
-
-                for (idx, filename, file_icon, icon_color) in tab_info {
-                    ui.group(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = 4.0;
-
-                            // Colored icon
-                            ui.label(
-                                egui::RichText::new(file_icon)
-                                    .color(icon_color)
-                                    .family(egui::FontFamily::Name("codicon".into()))
-                            );
-
-                            // Tab label (clickable to switch)
-                            let filename_text = egui::RichText::new(&filename)
-                                .color(egui::Color32::from_rgb(0xD4, 0xD4, 0xD4));
-                            if ui.selectable_label(idx == self.active_tab_idx, filename_text).clicked() {
-                                self.active_tab_idx = idx;
-                            }
-
-                            // Close button - Codicon: \u{ea76} = codicon-close
-                            if ui.add(
-                                egui::Button::new(
-                                    egui::RichText::new("\u{ea76}")
-                                        .family(egui::FontFamily::Name("codicon".into()))
-                                ).small()
-                            ).clicked() {
-                                tab_to_close = Some(idx);
-                            }
-                        });
-                    });
-                }
-            });
-
-            // Close tab if requested (after the loop to avoid borrow issues)
-            if let Some(close_idx) = tab_to_close {
-                // Save file path before removing the tab for LSP didClose
-                let closed_file_path = self.editor_tabs[close_idx].file_path.clone();
-
-                self.editor_tabs.remove(close_idx);
-
-                // Adjust active tab index
                 if self.editor_tabs.is_empty() {
-                    self.active_tab_idx = 0;
-                } else if self.active_tab_idx >= self.editor_tabs.len() {
-                    self.active_tab_idx = self.editor_tabs.len() - 1;
-                } else if close_idx <= self.active_tab_idx && self.active_tab_idx > 0 {
-                    self.active_tab_idx -= 1;
+                    // No file open - show placeholder
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(100.0);
+                        ui.heading("BerryCode Editor");
+                        ui.add_space(16.0);
+                        ui.label("ファイルツリーからファイルを選択してください");
+                        ui.add_space(8.0);
+                        ui.label(format!("プロジェクト: {}", self.root_path));
+                    });
+                    return;
                 }
 
-                // Notify LSP about the closed file (textDocument/didClose)
-                if let Some(lang) = crate::native::lsp_native::detect_server_language(&closed_file_path) {
-                    if let Some(client) = &self.lsp_native_client {
-                        let client = client.clone();
-                        let runtime = self.lsp_runtime.clone();
-                        let path = closed_file_path.clone();
-                        let language = lang.to_string();
-                        runtime.spawn(async move {
-                            let _ = client.close_file(&language, &path).await;
+                // Tab bar with close buttons
+                let mut tab_to_close: Option<usize> = None;
+
+                ui.horizontal(|ui| {
+                    // Larger font for tabs
+                    ui.style_mut()
+                        .text_styles
+                        .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+
+                    // Collect tab info first to avoid borrow checker issues
+                    let tab_info: Vec<(usize, String, &'static str, egui::Color32)> = self
+                        .editor_tabs
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, t)| {
+                            let filename = t
+                                .file_path
+                                .split('/')
+                                .last()
+                                .unwrap_or(&t.file_path)
+                                .to_string();
+                            let (icon, color) = Self::get_file_icon_with_color(&filename);
+                            (idx, filename, icon, color)
+                        })
+                        .collect();
+
+                    for (idx, filename, file_icon, icon_color) in tab_info {
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+
+                                // Colored icon
+                                ui.label(
+                                    egui::RichText::new(file_icon)
+                                        .color(icon_color)
+                                        .family(egui::FontFamily::Name("codicon".into())),
+                                );
+
+                                // Tab label (clickable to switch)
+                                let filename_text = egui::RichText::new(&filename)
+                                    .color(egui::Color32::from_rgb(0xD4, 0xD4, 0xD4));
+                                if ui
+                                    .selectable_label(idx == self.active_tab_idx, filename_text)
+                                    .clicked()
+                                {
+                                    self.active_tab_idx = idx;
+                                }
+
+                                // Close button - Codicon: \u{ea76} = codicon-close
+                                if ui
+                                    .add(
+                                        egui::Button::new(
+                                            egui::RichText::new("\u{ea76}")
+                                                .family(egui::FontFamily::Name("codicon".into())),
+                                        )
+                                        .small(),
+                                    )
+                                    .clicked()
+                                {
+                                    tab_to_close = Some(idx);
+                                }
+                            });
                         });
                     }
+                });
+
+                // Close tab if requested (after the loop to avoid borrow issues)
+                if let Some(close_idx) = tab_to_close {
+                    // Save file path before removing the tab for LSP didClose
+                    let closed_file_path = self.editor_tabs[close_idx].file_path.clone();
+
+                    self.editor_tabs.remove(close_idx);
+
+                    // Adjust active tab index
+                    if self.editor_tabs.is_empty() {
+                        self.active_tab_idx = 0;
+                    } else if self.active_tab_idx >= self.editor_tabs.len() {
+                        self.active_tab_idx = self.editor_tabs.len() - 1;
+                    } else if close_idx <= self.active_tab_idx && self.active_tab_idx > 0 {
+                        self.active_tab_idx -= 1;
+                    }
+
+                    // Notify LSP about the closed file (textDocument/didClose)
+                    if let Some(lang) =
+                        crate::native::lsp_native::detect_server_language(&closed_file_path)
+                    {
+                        if let Some(client) = &self.lsp_native_client {
+                            let client = client.clone();
+                            let runtime = self.lsp_runtime.clone();
+                            let path = closed_file_path.clone();
+                            let language = lang.to_string();
+                            runtime.spawn(async move {
+                                let _ = client.close_file(&language, &path).await;
+                            });
+                        }
+                    }
+
+                    tracing::info!("✅ Closed tab at index {}", close_idx);
                 }
 
-                tracing::info!("✅ Closed tab at index {}", close_idx);
-            }
+                // Early return if all tabs are closed
+                if self.editor_tabs.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(100.0);
+                        ui.heading("BerryCode Editor");
+                        ui.add_space(16.0);
+                        ui.label("ファイルツリーからファイルを選択してください");
+                    });
+                    return;
+                }
 
-            // Early return if all tabs are closed
-            if self.editor_tabs.is_empty() {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(100.0);
-                    ui.heading("BerryCode Editor");
-                    ui.add_space(16.0);
-                    ui.label("ファイルツリーからファイルを選択してください");
-                });
-                return;
-            }
+                ui.separator();
 
-            ui.separator();
+                // If the active tab is an image, render the image preview instead of the text editor
+                if self.editor_tabs[self.active_tab_idx].is_image {
+                    self.render_image_preview(ui, ctx);
+                    return;
+                }
 
-            // If the active tab is an image, render the image preview instead of the text editor
-            if self.editor_tabs[self.active_tab_idx].is_image {
-                self.render_image_preview(ui, ctx);
-                return;
-            }
+                // If the active tab is a 3D model, render the model preview
+                if self.editor_tabs[self.active_tab_idx].is_model {
+                    self.render_model_preview(ui);
+                    return;
+                }
 
-            // If the active tab is a 3D model, render the model preview
-            if self.editor_tabs[self.active_tab_idx].is_model {
-                self.render_model_preview(ui);
-                return;
-            }
+                // Snapshot data that we need from self before taking &mut tab
+                let inlay_hints_snapshot: Vec<LspInlayHint> = if self.inlay_hints_enabled {
+                    self.lsp_inlay_hints.clone()
+                } else {
+                    Vec::new()
+                };
+                let code_action_line = self.code_action_line;
+                let has_code_actions = !self.lsp_code_actions.is_empty();
 
-            // Snapshot data that we need from self before taking &mut tab
-            let inlay_hints_snapshot: Vec<LspInlayHint> = if self.inlay_hints_enabled {
-                self.lsp_inlay_hints.clone()
-            } else {
-                Vec::new()
-            };
-            let code_action_line = self.code_action_line;
-            let has_code_actions = !self.lsp_code_actions.is_empty();
+                // Get active tab (after tab bar to avoid borrowing issues)
+                let tab = &mut self.editor_tabs[self.active_tab_idx];
 
-            // Get active tab (after tab bar to avoid borrowing issues)
-            let tab = &mut self.editor_tabs[self.active_tab_idx];
+                // Editor content
+                let _ = tab.get_text(); // ensure cache is up to date
+                let original_text = std::mem::take(&mut tab.text_cache);
 
-            // Editor content
-            let _ = tab.get_text(); // ensure cache is up to date
-            let original_text = std::mem::take(&mut tab.text_cache);
+                // Apply code folding if any regions are folded
+                let (mut text, _fold_mapping) = if tab.folded_regions.is_empty() {
+                    (original_text.clone(), Vec::new())
+                } else {
+                    let (folded, mapping) =
+                        super::folding::apply_folding(&original_text, &tab.folded_regions);
+                    (folded, mapping)
+                };
+                let is_folded = !tab.folded_regions.is_empty();
+                // Keep original for restoring cache
+                let original_for_cache = original_text;
 
-            // Apply code folding if any regions are folded
-            let (mut text, _fold_mapping) = if tab.folded_regions.is_empty() {
-                (original_text.clone(), Vec::new())
-            } else {
-                let (folded, mapping) = super::folding::apply_folding(&original_text, &tab.folded_regions);
-                (folded, mapping)
-            };
-            let is_folded = !tab.folded_regions.is_empty();
-            // Keep original for restoring cache
-            let original_for_cache = original_text;
-
-            // Detect language from file extension (syntect uses extension, not language name)
-            let extension = if tab.file_path.ends_with(".rs") {
-                "rs"
-            } else if tab.file_path.ends_with(".toml") {
-                "toml"
-            } else if tab.file_path.ends_with(".md") {
-                "md"
-            } else if tab.file_path.ends_with(".js") {
-                "js"
-            } else if tab.file_path.ends_with(".ts") {
-                "ts"
-            } else if tab.file_path.ends_with(".py") {
-                "py"
-            } else if tab.file_path.ends_with(".json") {
-                "json"
-            } else if tab.file_path.ends_with(".yaml") || tab.file_path.ends_with(".yml") {
-                "yaml"
-            } else {
-                "txt"
-            };
-
-            // Set language for syntax highlighter (only log on change)
-            let _ = self.syntax_highlighter.set_language(extension);
-
-            // Clone highlighter AFTER setting the language
-            let highlighter = self.syntax_highlighter.clone();
-
-            // Copy color theme (to avoid borrowing issues in layouter closure)
-            let color_theme = ColorTheme {
-                keyword: self.keyword_color,
-                function: self.function_color,
-                type_: self.type_color,
-                string: self.string_color,
-                number: self.number_color,
-                comment: self.comment_color,
-                doc_comment: self.doc_comment_color,
-                macro_: self.macro_color,
-                attribute: self.attribute_color,
-                constant: self.constant_color,
-                lifetime: self.lifetime_color,
-                namespace: self.namespace_color,
-                variable: self.variable_color,
-                operator: self.operator_color,
-            };
-
-            // Read-only warning banner
-            let is_readonly = tab.is_readonly;
-            if is_readonly {
-                ui.colored_label(
-                    egui::Color32::from_rgb(255, 200, 0),
-                    "⚠️ This file is read-only (standard library source)"
-                );
-                ui.add_space(4.0);
-            }
-
-            // Check for pending cursor jump
-            let (cursor_range_to_set, scroll_to_y) = if let Some((jump_line, jump_col)) = tab.pending_cursor_jump {
-                // Calculate character offset from line/column
-                let char_offset = {
-                    let mut offset = 0;
-                    for (line_idx, line) in text.lines().enumerate() {
-                        if line_idx == jump_line {
-                            offset += jump_col.min(line.len());
-                            break;
-                        }
-                        offset += line.len() + 1; // +1 for newline
-                    }
-                    offset
+                // Detect language from file extension (syntect uses extension, not language name)
+                let extension = if tab.file_path.ends_with(".rs") {
+                    "rs"
+                } else if tab.file_path.ends_with(".toml") {
+                    "toml"
+                } else if tab.file_path.ends_with(".md") {
+                    "md"
+                } else if tab.file_path.ends_with(".js") {
+                    "js"
+                } else if tab.file_path.ends_with(".ts") {
+                    "ts"
+                } else if tab.file_path.ends_with(".py") {
+                    "py"
+                } else if tab.file_path.ends_with(".json") {
+                    "json"
+                } else if tab.file_path.ends_with(".yaml") || tab.file_path.ends_with(".yml") {
+                    "yaml"
+                } else {
+                    "txt"
                 };
 
-                // Calculate Y position for scrolling
-                // Approximate line height (will be refined by TextEdit rendering)
-                const APPROX_LINE_HEIGHT: f32 = 19.5; // 13 * 1.5
-                let target_y = jump_line as f32 * APPROX_LINE_HEIGHT;
+                // Set language for syntax highlighter (only log on change)
+                let _ = self.syntax_highlighter.set_language(extension);
 
-                tracing::info!("📍 Jumping to line {} col {} (char offset: {}, y: {})", jump_line, jump_col, char_offset, target_y);
+                // Clone highlighter AFTER setting the language
+                let highlighter = self.syntax_highlighter.clone();
 
-                // Create cursor range for both primary and secondary cursors at the same position
-                (Some(egui::text::CCursorRange::one(egui::text::CCursor::new(char_offset))), Some(target_y))
-            } else {
-                (None, None)
-            };
+                // Copy color theme (to avoid borrowing issues in layouter closure)
+                let color_theme = ColorTheme {
+                    keyword: self.keyword_color,
+                    function: self.function_color,
+                    type_: self.type_color,
+                    string: self.string_color,
+                    number: self.number_color,
+                    comment: self.comment_color,
+                    doc_comment: self.doc_comment_color,
+                    macro_: self.macro_color,
+                    attribute: self.attribute_color,
+                    constant: self.constant_color,
+                    lifetime: self.lifetime_color,
+                    namespace: self.namespace_color,
+                    variable: self.variable_color,
+                    operator: self.operator_color,
+                };
 
-            // Dark background for scroll area
-            ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
-            ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG;
-            ui.style_mut().visuals.window_fill = ui_colors::SIDEBAR_BG;
-            ui.style_mut().visuals.panel_fill = ui_colors::SIDEBAR_BG;
-            // Also override the faint_bg_color used for scroll bar track
-            ui.style_mut().visuals.faint_bg_color = ui_colors::SIDEBAR_BG;
+                // Read-only warning banner
+                let is_readonly = tab.is_readonly;
+                if is_readonly {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 200, 0),
+                        "⚠️ This file is read-only (standard library source)",
+                    );
+                    ui.add_space(4.0);
+                }
 
-            let scroll_area = egui::ScrollArea::vertical()
-                .auto_shrink([false; 2]);
+                // Check for pending cursor jump
+                let (cursor_range_to_set, scroll_to_y) =
+                    if let Some((jump_line, jump_col)) = tab.pending_cursor_jump {
+                        // Calculate character offset from line/column
+                        let char_offset = {
+                            let mut offset = 0;
+                            for (line_idx, line) in text.lines().enumerate() {
+                                if line_idx == jump_line {
+                                    offset += jump_col.min(line.len());
+                                    break;
+                                }
+                                offset += line.len() + 1; // +1 for newline
+                            }
+                            offset
+                        };
 
-            let scroll_output = scroll_area.show(ui, |ui| {
+                        // Calculate Y position for scrolling
+                        // Approximate line height (will be refined by TextEdit rendering)
+                        const APPROX_LINE_HEIGHT: f32 = 19.5; // 13 * 1.5
+                        let target_y = jump_line as f32 * APPROX_LINE_HEIGHT;
+
+                        tracing::info!(
+                            "📍 Jumping to line {} col {} (char offset: {}, y: {})",
+                            jump_line,
+                            jump_col,
+                            char_offset,
+                            target_y
+                        );
+
+                        // Create cursor range for both primary and secondary cursors at the same position
+                        (
+                            Some(egui::text::CCursorRange::one(egui::text::CCursor::new(
+                                char_offset,
+                            ))),
+                            Some(target_y),
+                        )
+                    } else {
+                        (None, None)
+                    };
+
+                // Dark background for scroll area
+                ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
+                ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG;
+                ui.style_mut().visuals.window_fill = ui_colors::SIDEBAR_BG;
+                ui.style_mut().visuals.panel_fill = ui_colors::SIDEBAR_BG;
+                // Also override the faint_bg_color used for scroll bar track
+                ui.style_mut().visuals.faint_bg_color = ui_colors::SIDEBAR_BG;
+
+                let scroll_area = egui::ScrollArea::vertical().auto_shrink([false; 2]);
+
+                let scroll_output = scroll_area.show(ui, |ui| {
                     ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
                     ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG;
 
@@ -274,7 +304,12 @@ impl BerryCodeApp {
                         .code_editor()
                         .desired_width(f32::INFINITY)
                         .lock_focus(true)
-                        .margin(egui::Margin { left: gutter_width, right: 4.0, top: 0.0, bottom: 0.0 })
+                        .margin(egui::Margin {
+                            left: gutter_width,
+                            right: 4.0,
+                            top: 0.0,
+                            bottom: 0.0,
+                        })
                         .interactive(!is_readonly)
                         .layouter(&mut |ui, text, _wrap_width| {
                             // For large files, skip syntax highlighting to keep UI responsive
@@ -290,7 +325,12 @@ impl BerryCodeApp {
                                 job.wrap.max_width = f32::INFINITY;
                                 job
                             } else {
-                                let mut job = Self::syntax_highlight_layouter(ui, text, &highlighter, &color_theme);
+                                let mut job = Self::syntax_highlight_layouter(
+                                    ui,
+                                    text,
+                                    &highlighter,
+                                    &color_theme,
+                                );
                                 job.wrap.max_width = f32::INFINITY;
                                 job
                             };
@@ -311,12 +351,26 @@ impl BerryCodeApp {
                                     Some('[') => Some(']'),
                                     Some('"') => {
                                         // Don't auto-close if it's a closing quote
-                                        let count = chars[..cursor_pos].iter().filter(|&&c| c == '"').count();
-                                        if count % 2 == 1 { Some('"') } else { None }
+                                        let count = chars[..cursor_pos]
+                                            .iter()
+                                            .filter(|&&c| c == '"')
+                                            .count();
+                                        if count % 2 == 1 {
+                                            Some('"')
+                                        } else {
+                                            None
+                                        }
                                     }
                                     Some('\'') => {
-                                        let count = chars[..cursor_pos].iter().filter(|&&c| c == '\'').count();
-                                        if count % 2 == 1 { Some('\'') } else { None }
+                                        let count = chars[..cursor_pos]
+                                            .iter()
+                                            .filter(|&&c| c == '\'')
+                                            .count();
+                                        if count % 2 == 1 {
+                                            Some('\'')
+                                        } else {
+                                            None
+                                        }
                                     }
                                     _ => None,
                                 };
@@ -337,12 +391,15 @@ impl BerryCodeApp {
                                 let chars: Vec<char> = text.chars().collect();
                                 if chars.get(cursor_pos - 1) == Some(&'\n') {
                                     // Find the previous line's indentation
-                                    let mut line_start = if cursor_pos >= 2 { cursor_pos - 2 } else { 0 };
+                                    let mut line_start =
+                                        if cursor_pos >= 2 { cursor_pos - 2 } else { 0 };
                                     while line_start > 0 && chars[line_start] != '\n' {
                                         line_start -= 1;
                                     }
                                     if line_start > 0 || chars[line_start] == '\n' {
-                                        if chars[line_start] == '\n' { line_start += 1; }
+                                        if chars[line_start] == '\n' {
+                                            line_start += 1;
+                                        }
                                     }
 
                                     let mut indent = String::new();
@@ -355,7 +412,10 @@ impl BerryCodeApp {
                                     }
 
                                     // If previous line ends with '{', add extra indent
-                                    let prev_line_trimmed_end = chars[line_start..cursor_pos.saturating_sub(1)].iter().rev()
+                                    let prev_line_trimmed_end = chars
+                                        [line_start..cursor_pos.saturating_sub(1)]
+                                        .iter()
+                                        .rev()
                                         .find(|c| !c.is_whitespace());
                                     if prev_line_trimmed_end == Some(&'{') {
                                         indent.push_str("    "); // 4 spaces
@@ -376,14 +436,17 @@ impl BerryCodeApp {
                         tab.is_dirty = true;
 
                         // Notify LSP about changes
-                        if let Some(lang) = crate::native::lsp_native::detect_server_language(&tab.file_path) {
+                        if let Some(lang) =
+                            crate::native::lsp_native::detect_server_language(&tab.file_path)
+                        {
                             if let Some(client) = &self.lsp_native_client {
                                 let client = client.clone();
                                 let path = tab.file_path.clone();
                                 let text_clone = text.clone();
                                 let language = lang.to_string();
                                 self.lsp_runtime.spawn(async move {
-                                    let _ = client.notify_change(&language, &path, &text_clone).await;
+                                    let _ =
+                                        client.notify_change(&language, &path, &text_clone).await;
                                 });
                             }
                         }
@@ -401,12 +464,22 @@ impl BerryCodeApp {
                         let mut line = 0;
                         let mut count = 0;
                         for ch in text.chars() {
-                            if count >= idx { break; }
-                            if ch == '\n' { line += 1; }
+                            if count >= idx {
+                                break;
+                            }
+                            if ch == '\n' {
+                                line += 1;
+                            }
                             count += 1;
                         }
                         tab.cursor_line = line;
-                        tab.cursor_col = idx - text.lines().take(line).map(|l| l.len() + 1).sum::<usize>().min(idx);
+                        tab.cursor_col = idx
+                            - text
+                                .lines()
+                                .take(line)
+                                .map(|l| l.len() + 1)
+                                .sum::<usize>()
+                                .min(idx);
                     }
 
                     // Build char offset for start of each line (used by line numbers and git gutter)
@@ -423,9 +496,9 @@ impl BerryCodeApp {
                     // editor_rect = inner rect (margin excluded), text starts at editor_rect.min.x
                     // Gutter is in the margin area: BEFORE editor_rect.min.x
                     let gutter_left = editor_rect.min.x - gutter_width;
-                    let bp_center_x = gutter_left + 10.0;             // breakpoint dot
-                    let line_num_right_x = gutter_left + 42.0;        // line number right-align
-                    let fold_center_x = gutter_left + 54.0;           // fold icon center
+                    let bp_center_x = gutter_left + 10.0; // breakpoint dot
+                    let line_num_right_x = gutter_left + 42.0; // line number right-align
+                    let fold_center_x = gutter_left + 54.0; // fold icon center
 
                     let mut bp_toggle_line: Option<usize> = None;
                     {
@@ -441,23 +514,43 @@ impl BerryCodeApp {
                             let lh = (pos_rect.max.y - pos_rect.min.y).max(1.0);
                             let center_y = y + lh / 2.0;
 
-                            if y + lh < clip.min.y { continue; }
-                            if y > clip.max.y { break; }
+                            if y + lh < clip.min.y {
+                                continue;
+                            }
+                            if y > clip.max.y {
+                                break;
+                            }
 
                             // --- Breakpoint dot (leftmost) ---
                             let bp_area = egui::Rect::from_center_size(
                                 egui::pos2(bp_center_x, center_y),
                                 egui::vec2(16.0, lh),
                             );
-                            let bp_hover = ui.input(|i| i.pointer.hover_pos().map(|p| bp_area.contains(p)).unwrap_or(false));
+                            let bp_hover = ui.input(|i| {
+                                i.pointer
+                                    .hover_pos()
+                                    .map(|p| bp_area.contains(p))
+                                    .unwrap_or(false)
+                            });
                             // bp click handled outside ScrollArea
 
-                            let has_bp = self.debug_state.breakpoints.iter()
+                            let has_bp = self
+                                .debug_state
+                                .breakpoints
+                                .iter()
                                 .any(|bp| bp.file_path == tab.file_path && bp.line == line_idx);
                             if has_bp {
-                                ui.painter().circle_filled(egui::pos2(bp_center_x, center_y), 5.0, egui::Color32::from_rgb(230, 50, 50));
+                                ui.painter().circle_filled(
+                                    egui::pos2(bp_center_x, center_y),
+                                    5.0,
+                                    egui::Color32::from_rgb(230, 50, 50),
+                                );
                             } else if bp_hover {
-                                ui.painter().circle_filled(egui::pos2(bp_center_x, center_y), 4.0, egui::Color32::from_rgba_premultiplied(230, 50, 50, 60));
+                                ui.painter().circle_filled(
+                                    egui::pos2(bp_center_x, center_y),
+                                    4.0,
+                                    egui::Color32::from_rgba_premultiplied(230, 50, 50, 60),
+                                );
                             }
 
                             // --- Line number (center) ---
@@ -475,7 +568,8 @@ impl BerryCodeApp {
                             );
 
                             // --- Inlay hints (ghost text after tokens) ---
-                            let hints: Vec<_> = inlay_hints_snapshot.iter()
+                            let hints: Vec<_> = inlay_hints_snapshot
+                                .iter()
                                 .filter(|h| h.line == line_idx)
                                 .collect();
                             for h in &hints {
@@ -483,7 +577,8 @@ impl BerryCodeApp {
                                 let label = &h.label;
                                 let kind: &str = h.kind;
                                 // Calculate x position: use galley to find the char position
-                                let line_start = line_char_offsets.get(line_idx).copied().unwrap_or(0);
+                                let line_start =
+                                    line_char_offsets.get(line_idx).copied().unwrap_or(0);
                                 let hint_offset = line_start + col;
                                 let cc = egui::text::CCursor::new(hint_offset.min(text.len()));
                                 let cursor_obj = galley.from_ccursor(cc);
@@ -538,33 +633,63 @@ impl BerryCodeApp {
                             let ch = chars[cursor_idx];
 
                             // Find matching bracket
-                            let matching_idx = if let Some(&(open, close)) = bracket_pairs.iter().find(|(o, _)| *o == ch) {
+                            let matching_idx = if let Some(&(open, close)) =
+                                bracket_pairs.iter().find(|(o, _)| *o == ch)
+                            {
                                 // Forward search for closing bracket
                                 let mut depth = 0;
                                 let mut found = None;
                                 for i in cursor_idx..chars.len() {
-                                    if chars[i] == open { depth += 1; }
-                                    if chars[i] == close { depth -= 1; if depth == 0 { found = Some(i); break; } }
+                                    if chars[i] == open {
+                                        depth += 1;
+                                    }
+                                    if chars[i] == close {
+                                        depth -= 1;
+                                        if depth == 0 {
+                                            found = Some(i);
+                                            break;
+                                        }
+                                    }
                                 }
                                 found
-                            } else if let Some(&(open, close)) = bracket_pairs.iter().find(|(_, c)| *c == ch) {
+                            } else if let Some(&(open, close)) =
+                                bracket_pairs.iter().find(|(_, c)| *c == ch)
+                            {
                                 // Backward search for opening bracket
                                 let mut depth = 0;
                                 let mut found = None;
                                 for i in (0..=cursor_idx).rev() {
-                                    if chars[i] == close { depth += 1; }
-                                    if chars[i] == open { depth -= 1; if depth == 0 { found = Some(i); break; } }
+                                    if chars[i] == close {
+                                        depth += 1;
+                                    }
+                                    if chars[i] == open {
+                                        depth -= 1;
+                                        if depth == 0 {
+                                            found = Some(i);
+                                            break;
+                                        }
+                                    }
                                 }
                                 found
                             } else if cursor_idx > 0 {
                                 // Also check character before cursor
                                 let prev_ch = chars[cursor_idx - 1];
-                                if let Some(&(open, close)) = bracket_pairs.iter().find(|(_, c)| *c == prev_ch) {
+                                if let Some(&(open, close)) =
+                                    bracket_pairs.iter().find(|(_, c)| *c == prev_ch)
+                                {
                                     let mut depth = 0;
                                     let mut found = None;
                                     for i in (0..cursor_idx).rev() {
-                                        if chars[i] == close { depth += 1; }
-                                        if chars[i] == open { depth -= 1; if depth == 0 { found = Some(i); break; } }
+                                        if chars[i] == close {
+                                            depth += 1;
+                                        }
+                                        if chars[i] == open {
+                                            depth -= 1;
+                                            if depth == 0 {
+                                                found = Some(i);
+                                                break;
+                                            }
+                                        }
                                     }
                                     found
                                 } else {
@@ -575,7 +700,8 @@ impl BerryCodeApp {
                             };
 
                             if let Some(match_idx) = matching_idx {
-                                let highlight_color = egui::Color32::from_rgba_premultiplied(255, 255, 255, 30);
+                                let highlight_color =
+                                    egui::Color32::from_rgba_premultiplied(255, 255, 255, 30);
                                 // Highlight both brackets using galley positions
                                 for idx in [cursor_idx, match_idx] {
                                     if idx < chars.len() {
@@ -587,10 +713,20 @@ impl BerryCodeApp {
                                         let rect_next = galley.pos_from_cursor(&cursor_next);
 
                                         let highlight_rect = egui::Rect::from_min_max(
-                                            egui::pos2(editor_rect.min.x + rect.min.x, editor_rect.min.y + rect.min.y),
-                                            egui::pos2(editor_rect.min.x + rect_next.min.x, editor_rect.min.y + rect.max.y),
+                                            egui::pos2(
+                                                editor_rect.min.x + rect.min.x,
+                                                editor_rect.min.y + rect.min.y,
+                                            ),
+                                            egui::pos2(
+                                                editor_rect.min.x + rect_next.min.x,
+                                                editor_rect.min.y + rect.max.y,
+                                            ),
                                         );
-                                        ui.painter().rect_filled(highlight_rect, 2.0, highlight_color);
+                                        ui.painter().rect_filled(
+                                            highlight_rect,
+                                            2.0,
+                                            highlight_color,
+                                        );
                                     }
                                 }
                             }
@@ -618,10 +754,14 @@ impl BerryCodeApp {
                                 // Get word length at diagnostic position (approximate)
                                 let chars: Vec<char> = text.chars().collect();
                                 let mut end = char_offset;
-                                while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
+                                while end < chars.len()
+                                    && (chars[end].is_alphanumeric() || chars[end] == '_')
+                                {
                                     end += 1;
                                 }
-                                if end == char_offset { end = (char_offset + 1).min(chars.len()); }
+                                if end == char_offset {
+                                    end = (char_offset + 1).min(chars.len());
+                                }
 
                                 let start_c = egui::text::CCursor::new(char_offset);
                                 let end_c = egui::text::CCursor::new(end);
@@ -631,8 +771,12 @@ impl BerryCodeApp {
                                 let end_rect = galley.pos_from_cursor(&end_cursor);
 
                                 let color = match diag.severity {
-                                    super::types::DiagnosticSeverity::Error => egui::Color32::from_rgb(255, 80, 80),
-                                    super::types::DiagnosticSeverity::Warning => egui::Color32::from_rgb(255, 200, 0),
+                                    super::types::DiagnosticSeverity::Error => {
+                                        egui::Color32::from_rgb(255, 80, 80)
+                                    }
+                                    super::types::DiagnosticSeverity::Warning => {
+                                        egui::Color32::from_rgb(255, 200, 0)
+                                    }
                                     _ => egui::Color32::from_rgb(100, 180, 255),
                                 };
 
@@ -653,7 +797,10 @@ impl BerryCodeApp {
                                 }
                                 if points.len() >= 2 {
                                     for window in points.windows(2) {
-                                        ui.painter().line_segment([window[0], window[1]], egui::Stroke::new(1.0, color));
+                                        ui.painter().line_segment(
+                                            [window[0], window[1]],
+                                            egui::Stroke::new(1.0, color),
+                                        );
                                     }
                                 }
                             }
@@ -680,11 +827,16 @@ impl BerryCodeApp {
                                 let chars: Vec<char> = text.chars().collect();
                                 if char_idx < chars.len() {
                                     let mut start = char_idx;
-                                    while start > 0 && (chars[start - 1].is_alphanumeric() || chars[start - 1] == '_') {
+                                    while start > 0
+                                        && (chars[start - 1].is_alphanumeric()
+                                            || chars[start - 1] == '_')
+                                    {
                                         start -= 1;
                                     }
                                     let mut end = char_idx;
-                                    while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
+                                    while end < chars.len()
+                                        && (chars[end].is_alphanumeric() || chars[end] == '_')
+                                    {
                                         end += 1;
                                     }
 
@@ -692,22 +844,32 @@ impl BerryCodeApp {
                                         // Get the pixel positions of the word start and end
                                         let start_cursor = egui::text::CCursor::new(start);
                                         let end_cursor = egui::text::CCursor::new(end);
-                                        let start_rect = galley.pos_from_cursor(&egui::epaint::text::cursor::Cursor {
-                                            ccursor: start_cursor,
-                                            rcursor: galley.from_ccursor(start_cursor).rcursor,
-                                            pcursor: galley.from_ccursor(start_cursor).pcursor,
-                                        });
-                                        let end_rect = galley.pos_from_cursor(&egui::epaint::text::cursor::Cursor {
-                                            ccursor: end_cursor,
-                                            rcursor: galley.from_ccursor(end_cursor).rcursor,
-                                            pcursor: galley.from_ccursor(end_cursor).pcursor,
-                                        });
+                                        let start_rect = galley.pos_from_cursor(
+                                            &egui::epaint::text::cursor::Cursor {
+                                                ccursor: start_cursor,
+                                                rcursor: galley.from_ccursor(start_cursor).rcursor,
+                                                pcursor: galley.from_ccursor(start_cursor).pcursor,
+                                            },
+                                        );
+                                        let end_rect = galley.pos_from_cursor(
+                                            &egui::epaint::text::cursor::Cursor {
+                                                ccursor: end_cursor,
+                                                rcursor: galley.from_ccursor(end_cursor).rcursor,
+                                                pcursor: galley.from_ccursor(end_cursor).pcursor,
+                                            },
+                                        );
 
                                         // Draw underline
                                         let link_color = egui::Color32::from_rgb(86, 156, 214); // VS Code link blue
                                         let underline_y = editor_rect.min.y + start_rect.max.y;
-                                        let underline_start = egui::pos2(editor_rect.min.x + start_rect.min.x, underline_y);
-                                        let underline_end = egui::pos2(editor_rect.min.x + end_rect.min.x, underline_y);
+                                        let underline_start = egui::pos2(
+                                            editor_rect.min.x + start_rect.min.x,
+                                            underline_y,
+                                        );
+                                        let underline_end = egui::pos2(
+                                            editor_rect.min.x + end_rect.min.x,
+                                            underline_y,
+                                        );
 
                                         ui.painter().line_segment(
                                             [underline_start, underline_end],
@@ -716,13 +878,23 @@ impl BerryCodeApp {
 
                                         // Draw colored overlay text
                                         let word_str: String = chars[start..end].iter().collect();
-                                        let text_pos = egui::pos2(editor_rect.min.x + start_rect.min.x, editor_rect.min.y + start_rect.min.y);
+                                        let text_pos = egui::pos2(
+                                            editor_rect.min.x + start_rect.min.x,
+                                            editor_rect.min.y + start_rect.min.y,
+                                        );
                                         // Paint a background rect to hide the original text, then draw colored text
                                         let bg_rect = egui::Rect::from_min_max(
                                             text_pos,
-                                            egui::pos2(editor_rect.min.x + end_rect.min.x, editor_rect.min.y + start_rect.max.y),
+                                            egui::pos2(
+                                                editor_rect.min.x + end_rect.min.x,
+                                                editor_rect.min.y + start_rect.max.y,
+                                            ),
                                         );
-                                        ui.painter().rect_filled(bg_rect, 0.0, ui_colors::SIDEBAR_BG);
+                                        ui.painter().rect_filled(
+                                            bg_rect,
+                                            0.0,
+                                            ui_colors::SIDEBAR_BG,
+                                        );
                                         ui.painter().text(
                                             text_pos,
                                             egui::Align2::LEFT_TOP,
@@ -767,7 +939,7 @@ impl BerryCodeApp {
                             // Create a rect at the cursor position
                             let cursor_rect = egui::Rect::from_min_size(
                                 egui::pos2(0.0, y),
-                                egui::vec2(100.0, APPROX_LINE_HEIGHT * 3.0) // Show a few lines around cursor
+                                egui::vec2(100.0, APPROX_LINE_HEIGHT * 3.0), // Show a few lines around cursor
                             );
                             // Scroll to make this rect visible
                             ui.scroll_to_rect(cursor_rect, Some(egui::Align::Center));
@@ -778,10 +950,14 @@ impl BerryCodeApp {
                     // === Indent Guides: draw vertical lines at each indentation level ===
                     // Only for code files (not markdown, plaintext, etc.)
                     let is_code_file = tab.file_path.ends_with(".rs")
-                        || tab.file_path.ends_with(".js") || tab.file_path.ends_with(".ts")
-                        || tab.file_path.ends_with(".c") || tab.file_path.ends_with(".cpp")
-                        || tab.file_path.ends_with(".json") || tab.file_path.ends_with(".java")
-                        || tab.file_path.ends_with(".py") || tab.file_path.ends_with(".toml");
+                        || tab.file_path.ends_with(".js")
+                        || tab.file_path.ends_with(".ts")
+                        || tab.file_path.ends_with(".c")
+                        || tab.file_path.ends_with(".cpp")
+                        || tab.file_path.ends_with(".json")
+                        || tab.file_path.ends_with(".java")
+                        || tab.file_path.ends_with(".py")
+                        || tab.file_path.ends_with(".toml");
                     if is_code_file {
                         let indent_color = egui::Color32::from_rgba_premultiplied(80, 80, 80, 20);
                         let tab_size = 4_usize;
@@ -805,12 +981,18 @@ impl BerryCodeApp {
                         // Determine visible lines
                         let scroll_offset_y = ui.clip_rect().min.y - editor_rect.min.y;
                         let visible_height = ui.clip_rect().height();
-                        let first_visible = (scroll_offset_y / line_height).floor().max(0.0) as usize;
-                        let last_visible = ((scroll_offset_y + visible_height) / line_height).ceil() as usize + 5;
+                        let first_visible =
+                            (scroll_offset_y / line_height).floor().max(0.0) as usize;
+                        let last_visible =
+                            ((scroll_offset_y + visible_height) / line_height).ceil() as usize + 5;
 
                         for (line_idx, line_text) in text.lines().enumerate() {
-                            if line_idx < first_visible { continue; }
-                            if line_idx > last_visible { break; }
+                            if line_idx < first_visible {
+                                continue;
+                            }
+                            if line_idx > last_visible {
+                                break;
+                            }
 
                             let indent_chars = line_text.chars().take_while(|c| *c == ' ').count();
                             let indent_levels = indent_chars / tab_size;
@@ -822,8 +1004,14 @@ impl BerryCodeApp {
 
                                 ui.painter().line_segment(
                                     [
-                                        egui::pos2(editor_rect.min.x + x_offset, editor_rect.min.y + y_start),
-                                        egui::pos2(editor_rect.min.x + x_offset, editor_rect.min.y + y_end),
+                                        egui::pos2(
+                                            editor_rect.min.x + x_offset,
+                                            editor_rect.min.y + y_start,
+                                        ),
+                                        egui::pos2(
+                                            editor_rect.min.x + x_offset,
+                                            editor_rect.min.y + y_end,
+                                        ),
                                     ],
                                     egui::Stroke::new(0.5, indent_color),
                                 );
@@ -839,7 +1027,9 @@ impl BerryCodeApp {
                         let bar_x = text_origin.x - 4.0; // just to the left of code text
 
                         for change in &tab.git_line_changes {
-                            if change.line >= line_char_offsets.len() { continue; }
+                            if change.line >= line_char_offsets.len() {
+                                continue;
+                            }
                             let char_offset = line_char_offsets[change.line];
                             let cc = egui::text::CCursor::new(char_offset);
                             let cursor_obj = galley.from_ccursor(cc);
@@ -847,13 +1037,23 @@ impl BerryCodeApp {
                             let y = text_origin.y + pos_rect.min.y;
                             let lh = (pos_rect.max.y - pos_rect.min.y).max(1.0);
 
-                            if y + lh < clip.min.y { continue; }
-                            if y > clip.max.y { break; }
+                            if y + lh < clip.min.y {
+                                continue;
+                            }
+                            if y > clip.max.y {
+                                break;
+                            }
 
                             let color = match change.change_type {
-                                crate::native::git::LineChangeType::Added => egui::Color32::from_rgb(80, 200, 80),
-                                crate::native::git::LineChangeType::Modified => egui::Color32::from_rgb(80, 150, 255),
-                                crate::native::git::LineChangeType::Deleted => egui::Color32::from_rgb(255, 80, 80),
+                                crate::native::git::LineChangeType::Added => {
+                                    egui::Color32::from_rgb(80, 200, 80)
+                                }
+                                crate::native::git::LineChangeType::Modified => {
+                                    egui::Color32::from_rgb(80, 150, 255)
+                                }
+                                crate::native::git::LineChangeType::Deleted => {
+                                    egui::Color32::from_rgb(255, 80, 80)
+                                }
                             };
 
                             let rect = egui::Rect::from_min_size(
@@ -869,9 +1069,12 @@ impl BerryCodeApp {
                     // === Fold Gutter: show fold/unfold arrows for foldable lines ===
                     // Only show for languages with braces (Rust, JS, TS, C, C++, JSON)
                     let is_foldable_language = tab.file_path.ends_with(".rs")
-                        || tab.file_path.ends_with(".js") || tab.file_path.ends_with(".ts")
-                        || tab.file_path.ends_with(".c") || tab.file_path.ends_with(".cpp")
-                        || tab.file_path.ends_with(".json") || tab.file_path.ends_with(".java");
+                        || tab.file_path.ends_with(".js")
+                        || tab.file_path.ends_with(".ts")
+                        || tab.file_path.ends_with(".c")
+                        || tab.file_path.ends_with(".cpp")
+                        || tab.file_path.ends_with(".json")
+                        || tab.file_path.ends_with(".java");
                     let mut fold_toggle_line: Option<usize> = None;
                     if is_foldable_language {
                         let clip = ui.clip_rect();
@@ -879,17 +1082,23 @@ impl BerryCodeApp {
                         for (line_idx, line_text) in text.lines().enumerate() {
                             if line_text.contains('{') {
                                 // Get Y from galley
-                                let char_offset = line_char_offsets.get(line_idx).copied().unwrap_or(0);
+                                let char_offset =
+                                    line_char_offsets.get(line_idx).copied().unwrap_or(0);
                                 let cc = egui::text::CCursor::new(char_offset);
                                 let cursor_obj = galley.from_ccursor(cc);
                                 let pos_rect = galley.pos_from_cursor(&cursor_obj);
                                 let y = text_origin.y + pos_rect.min.y;
                                 let lh = (pos_rect.max.y - pos_rect.min.y).max(1.0);
 
-                                if y + lh < clip.min.y { continue; }
-                                if y > clip.max.y { break; }
+                                if y + lh < clip.min.y {
+                                    continue;
+                                }
+                                if y > clip.max.y {
+                                    break;
+                                }
 
-                                let is_folded = tab.folded_regions.iter().any(|(s, _)| *s == line_idx);
+                                let is_folded =
+                                    tab.folded_regions.iter().any(|(s, _)| *s == line_idx);
                                 let icon = if is_folded { "\u{25B6}" } else { "\u{25BC}" };
                                 let fold_rect = egui::Rect::from_center_size(
                                     egui::pos2(fold_center_x, y + lh / 2.0),
@@ -902,7 +1111,10 @@ impl BerryCodeApp {
                                 }
 
                                 let fold_hover = ui.input(|i| {
-                                    i.pointer.hover_pos().map(|p| fold_rect.contains(p)).unwrap_or(false)
+                                    i.pointer
+                                        .hover_pos()
+                                        .map(|p| fold_rect.contains(p))
+                                        .unwrap_or(false)
                                 });
                                 let fold_color = if fold_hover {
                                     egui::Color32::from_rgb(200, 200, 200)
@@ -954,147 +1166,175 @@ impl BerryCodeApp {
 
                     // Store text back into cache (avoids re-conversion next frame)
                     // Restore original (unfolded) text to cache, not the folded version
-                    tab.text_cache = if tab.folded_regions.is_empty() { text } else { original_for_cache };
+                    tab.text_cache = if tab.folded_regions.is_empty() {
+                        text
+                    } else {
+                        original_for_cache
+                    };
 
                     // Return gutter layout info for click handling outside ScrollArea
                     let gutter_info = (gutter_left, fold_center_x, bp_center_x, editor_rect);
-                    (output, go_to_def_data, cursor_line_for_blame, fold_toggle_line, bp_toggle_line, gutter_info)
+                    (
+                        output,
+                        go_to_def_data,
+                        cursor_line_for_blame,
+                        fold_toggle_line,
+                        bp_toggle_line,
+                        gutter_info,
+                    )
                 });
 
-            // If we had a scroll target, ensure we scroll there
-            if let Some(_y) = scroll_to_y {
-                // Force another repaint to ensure scroll takes effect
-                ctx.request_repaint();
-            }
-
-            // Clear pending cursor jump after rendering
-            if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
-                if tab.pending_cursor_jump.is_some() {
-                    tab.pending_cursor_jump = None;
+                // If we had a scroll target, ensure we scroll there
+                if let Some(_y) = scroll_to_y {
+                    // Force another repaint to ensure scroll takes effect
+                    ctx.request_repaint();
                 }
-            }
 
-            // Handle fold toggle
-            if let Some(line) = scroll_output.inner.3 {
-                self.toggle_fold_at_line(line);
-            }
+                // Clear pending cursor jump after rendering
+                if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                    if tab.pending_cursor_jump.is_some() {
+                        tab.pending_cursor_jump = None;
+                    }
+                }
 
-            // Gutter click handling (outside ScrollArea to avoid TextEdit consuming events)
-            {
-                let (gutter_left, _fold_cx, _bp_cx, ed_rect) = scroll_output.inner.5;
-                let clicked = ctx.input(|i| i.pointer.any_pressed());
-                let click_pos = ctx.input(|i| i.pointer.interact_pos());
+                // Handle fold toggle
+                if let Some(line) = scroll_output.inner.3 {
+                    self.toggle_fold_at_line(line);
+                }
 
-                if clicked {
-                    if let Some(pos) = click_pos {
-                        // Check if click is in the gutter area (between gutter_left and editor_rect.min.x)
-                        if pos.x >= gutter_left && pos.x < ed_rect.min.x
-                           && pos.y >= ed_rect.min.y && pos.y <= ed_rect.max.y {
-                            // Calculate line from Y position
-                            let relative_y = pos.y - ed_rect.min.y + scroll_output.state.offset.y;
-                            // Use approximate line height (galley coords)
-                            let line_height = 15.0_f32; // from galley pos_rect
-                            let clicked_line = (relative_y / line_height).floor() as usize;
-                            let tab = &self.editor_tabs[self.active_tab_idx];
-                            let total_lines = tab.text_cache.lines().count();
+                // Gutter click handling (outside ScrollArea to avoid TextEdit consuming events)
+                {
+                    let (gutter_left, _fold_cx, _bp_cx, ed_rect) = scroll_output.inner.5;
+                    let clicked = ctx.input(|i| i.pointer.any_pressed());
+                    let click_pos = ctx.input(|i| i.pointer.interact_pos());
 
-                            if clicked_line < total_lines {
-                                // Determine if it's a BP click or fold click based on X
-                                let bp_zone_right = gutter_left + 22.0;
-                                let fold_zone_left = gutter_left + 44.0;
+                    if clicked {
+                        if let Some(pos) = click_pos {
+                            // Check if click is in the gutter area (between gutter_left and editor_rect.min.x)
+                            if pos.x >= gutter_left
+                                && pos.x < ed_rect.min.x
+                                && pos.y >= ed_rect.min.y
+                                && pos.y <= ed_rect.max.y
+                            {
+                                // Calculate line from Y position
+                                let relative_y =
+                                    pos.y - ed_rect.min.y + scroll_output.state.offset.y;
+                                // Use approximate line height (galley coords)
+                                let line_height = 15.0_f32; // from galley pos_rect
+                                let clicked_line = (relative_y / line_height).floor() as usize;
+                                let tab = &self.editor_tabs[self.active_tab_idx];
+                                let total_lines = tab.text_cache.lines().count();
 
-                                if pos.x < bp_zone_right {
-                                    // Breakpoint toggle
-                                    let file_path = tab.file_path.clone();
-                                    if let Some(idx) = self.debug_state.breakpoints.iter().position(|bp| bp.file_path == file_path && bp.line == clicked_line) {
-                                        self.debug_state.breakpoints.remove(idx);
-                                    } else {
-                                        self.debug_state.breakpoints.push(crate::native::dap::DapBreakpoint {
-                                            line: clicked_line,
-                                            verified: false,
-                                            file_path,
-                                        });
-                                    }
-                                } else if pos.x >= fold_zone_left {
-                                    // Fold toggle
-                                    let line_text: &str = tab.text_cache.lines().nth(clicked_line).unwrap_or("");
-                                    if line_text.contains('{') {
-                                        self.toggle_fold_at_line(clicked_line);
+                                if clicked_line < total_lines {
+                                    // Determine if it's a BP click or fold click based on X
+                                    let bp_zone_right = gutter_left + 22.0;
+                                    let fold_zone_left = gutter_left + 44.0;
+
+                                    if pos.x < bp_zone_right {
+                                        // Breakpoint toggle
+                                        let file_path = tab.file_path.clone();
+                                        if let Some(idx) =
+                                            self.debug_state.breakpoints.iter().position(|bp| {
+                                                bp.file_path == file_path && bp.line == clicked_line
+                                            })
+                                        {
+                                            self.debug_state.breakpoints.remove(idx);
+                                        } else {
+                                            self.debug_state.breakpoints.push(
+                                                crate::native::dap::DapBreakpoint {
+                                                    line: clicked_line,
+                                                    verified: false,
+                                                    file_path,
+                                                },
+                                            );
+                                        }
+                                    } else if pos.x >= fold_zone_left {
+                                        // Fold toggle
+                                        let line_text: &str =
+                                            tab.text_cache.lines().nth(clicked_line).unwrap_or("");
+                                        if line_text.contains('{') {
+                                            self.toggle_fold_at_line(clicked_line);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // Handle go-to-definition outside the closure
-            if let Some((text, cursor_pos)) = scroll_output.inner.1 {
-                tracing::info!("Triggering go-to-definition at position {}", cursor_pos);
-                self.handle_go_to_definition(&text, cursor_pos);
-            }
+                // Handle go-to-definition outside the closure
+                if let Some((text, cursor_pos)) = scroll_output.inner.1 {
+                    tracing::info!("Triggering go-to-definition at position {}", cursor_pos);
+                    self.handle_go_to_definition(&text, cursor_pos);
+                }
 
-            // === Inline Git Blame ===
-            {
-                let cursor_line_for_blame = scroll_output.inner.2;
-                if let Some(current_line) = cursor_line_for_blame {
-                    let active_file = self.editor_tabs[self.active_tab_idx].file_path.clone();
-                    if current_line != self.blame_cache_line || active_file != self.blame_cache_file {
-                        self.blame_cache_line = current_line;
-                        self.blame_cache_file = active_file.clone();
-                        match crate::native::git::get_line_blame(&self.root_path, &active_file, current_line) {
-                            Ok(Some(blame)) => {
-                                let time_str = chrono::DateTime::from_timestamp(blame.timestamp, 0)
-                                    .map(|dt| dt.format("%Y-%m-%d").to_string())
-                                    .unwrap_or_default();
-                                self.blame_cache_text = format!(
-                                    "{} \u{2022} {} \u{2014} {}",
-                                    blame.author, time_str, blame.message
-                                );
-                            }
-                            _ => {
-                                self.blame_cache_text = String::new();
+                // === Inline Git Blame ===
+                {
+                    let cursor_line_for_blame = scroll_output.inner.2;
+                    if let Some(current_line) = cursor_line_for_blame {
+                        let active_file = self.editor_tabs[self.active_tab_idx].file_path.clone();
+                        if current_line != self.blame_cache_line
+                            || active_file != self.blame_cache_file
+                        {
+                            self.blame_cache_line = current_line;
+                            self.blame_cache_file = active_file.clone();
+                            match crate::native::git::get_line_blame(
+                                &self.root_path,
+                                &active_file,
+                                current_line,
+                            ) {
+                                Ok(Some(blame)) => {
+                                    let time_str =
+                                        chrono::DateTime::from_timestamp(blame.timestamp, 0)
+                                            .map(|dt| dt.format("%Y-%m-%d").to_string())
+                                            .unwrap_or_default();
+                                    self.blame_cache_text = format!(
+                                        "{} \u{2022} {} \u{2014} {}",
+                                        blame.author, time_str, blame.message
+                                    );
+                                }
+                                _ => {
+                                    self.blame_cache_text = String::new();
+                                }
                             }
                         }
                     }
                 }
-            }
 
-
-            // LSP Status bar at bottom
-            ui.separator();
-            ui.horizontal(|ui| {
-                // Connection status
-                let status_text = if self.lsp_connected {
-                    "LSP: Connected"
-                } else {
-                    "LSP: Disconnected"
-                };
-                ui.label(status_text);
-
+                // LSP Status bar at bottom
                 ui.separator();
+                ui.horizontal(|ui| {
+                    // Connection status
+                    let status_text = if self.lsp_connected {
+                        "LSP: Connected"
+                    } else {
+                        "LSP: Disconnected"
+                    };
+                    ui.label(status_text);
 
-                // Diagnostics count
-                ui.label(format!("Diagnostics: {}", self.lsp_diagnostics.len()));
-
-                // Inline blame info in status bar
-                if !self.blame_cache_text.is_empty() {
                     ui.separator();
-                    ui.label(
-                        egui::RichText::new(&self.blame_cache_text)
-                            .size(11.0)
-                            .color(egui::Color32::from_rgb(128, 128, 128))
-                    );
-                }
 
-                ui.separator();
+                    // Diagnostics count
+                    ui.label(format!("Diagnostics: {}", self.lsp_diagnostics.len()));
 
-                // Completion trigger button
-                if ui.button("Show Completions (Ctrl+Space)").clicked() {
-                    self.trigger_lsp_completions();
-                }
+                    // Inline blame info in status bar
+                    if !self.blame_cache_text.is_empty() {
+                        ui.separator();
+                        ui.label(
+                            egui::RichText::new(&self.blame_cache_text)
+                                .size(11.0)
+                                .color(egui::Color32::from_rgb(128, 128, 128)),
+                        );
+                    }
+
+                    ui.separator();
+
+                    // Completion trigger button
+                    if ui.button("Show Completions (Ctrl+Space)").clicked() {
+                        self.trigger_lsp_completions();
+                    }
+                });
             });
-        });
 
         // Handle keyboard shortcuts for LSP
         self.handle_lsp_shortcuts(ctx);
@@ -1131,11 +1371,15 @@ impl BerryCodeApp {
 
             if tokens.is_empty() {
                 // No tokens, just add the whole line in default color
-                job.append(line, 0.0, egui::TextFormat {
-                    font_id: egui::FontId::monospace(FONT_SIZE),
-                    color: default_color,
-                    ..Default::default()
-                });
+                job.append(
+                    line,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: default_color,
+                        ..Default::default()
+                    },
+                );
             } else {
                 let mut pos = 0;
 
@@ -1143,11 +1387,15 @@ impl BerryCodeApp {
                     // Add any text before this token (whitespace, punctuation, etc.)
                     if token.start > pos {
                         let before = &line[pos..token.start];
-                        job.append(before, 0.0, egui::TextFormat {
-                            font_id: egui::FontId::monospace(FONT_SIZE),
-                            color: default_color,
-                            ..Default::default()
-                        });
+                        job.append(
+                            before,
+                            0.0,
+                            egui::TextFormat {
+                                font_id: egui::FontId::monospace(FONT_SIZE),
+                                color: default_color,
+                                ..Default::default()
+                            },
+                        );
                     }
 
                     // Map TokenType to VS Code Dark+ color scheme
@@ -1169,11 +1417,15 @@ impl BerryCodeApp {
                         TokenType::EscapeSequence => color_theme.string,
                     };
 
-                    job.append(&token.text, 0.0, egui::TextFormat {
-                        font_id: egui::FontId::monospace(FONT_SIZE),
-                        color,
-                        ..Default::default()
-                    });
+                    job.append(
+                        &token.text,
+                        0.0,
+                        egui::TextFormat {
+                            font_id: egui::FontId::monospace(FONT_SIZE),
+                            color,
+                            ..Default::default()
+                        },
+                    );
 
                     pos = token.end;
                 }
@@ -1181,20 +1433,28 @@ impl BerryCodeApp {
                 // Add any remaining text at the end of the line
                 if pos < line.len() {
                     let remaining = &line[pos..];
-                    job.append(remaining, 0.0, egui::TextFormat {
-                        font_id: egui::FontId::monospace(FONT_SIZE),
-                        color: default_color,
-                        ..Default::default()
-                    });
+                    job.append(
+                        remaining,
+                        0.0,
+                        egui::TextFormat {
+                            font_id: egui::FontId::monospace(FONT_SIZE),
+                            color: default_color,
+                            ..Default::default()
+                        },
+                    );
                 }
             }
 
             // Add newline
-            job.append("\n", 0.0, egui::TextFormat {
-                font_id: egui::FontId::monospace(FONT_SIZE),
-                color: default_color,
-                ..Default::default()
-            });
+            job.append(
+                "\n",
+                0.0,
+                egui::TextFormat {
+                    font_id: egui::FontId::monospace(FONT_SIZE),
+                    color: default_color,
+                    ..Default::default()
+                },
+            );
         }
 
         job

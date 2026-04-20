@@ -1,8 +1,8 @@
 //! Git panel rendering and operations
 
-use super::BerryCodeApp;
 use super::types::GitTab;
 use super::ui_colors;
+use super::BerryCodeApp;
 use crate::native;
 
 impl BerryCodeApp {
@@ -73,34 +73,34 @@ impl BerryCodeApp {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-            if self.git_status.is_empty() {
-                ui.label("No changes");
-            } else {
-                // Group files by staged/unstaged
-                let git_statuses = self.git_status.clone();
-                let staged: Vec<_> = git_statuses.iter().filter(|s| s.is_staged).collect();
-                let unstaged: Vec<_> = git_statuses.iter().filter(|s| !s.is_staged).collect();
+                if self.git_status.is_empty() {
+                    ui.label("No changes");
+                } else {
+                    // Group files by staged/unstaged
+                    let git_statuses = self.git_status.clone();
+                    let staged: Vec<_> = git_statuses.iter().filter(|s| s.is_staged).collect();
+                    let unstaged: Vec<_> = git_statuses.iter().filter(|s| !s.is_staged).collect();
 
-                // Staged changes
-                if !staged.is_empty() {
-                    ui.heading(format!("Staged Changes ({})", staged.len()));
-                    ui.add_space(4.0);
-                    for status in staged {
-                        self.render_file_status_row(ui, status);
+                    // Staged changes
+                    if !staged.is_empty() {
+                        ui.heading(format!("Staged Changes ({})", staged.len()));
+                        ui.add_space(4.0);
+                        for status in staged {
+                            self.render_file_status_row(ui, status);
+                        }
+                        ui.add_space(8.0);
                     }
-                    ui.add_space(8.0);
-                }
 
-                // Unstaged changes
-                if !unstaged.is_empty() {
-                    ui.heading(format!("Unstaged Changes ({})", unstaged.len()));
-                    ui.add_space(4.0);
-                    for status in unstaged {
-                        self.render_file_status_row(ui, status);
+                    // Unstaged changes
+                    if !unstaged.is_empty() {
+                        ui.heading(format!("Unstaged Changes ({})", unstaged.len()));
+                        ui.add_space(4.0);
+                        for status in unstaged {
+                            self.render_file_status_row(ui, status);
+                        }
                     }
                 }
-            }
-        });
+            });
     }
 
     /// Helper function to render a file status row
@@ -159,7 +159,10 @@ impl BerryCodeApp {
                 self.refresh_git_history();
             }
 
-            ui.checkbox(&mut self.git_history_state.show_all_branches, "All branches");
+            ui.checkbox(
+                &mut self.git_history_state.show_all_branches,
+                "All branches",
+            );
 
             if ui.button("Load More").clicked() {
                 self.git_history_state.page_limit += 100;
@@ -217,14 +220,14 @@ impl BerryCodeApp {
 
         // 8-color palette for branches
         let colors = [
-            egui::Color32::from_rgb(106, 180, 89),   // Green
-            egui::Color32::from_rgb(100, 181, 246),  // Blue
-            egui::Color32::from_rgb(255, 198, 109),  // Yellow
-            egui::Color32::from_rgb(239, 83, 80),    // Red
-            egui::Color32::from_rgb(171, 128, 255),  // Purple
-            egui::Color32::from_rgb(255, 138, 128),  // Coral
-            egui::Color32::from_rgb(128, 222, 234),  // Cyan
-            egui::Color32::from_rgb(255, 171, 64),   // Orange
+            egui::Color32::from_rgb(106, 180, 89),  // Green
+            egui::Color32::from_rgb(100, 181, 246), // Blue
+            egui::Color32::from_rgb(255, 198, 109), // Yellow
+            egui::Color32::from_rgb(239, 83, 80),   // Red
+            egui::Color32::from_rgb(171, 128, 255), // Purple
+            egui::Color32::from_rgb(255, 138, 128), // Coral
+            egui::Color32::from_rgb(128, 222, 234), // Cyan
+            egui::Color32::from_rgb(255, 171, 64),  // Orange
         ];
 
         for (_idx, node) in nodes.iter().enumerate() {
@@ -240,14 +243,16 @@ impl BerryCodeApp {
 
                     // Draw graph lines
                     for line in &node.graph_lines {
-                        let from_pos = graph_rect.min + egui::vec2(
-                            line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
-                            NODE_RADIUS,
-                        );
-                        let to_pos = graph_rect.min + egui::vec2(
-                            line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
-                            ROW_HEIGHT,
-                        );
+                        let from_pos = graph_rect.min
+                            + egui::vec2(
+                                line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                                NODE_RADIUS,
+                            );
+                        let to_pos = graph_rect.min
+                            + egui::vec2(
+                                line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                                ROW_HEIGHT,
+                            );
 
                         let color = colors[line.color_index % colors.len()];
 
@@ -256,25 +261,28 @@ impl BerryCodeApp {
                             painter.line_segment([from_pos, to_pos], egui::Stroke::new(2.0, color));
                         } else {
                             // Bezier curve for merge
-                            painter.add(egui::Shape::CubicBezier(egui::epaint::CubicBezierShape::from_points_stroke(
-                                [
-                                    from_pos,
-                                    from_pos + egui::vec2(0.0, ROW_HEIGHT * 0.3),
-                                    to_pos - egui::vec2(0.0, ROW_HEIGHT * 0.3),
-                                    to_pos,
-                                ],
-                                false,
-                                egui::Color32::TRANSPARENT,
-                                egui::Stroke::new(2.0, color),
-                            )));
+                            painter.add(egui::Shape::CubicBezier(
+                                egui::epaint::CubicBezierShape::from_points_stroke(
+                                    [
+                                        from_pos,
+                                        from_pos + egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                        to_pos - egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                        to_pos,
+                                    ],
+                                    false,
+                                    egui::Color32::TRANSPARENT,
+                                    egui::Stroke::new(2.0, color),
+                                ),
+                            ));
                         }
                     }
 
                     // Draw node circle
-                    let node_pos = graph_rect.min + egui::vec2(
-                        node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
-                        NODE_RADIUS,
-                    );
+                    let node_pos = graph_rect.min
+                        + egui::vec2(
+                            node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            NODE_RADIUS,
+                        );
                     let node_color = colors[node.graph_column % colors.len()];
                     painter.circle_filled(node_pos, NODE_RADIUS, node_color);
                 }
@@ -287,16 +295,21 @@ impl BerryCodeApp {
                     egui::Color32::from_rgb(180, 180, 180)
                 };
 
-                if ui.add(egui::Button::new(&node.commit.message).fill(
-                    if is_selected {
-                        egui::Color32::from_rgb(60, 60, 80)
-                    } else {
-                        egui::Color32::TRANSPARENT
-                    }
-                )).clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(&node.commit.message).fill(if is_selected {
+                            egui::Color32::from_rgb(60, 60, 80)
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        }),
+                    )
+                    .clicked()
+                {
                     self.git_history_state.selected_commit_id = Some(node.commit.id.clone());
                     // Load commit details
-                    if let Ok(detail) = native::git::get_commit_detail(&self.root_path, &node.commit.id) {
+                    if let Ok(detail) =
+                        native::git::get_commit_detail(&self.root_path, &node.commit.id)
+                    {
                         self.git_history_state.commit_details = Some(detail);
                     }
                 }
@@ -305,10 +318,16 @@ impl BerryCodeApp {
 
                 // Branch/tag badges
                 for branch_name in &node.branch_names {
-                    ui.colored_label(egui::Color32::from_rgb(106, 180, 89), format!(" [{}]", branch_name));
+                    ui.colored_label(
+                        egui::Color32::from_rgb(106, 180, 89),
+                        format!(" [{}]", branch_name),
+                    );
                 }
                 for tag_name in &node.tag_names {
-                    ui.colored_label(egui::Color32::from_rgb(255, 198, 109), format!(" 🏷{}", tag_name));
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 198, 109),
+                        format!(" 🏷{}", tag_name),
+                    );
                 }
             });
         }
@@ -322,11 +341,17 @@ impl BerryCodeApp {
 
             ui.label(format!("ID: {}", detail.commit.id));
             ui.label(format!("Author: {}", detail.commit.author));
-            ui.label(format!("Date: {}", Self::format_timestamp(detail.commit.date)));
+            ui.label(format!(
+                "Date: {}",
+                Self::format_timestamp(detail.commit.date)
+            ));
             ui.label(format!("Message: {}", detail.commit.message));
 
             ui.add_space(8.0);
-            ui.label(format!("Stats: +{} -{}", detail.total_additions, detail.total_deletions));
+            ui.label(format!(
+                "Stats: +{} -{}",
+                detail.total_additions, detail.total_deletions
+            ));
 
             ui.separator();
             ui.heading(format!("Changed Files ({})", detail.changed_files.len()));
@@ -367,7 +392,8 @@ impl BerryCodeApp {
         ui.horizontal(|ui| {
             ui.label("New branch:");
             ui.text_edit_singleline(&mut self.git_branch_state.new_branch_name);
-            if ui.button("➕ Create").clicked() && !self.git_branch_state.new_branch_name.is_empty() {
+            if ui.button("➕ Create").clicked() && !self.git_branch_state.new_branch_name.is_empty()
+            {
                 self.perform_create_branch();
             }
         });
@@ -376,7 +402,10 @@ impl BerryCodeApp {
 
         egui::ScrollArea::vertical().show(ui, |ui| {
             // Local branches
-            ui.heading(format!("Local Branches ({})", self.git_branch_state.local_branches.len()));
+            ui.heading(format!(
+                "Local Branches ({})",
+                self.git_branch_state.local_branches.len()
+            ));
             ui.add_space(4.0);
 
             let local_branches = self.git_branch_state.local_branches.clone();
@@ -409,7 +438,10 @@ impl BerryCodeApp {
             ui.add_space(8.0);
 
             // Remote branches
-            ui.heading(format!("Remote Branches ({})", self.git_branch_state.remote_branches.len()));
+            ui.heading(format!(
+                "Remote Branches ({})",
+                self.git_branch_state.remote_branches.len()
+            ));
             ui.add_space(4.0);
 
             let remote_branches = self.git_branch_state.remote_branches.clone();
@@ -553,7 +585,10 @@ impl BerryCodeApp {
         ui.horizontal(|ui| {
             ui.label("Message:");
             ui.text_edit_singleline(&mut self.git_stash_state.new_stash_message);
-            ui.checkbox(&mut self.git_stash_state.include_untracked, "Include untracked");
+            ui.checkbox(
+                &mut self.git_stash_state.include_untracked,
+                "Include untracked",
+            );
         });
 
         if ui.button("💾 Save Stash").clicked() {
@@ -626,7 +661,7 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::none()
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(8.0))
+                    .inner_margin(egui::Margin::same(8.0)),
             )
             .show(ctx, |ui| {
                 ui.heading("📊 Commit Graph");
@@ -645,11 +680,14 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::none()
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(8.0))
+                    .inner_margin(egui::Margin::same(8.0)),
             )
             .show(ctx, |ui| {
                 if let Some(diff) = &self.git_diff_state.diff {
-                    let file_path = self.git_diff_state.selected_file.as_ref()
+                    let file_path = self
+                        .git_diff_state
+                        .selected_file
+                        .as_ref()
                         .map(|s| s.as_str())
                         .unwrap_or("Unknown file");
 
@@ -662,9 +700,11 @@ impl BerryCodeApp {
                             "modified" => egui::Color32::from_rgb(100, 180, 255),
                             _ => ui_colors::TEXT_DEFAULT,
                         };
-                        ui.label(egui::RichText::new(&diff.status.to_uppercase())
-                            .color(status_color)
-                            .strong());
+                        ui.label(
+                            egui::RichText::new(&diff.status.to_uppercase())
+                                .color(status_color)
+                                .strong(),
+                        );
                     });
                     ui.separator();
 
@@ -675,10 +715,12 @@ impl BerryCodeApp {
                             // Render each hunk
                             for hunk in &diff.hunks {
                                 // Hunk header
-                                ui.label(egui::RichText::new(&hunk.header)
-                                    .color(egui::Color32::from_rgb(100, 180, 255))
-                                    .family(egui::FontFamily::Monospace)
-                                    .size(13.0));
+                                ui.label(
+                                    egui::RichText::new(&hunk.header)
+                                        .color(egui::Color32::from_rgb(100, 180, 255))
+                                        .family(egui::FontFamily::Monospace)
+                                        .size(13.0),
+                                );
 
                                 ui.add_space(4.0);
 
@@ -686,41 +728,54 @@ impl BerryCodeApp {
                                 for line in &hunk.lines {
                                     let (bg_color, fg_color, prefix) = match line.origin {
                                         '+' => (
-                                            egui::Color32::from_rgb(20, 60, 20),  // Dark green background
+                                            egui::Color32::from_rgb(20, 60, 20), // Dark green background
                                             ui_colors::TEXT_DEFAULT, // White text (same as file tree)
-                                            "+ "
+                                            "+ ",
                                         ),
                                         '-' => (
-                                            egui::Color32::from_rgb(60, 20, 20),  // Dark red background
+                                            egui::Color32::from_rgb(60, 20, 20), // Dark red background
                                             ui_colors::TEXT_DEFAULT, // White text (same as file tree)
-                                            "- "
+                                            "- ",
                                         ),
                                         _ => (
-                                            ui_colors::SIDEBAR_BG,  // Default background
+                                            ui_colors::SIDEBAR_BG,   // Default background
                                             ui_colors::TEXT_DEFAULT, // Default text
-                                            "  "
+                                            "  ",
                                         ),
                                     };
 
                                     // Line number + content
                                     let line_num = if line.origin == '+' {
-                                        line.new_lineno.map(|n| format!("{:>4} ", n)).unwrap_or_else(|| "     ".to_string())
+                                        line.new_lineno
+                                            .map(|n| format!("{:>4} ", n))
+                                            .unwrap_or_else(|| "     ".to_string())
                                     } else if line.origin == '-' {
-                                        line.old_lineno.map(|n| format!("{:>4} ", n)).unwrap_or_else(|| "     ".to_string())
+                                        line.old_lineno
+                                            .map(|n| format!("{:>4} ", n))
+                                            .unwrap_or_else(|| "     ".to_string())
                                     } else {
-                                        line.new_lineno.map(|n| format!("{:>4} ", n)).unwrap_or_else(|| "     ".to_string())
+                                        line.new_lineno
+                                            .map(|n| format!("{:>4} ", n))
+                                            .unwrap_or_else(|| "     ".to_string())
                                     };
 
-                                    let text = format!("{}{}{}", line_num, prefix, line.content.trim_end());
+                                    let text = format!(
+                                        "{}{}{}",
+                                        line_num,
+                                        prefix,
+                                        line.content.trim_end()
+                                    );
 
                                     egui::Frame::none()
                                         .fill(bg_color)
                                         .inner_margin(egui::Margin::symmetric(4.0, 2.0))
                                         .show(ui, |ui| {
-                                            ui.label(egui::RichText::new(text)
-                                                .color(fg_color)
-                                                .family(egui::FontFamily::Monospace)
-                                                .size(13.0));
+                                            ui.label(
+                                                egui::RichText::new(text)
+                                                    .color(fg_color)
+                                                    .family(egui::FontFamily::Monospace)
+                                                    .size(13.0),
+                                            );
                                         });
                                 }
 
@@ -752,14 +807,14 @@ impl BerryCodeApp {
 
         // 8-color palette for branches (same as full graph)
         let colors = [
-            egui::Color32::from_rgb(106, 180, 89),   // Green
-            egui::Color32::from_rgb(100, 181, 246),  // Blue
-            egui::Color32::from_rgb(255, 198, 109),  // Yellow
-            egui::Color32::from_rgb(239, 83, 80),    // Red
-            egui::Color32::from_rgb(171, 128, 255),  // Purple
-            egui::Color32::from_rgb(255, 138, 128),  // Coral
-            egui::Color32::from_rgb(128, 222, 234),  // Cyan
-            egui::Color32::from_rgb(255, 171, 64),   // Orange
+            egui::Color32::from_rgb(106, 180, 89),  // Green
+            egui::Color32::from_rgb(100, 181, 246), // Blue
+            egui::Color32::from_rgb(255, 198, 109), // Yellow
+            egui::Color32::from_rgb(239, 83, 80),   // Red
+            egui::Color32::from_rgb(171, 128, 255), // Purple
+            egui::Color32::from_rgb(255, 138, 128), // Coral
+            egui::Color32::from_rgb(128, 222, 234), // Cyan
+            egui::Color32::from_rgb(255, 171, 64),  // Orange
         ];
 
         // Display recent 10 commits in compact form with graph
@@ -776,14 +831,16 @@ impl BerryCodeApp {
 
                     // Draw graph lines
                     for line in &node.graph_lines {
-                        let from_pos = graph_rect.min + egui::vec2(
-                            line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
-                            NODE_RADIUS,
-                        );
-                        let to_pos = graph_rect.min + egui::vec2(
-                            line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
-                            ROW_HEIGHT,
-                        );
+                        let from_pos = graph_rect.min
+                            + egui::vec2(
+                                line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                                NODE_RADIUS,
+                            );
+                        let to_pos = graph_rect.min
+                            + egui::vec2(
+                                line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                                ROW_HEIGHT,
+                            );
 
                         let color = colors[line.color_index % colors.len()];
 
@@ -792,25 +849,28 @@ impl BerryCodeApp {
                             painter.line_segment([from_pos, to_pos], egui::Stroke::new(2.0, color));
                         } else {
                             // Bezier curve for merge
-                            painter.add(egui::Shape::CubicBezier(egui::epaint::CubicBezierShape::from_points_stroke(
-                                [
-                                    from_pos,
-                                    from_pos + egui::vec2(0.0, ROW_HEIGHT * 0.3),
-                                    to_pos - egui::vec2(0.0, ROW_HEIGHT * 0.3),
-                                    to_pos,
-                                ],
-                                false,
-                                egui::Color32::TRANSPARENT,
-                                egui::Stroke::new(2.0, color),
-                            )));
+                            painter.add(egui::Shape::CubicBezier(
+                                egui::epaint::CubicBezierShape::from_points_stroke(
+                                    [
+                                        from_pos,
+                                        from_pos + egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                        to_pos - egui::vec2(0.0, ROW_HEIGHT * 0.3),
+                                        to_pos,
+                                    ],
+                                    false,
+                                    egui::Color32::TRANSPARENT,
+                                    egui::Stroke::new(2.0, color),
+                                ),
+                            ));
                         }
                     }
 
                     // Draw node circle
-                    let node_pos = graph_rect.min + egui::vec2(
-                        node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
-                        NODE_RADIUS,
-                    );
+                    let node_pos = graph_rect.min
+                        + egui::vec2(
+                            node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            NODE_RADIUS,
+                        );
                     let node_color = colors[node.graph_column % colors.len()];
                     painter.circle_filled(node_pos, NODE_RADIUS, node_color);
                 }
@@ -822,14 +882,18 @@ impl BerryCodeApp {
                 } else {
                     msg.to_string()
                 };
-                ui.label(egui::RichText::new(truncated)
-                    .family(egui::FontFamily::Monospace)
-                    .size(12.0));
+                ui.label(
+                    egui::RichText::new(truncated)
+                        .family(egui::FontFamily::Monospace)
+                        .size(12.0),
+                );
 
                 // Author
-                ui.label(egui::RichText::new(&node.commit.author)
-                    .color(egui::Color32::from_rgb(150, 150, 150))
-                    .size(11.0));
+                ui.label(
+                    egui::RichText::new(&node.commit.author)
+                        .color(egui::Color32::from_rgb(150, 150, 150))
+                        .size(11.0),
+                );
             });
         }
     }
@@ -856,7 +920,10 @@ impl BerryCodeApp {
         match native::git::get_status(&self.root_path) {
             Ok(status) => {
                 self.git_status = status;
-                tracing::info!("✅ Git status loaded: {} files changed", self.git_status.len());
+                tracing::info!(
+                    "✅ Git status loaded: {} files changed",
+                    self.git_status.len()
+                );
             }
             Err(e) => {
                 tracing::error!("❌ Failed to get Git status: {}", e);
@@ -877,7 +944,10 @@ impl BerryCodeApp {
             Ok(nodes) => {
                 self.git_history_state.graph_nodes = nodes;
                 self.git_history_state.loaded_count = self.git_history_state.graph_nodes.len();
-                tracing::info!("✅ Git history loaded: {} commits", self.git_history_state.loaded_count);
+                tracing::info!(
+                    "✅ Git history loaded: {} commits",
+                    self.git_history_state.loaded_count
+                );
             }
             Err(e) => {
                 tracing::error!("❌ Failed to load Git history: {}", e);
@@ -1112,7 +1182,11 @@ impl BerryCodeApp {
             Some(self.git_stash_state.new_stash_message.as_str())
         };
 
-        match native::git::stash_save(&self.root_path, message, self.git_stash_state.include_untracked) {
+        match native::git::stash_save(
+            &self.root_path,
+            message,
+            self.git_stash_state.include_untracked,
+        ) {
             Ok(_) => {
                 tracing::info!("✅ Saved stash");
                 self.git_stash_state.new_stash_message.clear();

@@ -8,17 +8,24 @@ pub(crate) fn strip_thinking_blocks(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let mut rest = text;
     loop {
-        let pos_full  = rest.find("<thinking>");
+        let pos_full = rest.find("<thinking>");
         let pos_short = rest.find("<think>");
         let (open_start, open_tag, close_tag) = match (pos_full, pos_short) {
             (Some(a), Some(b)) if a <= b => (a, "<thinking>", "</thinking>"),
-            (Some(a), None)              => (a, "<thinking>", "</thinking>"),
-            (_, Some(b))                 => (b, "<think>",    "</think>"),
-            (None, None)                 => break,
+            (Some(a), None) => (a, "<thinking>", "</thinking>"),
+            (_, Some(b)) => (b, "<think>", "</think>"),
+            (None, None) => break,
         };
         result.push_str(&rest[..open_start]);
         let after_open = &rest[open_start + open_tag.len()..];
-        let close_candidates = [close_tag, if close_tag == "</thinking>" { "</think>" } else { "</thinking>" }];
+        let close_candidates = [
+            close_tag,
+            if close_tag == "</thinking>" {
+                "</think>"
+            } else {
+                "</thinking>"
+            },
+        ];
         let mut found = false;
         for &close in &close_candidates {
             if let Some(end) = after_open.find(close) {

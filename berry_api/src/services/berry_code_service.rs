@@ -41,7 +41,10 @@ impl BerryCodeService for BerryCodeServiceImpl {
     ) -> Result<Response<StartSessionResponse>, Status> {
         let req = request.into_inner();
 
-        tracing::info!("📝 Starting new session: project_path={:?}", req.project_path);
+        tracing::info!(
+            "📝 Starting new session: project_path={:?}",
+            req.project_path
+        );
 
         let session_id = uuid::Uuid::new_v4().to_string();
         let model = req.model.clone().unwrap_or_else(|| "auto".to_string());
@@ -71,7 +74,11 @@ impl BerryCodeService for BerryCodeServiceImpl {
     ) -> Result<Response<Self::ChatStream>, Status> {
         let req = request.into_inner();
 
-        tracing::info!("💬 Chat request: session={}, message={}", req.session_id, req.message);
+        tracing::info!(
+            "💬 Chat request: session={}, message={}",
+            req.session_id,
+            req.message
+        );
 
         // Get project path: prefer per-request field, fall back to session storage
         let project_path = {
@@ -83,7 +90,8 @@ impl BerryCodeService for BerryCodeServiceImpl {
                 }
             } else {
                 let manager = self.session_manager.read().await;
-                manager.get_session(&req.session_id)
+                manager
+                    .get_session(&req.session_id)
                     .and_then(|session| session.request.project_path.clone())
             }
         };
@@ -99,9 +107,17 @@ impl BerryCodeService for BerryCodeServiceImpl {
                 // Always use the router model (llama3.2:3b) to classify intent
                 let role = client.classify_with_router(&req.message).await;
 
-                tracing::info!("🤖 Chat mode: role={:?}, autonomous={}, project_path={:?}", role, autonomous, project_path);
+                tracing::info!(
+                    "🤖 Chat mode: role={:?}, autonomous={}, project_path={:?}",
+                    role,
+                    autonomous,
+                    project_path
+                );
 
-                match client.chat_stream(req.message.clone(), role, autonomous, project_path).await {
+                match client
+                    .chat_stream(req.message.clone(), role, autonomous, project_path)
+                    .await
+                {
                     Ok(mut stream) => {
                         use futures::StreamExt;
                         let mut chunk_count = 0;

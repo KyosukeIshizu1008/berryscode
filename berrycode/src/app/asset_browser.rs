@@ -1,12 +1,13 @@
-use super::BerryCodeApp;
 use super::scene_editor::asset_import::AssetImportSettings;
-use crate::bevy_ide::assets::scanner::{AssetType, AssetViewMode, format_size, scan_assets};
+use super::BerryCodeApp;
+use crate::bevy_ide::assets::scanner::{format_size, scan_assets, AssetType, AssetViewMode};
 
 impl BerryCodeApp {
     pub(crate) fn render_asset_browser_panel(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         // Scan assets on first render or when requested
         if self.asset_browser.scan_pending {
-            self.asset_browser.assets = scan_assets(&self.root_path, &self.asset_browser.asset_root);
+            self.asset_browser.assets =
+                scan_assets(&self.root_path, &self.asset_browser.asset_root);
             self.asset_browser.scan_pending = false;
         }
 
@@ -16,7 +17,10 @@ impl BerryCodeApp {
         // Asset root directory
         ui.horizontal(|ui| {
             ui.label("Root:");
-            if ui.text_edit_singleline(&mut self.asset_browser.asset_root).changed() {
+            if ui
+                .text_edit_singleline(&mut self.asset_browser.asset_root)
+                .changed()
+            {
                 self.asset_browser.scan_pending = true;
             }
             if ui.button("\u{21BB}").clicked() {
@@ -50,10 +54,16 @@ impl BerryCodeApp {
 
         // View mode toggle
         ui.horizontal(|ui| {
-            if ui.selectable_label(self.asset_browser.view_mode == AssetViewMode::List, "List").clicked() {
+            if ui
+                .selectable_label(self.asset_browser.view_mode == AssetViewMode::List, "List")
+                .clicked()
+            {
                 self.asset_browser.view_mode = AssetViewMode::List;
             }
-            if ui.selectable_label(self.asset_browser.view_mode == AssetViewMode::Grid, "Grid").clicked() {
+            if ui
+                .selectable_label(self.asset_browser.view_mode == AssetViewMode::Grid, "Grid")
+                .clicked()
+            {
                 self.asset_browser.view_mode = AssetViewMode::Grid;
             }
             ui.label(format!("{} assets", self.asset_browser.assets.len()));
@@ -65,13 +75,17 @@ impl BerryCodeApp {
         let filter_query = self.asset_browser.filter_query.to_lowercase();
         let filter_type = self.asset_browser.filter_type.clone();
 
-        let filtered_assets: Vec<_> = self.asset_browser.assets.iter().enumerate()
+        let filtered_assets: Vec<_> = self
+            .asset_browser
+            .assets
+            .iter()
+            .enumerate()
             .filter(|(_, asset)| {
-                let name_match = filter_query.is_empty() ||
-                    asset.file_name.to_lowercase().contains(&filter_query) ||
-                    asset.relative_path.to_lowercase().contains(&filter_query);
-                let type_match = filter_type.is_none() ||
-                    filter_type.as_ref() == Some(&asset.asset_type);
+                let name_match = filter_query.is_empty()
+                    || asset.file_name.to_lowercase().contains(&filter_query)
+                    || asset.relative_path.to_lowercase().contains(&filter_query);
+                let type_match =
+                    filter_type.is_none() || filter_type.as_ref() == Some(&asset.asset_type);
                 name_match && type_match
             })
             .collect();
@@ -145,7 +159,11 @@ impl BerryCodeApp {
             if let Some(asset) = self.asset_browser.assets.get(idx) {
                 ui.separator();
                 ui.label(format!("Path: {}", asset.relative_path));
-                ui.label(format!("Type: {} (.{})", asset.asset_type.label(), asset.extension));
+                ui.label(format!(
+                    "Type: {} (.{})",
+                    asset.asset_type.label(),
+                    asset.extension
+                ));
                 ui.label(format!("Size: {}", format_size(asset.size_bytes)));
 
                 // Import settings (Phase 10)
@@ -162,7 +180,11 @@ impl BerryCodeApp {
                         ui.separator();
                         ui.strong("Import Settings (Texture)");
                         if ui
-                            .add(egui::DragValue::new(max_size).prefix("Max Size: ").range(64..=8192))
+                            .add(
+                                egui::DragValue::new(max_size)
+                                    .prefix("Max Size: ")
+                                    .range(64..=8192),
+                            )
                             .changed()
                         {
                             changed = true;

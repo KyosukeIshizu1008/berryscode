@@ -3,8 +3,8 @@
 //! Supports: $1, $0, ${1:placeholder}, ${2|choice1,choice2|}, $TM_FILENAME etc.
 //! Tab/Shift+Tab moves between stops. Enter/Escape exits snippet mode.
 
-use super::BerryCodeApp;
 use super::types::SnippetSession;
+use super::BerryCodeApp;
 
 /// Parsed tab stop from a snippet template
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ pub fn parse_snippet(template: &str) -> (String, Vec<(usize, usize, usize)>) {
             match chars.peek() {
                 Some(&'{') => {
                     chars.next(); // consume '{'
-                    // Parse ${N:placeholder} or ${N}
+                                  // Parse ${N:placeholder} or ${N}
                     let mut num_str = String::new();
                     while let Some(&c) = chars.peek() {
                         if c.is_ascii_digit() {

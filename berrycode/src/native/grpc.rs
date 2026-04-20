@@ -55,7 +55,9 @@ impl GrpcClient {
     /// Start a new chat session
     pub async fn start_session(&self, project_path: String, autonomous: bool) -> Result<String> {
         let mut client = self.client.write().await;
-        let client = client.as_mut().context("Not connected to berry-api-server")?;
+        let client = client
+            .as_mut()
+            .context("Not connected to berry-api-server")?;
 
         let request = tonic::Request::new(StartSessionRequest {
             model: None, // Use default
@@ -88,7 +90,10 @@ impl GrpcClient {
         // Clone the client to avoid holding write lock during streaming
         let mut client = {
             let client_guard = self.client.read().await;
-            client_guard.as_ref().context("Not connected to berry-api-server")?.clone()
+            client_guard
+                .as_ref()
+                .context("Not connected to berry-api-server")?
+                .clone()
         };
 
         // Send project_path with every request so autonomous mode works even after server restart
@@ -123,7 +128,10 @@ impl GrpcClient {
 
                         // Final chunk signals end-of-stream; its content is always empty
                         if chunk.is_final {
-                            tracing::info!("📨 Chat stream ended (is_final, {} chunks)", chunk_count);
+                            tracing::info!(
+                                "📨 Chat stream ended (is_final, {} chunks)",
+                                chunk_count
+                            );
                             break;
                         }
 
@@ -132,7 +140,11 @@ impl GrpcClient {
                             continue;
                         }
 
-                        tracing::info!("📦 Received chunk #{}: {} chars", chunk_count, chunk.content.len());
+                        tracing::info!(
+                            "📦 Received chunk #{}: {} chars",
+                            chunk_count,
+                            chunk.content.len()
+                        );
 
                         if let Err(e) = tx.send(chunk.content).await {
                             tracing::error!("❌ Failed to send chunk to channel: {}", e);
@@ -140,7 +152,10 @@ impl GrpcClient {
                         }
                     }
                     Ok(None) => {
-                        tracing::info!("📨 Chat stream ended (stream closed, {} chunks)", chunk_count);
+                        tracing::info!(
+                            "📨 Chat stream ended (stream closed, {} chunks)",
+                            chunk_count
+                        );
                         break;
                     }
                     Err(e) => {
@@ -157,8 +172,8 @@ impl GrpcClient {
 
 /// Global singleton instance
 static GRPC_CLIENT: once_cell::sync::Lazy<GrpcClient> = once_cell::sync::Lazy::new(|| {
-    let endpoint = std::env::var("BERRY_API_ENDPOINT")
-        .unwrap_or_else(|_| "http://[::1]:50051".to_string());
+    let endpoint =
+        std::env::var("BERRY_API_ENDPOINT").unwrap_or_else(|_| "http://[::1]:50051".to_string());
     GrpcClient::new(endpoint)
 });
 
@@ -188,5 +203,7 @@ pub async fn chat_stream(
     message: String,
     autonomous: bool,
 ) -> Result<tokio::sync::mpsc::Receiver<String>> {
-    get_client().chat_stream(session_id, message, autonomous).await
+    get_client()
+        .chat_stream(session_id, message, autonomous)
+        .await
 }

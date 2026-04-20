@@ -16,8 +16,7 @@ pub fn extract_bones_from_gltf(path: &str) -> Result<Vec<BoneData>, String> {
 
     // Build a global parent map: for every node that is a child of another
     // node, record child_index -> parent_index.
-    let mut parent_map: std::collections::HashMap<usize, usize> =
-        std::collections::HashMap::new();
+    let mut parent_map: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     for node in document.nodes() {
         for child in node.children() {
             parent_map.insert(child.index(), node.index());
@@ -200,8 +199,16 @@ mod tests {
     #[test]
     fn validate_invalid_parent_idx() {
         let bones = vec![
-            BoneData { name: "Root".into(), parent_idx: None, bind_pose: super::super::model::TransformData::default() },
-            BoneData { name: "Bad".into(), parent_idx: Some(99), bind_pose: super::super::model::TransformData::default() },
+            BoneData {
+                name: "Root".into(),
+                parent_idx: None,
+                bind_pose: super::super::model::TransformData::default(),
+            },
+            BoneData {
+                name: "Bad".into(),
+                parent_idx: Some(99),
+                bind_pose: super::super::model::TransformData::default(),
+            },
         ];
         let errors = validate_skeleton(&bones);
         assert_eq!(errors.len(), 1);

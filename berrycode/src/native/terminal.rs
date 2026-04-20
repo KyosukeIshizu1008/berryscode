@@ -49,11 +49,17 @@ impl TerminalManager {
         cmd.arg(command);
         cmd.cwd(working_dir);
 
-        let mut child = pair.slave.spawn_command(cmd).context("Failed to spawn command")?;
+        let mut child = pair
+            .slave
+            .spawn_command(cmd)
+            .context("Failed to spawn command")?;
 
         drop(pair.slave);
 
-        let mut reader = pair.master.try_clone_reader().context("Failed to clone reader")?;
+        let mut reader = pair
+            .master
+            .try_clone_reader()
+            .context("Failed to clone reader")?;
         let mut output = String::new();
 
         // Read output (with timeout)

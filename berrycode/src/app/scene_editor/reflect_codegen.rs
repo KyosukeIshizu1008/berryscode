@@ -51,10 +51,7 @@ pub fn generate_reflect_code(components: &[ScannedComponent]) -> String {
     code.push_str("/// ```\n");
     code.push_str("pub fn register_editor_types(app: &mut App) {\n");
     for comp in components {
-        code.push_str(&format!(
-            "    app.register_type::<{}>();\n",
-            comp.name
-        ));
+        code.push_str(&format!("    app.register_type::<{}>();\n", comp.name));
     }
     code.push_str("}\n");
 
@@ -82,8 +79,8 @@ pub fn save_reflect_code(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::script_scan::{ScannedComponent, ScannedField};
+    use super::*;
 
     #[test]
     fn generate_empty_components() {

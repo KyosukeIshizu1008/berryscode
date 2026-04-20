@@ -102,11 +102,9 @@ impl BerryCodeApp {
                             egui::Color32::from_rgb(120, 120, 120)
                         };
                         let btn = ui.add(
-                            egui::Button::new(
-                                egui::RichText::new(label).size(12.0).color(color),
-                            )
-                            .frame(false)
-                            .min_size(egui::vec2(90.0, 24.0)),
+                            egui::Button::new(egui::RichText::new(label).size(12.0).color(color))
+                                .frame(false)
+                                .min_size(egui::vec2(90.0, 24.0)),
                         );
                         if active {
                             let r = btn.rect;
@@ -143,11 +141,14 @@ impl BerryCodeApp {
             // Continue / Pause
             if paused {
                 if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new("\u{ebb5}") // play
-                            .size(16.0)
-                            .color(egui::Color32::from_rgb(80, 200, 80)),
-                    ).min_size(btn_size))
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ebb5}") // play
+                                .size(16.0)
+                                .color(egui::Color32::from_rgb(80, 200, 80)),
+                        )
+                        .min_size(btn_size),
+                    )
                     .on_hover_text("Continue (F5)")
                     .clicked()
                 {
@@ -155,11 +156,14 @@ impl BerryCodeApp {
                 }
             } else {
                 if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new("\u{ebb6}") // pause
-                            .size(16.0)
-                            .color(egui::Color32::from_rgb(200, 200, 80)),
-                    ).min_size(btn_size))
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ebb6}") // pause
+                                .size(16.0)
+                                .color(egui::Color32::from_rgb(200, 200, 80)),
+                        )
+                        .min_size(btn_size),
+                    )
                     .on_hover_text("Pause")
                     .clicked()
                 {
@@ -176,7 +180,11 @@ impl BerryCodeApp {
                             .color(egui::Color32::from_rgb(100, 180, 255)),
                     )
                     .min_size(btn_size)
-                    .sense(if paused { egui::Sense::click() } else { egui::Sense::hover() }),
+                    .sense(if paused {
+                        egui::Sense::click()
+                    } else {
+                        egui::Sense::hover()
+                    }),
                 )
                 .on_hover_text("Step Over (F10)")
                 .clicked()
@@ -193,7 +201,11 @@ impl BerryCodeApp {
                             .color(egui::Color32::from_rgb(100, 180, 255)),
                     )
                     .min_size(btn_size)
-                    .sense(if paused { egui::Sense::click() } else { egui::Sense::hover() }),
+                    .sense(if paused {
+                        egui::Sense::click()
+                    } else {
+                        egui::Sense::hover()
+                    }),
                 )
                 .on_hover_text("Step Into (F11)")
                 .clicked()
@@ -210,7 +222,11 @@ impl BerryCodeApp {
                             .color(egui::Color32::from_rgb(100, 180, 255)),
                     )
                     .min_size(btn_size)
-                    .sense(if paused { egui::Sense::click() } else { egui::Sense::hover() }),
+                    .sense(if paused {
+                        egui::Sense::click()
+                    } else {
+                        egui::Sense::hover()
+                    }),
                 )
                 .on_hover_text("Step Out (Shift+F11)")
                 .clicked()
@@ -220,11 +236,14 @@ impl BerryCodeApp {
 
             // Restart
             if ui
-                .add(egui::Button::new(
-                    egui::RichText::new("\u{eb37}") // debug-restart
-                        .size(16.0)
-                        .color(egui::Color32::from_rgb(80, 200, 80)),
-                ).min_size(btn_size))
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new("\u{eb37}") // debug-restart
+                            .size(16.0)
+                            .color(egui::Color32::from_rgb(80, 200, 80)),
+                    )
+                    .min_size(btn_size),
+                )
                 .on_hover_text("Restart (Ctrl+Shift+F5)")
                 .clicked()
             {
@@ -234,11 +253,14 @@ impl BerryCodeApp {
 
             // Stop
             if ui
-                .add(egui::Button::new(
-                    egui::RichText::new("\u{eb3a}") // debug-stop
-                        .size(16.0)
-                        .color(egui::Color32::from_rgb(230, 80, 80)),
-                ).min_size(btn_size))
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new("\u{eb3a}") // debug-stop
+                            .size(16.0)
+                            .color(egui::Color32::from_rgb(230, 80, 80)),
+                    )
+                    .min_size(btn_size),
+                )
                 .on_hover_text("Stop (Shift+F5)")
                 .clicked()
             {
@@ -345,11 +367,9 @@ impl BerryCodeApp {
                                     .color(egui::Color32::from_rgb(206, 145, 120)),
                             );
                             ui.label(
-                                egui::RichText::new(
-                                    var.var_type.as_deref().unwrap_or(""),
-                                )
-                                .size(11.0)
-                                .color(egui::Color32::from_rgb(120, 120, 120)),
+                                egui::RichText::new(var.var_type.as_deref().unwrap_or(""))
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(120, 120, 120)),
                             );
                             ui.end_row();
                         }
@@ -373,12 +393,11 @@ impl BerryCodeApp {
                                 .color(egui::Color32::from_rgb(100, 180, 255)),
                         );
                         ui.label(
-                            egui::RichText::new("=").size(12.0).color(egui::Color32::GRAY),
+                            egui::RichText::new("=")
+                                .size(12.0)
+                                .color(egui::Color32::GRAY),
                         );
-                        let val = watch
-                            .value
-                            .as_deref()
-                            .unwrap_or("<not available>");
+                        let val = watch.value.as_deref().unwrap_or("<not available>");
                         ui.label(
                             egui::RichText::new(val)
                                 .size(12.0)
@@ -463,7 +482,9 @@ impl BerryCodeApp {
                         };
                         let resp = ui.add(
                             egui::Button::new(
-                                egui::RichText::new(&frame.name).size(12.0).color(name_color),
+                                egui::RichText::new(&frame.name)
+                                    .size(12.0)
+                                    .color(name_color),
                             )
                             .frame(false),
                         );
@@ -480,11 +501,7 @@ impl BerryCodeApp {
 
                         if resp.clicked() {
                             self.debug_state.selected_frame = Some(frame.id);
-                            navigate_to = Some((
-                                frame.file_path.clone(),
-                                frame.line,
-                                frame.column,
-                            ));
+                            navigate_to = Some((frame.file_path.clone(), frame.line, frame.column));
                         }
                     });
                 }
@@ -580,8 +597,10 @@ impl BerryCodeApp {
     pub(crate) fn start_debug(&mut self) {
         self.debug_state.active = true;
         self.debug_state.debug_output.clear();
-        self.debug_state.debug_output
-            .push(("important".to_string(), "Starting debug session...".to_string()));
+        self.debug_state.debug_output.push((
+            "important".to_string(),
+            "Starting debug session...".to_string(),
+        ));
 
         // Create DAP event channel
         let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -594,15 +613,18 @@ impl BerryCodeApp {
         let root = self.root_path.clone();
         let breakpoints = self.debug_state.breakpoints.clone();
 
-        self.debug_state.debug_output
+        self.debug_state
+            .debug_output
             .push(("console".to_string(), format!("Building project: {}", root)));
 
         // Launch DAP adapter asynchronously
         let runtime = self.lsp_runtime.clone();
         // We need to move dap_client out, use it, then put it back
         // For simplicity, we'll note that the actual DAP launch would happen here
-        self.debug_state.debug_output
-            .push(("important".to_string(), "Debug adapter ready. Set breakpoints and press F5.".to_string()));
+        self.debug_state.debug_output.push((
+            "important".to_string(),
+            "Debug adapter ready. Set breakpoints and press F5.".to_string(),
+        ));
 
         self.status_message = "Debug session active".to_string();
         self.status_message_timestamp = Some(std::time::Instant::now());
@@ -618,14 +640,18 @@ impl BerryCodeApp {
         while let Ok(event) = rx.try_recv() {
             match event {
                 DapEvent::Initialized => {
-                    self.debug_state.debug_output
-                        .push(("important".to_string(), "DAP adapter initialized".to_string()));
+                    self.debug_state.debug_output.push((
+                        "important".to_string(),
+                        "DAP adapter initialized".to_string(),
+                    ));
                 }
                 DapEvent::Stopped { thread_id, reason } => {
                     self.debug_state.paused = true;
                     self.debug_state.selected_thread = Some(thread_id);
-                    self.debug_state.debug_output
-                        .push(("important".to_string(), format!("Stopped: {} (thread {})", reason, thread_id)));
+                    self.debug_state.debug_output.push((
+                        "important".to_string(),
+                        format!("Stopped: {} (thread {})", reason, thread_id),
+                    ));
                     // Would fetch stack frames and variables here
                 }
                 DapEvent::Continued { thread_id: _ } => {
@@ -636,7 +662,8 @@ impl BerryCodeApp {
                 DapEvent::Terminated => {
                     self.debug_state.active = false;
                     self.debug_state.paused = false;
-                    self.debug_state.debug_output
+                    self.debug_state
+                        .debug_output
                         .push(("important".to_string(), "Program terminated".to_string()));
                 }
                 DapEvent::Output { category, output } => {
@@ -644,8 +671,11 @@ impl BerryCodeApp {
                 }
                 DapEvent::Breakpoint { breakpoint } => {
                     // Update breakpoint verification status
-                    if let Some(bp) = self.debug_state.breakpoints.iter_mut()
-                        .find(|b| b.file_path == breakpoint.file_path && b.line == breakpoint.line) {
+                    if let Some(bp) =
+                        self.debug_state.breakpoints.iter_mut().find(|b| {
+                            b.file_path == breakpoint.file_path && b.line == breakpoint.line
+                        })
+                    {
                         bp.verified = breakpoint.verified;
                     }
                 }
@@ -657,22 +687,26 @@ impl BerryCodeApp {
         self.debug_state.paused = false;
         self.debug_state.stopped_file = None;
         self.debug_state.stopped_line = None;
-        self.debug_state.debug_output
+        self.debug_state
+            .debug_output
             .push(("console".to_string(), "Continuing...".to_string()));
     }
 
     fn debug_step_over(&mut self) {
-        self.debug_state.debug_output
+        self.debug_state
+            .debug_output
             .push(("console".to_string(), "Step Over".to_string()));
     }
 
     fn debug_step_into(&mut self) {
-        self.debug_state.debug_output
+        self.debug_state
+            .debug_output
             .push(("console".to_string(), "Step Into".to_string()));
     }
 
     fn debug_step_out(&mut self) {
-        self.debug_state.debug_output
+        self.debug_state
+            .debug_output
             .push(("console".to_string(), "Step Out".to_string()));
     }
 
@@ -686,7 +720,8 @@ impl BerryCodeApp {
         self.debug_state.stopped_line = None;
         self.dap_client = None;
         self.dap_event_rx = None;
-        self.debug_state.debug_output
+        self.debug_state
+            .debug_output
             .push(("important".to_string(), "Debug session ended.".to_string()));
     }
 

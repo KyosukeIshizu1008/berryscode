@@ -28,7 +28,15 @@ fn hide_external_window(window: &xcap::Window) {
         // Use xdotool to move the window off-screen (X11)
         if let Ok(app_name) = window.app_name() {
             let _ = std::process::Command::new("xdotool")
-                .args(&["search", "--name", &app_name, "windowmove", "--", "-10000", "-10000"])
+                .args(&[
+                    "search",
+                    "--name",
+                    &app_name,
+                    "windowmove",
+                    "--",
+                    "-10000",
+                    "-10000",
+                ])
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn();
@@ -94,7 +102,9 @@ impl BerryCodeApp {
 
             // Skip system/zero-size windows
             if let Ok(width) = w.width() {
-                if width == 0 { return false; }
+                if width == 0 {
+                    return false;
+                }
             }
 
             // Match by PID
@@ -110,7 +120,9 @@ impl BerryCodeApp {
             let title_lower = title.to_lowercase();
             let proj_lower = project_name.to_lowercase();
 
-            if !proj_lower.is_empty() && (name_lower.contains(&proj_lower) || title_lower.contains(&proj_lower)) {
+            if !proj_lower.is_empty()
+                && (name_lower.contains(&proj_lower) || title_lower.contains(&proj_lower))
+            {
                 return true;
             }
 
@@ -139,10 +151,8 @@ impl BerryCodeApp {
                 let height = img.height() as usize;
                 let pixels: Vec<u8> = img.into_raw();
 
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(
-                    [width, height],
-                    &pixels,
-                );
+                let color_image =
+                    egui::ColorImage::from_rgba_unmultiplied([width, height], &pixels);
 
                 // Update or create texture
                 if let Some(handle) = &mut self.game_view_texture {
@@ -291,7 +301,9 @@ impl BerryCodeApp {
         if let Some(texture) = &self.game_view_texture {
             let available = ui.available_size();
             let tex_size = texture.size_vec2();
-            let scale = (available.x / tex_size.x).min(available.y / tex_size.y).min(1.0);
+            let scale = (available.x / tex_size.x)
+                .min(available.y / tex_size.y)
+                .min(1.0);
             let display_size = egui::vec2(tex_size.x * scale, tex_size.y * scale);
 
             ui.centered_and_justified(|ui| {
@@ -310,9 +322,7 @@ impl BerryCodeApp {
                         .color(egui::Color32::from_gray(160)),
                 );
                 ui.add_space(16.0);
-                if ui.button(
-                    egui::RichText::new("Play").size(14.0)
-                ).clicked() {
+                if ui.button(egui::RichText::new("Play").size(14.0)).clicked() {
                     self.game_view_open = true;
                     self.start_run();
                 }

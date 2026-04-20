@@ -215,7 +215,10 @@ impl NativeLspClient {
                     }),
                     signature_help: Some(SignatureHelpClientCapabilities {
                         signature_information: Some(SignatureInformationSettings {
-                            documentation_format: Some(vec![MarkupKind::Markdown, MarkupKind::PlainText]),
+                            documentation_format: Some(vec![
+                                MarkupKind::Markdown,
+                                MarkupKind::PlainText,
+                            ]),
                             parameter_information: Some(ParameterInformationSettings {
                                 label_offset_support: Some(true),
                             }),
@@ -318,17 +321,23 @@ impl NativeLspClient {
                                     if let Some(sender) = pending.remove(&id) {
                                         let _ = sender.send(value).await;
                                     }
-                                } else if let Some(method) = value.get("method").and_then(|m| m.as_str()) {
+                                } else if let Some(method) =
+                                    value.get("method").and_then(|m| m.as_str())
+                                {
                                     // This is a server notification
                                     match method {
                                         "textDocument/publishDiagnostics" => {
                                             if let Some(params) = value.get("params") {
-                                                let uri = params.get("uri")
+                                                let uri = params
+                                                    .get("uri")
                                                     .and_then(|u| u.as_str())
                                                     .unwrap_or("")
                                                     .to_string();
-                                                let diags: Vec<Diagnostic> = params.get("diagnostics")
-                                                    .and_then(|d| serde_json::from_value(d.clone()).ok())
+                                                let diags: Vec<Diagnostic> = params
+                                                    .get("diagnostics")
+                                                    .and_then(|d| {
+                                                        serde_json::from_value(d.clone()).ok()
+                                                    })
                                                     .unwrap_or_default();
                                                 tracing::info!("LSP ({}) publishDiagnostics: {} diagnostics for {}",
                                                     language, diags.len(), uri);
@@ -342,30 +351,57 @@ impl NativeLspClient {
                                         }
                                         "window/logMessage" => {
                                             if let Some(params) = value.get("params") {
-                                                let msg = params.get("message")
+                                                let msg = params
+                                                    .get("message")
                                                     .and_then(|m| m.as_str())
                                                     .unwrap_or("");
-                                                let msg_type = params.get("type")
+                                                let msg_type = params
+                                                    .get("type")
                                                     .and_then(|t| t.as_u64())
                                                     .unwrap_or(4);
                                                 match msg_type {
-                                                    1 => tracing::error!("LSP ({}) server: {}", language, msg),
-                                                    2 => tracing::warn!("LSP ({}) server: {}", language, msg),
-                                                    3 => tracing::info!("LSP ({}) server: {}", language, msg),
-                                                    _ => tracing::debug!("LSP ({}) server: {}", language, msg),
+                                                    1 => tracing::error!(
+                                                        "LSP ({}) server: {}",
+                                                        language,
+                                                        msg
+                                                    ),
+                                                    2 => tracing::warn!(
+                                                        "LSP ({}) server: {}",
+                                                        language,
+                                                        msg
+                                                    ),
+                                                    3 => tracing::info!(
+                                                        "LSP ({}) server: {}",
+                                                        language,
+                                                        msg
+                                                    ),
+                                                    _ => tracing::debug!(
+                                                        "LSP ({}) server: {}",
+                                                        language,
+                                                        msg
+                                                    ),
                                                 }
                                             }
                                         }
                                         "window/showMessage" => {
                                             if let Some(params) = value.get("params") {
-                                                let msg = params.get("message")
+                                                let msg = params
+                                                    .get("message")
                                                     .and_then(|m| m.as_str())
                                                     .unwrap_or("");
-                                                tracing::info!("LSP ({}) showMessage: {}", language, msg);
+                                                tracing::info!(
+                                                    "LSP ({}) showMessage: {}",
+                                                    language,
+                                                    msg
+                                                );
                                             }
                                         }
                                         _ => {
-                                            tracing::debug!("LSP ({}) notification: {}", language, method);
+                                            tracing::debug!(
+                                                "LSP ({}) notification: {}",
+                                                language,
+                                                method
+                                            );
                                         }
                                     }
                                 }
@@ -492,10 +528,7 @@ impl NativeLspClient {
         self.send_notification(server, "textDocument/didOpen", params)
             .await?;
 
-        self.opened_files
-            .write()
-            .await
-            .insert(uri_str, version);
+        self.opened_files.write().await.insert(uri_str, version);
 
         tracing::info!("LSP: didOpen sent for {} (version {})", file_path, version);
         Ok(())
@@ -503,7 +536,12 @@ impl NativeLspClient {
 
     /// Notify LSP that a file's content has changed. Sends textDocument/didChange
     /// with full content sync (TextDocumentSyncKind::Full). Increments the version.
-    pub async fn notify_change(&self, language: &str, file_path: &str, content: &str) -> Result<()> {
+    pub async fn notify_change(
+        &self,
+        language: &str,
+        file_path: &str,
+        content: &str,
+    ) -> Result<()> {
         let uri = file_path_to_uri(file_path)?;
         let uri_str = uri.to_string();
 
@@ -535,7 +573,7 @@ impl NativeLspClient {
                 version: new_version,
             },
             content_changes: vec![TextDocumentContentChangeEvent {
-                range: None,        // None = full document sync
+                range: None, // None = full document sync
                 range_length: None,
                 text: content.to_string(),
             }],
@@ -544,7 +582,11 @@ impl NativeLspClient {
         self.send_notification(server, "textDocument/didChange", params)
             .await?;
 
-        tracing::debug!("LSP: didChange sent for {} (version {})", file_path, new_version);
+        tracing::debug!(
+            "LSP: didChange sent for {} (version {})",
+            file_path,
+            new_version
+        );
         Ok(())
     }
 
@@ -601,9 +643,7 @@ impl NativeLspClient {
 
         let params = CompletionParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier {
-                    uri: file_uri,
-                },
+                text_document: TextDocumentIdentifier { uri: file_uri },
                 position: Position { line, character },
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -619,7 +659,9 @@ impl NativeLspClient {
             if let Some(items) = result.get("items") {
                 let completions: Vec<CompletionItem> = serde_json::from_value(items.clone())?;
                 return Ok(completions);
-            } else if let Ok(completions) = serde_json::from_value::<Vec<CompletionItem>>(result.clone()) {
+            } else if let Ok(completions) =
+                serde_json::from_value::<Vec<CompletionItem>>(result.clone())
+            {
                 return Ok(completions);
             }
         }
@@ -645,9 +687,7 @@ impl NativeLspClient {
 
         let params = GotoDefinitionParams {
             text_document_position_params: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier {
-                    uri: file_uri,
-                },
+                text_document: TextDocumentIdentifier { uri: file_uri },
                 position: Position { line, character },
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -689,9 +729,7 @@ impl NativeLspClient {
 
         let params = ReferenceParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier {
-                    uri: file_uri,
-                },
+                text_document: TextDocumentIdentifier { uri: file_uri },
                 position: Position { line, character },
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -732,9 +770,7 @@ impl NativeLspClient {
 
         let params = HoverParams {
             text_document_position_params: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier {
-                    uri: file_uri,
-                },
+                text_document: TextDocumentIdentifier { uri: file_uri },
                 position: Position { line, character },
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -756,11 +792,7 @@ impl NativeLspClient {
     }
 
     /// Format a file using textDocument/formatting
-    pub async fn format_file(
-        &self,
-        language: &str,
-        file_path: &str,
-    ) -> Result<Vec<TextEdit>> {
+    pub async fn format_file(&self, language: &str, file_path: &str) -> Result<Vec<TextEdit>> {
         let servers = self.servers.read().await;
         let server = servers
             .get(language)
@@ -770,9 +802,7 @@ impl NativeLspClient {
         let file_uri = file_path_to_uri(file_path)?;
 
         let params = DocumentFormattingParams {
-            text_document: TextDocumentIdentifier {
-                uri: file_uri,
-            },
+            text_document: TextDocumentIdentifier { uri: file_uri },
             options: FormattingOptions {
                 tab_size: 4,
                 insert_spaces: true,
@@ -906,8 +936,14 @@ impl NativeLspClient {
         let params = CodeActionParams {
             text_document: TextDocumentIdentifier { uri: file_uri },
             range: Range {
-                start: Position { line: start_line, character: start_character },
-                end: Position { line: end_line, character: end_character },
+                start: Position {
+                    line: start_line,
+                    character: start_character,
+                },
+                end: Position {
+                    line: end_line,
+                    character: end_character,
+                },
             },
             context: CodeActionContext {
                 diagnostics,
@@ -918,11 +954,15 @@ impl NativeLspClient {
             partial_result_params: PartialResultParams::default(),
         };
 
-        let response = self.send_request(server, "textDocument/codeAction", params).await?;
+        let response = self
+            .send_request(server, "textDocument/codeAction", params)
+            .await?;
 
         if let Some(result) = response.get("result") {
             if !result.is_null() {
-                if let Ok(actions) = serde_json::from_value::<Vec<CodeActionOrCommand>>(result.clone()) {
+                if let Ok(actions) =
+                    serde_json::from_value::<Vec<CodeActionOrCommand>>(result.clone())
+                {
                     return Ok(actions);
                 }
             }
@@ -957,7 +997,9 @@ impl NativeLspClient {
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
 
-        let response = self.send_request(server, "textDocument/rename", params).await?;
+        let response = self
+            .send_request(server, "textDocument/rename", params)
+            .await?;
 
         if let Some(result) = response.get("result") {
             if !result.is_null() {
@@ -991,7 +1033,9 @@ impl NativeLspClient {
             position: Position { line, character },
         };
 
-        let response = self.send_request(server, "textDocument/prepareRename", params).await?;
+        let response = self
+            .send_request(server, "textDocument/prepareRename", params)
+            .await?;
 
         if let Some(result) = response.get("result") {
             if !result.is_null() {
@@ -1023,13 +1067,21 @@ impl NativeLspClient {
         let params = InlayHintParams {
             text_document: TextDocumentIdentifier { uri: file_uri },
             range: Range {
-                start: Position { line: start_line, character: 0 },
-                end: Position { line: end_line, character: u32::MAX },
+                start: Position {
+                    line: start_line,
+                    character: 0,
+                },
+                end: Position {
+                    line: end_line,
+                    character: u32::MAX,
+                },
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
 
-        let response = self.send_request(server, "textDocument/inlayHint", params).await?;
+        let response = self
+            .send_request(server, "textDocument/inlayHint", params)
+            .await?;
 
         if let Some(result) = response.get("result") {
             if !result.is_null() {

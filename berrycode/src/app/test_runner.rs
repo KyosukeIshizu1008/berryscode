@@ -106,7 +106,10 @@ pub fn scan_tests(file_path: &str, content: &str) -> Vec<TestItem> {
             // Next non-attribute line should be the function definition
             for next_idx in (line_idx + 1)..lines.len().min(line_idx + 5) {
                 let next_line = lines[next_idx].trim();
-                if next_line.starts_with("fn ") || next_line.starts_with("async fn ") || next_line.starts_with("pub fn ") {
+                if next_line.starts_with("fn ")
+                    || next_line.starts_with("async fn ")
+                    || next_line.starts_with("pub fn ")
+                {
                     let fn_name = next_line
                         .replace("async ", "")
                         .replace("pub ", "")
@@ -336,22 +339,28 @@ impl BerryCodeApp {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new("\u{ebb5}") // play all
-                            .size(14.0)
-                            .color(egui::Color32::from_rgb(80, 200, 80)),
-                    ).frame(false))
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ebb5}") // play all
+                                .size(14.0)
+                                .color(egui::Color32::from_rgb(80, 200, 80)),
+                        )
+                        .frame(false),
+                    )
                     .on_hover_text("Run All Tests")
                     .clicked()
                 {
                     self.run_all_tests();
                 }
                 if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new("\u{eb37}") // refresh
-                            .size(14.0)
-                            .color(egui::Color32::from_rgb(160, 160, 160)),
-                    ).frame(false))
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{eb37}") // refresh
+                                .size(14.0)
+                                .color(egui::Color32::from_rgb(160, 160, 160)),
+                        )
+                        .frame(false),
+                    )
                     .on_hover_text("Rescan Tests")
                     .clicked()
                 {
@@ -388,14 +397,20 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         // Status icon
                         let (icon, color) = match test.status {
-                            TestStatus::Unknown => ("\u{eb99}", egui::Color32::from_rgb(120, 120, 120)), // circle-outline
-                            TestStatus::Running => ("\u{eb2c}", egui::Color32::from_rgb(200, 200, 80)),  // loading
-                            TestStatus::Passed => ("\u{eab2}", egui::Color32::from_rgb(80, 200, 80)),    // check
-                            TestStatus::Failed => ("\u{eba4}", egui::Color32::from_rgb(230, 80, 80)),    // error
+                            TestStatus::Unknown => {
+                                ("\u{eb99}", egui::Color32::from_rgb(120, 120, 120))
+                            } // circle-outline
+                            TestStatus::Running => {
+                                ("\u{eb2c}", egui::Color32::from_rgb(200, 200, 80))
+                            } // loading
+                            TestStatus::Passed => {
+                                ("\u{eab2}", egui::Color32::from_rgb(80, 200, 80))
+                            } // check
+                            TestStatus::Failed => {
+                                ("\u{eba4}", egui::Color32::from_rgb(230, 80, 80))
+                            } // error
                         };
-                        ui.label(
-                            egui::RichText::new(icon).size(12.0).color(color),
-                        );
+                        ui.label(egui::RichText::new(icon).size(12.0).color(color));
 
                         // Test name (clickable to navigate)
                         let name_resp = ui.add(
@@ -407,8 +422,7 @@ impl BerryCodeApp {
                             .frame(false),
                         );
                         if name_resp.clicked() {
-                            test_to_navigate =
-                                Some((test.file_path.clone(), test.line));
+                            test_to_navigate = Some((test.file_path.clone(), test.line));
                         }
 
                         // Duration

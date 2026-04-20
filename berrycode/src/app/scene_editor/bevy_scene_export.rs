@@ -56,9 +56,7 @@ pub fn export_to_bevy_scene(scene: &SceneModel) -> String {
                     ));
                 }
                 ComponentData::Camera => {
-                    ron.push_str(
-                        "        \"bevy_render::camera::camera::Camera\": (),\n",
-                    );
+                    ron.push_str("        \"bevy_render::camera::camera::Camera\": (),\n");
                 }
                 _ => {
                     ron.push_str(&format!(

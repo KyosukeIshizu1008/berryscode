@@ -14,10 +14,14 @@ enum Severity {
 fn classify_severity(line: &str) -> Severity {
     let lower = line.to_lowercase();
     // Cargo outputs compilation progress to stderr — these are NOT errors
-    if lower.contains("compiling ") || lower.contains("downloading ")
-        || lower.contains("finished ") || lower.contains("building ")
-        || lower.contains("checking ") || lower.contains("running ")
-        || lower.contains("linking ") || lower.contains("fresh ")
+    if lower.contains("compiling ")
+        || lower.contains("downloading ")
+        || lower.contains("finished ")
+        || lower.contains("building ")
+        || lower.contains("checking ")
+        || lower.contains("running ")
+        || lower.contains("linking ")
+        || lower.contains("fresh ")
     {
         Severity::Info
     } else if lower.contains("error") || lower.contains("panic") || lower.contains("failed") {
@@ -36,7 +40,8 @@ impl BerryCodeApp {
         self.stop_run();
 
         self.run_output.clear();
-        self.run_output.push("─── Starting cargo run ───".to_string());
+        self.run_output
+            .push("─── Starting cargo run ───".to_string());
         self.run_panel_open = true;
         self.game_view_open = true;
         self.active_panel = super::types::ActivePanel::GameView;

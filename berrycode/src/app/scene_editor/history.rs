@@ -48,10 +48,7 @@ pub enum SceneCommand {
         new_name: String,
     },
     /// A component on an entity was modified (free-form description).
-    ModifyComponent {
-        entity_id: u64,
-        description: String,
-    },
+    ModifyComponent { entity_id: u64, description: String },
     /// An entity was duplicated.
     DuplicateEntity { source_id: u64, new_id: u64 },
     /// A batch of commands executed atomically.
@@ -235,7 +232,9 @@ impl CommandHistory {
 
     /// Description of the command that would be redone next.
     pub fn redo_description(&self) -> Option<String> {
-        self.command_log.get(self.undo_index).map(|c| c.description())
+        self.command_log
+            .get(self.undo_index)
+            .map(|c| c.description())
     }
 }
 
@@ -390,10 +389,7 @@ mod tests {
         let desc = cmd_history.last_command().unwrap().description();
         assert!(desc.contains("Cube"), "Expected 'Cube' in '{}'", desc);
 
-        cmd_history.execute(
-            SceneCommand::RemoveEntity { entity_id: 1 },
-            &model,
-        );
+        cmd_history.execute(SceneCommand::RemoveEntity { entity_id: 1 }, &model);
         let desc = cmd_history.last_command().unwrap().description();
         assert!(desc.contains("Remove"), "Expected 'Remove' in '{}'", desc);
     }
@@ -489,21 +485,12 @@ mod tests {
         );
 
         // Undo description should be the last executed command
-        assert_eq!(
-            cmd_history.undo_description().unwrap(),
-            "Add entity 'B'"
-        );
+        assert_eq!(cmd_history.undo_description().unwrap(), "Add entity 'B'");
 
         cmd_history.undo(&model);
 
         // After undo, redo description should be the undone command
-        assert_eq!(
-            cmd_history.redo_description().unwrap(),
-            "Add entity 'B'"
-        );
-        assert_eq!(
-            cmd_history.undo_description().unwrap(),
-            "Add entity 'A'"
-        );
+        assert_eq!(cmd_history.redo_description().unwrap(), "Add entity 'B'");
+        assert_eq!(cmd_history.undo_description().unwrap(), "Add entity 'A'");
     }
 }

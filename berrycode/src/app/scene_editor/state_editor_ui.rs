@@ -39,11 +39,8 @@ impl BerryCodeApp {
                     egui::vec2(ui.available_width(), 300.0),
                     egui::Sense::click(),
                 );
-                ui.painter().rect_filled(
-                    rect,
-                    4.0,
-                    egui::Color32::from_rgb(20, 22, 26),
-                );
+                ui.painter()
+                    .rect_filled(rect, 4.0, egui::Color32::from_rgb(20, 22, 26));
 
                 // Draw transitions
                 for t in &self.state_graph.transitions {
@@ -62,16 +59,10 @@ impl BerryCodeApp {
                         );
                         ui.painter().line_segment(
                             [fp, tp],
-                            egui::Stroke::new(
-                                1.5,
-                                egui::Color32::from_rgb(200, 200, 100),
-                            ),
+                            egui::Stroke::new(1.5, egui::Color32::from_rgb(200, 200, 100)),
                         );
                         // Label
-                        let mid = egui::pos2(
-                            (fp.x + tp.x) / 2.0,
-                            (fp.y + tp.y) / 2.0 - 8.0,
-                        );
+                        let mid = egui::pos2((fp.x + tp.x) / 2.0, (fp.y + tp.y) / 2.0 - 8.0);
                         ui.painter().text(
                             mid,
                             egui::Align2::CENTER_CENTER,
@@ -88,8 +79,7 @@ impl BerryCodeApp {
                         rect.left() + state.position[0],
                         rect.top() + state.position[1],
                     );
-                    let box_rect =
-                        egui::Rect::from_min_size(pos, egui::vec2(100.0, 30.0));
+                    let box_rect = egui::Rect::from_min_size(pos, egui::vec2(100.0, 30.0));
                     let fill = if i == self.state_graph.initial_state {
                         egui::Color32::from_rgb(60, 100, 60)
                     } else {

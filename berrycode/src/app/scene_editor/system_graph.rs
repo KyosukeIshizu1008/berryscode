@@ -6,8 +6,8 @@
 //! - Manual addition and code scanning for `add_systems(...)` patterns
 //! - Stage/Set labels as group headers
 
-use serde::{Deserialize, Serialize};
 use crate::app::BerryCodeApp;
+use serde::{Deserialize, Serialize};
 
 /// A node in the system execution graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +46,8 @@ pub fn scan_systems_from_code(code: &str) -> Vec<(String, String)> {
         let trimmed = line.trim();
         // Match patterns like: .add_systems(Update, movement_system)
         // or: .add_systems(Startup, setup_scene)
-        if let Some(rest) = trimmed.strip_prefix(".add_systems(")
+        if let Some(rest) = trimmed
+            .strip_prefix(".add_systems(")
             .or_else(|| trimmed.strip_prefix("app.add_systems("))
         {
             // Parse "Schedule, system_name..." up to ')' or ','
@@ -129,10 +130,8 @@ impl BerryCodeApp {
                     let stages = ["Startup", "Update", "FixedUpdate", "PostUpdate"];
                     for stage in stages {
                         let color = stage_color(stage);
-                        let (rect, _) = ui.allocate_exact_size(
-                            egui::vec2(12.0, 12.0),
-                            egui::Sense::hover(),
-                        );
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
                         ui.painter().rect_filled(rect, 2.0, color);
                         ui.label(stage);
                         ui.add_space(8.0);

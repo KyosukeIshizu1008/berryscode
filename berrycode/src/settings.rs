@@ -118,12 +118,7 @@ impl EditorSettings {
 
     /// Get available AI modes
     pub fn available_modes() -> Vec<&'static str> {
-        vec![
-            "code",
-            "architect",
-            "help",
-            "ask",
-        ]
+        vec!["code", "architect", "help", "ask"]
     }
 
     /// Apply theme to DOM by setting data-theme attribute on body (WASM only)

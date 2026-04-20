@@ -351,11 +351,7 @@ mod tests {
         // Y overlap = 1.0 - 0.95 = 0.05 (least penetration)
         // X overlap = 1.0, Z overlap = 1.0 (both larger)
         // Push should be along Y, positive (pushing A up away from B)
-        assert!(
-            push[1] > 0.0,
-            "Push should be upward, got {:?}",
-            push
-        );
+        assert!(push[1] > 0.0, "Push should be upward, got {:?}", push);
     }
 
     #[test]

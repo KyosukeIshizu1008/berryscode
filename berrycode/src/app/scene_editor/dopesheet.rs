@@ -122,9 +122,7 @@ impl BerryCodeApp {
                                     AnimProperty::Rotation => {
                                         egui::Color32::from_rgb(100, 220, 100)
                                     }
-                                    AnimProperty::Scale => {
-                                        egui::Color32::from_rgb(255, 180, 80)
-                                    }
+                                    AnimProperty::Scale => egui::Color32::from_rgb(255, 180, 80),
                                 };
                                 ui.colored_label(color, track.property.label());
                                 ui.add_space(label_width - 60.0);
@@ -146,30 +144,23 @@ impl BerryCodeApp {
                                 while t <= duration {
                                     let x = rect.left() + (t / duration) * rect.width();
                                     ui.painter().line_segment(
-                                        [
-                                            egui::pos2(x, rect.top()),
-                                            egui::pos2(x, rect.bottom()),
-                                        ],
-                                        egui::Stroke::new(
-                                            0.5,
-                                            egui::Color32::from_gray(50),
-                                        ),
+                                        [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+                                        egui::Stroke::new(0.5, egui::Color32::from_gray(50)),
                                     );
                                     t += step;
                                 }
 
                                 // Curve overlay.
-                                if self.dopesheet_show_curves
-                                    && track.keyframes.len() >= 2
-                                {
+                                if self.dopesheet_show_curves && track.keyframes.len() >= 2 {
                                     let segments = 100;
                                     let mut prev: Option<egui::Pos2> = None;
                                     for s in 0..=segments {
                                         let st = (s as f32 / segments as f32) * duration;
-                                        let sx = rect.left()
-                                            + (st / duration) * rect.width();
+                                        let sx = rect.left() + (st / duration) * rect.width();
                                         if let Some(v) =
-                                            crate::app::scene_editor::animation::sample_track(track, st)
+                                            crate::app::scene_editor::animation::sample_track(
+                                                track, st,
+                                            )
                                         {
                                             let min_v = track
                                                 .keyframes
@@ -182,11 +173,9 @@ impl BerryCodeApp {
                                                 .map(|k| k.value[0])
                                                 .fold(f32::NEG_INFINITY, f32::max);
                                             let range = (max_v - min_v).max(0.001);
-                                            let norm = ((v[0] - min_v) / range)
-                                                .clamp(0.0, 1.0);
-                                            let sy = rect.bottom()
-                                                - 4.0
-                                                - norm * (rect.height() - 8.0);
+                                            let norm = ((v[0] - min_v) / range).clamp(0.0, 1.0);
+                                            let sy =
+                                                rect.bottom() - 4.0 - norm * (rect.height() - 8.0);
                                             let p = egui::pos2(sx, sy);
                                             if let Some(pp) = prev {
                                                 ui.painter().line_segment(
@@ -204,8 +193,7 @@ impl BerryCodeApp {
 
                                 // Keyframe markers (diamonds).
                                 for kf in &track.keyframes {
-                                    let x = rect.left()
-                                        + (kf.time / duration) * rect.width();
+                                    let x = rect.left() + (kf.time / duration) * rect.width();
                                     let cy = rect.center().y;
                                     let half = 5.0;
                                     let diamond = vec![
@@ -223,8 +211,7 @@ impl BerryCodeApp {
 
                                 // Event markers (small red triangles below timeline).
                                 for evt in &track.events {
-                                    let x = rect.left()
-                                        + (evt.time / duration) * rect.width();
+                                    let x = rect.left() + (evt.time / duration) * rect.width();
                                     let by = rect.bottom() - 2.0;
                                     let tri = vec![
                                         egui::pos2(x, by - 7.0),
@@ -240,25 +227,19 @@ impl BerryCodeApp {
 
                                 // Playhead.
                                 let ph_x = rect.left()
-                                    + (playback_time / duration).clamp(0.0, 1.0)
-                                        * rect.width();
+                                    + (playback_time / duration).clamp(0.0, 1.0) * rect.width();
                                 ui.painter().line_segment(
                                     [
                                         egui::pos2(ph_x, rect.top()),
                                         egui::pos2(ph_x, rect.bottom()),
                                     ],
-                                    egui::Stroke::new(
-                                        2.0,
-                                        egui::Color32::from_rgb(255, 180, 80),
-                                    ),
+                                    egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 180, 80)),
                                 );
 
                                 // Click to add keyframe.
                                 if response.clicked() {
-                                    if let Some(pos) = response.interact_pointer_pos()
-                                    {
-                                        let click_t = ((pos.x - rect.left())
-                                            / rect.width()
+                                    if let Some(pos) = response.interact_pointer_pos() {
+                                        let click_t = ((pos.x - rect.left()) / rect.width()
                                             * duration)
                                             .clamp(0.0, duration);
                                         add_kf = Some((t_idx, click_t));
@@ -636,8 +617,7 @@ mod tests {
             }],
             events: vec![],
         };
-        let v = crate::app::scene_editor::animation::sample_track(&track, 5.0)
-            .expect("single kf");
+        let v = crate::app::scene_editor::animation::sample_track(&track, 5.0).expect("single kf");
         assert!((v[0] - 0.5).abs() < 1e-5);
     }
 
@@ -647,16 +627,32 @@ mod tests {
             AnimationTrack {
                 property: AnimProperty::Position,
                 keyframes: vec![
-                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
-                    TrackKeyframe { time: 1.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe {
+                        time: 0.0,
+                        value: [0.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
+                    TrackKeyframe {
+                        time: 1.0,
+                        value: [5.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
                 ],
                 events: vec![],
             },
             AnimationTrack {
                 property: AnimProperty::Rotation,
                 keyframes: vec![
-                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
-                    TrackKeyframe { time: 2.0, value: [0.0, 3.14, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe {
+                        time: 0.0,
+                        value: [0.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
+                    TrackKeyframe {
+                        time: 2.0,
+                        value: [0.0, 3.14, 0.0],
+                        easing: EasingType::Linear,
+                    },
                 ],
                 events: vec![],
             },
@@ -689,8 +685,16 @@ mod tests {
         let track = AnimationTrack {
             property: AnimProperty::Position,
             keyframes: vec![
-                TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
-                TrackKeyframe { time: 1.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+                TrackKeyframe {
+                    time: 0.0,
+                    value: [0.0, 0.0, 0.0],
+                    easing: EasingType::Linear,
+                },
+                TrackKeyframe {
+                    time: 1.0,
+                    value: [5.0, 0.0, 0.0],
+                    easing: EasingType::Linear,
+                },
             ],
             events: vec![],
         };
@@ -704,16 +708,26 @@ mod tests {
             AnimationTrack {
                 property: AnimProperty::Position,
                 keyframes: vec![
-                    TrackKeyframe { time: 0.0, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
-                    TrackKeyframe { time: 1.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
+                    TrackKeyframe {
+                        time: 0.0,
+                        value: [0.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
+                    TrackKeyframe {
+                        time: 1.0,
+                        value: [5.0, 0.0, 0.0],
+                        easing: EasingType::Linear,
+                    },
                 ],
                 events: vec![],
             },
             AnimationTrack {
                 property: AnimProperty::Scale,
-                keyframes: vec![
-                    TrackKeyframe { time: 0.0, value: [1.0, 1.0, 1.0], easing: EasingType::Linear },
-                ],
+                keyframes: vec![TrackKeyframe {
+                    time: 0.0,
+                    value: [1.0, 1.0, 1.0],
+                    easing: EasingType::Linear,
+                }],
                 events: vec![],
             },
         ];
@@ -722,16 +736,22 @@ mod tests {
 
     #[test]
     fn keyframe_time_range_works() {
-        let tracks = vec![
-            AnimationTrack {
-                property: AnimProperty::Position,
-                keyframes: vec![
-                    TrackKeyframe { time: 0.5, value: [0.0, 0.0, 0.0], easing: EasingType::Linear },
-                    TrackKeyframe { time: 2.0, value: [5.0, 0.0, 0.0], easing: EasingType::Linear },
-                ],
-                events: vec![],
-            },
-        ];
+        let tracks = vec![AnimationTrack {
+            property: AnimProperty::Position,
+            keyframes: vec![
+                TrackKeyframe {
+                    time: 0.5,
+                    value: [0.0, 0.0, 0.0],
+                    easing: EasingType::Linear,
+                },
+                TrackKeyframe {
+                    time: 2.0,
+                    value: [5.0, 0.0, 0.0],
+                    easing: EasingType::Linear,
+                },
+            ],
+            events: vec![],
+        }];
         let (min, max) = keyframe_time_range(&tracks).unwrap();
         assert!((min - 0.5).abs() < 1e-5);
         assert!((max - 2.0).abs() < 1e-5);

@@ -65,13 +65,8 @@ impl ProfilerState {
 
     /// Compute instantaneous FPS from the average frame time.
     pub fn fps(&self) -> Option<f32> {
-        self.stats().and_then(|(_, avg, _)| {
-            if avg > 0.0 {
-                Some(1.0 / avg)
-            } else {
-                None
-            }
-        })
+        self.stats()
+            .and_then(|(_, avg, _)| if avg > 0.0 { Some(1.0 / avg) } else { None })
     }
 }
 
@@ -122,11 +117,8 @@ impl BerryCodeApp {
             egui::vec2(ui.available_width(), graph_height),
             egui::Sense::hover(),
         );
-        ui.painter().rect_filled(
-            rect,
-            2.0,
-            egui::Color32::from_rgb(20, 22, 26),
-        );
+        ui.painter()
+            .rect_filled(rect, 2.0, egui::Color32::from_rgb(20, 22, 26));
         if samples.len() >= 2 {
             let ceiling_s = 0.033_f32;
             let w = rect.width();

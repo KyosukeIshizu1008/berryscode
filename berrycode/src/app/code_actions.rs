@@ -1,7 +1,7 @@
 //! Code actions: lightbulb indicator + popup menu + workspace edit application
 
-use super::BerryCodeApp;
 use super::types::{LspCodeAction, LspResponse};
+use super::BerryCodeApp;
 use crate::native;
 
 impl BerryCodeApp {
@@ -32,14 +32,24 @@ impl BerryCodeApp {
             .map(|d| {
                 let severity = match d.severity {
                     super::types::DiagnosticSeverity::Error => lsp_types::DiagnosticSeverity::ERROR,
-                    super::types::DiagnosticSeverity::Warning => lsp_types::DiagnosticSeverity::WARNING,
-                    super::types::DiagnosticSeverity::Information => lsp_types::DiagnosticSeverity::INFORMATION,
+                    super::types::DiagnosticSeverity::Warning => {
+                        lsp_types::DiagnosticSeverity::WARNING
+                    }
+                    super::types::DiagnosticSeverity::Information => {
+                        lsp_types::DiagnosticSeverity::INFORMATION
+                    }
                     super::types::DiagnosticSeverity::Hint => lsp_types::DiagnosticSeverity::HINT,
                 };
                 lsp_types::Diagnostic {
                     range: lsp_types::Range {
-                        start: lsp_types::Position { line, character: d.column as u32 },
-                        end: lsp_types::Position { line, character: d.column as u32 },
+                        start: lsp_types::Position {
+                            line,
+                            character: d.column as u32,
+                        },
+                        end: lsp_types::Position {
+                            line,
+                            character: d.column as u32,
+                        },
                     },
                     severity: Some(severity),
                     message: d.message.clone(),
@@ -70,22 +80,24 @@ impl BerryCodeApp {
                     let lsp_actions: Vec<LspCodeAction> = actions
                         .iter()
                         .filter_map(|a| match a {
-                            lsp_types::CodeActionOrCommand::CodeAction(ca) => {
-                                Some(LspCodeAction {
-                                    title: ca.title.clone(),
-                                    kind: ca.kind.as_ref().map(|k| k.as_str().to_string()),
-                                    edit_json: ca.edit.as_ref().and_then(|e| serde_json::to_string(e).ok()),
-                                    command_json: ca.command.as_ref().and_then(|c| serde_json::to_string(c).ok()),
-                                })
-                            }
-                            lsp_types::CodeActionOrCommand::Command(cmd) => {
-                                Some(LspCodeAction {
-                                    title: cmd.title.clone(),
-                                    kind: None,
-                                    edit_json: None,
-                                    command_json: serde_json::to_string(cmd).ok(),
-                                })
-                            }
+                            lsp_types::CodeActionOrCommand::CodeAction(ca) => Some(LspCodeAction {
+                                title: ca.title.clone(),
+                                kind: ca.kind.as_ref().map(|k| k.as_str().to_string()),
+                                edit_json: ca
+                                    .edit
+                                    .as_ref()
+                                    .and_then(|e| serde_json::to_string(e).ok()),
+                                command_json: ca
+                                    .command
+                                    .as_ref()
+                                    .and_then(|c| serde_json::to_string(c).ok()),
+                            }),
+                            lsp_types::CodeActionOrCommand::Command(cmd) => Some(LspCodeAction {
+                                title: cmd.title.clone(),
+                                kind: None,
+                                edit_json: None,
+                                command_json: serde_json::to_string(cmd).ok(),
+                            }),
                         })
                         .collect();
                     let _ = tx.send(LspResponse::CodeActions(lsp_actions));
@@ -177,7 +189,10 @@ impl BerryCodeApp {
                 };
 
                 // Find or open the tab
-                let tab_idx = self.editor_tabs.iter().position(|t| t.file_path == file_path);
+                let tab_idx = self
+                    .editor_tabs
+                    .iter()
+                    .position(|t| t.file_path == file_path);
                 let tab_idx = match tab_idx {
                     Some(i) => i,
                     None => {
@@ -195,7 +210,10 @@ impl BerryCodeApp {
                 // Apply edits in reverse order (so offsets don't shift)
                 let mut sorted_edits = text_edits.clone();
                 sorted_edits.sort_by(|a, b| {
-                    b.range.start.line.cmp(&a.range.start.line)
+                    b.range
+                        .start
+                        .line
+                        .cmp(&a.range.start.line)
                         .then(b.range.start.character.cmp(&a.range.start.character))
                 });
 
@@ -210,8 +228,18 @@ impl BerryCodeApp {
                     let end_char = te.range.end.character as usize;
 
                     // Calculate byte offsets
-                    let start_byte: usize = lines.iter().take(start_line).map(|l| l.len() + 1).sum::<usize>() + start_char;
-                    let end_byte: usize = lines.iter().take(end_line).map(|l| l.len() + 1).sum::<usize>() + end_char;
+                    let start_byte: usize = lines
+                        .iter()
+                        .take(start_line)
+                        .map(|l| l.len() + 1)
+                        .sum::<usize>()
+                        + start_char;
+                    let end_byte: usize = lines
+                        .iter()
+                        .take(end_line)
+                        .map(|l| l.len() + 1)
+                        .sum::<usize>()
+                        + end_char;
 
                     let start_byte = start_byte.min(text.len());
                     let end_byte = end_byte.min(text.len());

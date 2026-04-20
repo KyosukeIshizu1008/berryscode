@@ -102,7 +102,13 @@ impl Default for RemoteConnection {
 
 impl RemoteConnection {
     /// Connect to a remote host via SSH
-    pub fn connect(&mut self, user: &str, host: &str, port: u16, remote_path: &str) -> Result<(), String> {
+    pub fn connect(
+        &mut self,
+        user: &str,
+        host: &str,
+        port: u16,
+        remote_path: &str,
+    ) -> Result<(), String> {
         self.status = RemoteStatus::Connecting;
         self.user = user.to_string();
         self.host = host.to_string();
@@ -227,10 +233,13 @@ impl RemoteConnection {
 
     /// Write a remote file
     pub fn write_file(&mut self, path: &str, content: &str) -> Option<u64> {
-        self.send_request("fs/write", serde_json::json!({
-            "path": path,
-            "content": content,
-        }))
+        self.send_request(
+            "fs/write",
+            serde_json::json!({
+                "path": path,
+                "content": content,
+            }),
+        )
     }
 
     /// List remote directory
@@ -317,8 +326,12 @@ impl BerryCodeApp {
 
                 // Connection status
                 let status_text = match &self.remote.status {
-                    RemoteStatus::Disconnected => ("Disconnected", egui::Color32::from_rgb(120, 120, 120)),
-                    RemoteStatus::Connecting => ("Connecting...", egui::Color32::from_rgb(200, 200, 80)),
+                    RemoteStatus::Disconnected => {
+                        ("Disconnected", egui::Color32::from_rgb(120, 120, 120))
+                    }
+                    RemoteStatus::Connecting => {
+                        ("Connecting...", egui::Color32::from_rgb(200, 200, 80))
+                    }
                     RemoteStatus::Connected => ("Connected", egui::Color32::from_rgb(80, 200, 80)),
                     RemoteStatus::Error(e) => {
                         self.remote_dialog.error_message = Some(e.clone());
@@ -334,7 +347,10 @@ impl BerryCodeApp {
 
                 if self.remote.is_connected() {
                     // Connected view
-                    ui.label(format!("{}@{}:{}", self.remote.user, self.remote.host, self.remote.remote_path));
+                    ui.label(format!(
+                        "{}@{}:{}",
+                        self.remote.user, self.remote.host, self.remote.remote_path
+                    ));
                     ui.add_space(8.0);
                     if ui.button("Disconnect").clicked() {
                         self.remote.disconnect();

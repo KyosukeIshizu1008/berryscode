@@ -4,8 +4,8 @@
 //! Phase 3: nodes are interactive — click-and-drag to reposition, right-click
 //! for context menus (add/delete transitions).
 
-use crate::app::BerryCodeApp;
 use super::animator::*;
+use crate::app::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Render the Animator Editor window.
@@ -63,20 +63,18 @@ impl BerryCodeApp {
                     // Left: Parameters
                     cols[0].heading("Parameters");
                     for param in &mut controller.parameters {
-                        cols[0].horizontal(|ui| {
-                            match param {
-                                AnimParam::Bool { name, value } => {
-                                    ui.text_edit_singleline(name);
-                                    ui.checkbox(value, "");
-                                }
-                                AnimParam::Float { name, value } => {
-                                    ui.text_edit_singleline(name);
-                                    ui.add(egui::DragValue::new(value).speed(0.05));
-                                }
-                                AnimParam::Trigger { name, .. } => {
-                                    ui.text_edit_singleline(name);
-                                    ui.label("[Trigger]");
-                                }
+                        cols[0].horizontal(|ui| match param {
+                            AnimParam::Bool { name, value } => {
+                                ui.text_edit_singleline(name);
+                                ui.checkbox(value, "");
+                            }
+                            AnimParam::Float { name, value } => {
+                                ui.text_edit_singleline(name);
+                                ui.add(egui::DragValue::new(value).speed(0.05));
+                            }
+                            AnimParam::Trigger { name, .. } => {
+                                ui.text_edit_singleline(name);
+                                ui.label("[Trigger]");
                             }
                         });
                     }
@@ -84,10 +82,8 @@ impl BerryCodeApp {
                     // Right: Node graph
                     cols[1].heading("State Graph");
                     let graph_size = egui::vec2(cols[1].available_width(), 300.0);
-                    let (graph_rect, _graph_resp) = cols[1].allocate_exact_size(
-                        graph_size,
-                        egui::Sense::click(),
-                    );
+                    let (graph_rect, _graph_resp) =
+                        cols[1].allocate_exact_size(graph_size, egui::Sense::click());
 
                     let painter = cols[1].painter();
                     painter.rect_filled(graph_rect, 4.0, egui::Color32::from_rgb(20, 22, 26));
@@ -120,11 +116,7 @@ impl BerryCodeApp {
                                 let perp = egui::vec2(-dir.y, dir.x);
                                 let tip = to_center - dir * 15.0;
                                 painter.add(egui::Shape::convex_polygon(
-                                    vec![
-                                        to_center - dir * 5.0,
-                                        tip + perp * 6.0,
-                                        tip - perp * 6.0,
-                                    ],
+                                    vec![to_center - dir * 5.0, tip + perp * 6.0, tip - perp * 6.0],
                                     egui::Color32::from_rgb(200, 200, 100),
                                     egui::Stroke::NONE,
                                 ));
@@ -135,7 +127,8 @@ impl BerryCodeApp {
                                 (from_center.x + to_center.x) * 0.5,
                                 (from_center.y + to_center.y) * 0.5,
                             );
-                            let hit_rect = egui::Rect::from_center_size(mid, egui::vec2(20.0, 20.0));
+                            let hit_rect =
+                                egui::Rect::from_center_size(mid, egui::vec2(20.0, 20.0));
                             let hit_id = cols[1].id().with(("transition_hit", t_idx));
                             let hit_resp = cols[1].interact(hit_rect, hit_id, egui::Sense::click());
                             hit_resp.context_menu(|ui| {
@@ -198,7 +191,8 @@ impl BerryCodeApp {
 
                         // Interactive response for drag and context menu
                         let node_id = cols[1].id().with(("anim_state", i));
-                        let resp = cols[1].interact(box_rect, node_id, egui::Sense::click_and_drag());
+                        let resp =
+                            cols[1].interact(box_rect, node_id, egui::Sense::click_and_drag());
 
                         if resp.drag_started() {
                             self.animator_dragging_state = Some(i);
@@ -231,9 +225,9 @@ impl BerryCodeApp {
                             ui.separator();
                             if ui.button("Delete State").clicked() {
                                 // Remove transitions referencing this state
-                                controller.transitions.retain(|t| {
-                                    t.from_state != i && t.to_state != i
-                                });
+                                controller
+                                    .transitions
+                                    .retain(|t| t.from_state != i && t.to_state != i);
                                 // Adjust transition indices for states after the removed one
                                 for t in &mut controller.transitions {
                                     if t.from_state > i {
@@ -272,7 +266,10 @@ impl BerryCodeApp {
 
                     // Complete pending transition on click
                     if let (Some(from), Some(to)) = (self.pending_transition_from, clicked_state) {
-                        if from != to && from < controller.states.len() && to < controller.states.len() {
+                        if from != to
+                            && from < controller.states.len()
+                            && to < controller.states.len()
+                        {
                             controller.transitions.push(AnimTransition {
                                 from_state: from,
                                 to_state: to,

@@ -1,8 +1,8 @@
 //! NavMesh: grid-based navigation with A* pathfinding.
 
 use super::model::*;
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 /// Grid-based navigation mesh.
 #[derive(Debug, Clone)]
@@ -46,14 +46,18 @@ pub fn bake_nav_grid(scene: &SceneModel, cell_size: f32) -> NavGrid {
             if let ComponentData::Collider { shape, .. } = component {
                 // Compute AABB of the collider in world space
                 let (half_x, half_z) = match shape {
-                    ColliderShape::Box { half_extents } => {
-                        (half_extents[0] * world_t.scale[0], half_extents[2] * world_t.scale[2])
-                    }
+                    ColliderShape::Box { half_extents } => (
+                        half_extents[0] * world_t.scale[0],
+                        half_extents[2] * world_t.scale[2],
+                    ),
                     ColliderShape::Sphere { radius } => {
                         let r = radius * world_t.scale[0].max(world_t.scale[2]);
                         (r, r)
                     }
-                    ColliderShape::Capsule { half_height, radius } => {
+                    ColliderShape::Capsule {
+                        half_height,
+                        radius,
+                    } => {
                         let r = radius * world_t.scale[0].max(world_t.scale[2]);
                         let h = half_height * world_t.scale[1];
                         (r, r.max(h))
@@ -101,7 +105,9 @@ impl Ord for AStarNode {
     fn cmp(&self, other: &Self) -> Ordering {
         let self_total = self.cost + self.heuristic;
         let other_total = other.cost + other.heuristic;
-        other_total.partial_cmp(&self_total).unwrap_or(Ordering::Equal)
+        other_total
+            .partial_cmp(&self_total)
+            .unwrap_or(Ordering::Equal)
     }
 }
 

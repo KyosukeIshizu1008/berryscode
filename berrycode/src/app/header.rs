@@ -1,7 +1,7 @@
 //! Top header and activity bar rendering
 
-use super::BerryCodeApp;
 use super::ui_colors;
+use super::BerryCodeApp;
 use super::MAIN_PANELS;
 
 impl BerryCodeApp {
@@ -12,7 +12,7 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::none()
                     .fill(egui::Color32::from_rgb(50, 51, 54)) // Dark gray background #323336
-                    .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                    .inner_margin(egui::Margin::symmetric(8.0, 4.0)),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -20,12 +20,13 @@ impl BerryCodeApp {
 
                     // Purple tab with project info
                     let tab_rect_size = egui::vec2(160.0, 24.0);
-                    let (tab_rect, _response) = ui.allocate_exact_size(tab_rect_size, egui::Sense::click());
+                    let (tab_rect, _response) =
+                        ui.allocate_exact_size(tab_rect_size, egui::Sense::click());
 
                     // Draw purple background
                     ui.painter().rect_filled(
                         tab_rect,
-                        4.0, // Rounded corners
+                        4.0,                                   // Rounded corners
                         egui::Color32::from_rgb(126, 89, 161), // Purple #7E59A1
                     );
 
@@ -45,10 +46,7 @@ impl BerryCodeApp {
                     );
 
                     // Project name
-                    let project_name = self.root_path
-                        .split('/')
-                        .last()
-                        .unwrap_or("oracleberry");
+                    let project_name = self.root_path.split('/').last().unwrap_or("oracleberry");
 
                     let text_pos = egui::pos2(tab_rect.left() + 34.0, tab_rect.center().y);
                     ui.painter().text(
@@ -72,11 +70,17 @@ impl BerryCodeApp {
                     ui.add_space(16.0);
 
                     // Close Project button (return to picker)
-                    if ui.add(egui::Button::new(
-                        egui::RichText::new("Close Project")
-                            .size(12.0)
-                            .color(egui::Color32::from_rgb(180, 180, 180))
-                    ).frame(false)).clicked() {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("Close Project")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(180, 180, 180)),
+                            )
+                            .frame(false),
+                        )
+                        .clicked()
+                    {
                         self.show_project_picker = true;
                         self.editor_tabs.clear();
                         self.active_tab_idx = 0;
@@ -87,18 +91,26 @@ impl BerryCodeApp {
                     ui.add_space(4.0);
 
                     // New Project button
-                    if ui.add(egui::Button::new(
-                        egui::RichText::new("+ New Bevy Project")
-                            .size(12.0)
-                            .color(egui::Color32::from_rgb(200, 200, 200))
-                    ).frame(false)).clicked() {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("+ New Bevy Project")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                            )
+                            .frame(false),
+                        )
+                        .clicked()
+                    {
                         self.new_project_dialog_open = true;
                     }
 
                     ui.add_space(8.0);
 
                     // Run Bevy Project button + Release toggle
-                    let is_bevy_project = std::path::Path::new(&self.root_path).join("Cargo.toml").exists();
+                    let is_bevy_project = std::path::Path::new(&self.root_path)
+                        .join("Cargo.toml")
+                        .exists();
                     if is_bevy_project {
                         let is_running = self.run_process.is_some();
                         let (label, color) = if is_running {
@@ -107,11 +119,15 @@ impl BerryCodeApp {
                             ("Run", egui::Color32::from_rgb(120, 220, 120))
                         };
 
-                        if ui.add(egui::Button::new(
-                            egui::RichText::new(label)
-                                .size(12.0)
-                                .color(color)
-                        ).frame(false)).clicked() {
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new(label).size(12.0).color(color),
+                                )
+                                .frame(false),
+                            )
+                            .clicked()
+                        {
                             if is_running {
                                 self.stop_run();
                             } else {
@@ -120,15 +136,25 @@ impl BerryCodeApp {
                         }
 
                         // Release mode toggle
-                        let mode_label = if self.run_release_mode { "Release" } else { "Debug" };
+                        let mode_label = if self.run_release_mode {
+                            "Release"
+                        } else {
+                            "Debug"
+                        };
                         let mode_color = if self.run_release_mode {
                             egui::Color32::from_rgb(255, 180, 80)
                         } else {
                             egui::Color32::from_rgb(150, 150, 150)
                         };
-                        if ui.add(egui::Button::new(
-                            egui::RichText::new(mode_label).size(10.0).color(mode_color)
-                        ).frame(false)).clicked() {
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new(mode_label).size(10.0).color(mode_color),
+                                )
+                                .frame(false),
+                            )
+                            .clicked()
+                        {
                             self.run_release_mode = !self.run_release_mode;
                         }
                     }
@@ -136,11 +162,17 @@ impl BerryCodeApp {
                     ui.add_space(8.0);
 
                     if is_bevy_project {
-                        if ui.add(egui::Button::new(
-                            egui::RichText::new("Play in Editor")
-                                .size(12.0)
-                                .color(egui::Color32::from_rgb(180, 220, 255))
-                        ).frame(false)).clicked() {
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new("Play in Editor")
+                                        .size(12.0)
+                                        .color(egui::Color32::from_rgb(180, 220, 255)),
+                                )
+                                .frame(false),
+                            )
+                            .clicked()
+                        {
                             self.open_game_view();
                         }
                     }
@@ -148,11 +180,17 @@ impl BerryCodeApp {
                     ui.add_space(8.0);
 
                     // Build Settings button (Phase 18)
-                    if ui.add(egui::Button::new(
-                        egui::RichText::new("Build Settings")
-                            .size(12.0)
-                            .color(egui::Color32::from_rgb(200, 200, 200))
-                    ).frame(false)).clicked() {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("Build Settings")
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                            )
+                            .frame(false),
+                        )
+                        .clicked()
+                    {
                         self.build_settings_open = true;
                     }
                 });
@@ -167,7 +205,7 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::none()
                     .fill(ui_colors::SIDEBAR_BG) // #191A1C
-                    .inner_margin(egui::Margin::same(4.0))
+                    .inner_margin(egui::Margin::same(4.0)),
             )
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
@@ -184,8 +222,8 @@ impl BerryCodeApp {
 
                         // Use selectable_label with custom color and explicit font family
                         let icon_text = egui::RichText::new(panel.icon)
-                            .size(20.0)  // Explicit size for icons
-                            .family(egui::FontFamily::Name("codicon".into()));  // Use Codicon font
+                            .size(20.0) // Explicit size for icons
+                            .family(egui::FontFamily::Name("codicon".into())); // Use Codicon font
                         if ui.selectable_label(is_selected, icon_text).clicked() {
                             tracing::info!("📍 Panel changed to: {:?}", panel.variant);
                             self.active_panel = panel.variant;

@@ -1,9 +1,9 @@
 //! File tree rendering and operations
 
-use super::BerryCodeApp;
+use super::file_icon_colors;
 use super::types::FileTreeEvent;
 use super::ui_colors;
-use super::file_icon_colors;
+use super::BerryCodeApp;
 use crate::native;
 use crate::native::fs::DirEntry;
 
@@ -30,9 +30,7 @@ fn reveal_in_file_manager(path: &str) {
             .parent()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| path.to_string());
-        let _ = std::process::Command::new("xdg-open")
-            .arg(&parent)
-            .spawn();
+        let _ = std::process::Command::new("xdg-open").arg(&parent).spawn();
     }
 }
 
@@ -50,10 +48,7 @@ impl BerryCodeApp {
     /// Render File Tree panel (Phase 2: full implementation)
     pub(crate) fn render_file_tree(&mut self, ui: &mut egui::Ui) {
         // Project name dropdown
-        let project_name = self.root_path
-            .split('/')
-            .last()
-            .unwrap_or("oracleberry");
+        let project_name = self.root_path.split('/').last().unwrap_or("oracleberry");
 
         ui.horizontal(|ui| {
             // Folder icon
@@ -61,7 +56,7 @@ impl BerryCodeApp {
                 egui::RichText::new("\u{ea83}") // codicon-folder
                     .size(16.0)
                     .color(ui_colors::TEXT_DEFAULT)
-                    .family(egui::FontFamily::Name("codicon".into()))
+                    .family(egui::FontFamily::Name("codicon".into())),
             );
 
             ui.add_space(4.0);
@@ -70,7 +65,7 @@ impl BerryCodeApp {
             let response = ui.button(
                 egui::RichText::new(format!("{} ▼", project_name.to_uppercase()))
                     .size(11.0)
-                    .strong()
+                    .strong(),
             );
 
             // TODO: Show dropdown menu when clicked
@@ -83,16 +78,24 @@ impl BerryCodeApp {
 
         // New File / New Folder buttons
         ui.horizontal(|ui| {
-            if ui.button(
-                egui::RichText::new("\u{ea7f}") // codicon: new-file
-                    .family(egui::FontFamily::Name("codicon".into()))
-            ).on_hover_text("New File").clicked() {
+            if ui
+                .button(
+                    egui::RichText::new("\u{ea7f}") // codicon: new-file
+                        .family(egui::FontFamily::Name("codicon".into())),
+                )
+                .on_hover_text("New File")
+                .clicked()
+            {
                 self.new_file_dialog_open = true;
             }
-            if ui.button(
-                egui::RichText::new("\u{ea83}") // codicon: new-folder
-                    .family(egui::FontFamily::Name("codicon".into()))
-            ).on_hover_text("New Folder").clicked() {
+            if ui
+                .button(
+                    egui::RichText::new("\u{ea83}") // codicon: new-folder
+                        .family(egui::FontFamily::Name("codicon".into())),
+                )
+                .on_hover_text("New Folder")
+                .clicked()
+            {
                 self.new_folder_dialog_open = true;
             }
         });
@@ -102,103 +105,115 @@ impl BerryCodeApp {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-            // Set font style ONCE for the whole tree (not per node)
-            ui.style_mut().text_styles.insert(
-                egui::TextStyle::Body,
-                egui::FontId::proportional(14.0),
-            );
-            ui.style_mut().text_styles.insert(
-                egui::TextStyle::Button,
-                egui::FontId::proportional(15.0),
-            );
+                // Set font style ONCE for the whole tree (not per node)
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                ui.style_mut()
+                    .text_styles
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(15.0));
 
-            // Load file tree on first render
-            if self.file_tree_cache.is_empty() && self.file_tree_load_pending {
-                ui.label("読み込み中...");
+                // Load file tree on first render
+                if self.file_tree_cache.is_empty() && self.file_tree_load_pending {
+                    ui.label("読み込み中...");
 
-                match native::fs::read_dir(&self.root_path, Some(1)) {
-                    Ok(entries) => {
-                        tracing::info!("✅ Loaded {} entries from {}", entries.len(), self.root_path);
-                        self.file_tree_cache = entries;
-                        self.file_tree_load_pending = false;
-                        // Auto-expand root folder on first load
-                        self.expanded_dirs.insert(self.root_path.clone());
-                    }
-                    Err(e) => {
-                        ui.colored_label(egui::Color32::RED, format!("エラー: {}", e));
-                        self.file_tree_load_pending = false;
-                    }
-                }
-            }
-
-            // Root folder row
-            let root_name = self.root_path.split('/').last().unwrap_or(&self.root_path);
-
-            let is_root_expanded = self.expanded_dirs.contains(&self.root_path);
-            let root_icon = if is_root_expanded { "\u{ea7c}" } else { "\u{ea83}" };
-
-            let response = ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(root_icon)
-                        .family(egui::FontFamily::Name("codicon".into()))
-                );
-                ui.add(egui::Label::new(root_name).sense(egui::Sense::click()))
-            }).inner;
-
-            if response.clicked() {
-                if is_root_expanded {
-                    self.expanded_dirs.remove(&self.root_path);
-                } else {
-                    self.expanded_dirs.insert(self.root_path.clone());
-                }
-            }
-
-            // Render children without cloning: take cache, render read-only,
-            // restore cache, then apply any event.
-            if is_root_expanded {
-                let cache = std::mem::take(&mut self.file_tree_cache);
-                let selected = self.editor_tabs.get(self.active_tab_idx).map(|t| t.file_path.as_str());
-                let mut event: Option<FileTreeEvent> = None;
-                for entry in &cache {
-                    if event.is_none() {
-                        event = Self::render_tree_node(ui, entry, 1, &self.expanded_dirs, selected);
-                    } else {
-                        Self::render_tree_node(ui, entry, 1, &self.expanded_dirs, selected);
-                    }
-                }
-                self.file_tree_cache = cache;
-
-                // Apply the single event (if any) after rendering
-                match event {
-                    Some(FileTreeEvent::ExpandDir(path, needs_load)) => {
-                        tracing::info!("📂 Expanded: {}", path);
-                        self.expanded_dirs.insert(path.clone());
-                        if needs_load {
-                            self.load_directory_children(&path);
+                    match native::fs::read_dir(&self.root_path, Some(1)) {
+                        Ok(entries) => {
+                            tracing::info!(
+                                "✅ Loaded {} entries from {}",
+                                entries.len(),
+                                self.root_path
+                            );
+                            self.file_tree_cache = entries;
+                            self.file_tree_load_pending = false;
+                            // Auto-expand root folder on first load
+                            self.expanded_dirs.insert(self.root_path.clone());
+                        }
+                        Err(e) => {
+                            ui.colored_label(egui::Color32::RED, format!("エラー: {}", e));
+                            self.file_tree_load_pending = false;
                         }
                     }
-                    Some(FileTreeEvent::CollapseDir(path)) => {
-                        tracing::info!("📁 Collapsed: {}", path);
-                        self.expanded_dirs.remove(&path);
-                    }
-                    Some(FileTreeEvent::OpenFile(path)) => {
-                        self.open_file_from_path(&path);
-                    }
-                    Some(FileTreeEvent::ContextMenu(path, is_dir)) => {
-                        self.context_menu_path = Some(path);
-                        self.context_menu_is_dir = is_dir;
-                        self.context_menu_pos = ui.ctx().input(|i| {
-                            i.pointer.hover_pos().unwrap_or(egui::Pos2::ZERO)
-                        });
-                    }
-                    Some(FileTreeEvent::StartAssetDrag(path)) => {
-                        self.dragged_asset_path = Some(path);
-                        tracing::info!("Drag started for asset: {:?}", self.dragged_asset_path);
-                    }
-                    None => {}
                 }
-            }
-        });
+
+                // Root folder row
+                let root_name = self.root_path.split('/').last().unwrap_or(&self.root_path);
+
+                let is_root_expanded = self.expanded_dirs.contains(&self.root_path);
+                let root_icon = if is_root_expanded {
+                    "\u{ea7c}"
+                } else {
+                    "\u{ea83}"
+                };
+
+                let response = ui
+                    .horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(root_icon)
+                                .family(egui::FontFamily::Name("codicon".into())),
+                        );
+                        ui.add(egui::Label::new(root_name).sense(egui::Sense::click()))
+                    })
+                    .inner;
+
+                if response.clicked() {
+                    if is_root_expanded {
+                        self.expanded_dirs.remove(&self.root_path);
+                    } else {
+                        self.expanded_dirs.insert(self.root_path.clone());
+                    }
+                }
+
+                // Render children without cloning: take cache, render read-only,
+                // restore cache, then apply any event.
+                if is_root_expanded {
+                    let cache = std::mem::take(&mut self.file_tree_cache);
+                    let selected = self
+                        .editor_tabs
+                        .get(self.active_tab_idx)
+                        .map(|t| t.file_path.as_str());
+                    let mut event: Option<FileTreeEvent> = None;
+                    for entry in &cache {
+                        if event.is_none() {
+                            event =
+                                Self::render_tree_node(ui, entry, 1, &self.expanded_dirs, selected);
+                        } else {
+                            Self::render_tree_node(ui, entry, 1, &self.expanded_dirs, selected);
+                        }
+                    }
+                    self.file_tree_cache = cache;
+
+                    // Apply the single event (if any) after rendering
+                    match event {
+                        Some(FileTreeEvent::ExpandDir(path, needs_load)) => {
+                            tracing::info!("📂 Expanded: {}", path);
+                            self.expanded_dirs.insert(path.clone());
+                            if needs_load {
+                                self.load_directory_children(&path);
+                            }
+                        }
+                        Some(FileTreeEvent::CollapseDir(path)) => {
+                            tracing::info!("📁 Collapsed: {}", path);
+                            self.expanded_dirs.remove(&path);
+                        }
+                        Some(FileTreeEvent::OpenFile(path)) => {
+                            self.open_file_from_path(&path);
+                        }
+                        Some(FileTreeEvent::ContextMenu(path, is_dir)) => {
+                            self.context_menu_path = Some(path);
+                            self.context_menu_is_dir = is_dir;
+                            self.context_menu_pos = ui
+                                .ctx()
+                                .input(|i| i.pointer.hover_pos().unwrap_or(egui::Pos2::ZERO));
+                        }
+                        Some(FileTreeEvent::StartAssetDrag(path)) => {
+                            self.dragged_asset_path = Some(path);
+                            tracing::info!("Drag started for asset: {:?}", self.dragged_asset_path);
+                        }
+                        None => {}
+                    }
+                }
+            });
     }
 
     /// Render a single tree node (file or directory) recursively.
@@ -222,12 +237,12 @@ impl BerryCodeApp {
                 ui.add_space(indent);
                 ui.spacing_mut().item_spacing.x = 4.0;
                 ui.label(
-                    egui::RichText::new(icon)
-                        .family(egui::FontFamily::Name("codicon".into()))
+                    egui::RichText::new(icon).family(egui::FontFamily::Name("codicon".into())),
                 );
-                ui.add(egui::Label::new(
-                    egui::RichText::new(&node.name).strong()
-                ).sense(egui::Sense::click()))
+                ui.add(
+                    egui::Label::new(egui::RichText::new(&node.name).strong())
+                        .sense(egui::Sense::click()),
+                )
             });
 
             let label_response = row_response.inner;
@@ -254,9 +269,21 @@ impl BerryCodeApp {
                 if let Some(children) = &node.children {
                     for child in children {
                         if event.is_none() {
-                            event = Self::render_tree_node(ui, child, depth + 1, expanded_dirs, selected_file);
+                            event = Self::render_tree_node(
+                                ui,
+                                child,
+                                depth + 1,
+                                expanded_dirs,
+                                selected_file,
+                            );
                         } else {
-                            Self::render_tree_node(ui, child, depth + 1, expanded_dirs, selected_file);
+                            Self::render_tree_node(
+                                ui,
+                                child,
+                                depth + 1,
+                                expanded_dirs,
+                                selected_file,
+                            );
                         }
                     }
                 }
@@ -275,7 +302,7 @@ impl BerryCodeApp {
                 ui.label(
                     egui::RichText::new(icon)
                         .color(color)
-                        .family(egui::FontFamily::Name("codicon".into()))
+                        .family(egui::FontFamily::Name("codicon".into())),
                 );
                 let text = if is_selected {
                     egui::RichText::new(&node.name).color(egui::Color32::WHITE)
@@ -355,8 +382,7 @@ impl BerryCodeApp {
                     self.primary_selected_id = Some(new_root);
                     self.scene_needs_sync = true;
                     self.active_panel = crate::app::types::ActivePanel::SceneEditor;
-                    self.status_message =
-                        format!("Instantiated prefab at origin: {}", file_path);
+                    self.status_message = format!("Instantiated prefab at origin: {}", file_path);
                     self.status_message_timestamp = Some(std::time::Instant::now());
                 }
                 Err(e) => {
@@ -378,9 +404,11 @@ impl BerryCodeApp {
             }
 
             // Check if this file is already open in a tab.
-            if let Some(idx) = self.scene_tabs.iter().position(|t| {
-                t.model.file_path.as_deref() == Some(file_path)
-            }) {
+            if let Some(idx) = self
+                .scene_tabs
+                .iter()
+                .position(|t| t.model.file_path.as_deref() == Some(file_path))
+            {
                 self.active_scene_tab = idx;
                 self.scene_model = self.scene_tabs[idx].model.clone();
                 self.scene_needs_sync = true;
@@ -399,7 +427,11 @@ impl BerryCodeApp {
         }
 
         // Check if file is already open
-        if let Some(idx) = self.editor_tabs.iter().position(|tab| tab.file_path == file_path) {
+        if let Some(idx) = self
+            .editor_tabs
+            .iter()
+            .position(|tab| tab.file_path == file_path)
+        {
             self.active_tab_idx = idx;
             tracing::info!("✅ Switched to existing tab: {}", file_path);
             return;
@@ -438,14 +470,20 @@ impl BerryCodeApp {
                 self.active_tab_idx = self.editor_tabs.len() - 1;
 
                 // Load git line changes for gutter markers
-                if let Ok(changes) = crate::native::git::get_line_changes(&self.root_path, file_path) {
+                if let Ok(changes) =
+                    crate::native::git::get_line_changes(&self.root_path, file_path)
+                {
                     if let Some(tab) = self.editor_tabs.last_mut() {
                         tab.git_line_changes = changes;
                         tab.git_changes_loaded = true;
                     }
                 }
 
-                tracing::info!("File loaded in new tab: {} ({} bytes)", file_path, content.len());
+                tracing::info!(
+                    "File loaded in new tab: {} ({} bytes)",
+                    file_path,
+                    content.len()
+                );
 
                 // Notify LSP about opened file
                 if let Some(lang) = crate::native::lsp_native::detect_server_language(file_path) {
@@ -484,7 +522,11 @@ impl BerryCodeApp {
     }
 
     /// Recursively update a directory entry's children in the cache
-    pub(crate) fn update_dir_entry_children(entries: &mut Vec<DirEntry>, target_path: &str, new_children: Vec<DirEntry>) {
+    pub(crate) fn update_dir_entry_children(
+        entries: &mut Vec<DirEntry>,
+        target_path: &str,
+        new_children: Vec<DirEntry>,
+    ) {
         for entry in entries.iter_mut() {
             if entry.path == target_path {
                 entry.children = Some(new_children);
@@ -533,7 +575,10 @@ impl BerryCodeApp {
             "\u{eb7e}" // codicon-code (XML)
         } else if filename.ends_with(".svg") {
             "\u{eaf0}" // codicon-file-media (SVG)
-        } else if filename.ends_with(".png") || filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        } else if filename.ends_with(".png")
+            || filename.ends_with(".jpg")
+            || filename.ends_with(".jpeg")
+        {
             "\u{eaf0}" // codicon-file-media (Images)
         } else if filename.ends_with(".gitignore") || filename.ends_with(".gitattributes") {
             "\u{ea84}" // codicon-git-branch (Git)
@@ -569,7 +614,8 @@ impl BerryCodeApp {
                                     self.file_tree_load_pending = true;
                                     self.file_tree_cache.clear();
                                     self.open_file_from_path(&path);
-                                    self.status_message = format!("Created: {}", self.new_file_name);
+                                    self.status_message =
+                                        format!("Created: {}", self.new_file_name);
                                     self.status_message_timestamp = Some(std::time::Instant::now());
                                 }
                                 Err(e) => {
@@ -613,7 +659,8 @@ impl BerryCodeApp {
                                 Ok(_) => {
                                     self.file_tree_load_pending = true;
                                     self.file_tree_cache.clear();
-                                    self.status_message = format!("Created folder: {}", self.new_folder_name);
+                                    self.status_message =
+                                        format!("Created folder: {}", self.new_folder_name);
                                     self.status_message_timestamp = Some(std::time::Instant::now());
                                 }
                                 Err(e) => {
@@ -647,94 +694,91 @@ impl BerryCodeApp {
                 .order(egui::Order::Foreground)
                 .fixed_pos(self.context_menu_pos)
                 .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style())
-                        .show(ui, |ui| {
-                            ui.set_min_width(160.0);
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.set_min_width(160.0);
 
-                            if self.context_menu_is_dir {
-                                if ui.button("New File Here...").clicked() {
-                                    // Set parent dir for new file creation
-                                    self.new_file_name = String::new();
-                                    self.new_file_dialog_open = true;
-                                    close_menu = true;
-                                }
-                                if ui.button("New Folder Here...").clicked() {
-                                    self.new_folder_name = String::new();
-                                    self.new_folder_dialog_open = true;
-                                    close_menu = true;
-                                }
-                                ui.separator();
-                            }
-
-                            if ui.button("Rename...").clicked() {
-                                let name = path.rsplit('/').next().unwrap_or(&path).to_string();
-                                self.rename_file_old_path = path.clone();
-                                self.rename_file_new_name = name;
-                                self.rename_file_dialog_open = true;
+                        if self.context_menu_is_dir {
+                            if ui.button("New File Here...").clicked() {
+                                // Set parent dir for new file creation
+                                self.new_file_name = String::new();
+                                self.new_file_dialog_open = true;
                                 close_menu = true;
                             }
+                            if ui.button("New Folder Here...").clicked() {
+                                self.new_folder_name = String::new();
+                                self.new_folder_dialog_open = true;
+                                close_menu = true;
+                            }
+                            ui.separator();
+                        }
 
-                            if ui.button("Delete").clicked() {
-                                let is_dir = std::path::Path::new(&path).is_dir();
-                                let result = if is_dir {
-                                    std::fs::remove_dir_all(&path)
-                                } else {
-                                    std::fs::remove_file(&path)
-                                };
-                                match result {
-                                    Ok(_) => {
-                                        self.status_message = format!(
-                                            "Deleted: {}",
-                                            path.rsplit('/').next().unwrap_or(&path)
-                                        );
-                                        self.status_message_timestamp =
-                                            Some(std::time::Instant::now());
-                                        self.file_tree_cache.clear();
-                                        self.file_tree_load_pending = true;
-                                        // Close tab if the deleted file was open
-                                        if let Some(idx) =
-                                            self.editor_tabs.iter().position(|t| t.file_path == path)
+                        if ui.button("Rename...").clicked() {
+                            let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+                            self.rename_file_old_path = path.clone();
+                            self.rename_file_new_name = name;
+                            self.rename_file_dialog_open = true;
+                            close_menu = true;
+                        }
+
+                        if ui.button("Delete").clicked() {
+                            let is_dir = std::path::Path::new(&path).is_dir();
+                            let result = if is_dir {
+                                std::fs::remove_dir_all(&path)
+                            } else {
+                                std::fs::remove_file(&path)
+                            };
+                            match result {
+                                Ok(_) => {
+                                    self.status_message = format!(
+                                        "Deleted: {}",
+                                        path.rsplit('/').next().unwrap_or(&path)
+                                    );
+                                    self.status_message_timestamp = Some(std::time::Instant::now());
+                                    self.file_tree_cache.clear();
+                                    self.file_tree_load_pending = true;
+                                    // Close tab if the deleted file was open
+                                    if let Some(idx) =
+                                        self.editor_tabs.iter().position(|t| t.file_path == path)
+                                    {
+                                        self.editor_tabs.remove(idx);
+                                        if self.active_tab_idx >= self.editor_tabs.len()
+                                            && !self.editor_tabs.is_empty()
                                         {
-                                            self.editor_tabs.remove(idx);
-                                            if self.active_tab_idx >= self.editor_tabs.len()
-                                                && !self.editor_tabs.is_empty()
-                                            {
-                                                self.active_tab_idx = self.editor_tabs.len() - 1;
-                                            }
+                                            self.active_tab_idx = self.editor_tabs.len() - 1;
                                         }
                                     }
-                                    Err(e) => {
-                                        self.status_message = format!("Delete failed: {}", e);
-                                        self.status_message_timestamp =
-                                            Some(std::time::Instant::now());
-                                    }
                                 }
-                                close_menu = true;
-                            }
-
-                            ui.separator();
-
-                            if ui.button("Copy Path").clicked() {
-                                ui.ctx().copy_text(path.clone());
-                                self.status_message = "Path copied".to_string();
-                                self.status_message_timestamp = Some(std::time::Instant::now());
-                                close_menu = true;
-                            }
-
-                            {
-                                let reveal_label = if cfg!(target_os = "macos") {
-                                    "Reveal in Finder"
-                                } else if cfg!(target_os = "windows") {
-                                    "Show in Explorer"
-                                } else {
-                                    "Open Containing Folder"
-                                };
-                                if ui.button(reveal_label).clicked() {
-                                    reveal_in_file_manager(&path);
-                                    close_menu = true;
+                                Err(e) => {
+                                    self.status_message = format!("Delete failed: {}", e);
+                                    self.status_message_timestamp = Some(std::time::Instant::now());
                                 }
                             }
-                        });
+                            close_menu = true;
+                        }
+
+                        ui.separator();
+
+                        if ui.button("Copy Path").clicked() {
+                            ui.ctx().copy_text(path.clone());
+                            self.status_message = "Path copied".to_string();
+                            self.status_message_timestamp = Some(std::time::Instant::now());
+                            close_menu = true;
+                        }
+
+                        {
+                            let reveal_label = if cfg!(target_os = "macos") {
+                                "Reveal in Finder"
+                            } else if cfg!(target_os = "windows") {
+                                "Show in Explorer"
+                            } else {
+                                "Open Containing Folder"
+                            };
+                            if ui.button(reveal_label).clicked() {
+                                reveal_in_file_manager(&path);
+                                close_menu = true;
+                            }
+                        }
+                    });
                 });
 
             // Close menu if an item was clicked or user clicks elsewhere
@@ -775,9 +819,7 @@ impl BerryCodeApp {
                 ui.horizontal(|ui| {
                     ui.label("New name:");
                     let response = ui.text_edit_singleline(&mut self.rename_file_new_name);
-                    if response.lost_focus()
-                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                    {
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         should_rename = true;
                     }
                     response.request_focus();
@@ -801,15 +843,12 @@ impl BerryCodeApp {
             let new_path = format!("{}/{}", parent, self.rename_file_new_name);
             match std::fs::rename(&old, &new_path) {
                 Ok(_) => {
-                    self.status_message =
-                        format!("Renamed to {}", self.rename_file_new_name);
+                    self.status_message = format!("Renamed to {}", self.rename_file_new_name);
                     self.status_message_timestamp = Some(std::time::Instant::now());
                     self.file_tree_cache.clear();
                     self.file_tree_load_pending = true;
                     // Update open tab path if the renamed file was open
-                    if let Some(tab) =
-                        self.editor_tabs.iter_mut().find(|t| t.file_path == old)
-                    {
+                    if let Some(tab) = self.editor_tabs.iter_mut().find(|t| t.file_path == old) {
                         tab.file_path = new_path;
                     }
                 }
@@ -859,7 +898,10 @@ impl BerryCodeApp {
             ("\u{eb7e}", file_icon_colors::HTML_ORANGE)
         } else if filename.ends_with(".svg") {
             ("\u{eaf0}", file_icon_colors::SVG_AMBER)
-        } else if filename.ends_with(".png") || filename.ends_with(".jpg") || filename.ends_with(".jpeg") {
+        } else if filename.ends_with(".png")
+            || filename.ends_with(".jpg")
+            || filename.ends_with(".jpeg")
+        {
             ("\u{eaf0}", file_icon_colors::IMAGE_PURPLE)
         } else if filename.ends_with(".gitignore") || filename.ends_with(".gitattributes") {
             ("\u{ea84}", file_icon_colors::GIT_ORANGE)

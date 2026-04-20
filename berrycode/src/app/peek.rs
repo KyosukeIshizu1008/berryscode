@@ -1,9 +1,9 @@
 //! Peek Definition
 //! Shows definition inline instead of jumping to it
 
-use super::BerryCodeApp;
 use super::types::PeekDefinition;
 use super::ui_colors;
+use super::BerryCodeApp;
 
 /// Render the peek definition inline window below the current cursor line.
 /// Standalone function to avoid borrow conflicts with BerryCodeApp.
@@ -30,11 +30,8 @@ pub(crate) fn render_peek_standalone(
     );
 
     // Background with border
-    ui.painter().rect_filled(
-        peek_rect,
-        4.0,
-        egui::Color32::from_rgb(35, 36, 40),
-    );
+    ui.painter()
+        .rect_filled(peek_rect, 4.0, egui::Color32::from_rgb(35, 36, 40));
     ui.painter().rect_stroke(
         peek_rect,
         4.0,
@@ -42,10 +39,7 @@ pub(crate) fn render_peek_standalone(
     );
 
     // Header with file path
-    let header_rect = egui::Rect::from_min_size(
-        peek_rect.min,
-        egui::vec2(peek_width, 22.0),
-    );
+    let header_rect = egui::Rect::from_min_size(peek_rect.min, egui::vec2(peek_width, 22.0));
     ui.painter().rect_filled(
         header_rect,
         egui::Rounding {

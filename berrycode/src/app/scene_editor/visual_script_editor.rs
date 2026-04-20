@@ -1,7 +1,7 @@
 //! Visual Script Editor: node-based logic graph editor UI.
 
-use crate::app::BerryCodeApp;
 use super::visual_script::*;
+use crate::app::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Render the Visual Script Editor floating window.
@@ -45,7 +45,8 @@ impl BerryCodeApp {
 
                 // Canvas area
                 let available = ui.available_size();
-                let (response, painter) = ui.allocate_painter(available, egui::Sense::click_and_drag());
+                let (response, painter) =
+                    ui.allocate_painter(available, egui::Sense::click_and_drag());
                 let canvas_rect = response.rect;
 
                 // Draw background grid
@@ -79,11 +80,17 @@ impl BerryCodeApp {
                         let node_h = 40.0;
                         let from_pt = egui::Pos2::new(
                             canvas_rect.min.x + from.position[0] + node_w,
-                            canvas_rect.min.y + from.position[1] + node_h * 0.5 + edge.from_pin as f32 * 15.0,
+                            canvas_rect.min.y
+                                + from.position[1]
+                                + node_h * 0.5
+                                + edge.from_pin as f32 * 15.0,
                         );
                         let to_pt = egui::Pos2::new(
                             canvas_rect.min.x + to.position[0],
-                            canvas_rect.min.y + to.position[1] + node_h * 0.5 + edge.to_pin as f32 * 15.0,
+                            canvas_rect.min.y
+                                + to.position[1]
+                                + node_h * 0.5
+                                + edge.to_pin as f32 * 15.0,
                         );
                         let mid_x = (from_pt.x + to_pt.x) * 0.5;
                         let cp1 = egui::Pos2::new(mid_x, from_pt.y);
@@ -108,21 +115,32 @@ impl BerryCodeApp {
                         canvas_rect.min.x + node.position[0],
                         canvas_rect.min.y + node.position[1],
                     );
-                    let node_rect = egui::Rect::from_min_size(node_pos, egui::Vec2::new(node_w, node_h));
+                    let node_rect =
+                        egui::Rect::from_min_size(node_pos, egui::Vec2::new(node_w, node_h));
 
                     // Node color by type
                     let color = match &node.node_type {
-                        NodeType::OnStart | NodeType::OnUpdate => egui::Color32::from_rgb(80, 150, 80),
+                        NodeType::OnStart | NodeType::OnUpdate => {
+                            egui::Color32::from_rgb(80, 150, 80)
+                        }
                         NodeType::Branch => egui::Color32::from_rgb(200, 150, 50),
                         NodeType::Print { .. } => egui::Color32::from_rgb(100, 120, 180),
-                        NodeType::SetTransform | NodeType::GetTransform => egui::Color32::from_rgb(150, 80, 150),
-                        NodeType::FloatAdd | NodeType::FloatCompare { .. } => egui::Color32::from_rgb(80, 130, 150),
+                        NodeType::SetTransform | NodeType::GetTransform => {
+                            egui::Color32::from_rgb(150, 80, 150)
+                        }
+                        NodeType::FloatAdd | NodeType::FloatCompare { .. } => {
+                            egui::Color32::from_rgb(80, 130, 150)
+                        }
                         NodeType::Delay { .. } => egui::Color32::from_rgb(150, 100, 50),
                         NodeType::SpawnEntity { .. } => egui::Color32::from_rgb(180, 80, 80),
                     };
 
                     painter.rect_filled(node_rect, 4.0, color);
-                    painter.rect_stroke(node_rect, 4.0, egui::Stroke::new(1.0, egui::Color32::WHITE));
+                    painter.rect_stroke(
+                        node_rect,
+                        4.0,
+                        egui::Stroke::new(1.0, egui::Color32::WHITE),
+                    );
                     painter.text(
                         node_rect.center(),
                         egui::Align2::CENTER_CENTER,
@@ -182,7 +200,9 @@ impl BerryCodeApp {
                         let next_id = script.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
                         script.nodes.push(ScriptNode {
                             id: next_id,
-                            node_type: NodeType::Print { message: "Hello".into() },
+                            node_type: NodeType::Print {
+                                message: "Hello".into(),
+                            },
                             position: [200.0, 200.0],
                         });
                         ui.close_menu();

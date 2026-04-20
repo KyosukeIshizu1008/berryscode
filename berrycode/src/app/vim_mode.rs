@@ -171,7 +171,12 @@ impl BerryCodeApp {
                 }
                 true
             }
-            egui::Event::Key { key, pressed: true, modifiers, .. } => {
+            egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } => {
                 self.process_normal_key(*key, modifiers);
                 true
             }
@@ -229,8 +234,11 @@ impl BerryCodeApp {
 
         // Check pending operator — capture cursor_line first, then call methods
         if self.vim.pending_op != PendingOp::None {
-            let cursor_line = self.editor_tabs.get(self.active_tab_idx)
-                .map(|t| t.cursor_line).unwrap_or(0);
+            let cursor_line = self
+                .editor_tabs
+                .get(self.active_tab_idx)
+                .map(|t| t.cursor_line)
+                .unwrap_or(0);
             match ch {
                 'd' if self.vim.pending_op == PendingOp::Delete => {
                     self.vim.pending_op = PendingOp::None;
@@ -301,7 +309,13 @@ impl BerryCodeApp {
                 }
                 'k' => tab.cursor_line = tab.cursor_line.saturating_sub(n),
                 'l' => {
-                    let line_len = tab.buffer.to_string().lines().nth(tab.cursor_line).map(|l| l.len()).unwrap_or(0);
+                    let line_len = tab
+                        .buffer
+                        .to_string()
+                        .lines()
+                        .nth(tab.cursor_line)
+                        .map(|l| l.len())
+                        .unwrap_or(0);
                     tab.cursor_col = (tab.cursor_col + n).min(line_len.saturating_sub(1));
                 }
                 'w' | 'W' => deferred = DeferredVim::WordForward(n),
@@ -309,7 +323,13 @@ impl BerryCodeApp {
                 'e' => deferred = DeferredVim::WordEnd(n),
                 '0' => tab.cursor_col = 0,
                 '$' => {
-                    let line_len = tab.buffer.to_string().lines().nth(tab.cursor_line).map(|l| l.len()).unwrap_or(0);
+                    let line_len = tab
+                        .buffer
+                        .to_string()
+                        .lines()
+                        .nth(tab.cursor_line)
+                        .map(|l| l.len())
+                        .unwrap_or(0);
                     tab.cursor_col = line_len.saturating_sub(1).max(0);
                 }
                 '^' => {
@@ -332,7 +352,14 @@ impl BerryCodeApp {
                     for _ in 0..n {
                         while tab.cursor_line > 0 {
                             tab.cursor_line -= 1;
-                            if text.lines().nth(tab.cursor_line).map(|l| l.trim().is_empty()).unwrap_or(true) { break; }
+                            if text
+                                .lines()
+                                .nth(tab.cursor_line)
+                                .map(|l| l.trim().is_empty())
+                                .unwrap_or(true)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
@@ -342,27 +369,52 @@ impl BerryCodeApp {
                     for _ in 0..n {
                         while tab.cursor_line < max {
                             tab.cursor_line += 1;
-                            if text.lines().nth(tab.cursor_line).map(|l| l.trim().is_empty()).unwrap_or(true) { break; }
+                            if text
+                                .lines()
+                                .nth(tab.cursor_line)
+                                .map(|l| l.trim().is_empty())
+                                .unwrap_or(true)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
 
                 // ─── Mode switching ──────────────
-                'i' => { self.vim.mode = VimMode::Insert; self.vim.status = "-- INSERT --".to_string(); }
+                'i' => {
+                    self.vim.mode = VimMode::Insert;
+                    self.vim.status = "-- INSERT --".to_string();
+                }
                 'I' => {
                     if let Some(line) = tab.buffer.to_string().lines().nth(tab.cursor_line) {
                         tab.cursor_col = line.len() - line.trim_start().len();
                     }
                     self.vim.mode = VimMode::Insert;
                 }
-                'a' => { tab.cursor_col += 1; self.vim.mode = VimMode::Insert; }
+                'a' => {
+                    tab.cursor_col += 1;
+                    self.vim.mode = VimMode::Insert;
+                }
                 'A' => {
-                    let line_len = tab.buffer.to_string().lines().nth(tab.cursor_line).map(|l| l.len()).unwrap_or(0);
+                    let line_len = tab
+                        .buffer
+                        .to_string()
+                        .lines()
+                        .nth(tab.cursor_line)
+                        .map(|l| l.len())
+                        .unwrap_or(0);
                     tab.cursor_col = line_len;
                     self.vim.mode = VimMode::Insert;
                 }
                 'o' => {
-                    let line_len = tab.buffer.to_string().lines().nth(tab.cursor_line).map(|l| l.len()).unwrap_or(0);
+                    let line_len = tab
+                        .buffer
+                        .to_string()
+                        .lines()
+                        .nth(tab.cursor_line)
+                        .map(|l| l.len())
+                        .unwrap_or(0);
                     tab.cursor_col = line_len;
                     self.vim.mode = VimMode::Insert;
                     deferred = DeferredVim::InsertNewlineBelow;
@@ -384,7 +436,11 @@ impl BerryCodeApp {
                     self.vim.mode = VimMode::VisualLine;
                     self.vim.status = "-- VISUAL LINE --".to_string();
                 }
-                ':' => { self.vim.mode = VimMode::Command; self.vim.command_line.clear(); self.vim.status = ":".to_string(); }
+                ':' => {
+                    self.vim.mode = VimMode::Command;
+                    self.vim.command_line.clear();
+                    self.vim.status = ":".to_string();
+                }
                 'r' => self.vim.mode = VimMode::Replace,
                 'R' => self.vim.mode = VimMode::Insert,
 
@@ -402,8 +458,18 @@ impl BerryCodeApp {
                 'J' => deferred = DeferredVim::JoinLines(n),
 
                 // ─── Search ─────────────────────
-                '/' => { self.vim.mode = VimMode::Command; self.vim.search_forward = true; self.vim.command_line.clear(); self.vim.status = "/".to_string(); }
-                '?' => { self.vim.mode = VimMode::Command; self.vim.search_forward = false; self.vim.command_line.clear(); self.vim.status = "?".to_string(); }
+                '/' => {
+                    self.vim.mode = VimMode::Command;
+                    self.vim.search_forward = true;
+                    self.vim.command_line.clear();
+                    self.vim.status = "/".to_string();
+                }
+                '?' => {
+                    self.vim.mode = VimMode::Command;
+                    self.vim.search_forward = false;
+                    self.vim.command_line.clear();
+                    self.vim.status = "?".to_string();
+                }
                 'n' => deferred = DeferredVim::SearchNext,
                 'N' => deferred = DeferredVim::SearchPrev,
 
@@ -414,16 +480,30 @@ impl BerryCodeApp {
         // Execute deferred actions
         match deferred {
             DeferredVim::None => {}
-            DeferredVim::WordForward(n) => { for _ in 0..n { self.vim_word_forward(); } }
-            DeferredVim::WordBackward(n) => { for _ in 0..n { self.vim_word_backward(); } }
-            DeferredVim::WordEnd(n) => { for _ in 0..n { self.vim_word_end(); } }
+            DeferredVim::WordForward(n) => {
+                for _ in 0..n {
+                    self.vim_word_forward();
+                }
+            }
+            DeferredVim::WordBackward(n) => {
+                for _ in 0..n {
+                    self.vim_word_backward();
+                }
+            }
+            DeferredVim::WordEnd(n) => {
+                for _ in 0..n {
+                    self.vim_word_end();
+                }
+            }
             DeferredVim::InsertNewlineBelow => self.vim_insert_newline_below(),
             DeferredVim::InsertNewlineAbove => self.vim_insert_newline_above(),
             DeferredVim::DeleteChar(n) => self.vim_delete_char(n),
             DeferredVim::BackspaceDelete(n) => {
                 for _ in 0..n {
                     if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
-                        if tab.cursor_col > 0 { tab.cursor_col -= 1; }
+                        if tab.cursor_col > 0 {
+                            tab.cursor_col -= 1;
+                        }
                     }
                     self.vim_delete_char(1);
                 }
@@ -452,7 +532,11 @@ impl BerryCodeApp {
 
     fn handle_vim_insert(&mut self, event: &egui::Event) -> bool {
         match event {
-            egui::Event::Key { key: egui::Key::Escape, pressed: true, .. } => {
+            egui::Event::Key {
+                key: egui::Key::Escape,
+                pressed: true,
+                ..
+            } => {
                 self.vim.mode = VimMode::Normal;
                 self.vim.status.clear();
                 // Move cursor left by 1 (Vim convention)
@@ -498,7 +582,11 @@ impl BerryCodeApp {
                 }
                 true
             }
-            egui::Event::Key { key: egui::Key::Escape, pressed: true, .. } => {
+            egui::Event::Key {
+                key: egui::Key::Escape,
+                pressed: true,
+                ..
+            } => {
                 self.vim.mode = VimMode::Normal;
                 self.vim.status.clear();
                 true
@@ -513,7 +601,8 @@ impl BerryCodeApp {
         match event {
             egui::Event::Text(text) => {
                 self.vim.command_line.push_str(text);
-                self.vim.status = if self.vim.search_forward || !self.vim.search_pattern.is_empty() {
+                self.vim.status = if self.vim.search_forward || !self.vim.search_pattern.is_empty()
+                {
                     if self.vim.status.starts_with('/') || self.vim.status.starts_with('?') {
                         format!("{}{}", &self.vim.status[..1], self.vim.command_line)
                     } else {
@@ -524,7 +613,9 @@ impl BerryCodeApp {
                 };
                 true
             }
-            egui::Event::Key { key, pressed: true, .. } => {
+            egui::Event::Key {
+                key, pressed: true, ..
+            } => {
                 match key {
                     egui::Key::Enter => {
                         let cmd = self.vim.command_line.clone();
@@ -579,7 +670,11 @@ impl BerryCodeApp {
                 self.vim.mode = VimMode::Normal;
                 true
             }
-            egui::Event::Key { key: egui::Key::Escape, pressed: true, .. } => {
+            egui::Event::Key {
+                key: egui::Key::Escape,
+                pressed: true,
+                ..
+            } => {
                 self.vim.mode = VimMode::Normal;
                 true
             }
@@ -647,16 +742,30 @@ impl BerryCodeApp {
         };
         let text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        if tab.cursor_line >= lines.len() { return; }
+        if tab.cursor_line >= lines.len() {
+            return;
+        }
         let line = lines[tab.cursor_line];
         let mut col = tab.cursor_col;
 
         // Skip current word chars
-        while col < line.len() && line.as_bytes().get(col).map(|b| b.is_ascii_alphanumeric() || *b == b'_').unwrap_or(false) {
+        while col < line.len()
+            && line
+                .as_bytes()
+                .get(col)
+                .map(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                .unwrap_or(false)
+        {
             col += 1;
         }
         // Skip whitespace
-        while col < line.len() && line.as_bytes().get(col).map(|b| b.is_ascii_whitespace()).unwrap_or(false) {
+        while col < line.len()
+            && line
+                .as_bytes()
+                .get(col)
+                .map(|b| b.is_ascii_whitespace())
+                .unwrap_or(false)
+        {
             col += 1;
         }
 
@@ -675,7 +784,9 @@ impl BerryCodeApp {
         };
         let text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        if tab.cursor_line >= lines.len() { return; }
+        if tab.cursor_line >= lines.len() {
+            return;
+        }
         let line = lines[tab.cursor_line];
         let mut col = tab.cursor_col;
 
@@ -689,11 +800,23 @@ impl BerryCodeApp {
 
         col = col.saturating_sub(1);
         // Skip whitespace backward
-        while col > 0 && line.as_bytes().get(col).map(|b| b.is_ascii_whitespace()).unwrap_or(false) {
+        while col > 0
+            && line
+                .as_bytes()
+                .get(col)
+                .map(|b| b.is_ascii_whitespace())
+                .unwrap_or(false)
+        {
             col -= 1;
         }
         // Skip word chars backward
-        while col > 0 && line.as_bytes().get(col.saturating_sub(1)).map(|b| b.is_ascii_alphanumeric() || *b == b'_').unwrap_or(false) {
+        while col > 0
+            && line
+                .as_bytes()
+                .get(col.saturating_sub(1))
+                .map(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                .unwrap_or(false)
+        {
             col -= 1;
         }
         tab.cursor_col = col;
@@ -706,16 +829,30 @@ impl BerryCodeApp {
         };
         let text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        if tab.cursor_line >= lines.len() { return; }
+        if tab.cursor_line >= lines.len() {
+            return;
+        }
         let line = lines[tab.cursor_line];
         let mut col = tab.cursor_col + 1;
 
         // Skip whitespace
-        while col < line.len() && line.as_bytes().get(col).map(|b| b.is_ascii_whitespace()).unwrap_or(false) {
+        while col < line.len()
+            && line
+                .as_bytes()
+                .get(col)
+                .map(|b| b.is_ascii_whitespace())
+                .unwrap_or(false)
+        {
             col += 1;
         }
         // Move to end of word
-        while col < line.len() && line.as_bytes().get(col).map(|b| b.is_ascii_alphanumeric() || *b == b'_').unwrap_or(false) {
+        while col < line.len()
+            && line
+                .as_bytes()
+                .get(col)
+                .map(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                .unwrap_or(false)
+        {
             col += 1;
         }
         tab.cursor_col = col.saturating_sub(1).min(line.len().saturating_sub(1));
@@ -739,9 +876,16 @@ impl BerryCodeApp {
         };
         let mut text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        if tab.cursor_line >= lines.len() { return; }
+        if tab.cursor_line >= lines.len() {
+            return;
+        }
 
-        let byte_offset: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum::<usize>() + tab.cursor_col;
+        let byte_offset: usize = lines
+            .iter()
+            .take(tab.cursor_line)
+            .map(|l| l.len() + 1)
+            .sum::<usize>()
+            + tab.cursor_col;
         let end = (byte_offset + n).min(text.len());
         if byte_offset < end {
             let deleted = text[byte_offset..end].to_string();
@@ -787,7 +931,9 @@ impl BerryCodeApp {
 
     fn vim_paste_after(&mut self, n: usize) {
         let reg_text = self.vim.get_register('"').cloned().unwrap_or_default();
-        if reg_text.is_empty() { return; }
+        if reg_text.is_empty() {
+            return;
+        }
 
         let tab = match self.editor_tabs.get_mut(self.active_tab_idx) {
             Some(t) => t,
@@ -800,14 +946,24 @@ impl BerryCodeApp {
 
         if is_linewise {
             // Paste on new line below
-            let line_end: usize = lines.iter().take(tab.cursor_line + 1).map(|l| l.len() + 1).sum::<usize>();
+            let line_end: usize = lines
+                .iter()
+                .take(tab.cursor_line + 1)
+                .map(|l| l.len() + 1)
+                .sum::<usize>();
             let insert_at = line_end.min(text.len());
             let paste = format!("{}\n", reg_text).repeat(n);
             text.insert_str(insert_at, &paste);
             tab.cursor_line += 1;
             tab.cursor_col = 0;
         } else {
-            let byte_offset: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum::<usize>() + tab.cursor_col + 1;
+            let byte_offset: usize = lines
+                .iter()
+                .take(tab.cursor_line)
+                .map(|l| l.len() + 1)
+                .sum::<usize>()
+                + tab.cursor_col
+                + 1;
             let insert_at = byte_offset.min(text.len());
             let paste = reg_text.repeat(n);
             text.insert_str(insert_at, &paste);
@@ -820,7 +976,9 @@ impl BerryCodeApp {
 
     fn vim_paste_before(&mut self, n: usize) {
         let reg_text = self.vim.get_register('"').cloned().unwrap_or_default();
-        if reg_text.is_empty() { return; }
+        if reg_text.is_empty() {
+            return;
+        }
 
         let tab = match self.editor_tabs.get_mut(self.active_tab_idx) {
             Some(t) => t,
@@ -832,12 +990,21 @@ impl BerryCodeApp {
         let is_linewise = reg_text.contains('\n');
 
         if is_linewise {
-            let line_start: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum();
+            let line_start: usize = lines
+                .iter()
+                .take(tab.cursor_line)
+                .map(|l| l.len() + 1)
+                .sum();
             let paste = format!("{}\n", reg_text).repeat(n);
             text.insert_str(line_start.min(text.len()), &paste);
             tab.cursor_col = 0;
         } else {
-            let byte_offset: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum::<usize>() + tab.cursor_col;
+            let byte_offset: usize = lines
+                .iter()
+                .take(tab.cursor_line)
+                .map(|l| l.len() + 1)
+                .sum::<usize>()
+                + tab.cursor_col;
             let paste = reg_text.repeat(n);
             text.insert_str(byte_offset.min(text.len()), &paste);
         }
@@ -853,9 +1020,16 @@ impl BerryCodeApp {
         };
         let mut text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        if tab.cursor_line >= lines.len() { return; }
+        if tab.cursor_line >= lines.len() {
+            return;
+        }
 
-        let byte_offset: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum::<usize>() + tab.cursor_col;
+        let byte_offset: usize = lines
+            .iter()
+            .take(tab.cursor_line)
+            .map(|l| l.len() + 1)
+            .sum::<usize>()
+            + tab.cursor_col;
         if byte_offset < text.len() {
             text.replace_range(byte_offset..byte_offset + 1, &ch.to_string());
             tab.buffer = crate::buffer::TextBuffer::from_str(&text);
@@ -872,9 +1046,16 @@ impl BerryCodeApp {
 
         for _ in 0..count {
             let lines: Vec<&str> = text.lines().collect();
-            if tab.cursor_line + 1 >= lines.len() { break; }
+            if tab.cursor_line + 1 >= lines.len() {
+                break;
+            }
 
-            let line_end: usize = lines.iter().take(tab.cursor_line + 1).map(|l| l.len() + 1).sum::<usize>() - 1;
+            let line_end: usize = lines
+                .iter()
+                .take(tab.cursor_line + 1)
+                .map(|l| l.len() + 1)
+                .sum::<usize>()
+                - 1;
             if line_end < text.len() {
                 // Replace newline with space
                 text.replace_range(line_end..line_end + 1, " ");
@@ -892,11 +1073,16 @@ impl BerryCodeApp {
         };
         let mut text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        let line_end: usize = lines.iter().take(tab.cursor_line + 1).map(|l| l.len() + 1).sum::<usize>();
+        let line_end: usize = lines
+            .iter()
+            .take(tab.cursor_line + 1)
+            .map(|l| l.len() + 1)
+            .sum::<usize>();
         let insert_at = (line_end).min(text.len());
 
         // Get indentation from current line
-        let indent: String = lines.get(tab.cursor_line)
+        let indent: String = lines
+            .get(tab.cursor_line)
             .map(|l| l.chars().take_while(|c| c.is_whitespace()).collect())
             .unwrap_or_default();
 
@@ -914,9 +1100,14 @@ impl BerryCodeApp {
         };
         let mut text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        let line_start: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum();
+        let line_start: usize = lines
+            .iter()
+            .take(tab.cursor_line)
+            .map(|l| l.len() + 1)
+            .sum();
 
-        let indent: String = lines.get(tab.cursor_line)
+        let indent: String = lines
+            .get(tab.cursor_line)
             .map(|l| l.chars().take_while(|c| c.is_whitespace()).collect())
             .unwrap_or_default();
 
@@ -937,7 +1128,9 @@ impl BerryCodeApp {
     }
 
     fn vim_search_next(&mut self) {
-        if self.vim.search_pattern.is_empty() { return; }
+        if self.vim.search_pattern.is_empty() {
+            return;
+        }
 
         let tab = match self.editor_tabs.get_mut(self.active_tab_idx) {
             Some(t) => t,
@@ -948,7 +1141,11 @@ impl BerryCodeApp {
 
         // Search forward from current position
         for line_idx in tab.cursor_line..lines.len() {
-            let start_col = if line_idx == tab.cursor_line { tab.cursor_col + 1 } else { 0 };
+            let start_col = if line_idx == tab.cursor_line {
+                tab.cursor_col + 1
+            } else {
+                0
+            };
             if let Some(line) = lines.get(line_idx) {
                 if start_col < line.len() {
                     if let Some(pos) = line[start_col..].find(&self.vim.search_pattern) {
@@ -973,7 +1170,9 @@ impl BerryCodeApp {
     }
 
     fn vim_search_prev(&mut self) {
-        if self.vim.search_pattern.is_empty() { return; }
+        if self.vim.search_pattern.is_empty() {
+            return;
+        }
 
         let tab = match self.editor_tabs.get_mut(self.active_tab_idx) {
             Some(t) => t,
@@ -985,7 +1184,11 @@ impl BerryCodeApp {
         // Search backward
         for line_idx in (0..=tab.cursor_line).rev() {
             if let Some(line) = lines.get(line_idx) {
-                let end_col = if line_idx == tab.cursor_line { tab.cursor_col } else { line.len() };
+                let end_col = if line_idx == tab.cursor_line {
+                    tab.cursor_col
+                } else {
+                    line.len()
+                };
                 if let Some(pos) = line[..end_col].rfind(&self.vim.search_pattern) {
                     tab.cursor_line = line_idx;
                     tab.cursor_col = pos;
@@ -1003,7 +1206,9 @@ impl BerryCodeApp {
         };
         let text = tab.buffer.to_string();
         let lines: Vec<&str> = text.lines().collect();
-        if tab.cursor_line >= lines.len() { return; }
+        if tab.cursor_line >= lines.len() {
+            return;
+        }
         let line = lines[tab.cursor_line];
         let col = tab.cursor_col;
 
@@ -1016,11 +1221,17 @@ impl BerryCodeApp {
                 let mut s = col;
                 let mut e = col;
                 if col < bytes.len() && is_word_char(bytes[col]) {
-                    while s > 0 && is_word_char(bytes[s - 1]) { s -= 1; }
-                    while e < bytes.len() && is_word_char(bytes[e]) { e += 1; }
+                    while s > 0 && is_word_char(bytes[s - 1]) {
+                        s -= 1;
+                    }
+                    while e < bytes.len() && is_word_char(bytes[e]) {
+                        e += 1;
+                    }
                     if !is_inner {
                         // 'aw' includes trailing whitespace
-                        while e < bytes.len() && bytes[e].is_ascii_whitespace() { e += 1; }
+                        while e < bytes.len() && bytes[e].is_ascii_whitespace() {
+                            e += 1;
+                        }
                     }
                 }
                 (s, e)
@@ -1033,17 +1244,27 @@ impl BerryCodeApp {
                 let mut close = None;
                 // Find opening quote before or at cursor
                 for i in (0..=col.min(bytes.len().saturating_sub(1))).rev() {
-                    if bytes[i] == quote { open = Some(i); break; }
+                    if bytes[i] == quote {
+                        open = Some(i);
+                        break;
+                    }
                 }
                 // Find closing quote after cursor
                 if let Some(o) = open {
                     for i in (o + 1)..bytes.len() {
-                        if bytes[i] == quote { close = Some(i); break; }
+                        if bytes[i] == quote {
+                            close = Some(i);
+                            break;
+                        }
                     }
                 }
                 match (open, close) {
                     (Some(o), Some(c)) => {
-                        if is_inner { (o + 1, c) } else { (o, c + 1) }
+                        if is_inner {
+                            (o + 1, c)
+                        } else {
+                            (o, c + 1)
+                        }
                     }
                     _ => return,
                 }
@@ -1055,7 +1276,9 @@ impl BerryCodeApp {
             _ => return,
         };
 
-        if start >= end { return; }
+        if start >= end {
+            return;
+        }
 
         let selected = &line[start..end];
 
@@ -1067,7 +1290,11 @@ impl BerryCodeApp {
 
         if is_delete {
             let mut full_text = text.clone();
-            let line_offset: usize = lines.iter().take(tab.cursor_line).map(|l| l.len() + 1).sum();
+            let line_offset: usize = lines
+                .iter()
+                .take(tab.cursor_line)
+                .map(|l| l.len() + 1)
+                .sum();
             full_text.replace_range((line_offset + start)..(line_offset + end), "");
             self.vim.set_register('"', selected.to_string());
             tab.buffer = crate::buffer::TextBuffer::from_str(&full_text);
@@ -1075,42 +1302,58 @@ impl BerryCodeApp {
             tab.mark_dirty();
         }
     }
-
 }
 
 /// Find matched bracket pair range on a line (free function to avoid borrow issues)
-fn find_matched_pair(line: &str, col: usize, open: u8, close: u8, is_inner: bool) -> (usize, usize) {
-        let bytes = line.as_bytes();
-        let mut depth = 0;
-        let mut open_pos = None;
+fn find_matched_pair(
+    line: &str,
+    col: usize,
+    open: u8,
+    close: u8,
+    is_inner: bool,
+) -> (usize, usize) {
+    let bytes = line.as_bytes();
+    let mut depth = 0;
+    let mut open_pos = None;
 
-        // Search backward for opening bracket
-        for i in (0..=col.min(bytes.len().saturating_sub(1))).rev() {
-            if bytes[i] == close { depth += 1; }
-            if bytes[i] == open {
-                if depth == 0 { open_pos = Some(i); break; }
-                depth -= 1;
-            }
+    // Search backward for opening bracket
+    for i in (0..=col.min(bytes.len().saturating_sub(1))).rev() {
+        if bytes[i] == close {
+            depth += 1;
         }
-
-        let open_pos = match open_pos {
-            Some(p) => p,
-            None => return (col, col),
-        };
-
-        // Search forward for closing bracket
-        depth = 0;
-        for i in (open_pos + 1)..bytes.len() {
-            if bytes[i] == open { depth += 1; }
-            if bytes[i] == close {
-                if depth == 0 {
-                    return if is_inner { (open_pos + 1, i) } else { (open_pos, i + 1) };
-                }
-                depth -= 1;
+        if bytes[i] == open {
+            if depth == 0 {
+                open_pos = Some(i);
+                break;
             }
+            depth -= 1;
         }
+    }
 
-        (col, col)
+    let open_pos = match open_pos {
+        Some(p) => p,
+        None => return (col, col),
+    };
+
+    // Search forward for closing bracket
+    depth = 0;
+    for i in (open_pos + 1)..bytes.len() {
+        if bytes[i] == open {
+            depth += 1;
+        }
+        if bytes[i] == close {
+            if depth == 0 {
+                return if is_inner {
+                    (open_pos + 1, i)
+                } else {
+                    (open_pos, i + 1)
+                };
+            }
+            depth -= 1;
+        }
+    }
+
+    (col, col)
 }
 
 impl BerryCodeApp {

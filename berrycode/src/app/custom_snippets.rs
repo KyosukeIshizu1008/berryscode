@@ -13,8 +13,8 @@
 //!
 //! Files are loaded from ~/.berrycode/snippets/*.json
 
-use super::BerryCodeApp;
 use super::types::LspCompletionItem;
+use super::BerryCodeApp;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -80,9 +80,7 @@ pub fn load_user_snippets() -> Vec<LoadedSnippet> {
                     for (name, def) in defs {
                         let prefix = match &def.prefix {
                             SnippetPrefix::Single(s) => s.clone(),
-                            SnippetPrefix::Multiple(v) => {
-                                v.first().cloned().unwrap_or_default()
-                            }
+                            SnippetPrefix::Multiple(v) => v.first().cloned().unwrap_or_default(),
                         };
 
                         let body = match &def.body {
@@ -90,10 +88,7 @@ pub fn load_user_snippets() -> Vec<LoadedSnippet> {
                             SnippetBody::Lines(lines) => lines.join("\n"),
                         };
 
-                        let description = def
-                            .description
-                            .clone()
-                            .unwrap_or_else(|| name.clone());
+                        let description = def.description.clone().unwrap_or_else(|| name.clone());
 
                         snippets.push(LoadedSnippet {
                             name,
@@ -106,16 +101,17 @@ pub fn load_user_snippets() -> Vec<LoadedSnippet> {
                         if let SnippetPrefix::Multiple(prefixes) = &def.prefix {
                             for alt_prefix in prefixes.iter().skip(1) {
                                 snippets.push(LoadedSnippet {
-                                    name: format!("{} ({})", snippets.last().unwrap().name, alt_prefix),
+                                    name: format!(
+                                        "{} ({})",
+                                        snippets.last().unwrap().name,
+                                        alt_prefix
+                                    ),
                                     prefix: alt_prefix.clone(),
                                     body: match &def.body {
                                         SnippetBody::Single(s) => s.clone(),
                                         SnippetBody::Lines(lines) => lines.join("\n"),
                                     },
-                                    description: def
-                                        .description
-                                        .clone()
-                                        .unwrap_or_default(),
+                                    description: def.description.clone().unwrap_or_default(),
                                 });
                             }
                         }

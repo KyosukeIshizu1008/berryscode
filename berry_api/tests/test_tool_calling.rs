@@ -50,8 +50,8 @@ async fn test_ollama_tool_calling() {
     println!("Response: {}", body);
 
     // Parse response
-    let json_response: serde_json::Value = serde_json::from_str(&body)
-        .expect("Failed to parse JSON");
+    let json_response: serde_json::Value =
+        serde_json::from_str(&body).expect("Failed to parse JSON");
 
     println!("Parsed response: {:#?}", json_response);
 
@@ -69,7 +69,11 @@ async fn test_ollama_tool_calling() {
         }
     }
 
-    assert!(status.is_success(), "Request failed with status: {}", status);
+    assert!(
+        status.is_success(),
+        "Request failed with status: {}",
+        status
+    );
 }
 
 #[tokio::test]
@@ -86,8 +90,7 @@ async fn test_ollama_models() {
     let body = response.text().await.expect("Failed to read response");
     println!("{}", body);
 
-    let json: serde_json::Value = serde_json::from_str(&body)
-        .expect("Failed to parse JSON");
+    let json: serde_json::Value = serde_json::from_str(&body).expect("Failed to parse JSON");
 
     if let Some(models) = json.get("models") {
         if let Some(models_array) = models.as_array() {
@@ -152,8 +155,8 @@ async fn test_model_capabilities() {
     let body = response.text().await.expect("Failed to read response");
     println!("Response: {}", body);
 
-    let json_response: serde_json::Value = serde_json::from_str(&body)
-        .expect("Failed to parse JSON");
+    let json_response: serde_json::Value =
+        serde_json::from_str(&body).expect("Failed to parse JSON");
 
     if let Some(message) = json_response.get("message") {
         if let Some(content) = message.get("content") {

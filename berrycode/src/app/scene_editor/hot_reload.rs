@@ -36,7 +36,10 @@ impl HotReloadState {
                     let msg = if status.success() {
                         "Hot reload: build succeeded".to_string()
                     } else {
-                        format!("Hot reload: build failed (exit {})", status.code().unwrap_or(-1))
+                        format!(
+                            "Hot reload: build failed (exit {})",
+                            status.code().unwrap_or(-1)
+                        )
                     };
                     self.last_build_status = Some(msg.clone());
                     self.build_process = None;

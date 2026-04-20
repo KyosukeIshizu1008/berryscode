@@ -179,7 +179,9 @@ pub fn execute_build(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to start build: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start build: {}", e))?;
 
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -270,11 +272,7 @@ impl BerryCodeApp {
                         .selected_text(self.build_settings.quality.label())
                         .show_ui(ui, |ui| {
                             for &q in QualityLevel::ALL {
-                                ui.selectable_value(
-                                    &mut self.build_settings.quality,
-                                    q,
-                                    q.label(),
-                                );
+                                ui.selectable_value(&mut self.build_settings.quality, q, q.label());
                             }
                         });
                 });
@@ -361,7 +359,9 @@ impl BerryCodeApp {
                 }
 
                 // Clean up finished process
-                let finished = self.build_process.as_mut()
+                let finished = self
+                    .build_process
+                    .as_mut()
                     .and_then(|c| c.try_wait().ok())
                     .flatten()
                     .is_some();
@@ -374,11 +374,13 @@ impl BerryCodeApp {
                 if !self.build_output.is_empty() {
                     ui.separator();
                     ui.label("Build Output:");
-                    egui::ScrollArea::vertical().max_height(150.0).show(ui, |ui| {
-                        for line in &self.build_output {
-                            ui.monospace(line);
-                        }
-                    });
+                    egui::ScrollArea::vertical()
+                        .max_height(150.0)
+                        .show(ui, |ui| {
+                            for line in &self.build_output {
+                                ui.monospace(line);
+                            }
+                        });
                 }
             });
         self.build_settings_open = open;
@@ -405,8 +407,14 @@ mod tests {
     #[test]
     fn get_target_triple_all_platforms() {
         assert_eq!(get_target_triple(Platform::MacOS), "aarch64-apple-darwin");
-        assert_eq!(get_target_triple(Platform::Windows), "x86_64-pc-windows-msvc");
-        assert_eq!(get_target_triple(Platform::Linux), "x86_64-unknown-linux-gnu");
+        assert_eq!(
+            get_target_triple(Platform::Windows),
+            "x86_64-pc-windows-msvc"
+        );
+        assert_eq!(
+            get_target_triple(Platform::Linux),
+            "x86_64-unknown-linux-gnu"
+        );
         assert_eq!(get_target_triple(Platform::Web), "wasm32-unknown-unknown");
     }
 

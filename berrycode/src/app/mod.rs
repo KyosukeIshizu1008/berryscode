@@ -9,53 +9,53 @@ use std::collections::HashSet;
 use tokio::sync::mpsc;
 
 // ===== Submodules =====
-pub mod types;
-mod editor;
-mod file_tree;
-mod header;
-mod sidebar;
-mod git;
-mod search;
-mod terminal;
-pub(crate) mod terminal_emulator;
 mod ai_chat;
-mod lsp;
-mod rename;
-mod settings;
-mod status_bar;
-mod shortcuts;
-mod debugger;
-mod events;
-mod folding;
-mod minimap;
-mod peek;
-mod ecs_inspector;
-mod bevy_templates;
-mod scene_preview;
+pub(crate) mod ansi;
 mod asset_browser;
-pub(crate) mod scene_editor;
+mod bevy_templates;
+mod cargo_completion;
+mod code_actions;
+mod custom_snippets;
+mod debugger;
+pub(crate) mod demo_capture;
+pub(crate) mod dock;
+mod ecs_inspector;
+mod editor;
+mod events;
+mod file_tree;
+mod folding;
+mod game_view;
+mod git;
+mod header;
 mod image_preview;
+mod inlay_hints;
+pub(crate) mod keymap;
+pub(crate) mod live_collab;
+mod lsp;
+mod macro_expand;
+mod minimap;
 mod model_preview;
 pub(crate) mod new_project;
-mod run_panel;
-mod game_view;
-pub(crate) mod demo_capture;
-pub(crate) mod preview_3d;
-pub(crate) mod ansi;
-pub(crate) mod dock;
-pub(crate) mod keymap;
-pub(crate) mod utils;
-mod inlay_hints;
-mod code_actions;
-mod macro_expand;
-pub(crate) mod snippets;
-mod cargo_completion;
-mod custom_snippets;
-pub(crate) mod test_runner;
-pub(crate) mod vim_mode;
+mod peek;
 pub(crate) mod plugin_system;
+pub(crate) mod preview_3d;
 pub(crate) mod remote_dev;
-pub(crate) mod live_collab;
+mod rename;
+mod run_panel;
+pub(crate) mod scene_editor;
+mod scene_preview;
+mod search;
+mod settings;
+mod shortcuts;
+mod sidebar;
+pub(crate) mod snippets;
+mod status_bar;
+mod terminal;
+pub(crate) mod terminal_emulator;
+pub(crate) mod test_runner;
+pub mod types;
+pub(crate) mod utils;
+pub(crate) mod vim_mode;
 
 // Re-export public types
 pub use types::*;
@@ -66,20 +66,20 @@ pub use types::*;
 pub(crate) mod syntax_colors {
     use egui::Color32;
 
-    pub const KEYWORD: Color32 = Color32::from_rgb(234, 147, 71);      // #EA9347 Orange
-    pub const FUNCTION: Color32 = Color32::from_rgb(84, 166, 224);     // #54A6E0 Sky Blue
-    pub const TYPE: Color32 = Color32::from_rgb(232, 194, 82);         // #E8C252 Yellow
-    pub const STRING: Color32 = Color32::from_rgb(184, 214, 84);       // #B8D654 Lime Green
-    pub const NUMBER: Color32 = Color32::from_rgb(181, 206, 168);      // #B5CEA8 Light Green
-    pub const COMMENT: Color32 = Color32::from_rgb(128, 128, 128);     // #808080 Gray
-    pub const DOC_COMMENT: Color32 = Color32::from_rgb(106, 153, 85);  // #6A9955 Green
-    pub const MACRO: Color32 = Color32::from_rgb(84, 166, 224);        // #54A6E0 Sky Blue
-    pub const ATTRIBUTE: Color32 = Color32::from_rgb(197, 134, 192);   // #C586C0 Pink
-    pub const CONSTANT: Color32 = Color32::from_rgb(197, 134, 192);    // #C586C0 Pink
-    pub const LIFETIME: Color32 = Color32::from_rgb(78, 201, 176);     // #4EC9B0 Cyan
-    pub const NAMESPACE: Color32 = Color32::from_rgb(212, 212, 212);   // #D4D4D4 White
-    pub const VARIABLE: Color32 = Color32::from_rgb(212, 212, 212);    // デフォルト白と同じ
-    pub const OPERATOR: Color32 = Color32::from_rgb(212, 212, 212);    // #D4D4D4 White
+    pub const KEYWORD: Color32 = Color32::from_rgb(234, 147, 71); // #EA9347 Orange
+    pub const FUNCTION: Color32 = Color32::from_rgb(84, 166, 224); // #54A6E0 Sky Blue
+    pub const TYPE: Color32 = Color32::from_rgb(232, 194, 82); // #E8C252 Yellow
+    pub const STRING: Color32 = Color32::from_rgb(184, 214, 84); // #B8D654 Lime Green
+    pub const NUMBER: Color32 = Color32::from_rgb(181, 206, 168); // #B5CEA8 Light Green
+    pub const COMMENT: Color32 = Color32::from_rgb(128, 128, 128); // #808080 Gray
+    pub const DOC_COMMENT: Color32 = Color32::from_rgb(106, 153, 85); // #6A9955 Green
+    pub const MACRO: Color32 = Color32::from_rgb(84, 166, 224); // #54A6E0 Sky Blue
+    pub const ATTRIBUTE: Color32 = Color32::from_rgb(197, 134, 192); // #C586C0 Pink
+    pub const CONSTANT: Color32 = Color32::from_rgb(197, 134, 192); // #C586C0 Pink
+    pub const LIFETIME: Color32 = Color32::from_rgb(78, 201, 176); // #4EC9B0 Cyan
+    pub const NAMESPACE: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 White
+    pub const VARIABLE: Color32 = Color32::from_rgb(212, 212, 212); // デフォルト白と同じ
+    pub const OPERATOR: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 White
 }
 
 // ===== UI Color Palette =====
@@ -87,10 +87,10 @@ pub(crate) mod syntax_colors {
 pub(crate) mod ui_colors {
     use egui::Color32;
 
-    pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28);     // #191A1C Dark Gray
-    pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28);      // #191A1C Dark Gray
+    pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
+    pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
     pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 Light Gray
-    pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59);         // #36393B Medium Gray
+    pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59); // #36393B Medium Gray
 }
 
 // ===== File Icon Color Palette =====
@@ -98,67 +98,67 @@ pub(crate) mod ui_colors {
 pub(crate) mod file_icon_colors {
     use egui::Color32;
 
-    pub const RUST_ORANGE: Color32 = Color32::from_rgb(255, 152, 0);   // #FF9800
+    pub const RUST_ORANGE: Color32 = Color32::from_rgb(255, 152, 0); // #FF9800
     pub const CONFIG_GRAY: Color32 = Color32::from_rgb(128, 128, 128); // #808080
-    pub const JSON_YELLOW: Color32 = Color32::from_rgb(255, 203, 0);   // #FFCB00
+    pub const JSON_YELLOW: Color32 = Color32::from_rgb(255, 203, 0); // #FFCB00
     pub const MARKDOWN_BLUE: Color32 = Color32::from_rgb(66, 165, 245); // #42A5F5
     pub const JAVASCRIPT_YELLOW: Color32 = Color32::from_rgb(247, 223, 30); // #F7DF1E
-    pub const TYPESCRIPT_BLUE: Color32 = Color32::from_rgb(41, 127, 214);  // #297FD6
-    pub const PYTHON_GREEN: Color32 = Color32::from_rgb(52, 168, 83);   // #34A853
-    pub const SHELL_GREEN: Color32 = Color32::from_rgb(76, 175, 80);    // #4CAF50
-    pub const HTML_ORANGE: Color32 = Color32::from_rgb(229, 115, 0);    // #E57300
-    pub const CSS_BLUE: Color32 = Color32::from_rgb(66, 165, 245);      // #42A5F5
-    pub const IMAGE_PURPLE: Color32 = Color32::from_rgb(156, 39, 176);  // #9C27B0
-    pub const SVG_AMBER: Color32 = Color32::from_rgb(255, 179, 0);      // #FFB300
-    pub const GIT_ORANGE: Color32 = Color32::from_rgb(240, 98, 35);     // #F06223
-    pub const PROTO_PURPLE: Color32 = Color32::from_rgb(156, 39, 176);  // #9C27B0
+    pub const TYPESCRIPT_BLUE: Color32 = Color32::from_rgb(41, 127, 214); // #297FD6
+    pub const PYTHON_GREEN: Color32 = Color32::from_rgb(52, 168, 83); // #34A853
+    pub const SHELL_GREEN: Color32 = Color32::from_rgb(76, 175, 80); // #4CAF50
+    pub const HTML_ORANGE: Color32 = Color32::from_rgb(229, 115, 0); // #E57300
+    pub const CSS_BLUE: Color32 = Color32::from_rgb(66, 165, 245); // #42A5F5
+    pub const IMAGE_PURPLE: Color32 = Color32::from_rgb(156, 39, 176); // #9C27B0
+    pub const SVG_AMBER: Color32 = Color32::from_rgb(255, 179, 0); // #FFB300
+    pub const GIT_ORANGE: Color32 = Color32::from_rgb(240, 98, 35); // #F06223
+    pub const PROTO_PURPLE: Color32 = Color32::from_rgb(156, 39, 176); // #9C27B0
 }
 
 /// Main panels in the Activity Bar
 const MAIN_PANELS: &[SidebarPanel] = &[
     SidebarPanel {
         variant: ActivePanel::Explorer,
-        icon: "\u{ea83}",  // codicon-folder
+        icon: "\u{ea83}", // codicon-folder
         _name: "Explorer",
     },
     SidebarPanel {
         variant: ActivePanel::Search,
-        icon: "\u{ea6d}",  // codicon-search
+        icon: "\u{ea6d}", // codicon-search
         _name: "Search",
     },
     SidebarPanel {
         variant: ActivePanel::Git,
-        icon: "\u{ea84}",  // codicon-github
+        icon: "\u{ea84}", // codicon-github
         _name: "Git",
     },
     SidebarPanel {
         variant: ActivePanel::Terminal,
-        icon: "\u{ea85}",  // codicon-terminal
+        icon: "\u{ea85}", // codicon-terminal
         _name: "Terminal",
     },
     SidebarPanel {
         variant: ActivePanel::EcsInspector,
-        icon: "\u{ea92}",  // codicon-inspect
+        icon: "\u{ea92}", // codicon-inspect
         _name: "ECS Inspector",
     },
     SidebarPanel {
         variant: ActivePanel::BevyTemplates,
-        icon: "\u{ea61}",  // codicon-symbol-misc
+        icon: "\u{ea61}", // codicon-symbol-misc
         _name: "Bevy Templates",
     },
     SidebarPanel {
         variant: ActivePanel::AssetBrowser,
-        icon: "\u{eb64}",  // codicon-folder-library
+        icon: "\u{eb64}", // codicon-folder-library
         _name: "Asset Browser",
     },
     SidebarPanel {
         variant: ActivePanel::SceneEditor,
-        icon: "\u{ea9a}",  // codicon-symbol-structure
+        icon: "\u{ea9a}", // codicon-symbol-structure
         _name: "Scene Editor",
     },
     SidebarPanel {
         variant: ActivePanel::GameView,
-        icon: "\u{ebb5}",  // codicon-play
+        icon: "\u{ebb5}", // codicon-play
         _name: "Game View",
     },
 ];
@@ -225,7 +225,8 @@ pub struct BerryCodeApp {
     pub(crate) lsp_show_completions: bool,
     pub(crate) lsp_show_hover: bool,
     pub(crate) lsp_response_rx: Option<mpsc::UnboundedReceiver<LspResponse>>,
-    pub(crate) lsp_diagnostics_rx: Option<mpsc::UnboundedReceiver<native::lsp_native::PublishedDiagnostics>>,
+    pub(crate) lsp_diagnostics_rx:
+        Option<mpsc::UnboundedReceiver<native::lsp_native::PublishedDiagnostics>>,
 
     // === Status Message ===
     pub(crate) status_message: String,
@@ -341,7 +342,8 @@ pub struct BerryCodeApp {
     // === Debug State ===
     pub(crate) debug_state: debugger::DebugState,
     pub(crate) dap_client: Option<crate::native::dap::DapClient>,
-    pub(crate) dap_event_rx: Option<tokio::sync::mpsc::UnboundedReceiver<crate::native::dap::DapEvent>>,
+    pub(crate) dap_event_rx:
+        Option<tokio::sync::mpsc::UnboundedReceiver<crate::native::dap::DapEvent>>,
 
     // === Test Runner State ===
     pub(crate) test_runner: test_runner::TestRunnerState,
@@ -609,16 +611,16 @@ impl BerryCodeApp {
         let mut visuals = egui::Visuals::dark();
 
         // === Colors ===
-        let bg_dark = egui::Color32::from_rgb(30, 31, 34);       // main background
-        let bg_panel = egui::Color32::from_rgb(43, 45, 48);      // sidebar/panel
-        let bg_input = egui::Color32::from_rgb(50, 52, 56);      // input fields
-        let bg_hover = egui::Color32::from_rgb(55, 57, 61);      // hover state
-        let bg_active = egui::Color32::from_rgb(65, 68, 74);     // active/pressed
-        let bg_selected = egui::Color32::from_rgb(38, 79, 140);  // brighter blue selection
-        let border = egui::Color32::from_rgb(60, 63, 68);        // borders
+        let bg_dark = egui::Color32::from_rgb(30, 31, 34); // main background
+        let bg_panel = egui::Color32::from_rgb(43, 45, 48); // sidebar/panel
+        let bg_input = egui::Color32::from_rgb(50, 52, 56); // input fields
+        let bg_hover = egui::Color32::from_rgb(55, 57, 61); // hover state
+        let bg_active = egui::Color32::from_rgb(65, 68, 74); // active/pressed
+        let bg_selected = egui::Color32::from_rgb(38, 79, 140); // brighter blue selection
+        let border = egui::Color32::from_rgb(60, 63, 68); // borders
         let border_focus = egui::Color32::from_rgb(75, 110, 175); // focused border (accent)
-        let text = egui::Color32::from_rgb(205, 207, 213);       // primary text
-        let text_dim = egui::Color32::from_rgb(140, 143, 150);   // secondary text
+        let text = egui::Color32::from_rgb(205, 207, 213); // primary text
+        let text_dim = egui::Color32::from_rgb(140, 143, 150); // secondary text
 
         visuals.override_text_color = None;
         visuals.window_fill = bg_panel;
@@ -650,7 +652,8 @@ impl BerryCodeApp {
         // Non-interactive (labels, separators)
         visuals.widgets.noninteractive.bg_fill = bg_dark;
         visuals.widgets.noninteractive.weak_bg_fill = bg_dark;
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
+        visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
         visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
         visuals.widgets.noninteractive.rounding = egui::Rounding::same(6.0);
 
@@ -697,17 +700,18 @@ impl BerryCodeApp {
         visuals.striped = true;
 
         // Separator
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 47, 50));
+        visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 47, 50));
 
         style.visuals = visuals;
 
         // === Spacing ===
-        style.spacing.item_spacing = egui::vec2(8.0, 6.0);       // more breathing room
-        style.spacing.button_padding = egui::vec2(14.0, 6.0);    // wider, taller buttons
-        style.spacing.window_margin = egui::Margin::same(12.0);  // window inner padding
+        style.spacing.item_spacing = egui::vec2(8.0, 6.0); // more breathing room
+        style.spacing.button_padding = egui::vec2(14.0, 6.0); // wider, taller buttons
+        style.spacing.window_margin = egui::Margin::same(12.0); // window inner padding
         style.spacing.menu_margin = egui::Margin::same(8.0);
-        style.spacing.indent = 18.0;                              // tree indent
-        style.spacing.interact_size = egui::vec2(40.0, 24.0);    // minimum interactive element size
+        style.spacing.indent = 18.0; // tree indent
+        style.spacing.interact_size = egui::vec2(40.0, 24.0); // minimum interactive element size
         style.spacing.slider_width = 160.0;
         style.spacing.combo_width = 160.0;
         style.spacing.text_edit_width = 200.0;
@@ -718,11 +722,21 @@ impl BerryCodeApp {
 
         // === Text (even pixel sizes for crisp rendering) ===
         use egui::FontId;
-        style.text_styles.insert(egui::TextStyle::Heading, FontId::proportional(18.0));
-        style.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.0));
-        style.text_styles.insert(egui::TextStyle::Small, FontId::proportional(12.0));
-        style.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.0));
-        style.text_styles.insert(egui::TextStyle::Monospace, FontId::monospace(14.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Heading, FontId::proportional(18.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Body, FontId::proportional(14.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Small, FontId::proportional(12.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Button, FontId::proportional(14.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Monospace, FontId::monospace(14.0));
 
         // === Interaction ===
         style.interaction.show_tooltips_only_when_still = false;
@@ -840,10 +854,7 @@ impl BerryCodeApp {
     /// Render the project picker screen (shown when no project is loaded)
     pub(crate) fn render_project_picker(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(
-                egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(25, 27, 31))
-            )
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 27, 31)))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
@@ -883,13 +894,17 @@ impl BerryCodeApp {
                                         self.project_picker_path = path;
                                     }
                                 }
-                                if ui.button("Open").clicked() && !self.project_picker_path.is_empty() {
+                                if ui.button("Open").clicked()
+                                    && !self.project_picker_path.is_empty()
+                                {
                                     let path = self.project_picker_path.clone();
                                     if std::path::Path::new(&path).is_dir() {
                                         self.open_project(&path);
                                     } else {
-                                        self.status_message = format!("Directory not found: {}", path);
-                                        self.status_message_timestamp = Some(std::time::Instant::now());
+                                        self.status_message =
+                                            format!("Directory not found: {}", path);
+                                        self.status_message_timestamp =
+                                            Some(std::time::Instant::now());
                                     }
                                 }
                             });
@@ -917,11 +932,15 @@ impl BerryCodeApp {
                                 for project in &recent {
                                     let name = project.rsplit('/').next().unwrap_or(project);
                                     ui.horizontal(|ui| {
-                                        if ui.add(
-                                            egui::Button::new(
-                                                egui::RichText::new(name).size(14.0)
-                                            ).frame(false)
-                                        ).clicked() {
+                                        if ui
+                                            .add(
+                                                egui::Button::new(
+                                                    egui::RichText::new(name).size(14.0),
+                                                )
+                                                .frame(false),
+                                            )
+                                            .clicked()
+                                        {
                                             self.open_project(project);
                                         }
                                         ui.label(
@@ -956,12 +975,12 @@ impl BerryCodeApp {
 
         // Create Tokio runtime for async LSP operations
         let lsp_runtime = std::sync::Arc::new(
-            tokio::runtime::Runtime::new()
-                .expect("Failed to create Tokio runtime for LSP")
+            tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime for LSP"),
         );
 
         // Create native LSP client (returns client + diagnostics receiver)
-        let (lsp_native_client_inner, lsp_diagnostics_rx) = native::lsp_native::NativeLspClient::new();
+        let (lsp_native_client_inner, lsp_diagnostics_rx) =
+            native::lsp_native::NativeLspClient::new();
         let lsp_native_client = std::sync::Arc::new(lsp_native_client_inner);
 
         // Create gRPC client
@@ -1041,13 +1060,19 @@ impl BerryCodeApp {
 
         let show_picker = root_path.is_empty();
         let recent = Self::load_recent_projects();
-        let home = dirs::home_dir().map(|h| h.to_string_lossy().to_string()).unwrap_or_default();
+        let home = dirs::home_dir()
+            .map(|h| h.to_string_lossy().to_string())
+            .unwrap_or_default();
         let picker_path = home.clone();
         if !root_path.is_empty() {
             Self::save_to_recent_projects(&root_path);
         }
         // Keep root_path empty if no project specified — picker will handle it
-        let root_path = if root_path.is_empty() { String::new() } else { root_path };
+        let root_path = if root_path.is_empty() {
+            String::new()
+        } else {
+            root_path
+        };
         let root_path_ref = root_path.clone();
 
         let mut app = Self {
@@ -1064,8 +1089,12 @@ impl BerryCodeApp {
                 if std::path::Path::new(&main_path).exists() {
                     if let Ok(content) = crate::native::fs::read_file(&main_path) {
                         vec![types::EditorTab::new(main_path, content)]
-                    } else { Vec::new() }
-                } else { Vec::new() }
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                }
             },
             active_tab_idx: 0,
             syntax_highlighter: SyntaxHighlighter::new(),
@@ -1237,7 +1266,10 @@ impl BerryCodeApp {
                 if let Ok(code) = crate::native::fs::read_file(&main_path) {
                     let imported = scene_editor::code_import::import_scene_from_code(&code);
                     if !imported.entities.is_empty() {
-                        tracing::info!("Auto-imported {} entities from main.rs", imported.entities.len());
+                        tracing::info!(
+                            "Auto-imported {} entities from main.rs",
+                            imported.entities.len()
+                        );
                         imported
                     } else {
                         scene_editor::model::SceneModel::new()
@@ -1310,23 +1342,45 @@ impl BerryCodeApp {
             editing_animator: Some({
                 let mut c = scene_editor::animator::AnimatorController::default();
                 c.states.push(scene_editor::animator::AnimState {
-                    name: "Walk".into(), clip_name: "walk".into(), speed: 1.0, looped: true, position: [300.0, 100.0],
+                    name: "Walk".into(),
+                    clip_name: "walk".into(),
+                    speed: 1.0,
+                    looped: true,
+                    position: [300.0, 100.0],
                 });
                 c.states.push(scene_editor::animator::AnimState {
-                    name: "Run".into(), clip_name: "run".into(), speed: 1.5, looped: true, position: [300.0, 250.0],
+                    name: "Run".into(),
+                    clip_name: "run".into(),
+                    speed: 1.5,
+                    looped: true,
+                    position: [300.0, 250.0],
                 });
                 c.transitions.push(scene_editor::animator::AnimTransition {
-                    from_state: 0, to_state: 1,
-                    condition: scene_editor::animator::TransitionCondition::BoolParam { name: "is_running".into(), value: true },
+                    from_state: 0,
+                    to_state: 1,
+                    condition: scene_editor::animator::TransitionCondition::BoolParam {
+                        name: "is_running".into(),
+                        value: true,
+                    },
                     blend_duration: 0.2,
                 });
                 c.transitions.push(scene_editor::animator::AnimTransition {
-                    from_state: 1, to_state: 0,
-                    condition: scene_editor::animator::TransitionCondition::BoolParam { name: "is_running".into(), value: false },
+                    from_state: 1,
+                    to_state: 0,
+                    condition: scene_editor::animator::TransitionCondition::BoolParam {
+                        name: "is_running".into(),
+                        value: false,
+                    },
                     blend_duration: 0.3,
                 });
-                c.parameters.push(scene_editor::animator::AnimParam::Bool { name: "is_running".into(), value: false });
-                c.parameters.push(scene_editor::animator::AnimParam::Float { name: "speed".into(), value: 1.0 });
+                c.parameters.push(scene_editor::animator::AnimParam::Bool {
+                    name: "is_running".into(),
+                    value: false,
+                });
+                c.parameters.push(scene_editor::animator::AnimParam::Float {
+                    name: "speed".into(),
+                    value: 1.0,
+                });
                 c
             }),
             editing_animator_path: String::new(),
@@ -1373,19 +1427,34 @@ impl BerryCodeApp {
             editing_visual_script: Some({
                 let mut s = scene_editor::visual_script::VisualScript::default();
                 s.nodes.push(scene_editor::visual_script::ScriptNode {
-                    id: 2, node_type: scene_editor::visual_script::NodeType::Print { message: "Hello World".into() },
+                    id: 2,
+                    node_type: scene_editor::visual_script::NodeType::Print {
+                        message: "Hello World".into(),
+                    },
                     position: [300.0, 80.0],
                 });
                 s.nodes.push(scene_editor::visual_script::ScriptNode {
-                    id: 3, node_type: scene_editor::visual_script::NodeType::Branch,
+                    id: 3,
+                    node_type: scene_editor::visual_script::NodeType::Branch,
                     position: [200.0, 200.0],
                 });
                 s.nodes.push(scene_editor::visual_script::ScriptNode {
-                    id: 4, node_type: scene_editor::visual_script::NodeType::Delay { seconds: 1.0 },
+                    id: 4,
+                    node_type: scene_editor::visual_script::NodeType::Delay { seconds: 1.0 },
                     position: [400.0, 200.0],
                 });
-                s.edges.push(scene_editor::visual_script::ScriptEdge { from_node: 1, from_pin: 0, to_node: 2, to_pin: 0 });
-                s.edges.push(scene_editor::visual_script::ScriptEdge { from_node: 2, from_pin: 0, to_node: 3, to_pin: 0 });
+                s.edges.push(scene_editor::visual_script::ScriptEdge {
+                    from_node: 1,
+                    from_pin: 0,
+                    to_node: 2,
+                    to_pin: 0,
+                });
+                s.edges.push(scene_editor::visual_script::ScriptEdge {
+                    from_node: 2,
+                    from_pin: 0,
+                    to_node: 3,
+                    to_pin: 0,
+                });
                 s
             }),
 
@@ -1494,9 +1563,7 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
 }
 
 /// Bevy startup system: configure egui fonts and style
-pub fn setup_egui_fonts_and_style(
-    mut egui_ctx: bevy_egui::EguiContexts,
-) {
+pub fn setup_egui_fonts_and_style(mut egui_ctx: bevy_egui::EguiContexts) {
     let ctx = egui_ctx.ctx_mut();
 
     // Setup fonts with Japanese support
@@ -1517,7 +1584,8 @@ pub fn setup_egui_fonts_and_style(
     );
 
     // Also add to Proportional family as fallback
-    fonts.families
+    fonts
+        .families
         .get_mut(&egui::FontFamily::Proportional)
         .unwrap()
         .insert(0, "codicon".to_owned());
@@ -1537,17 +1605,18 @@ pub fn setup_egui_fonts_and_style(
             font_data_with_tweak.tweak.y_offset_factor = 0.15;
             font_data_with_tweak.tweak.y_offset = 2.0;
 
-            fonts.font_data.insert(
-                "japanese".to_owned(),
-                font_data_with_tweak.into(),
-            );
+            fonts
+                .font_data
+                .insert("japanese".to_owned(), font_data_with_tweak.into());
 
-            fonts.families
+            fonts
+                .families
                 .get_mut(&egui::FontFamily::Proportional)
                 .unwrap()
                 .push("japanese".to_owned());
 
-            fonts.families
+            fonts
+                .families
                 .get_mut(&egui::FontFamily::Monospace)
                 .unwrap()
                 .push("japanese".to_owned());
@@ -1587,7 +1656,9 @@ pub fn berry_ui_system(
     mut drop_events: bevy::ecs::event::EventReader<bevy::window::FileDragAndDrop>,
     mut preview_scene: bevy::ecs::system::ResMut<preview_3d::ModelPreviewScene>,
     mut scene_render: bevy::ecs::system::ResMut<scene_editor::bevy_render::SceneEditorRender>,
-    mut mat_preview: bevy::ecs::system::ResMut<scene_editor::material_preview::MaterialPreviewRender>,
+    mut mat_preview: bevy::ecs::system::ResMut<
+        scene_editor::material_preview::MaterialPreviewRender,
+    >,
 ) {
     // Handle drag-and-drop files from OS (via Bevy's FileDragAndDrop event)
     for event in drop_events.read() {
@@ -1595,7 +1666,11 @@ pub fn berry_ui_system(
             let path = path_buf;
             let path_str = path.to_string_lossy().to_string();
             if path.is_file() {
-                let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let file_name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 let dest = format!("{}/{}", app.root_path, file_name);
                 match std::fs::copy(&path_str, &dest) {
                     Ok(_) => {
@@ -1611,7 +1686,11 @@ pub fn berry_ui_system(
                     }
                 }
             } else if path.is_dir() {
-                let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                let dir_name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 let dest = format!("{}/{}", app.root_path, dir_name);
                 if let Err(e) = copy_dir_recursive(path, std::path::Path::new(&dest)) {
                     app.status_message = format!("Import failed: {}", e);
@@ -1627,262 +1706,280 @@ pub fn berry_ui_system(
     }
 
     {
-    let ctx = egui_ctx.ctx_mut();
+        let ctx = egui_ctx.ctx_mut();
 
-    // Global panel switching: Ctrl+1..9 — processed BEFORE any panel rendering
-    // so it works regardless of which widget has focus
-    ctx.input(|i| {
-        if i.modifiers.command {
-            if i.key_pressed(egui::Key::Num1) { app.active_panel = types::ActivePanel::Explorer; }
-            if i.key_pressed(egui::Key::Num2) { app.active_panel = types::ActivePanel::Search; }
-            if i.key_pressed(egui::Key::Num3) { app.active_panel = types::ActivePanel::Git; }
-            if i.key_pressed(egui::Key::Num4) { app.active_panel = types::ActivePanel::Terminal; }
-            if i.key_pressed(egui::Key::Num5) { app.active_panel = types::ActivePanel::EcsInspector; }
-            if i.key_pressed(egui::Key::Num6) { app.active_panel = types::ActivePanel::BevyTemplates; }
-            if i.key_pressed(egui::Key::Num7) { app.active_panel = types::ActivePanel::AssetBrowser; }
-            if i.key_pressed(egui::Key::Num8) { app.active_panel = types::ActivePanel::SceneEditor; }
-            if i.key_pressed(egui::Key::Num9) { app.active_panel = types::ActivePanel::GameView; }
+        // Global panel switching: Ctrl+1..9 — processed BEFORE any panel rendering
+        // so it works regardless of which widget has focus
+        ctx.input(|i| {
+            if i.modifiers.command {
+                if i.key_pressed(egui::Key::Num1) {
+                    app.active_panel = types::ActivePanel::Explorer;
+                }
+                if i.key_pressed(egui::Key::Num2) {
+                    app.active_panel = types::ActivePanel::Search;
+                }
+                if i.key_pressed(egui::Key::Num3) {
+                    app.active_panel = types::ActivePanel::Git;
+                }
+                if i.key_pressed(egui::Key::Num4) {
+                    app.active_panel = types::ActivePanel::Terminal;
+                }
+                if i.key_pressed(egui::Key::Num5) {
+                    app.active_panel = types::ActivePanel::EcsInspector;
+                }
+                if i.key_pressed(egui::Key::Num6) {
+                    app.active_panel = types::ActivePanel::BevyTemplates;
+                }
+                if i.key_pressed(egui::Key::Num7) {
+                    app.active_panel = types::ActivePanel::AssetBrowser;
+                }
+                if i.key_pressed(egui::Key::Num8) {
+                    app.active_panel = types::ActivePanel::SceneEditor;
+                }
+                if i.key_pressed(egui::Key::Num9) {
+                    app.active_panel = types::ActivePanel::GameView;
+                }
+            }
+        });
+
+        // Show project picker if no project loaded
+        if app.show_project_picker {
+            app.render_project_picker(ctx);
+            // Still render the New Project dialog if open
+            app.render_new_project_dialog(ctx);
+            return;
         }
-    });
 
-    // Show project picker if no project loaded
-    if app.show_project_picker {
-        app.render_project_picker(ctx);
-        // Still render the New Project dialog if open
+        // Initialize Git repository on first update
+        if !app.git_initialized {
+            app.git_initialized = true;
+            app.refresh_git_status();
+            app.refresh_git_history();
+            app.refresh_git_branches();
+            app.refresh_git_remotes();
+            app.refresh_git_tags();
+            app.refresh_git_stashes();
+            tracing::info!("Git repository initialized for {}", app.root_path);
+        }
+
+        // Poll LSP responses (non-blocking)
+        app.poll_lsp_responses();
+
+        // Poll inlay hints (periodic, throttled)
+        app.poll_inlay_hints();
+
+        // Poll test runner results (non-blocking)
+        app.poll_test_results();
+
+        // Poll DAP events (non-blocking)
+        app.poll_dap_events();
+
+        // Poll remote development responses
+        app.poll_remote_responses();
+
+        // Poll collaboration state
+        app.poll_collab();
+
+        // Poll gRPC responses (non-blocking)
+        app.poll_grpc_responses();
+
+        // Poll file watcher events (non-blocking)
+        app.poll_file_watcher_events();
+
+        // Poll run process output (non-blocking)
+        app.poll_run_output();
+
+        // Poll cargo check results (non-blocking)
+        app.poll_cargo_check();
+
+        // Poll test mode commands (non-blocking)
+        app.poll_test_commands();
+
+        // Update game view texture (captures running game window)
+        app.update_game_view(ctx);
+
+        // Handle keyboard shortcuts
+        app.handle_editor_shortcuts(ctx);
+        app.handle_goto_definition_shortcut(ctx);
+        app.handle_find_references_shortcut(ctx);
+        app.handle_code_action_shortcut(ctx);
+        app.handle_macro_expand_shortcut(ctx);
+        app.handle_debug_shortcuts(ctx);
+        app.handle_settings_shortcuts(ctx);
+
+        // Render top header bar (VS Code style)
+        app.render_top_header(ctx);
+
+        // Render UI panels
+        app.render_activity_bar(ctx);
+
+        // Render dockable tool panel (bottom, must reserve space before CentralPanel)
+        app.render_tool_panel(ctx);
+
+        // Conditional panels based on active panel
+        if app.active_panel == ActivePanel::Terminal {
+            app.render_terminal_fullscreen(ctx);
+        } else if app.active_panel == ActivePanel::Git {
+            app.render_sidebar(ctx);
+            app.render_git_diff_viewer(ctx);
+        } else if app.active_panel == ActivePanel::GameView {
+            // Game View: sidebar (file tree) + central game view
+            app.render_sidebar(ctx);
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |ui| {
+                    app.render_game_view_central(ui);
+                });
+        } else if app.active_panel == ActivePanel::SceneEditor {
+            // Unity-style 3-column layout:
+            //   Left   = Hierarchy  (handled by render_sidebar)
+            //   Right  = Inspector  (dedicated SidePanel::right, shown BEFORE CentralPanel)
+            //   Center = Scene View (CentralPanel)
+            app.render_sidebar(ctx);
+            egui::SidePanel::right("scene_inspector")
+                .default_width(300.0)
+                .width_range(240.0..=500.0)
+                .resizable(true)
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::SIDEBAR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |ui| {
+                    app.render_scene_inspector(ui);
+                });
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |ui| {
+                    app.render_scene_view(ui);
+                });
+        } else {
+            app.render_sidebar(ctx);
+            app.render_ai_chat_panel(ctx);
+            app.render_editor_area(ctx);
+        }
+
+        // Render scene preview panel for .scn.ron files
+        app.render_scene_preview(ctx);
+
+        // Render debug panel (bottom panel when debugging)
+        app.render_debug_panel(ctx);
+
+        // Render run output panel (bottom panel when running cargo)
+        app.render_run_panel(ctx);
+
+        // Render Play in Editor (Game View) window
+        app.render_game_view(ctx);
+
+        // Render diagnostics panel
+        if !app.lsp_diagnostics.is_empty() {
+            app.render_diagnostics_panel(ctx);
+        }
+
+        app.render_status_bar(ctx);
+
+        // Render search dialog if open
+        if app.search_dialog_open {
+            app.render_search_dialog(ctx);
+        }
+
+        // Render settings dialog
+        if app.show_settings {
+            app.render_settings_dialog(ctx);
+        }
+
+        // Render theme editor
+        if app.show_theme_editor {
+            app.render_theme_editor(ctx);
+        }
+
+        // Render LSP hover tooltip
+        if app.lsp_show_hover {
+            app.render_lsp_hover(ctx);
+        }
+
+        // Render definition picker window
+        if app.show_definition_picker {
+            app.render_definition_picker(ctx);
+        }
+
+        // Render references panel
+        if app.show_references_panel {
+            app.render_references_panel(ctx);
+        }
+
+        // Render rename dialog
+        app.render_rename_dialog(ctx);
+
+        // Render new file/folder dialogs
+        app.render_new_file_dialog(ctx);
+        app.render_new_folder_dialog(ctx);
         app.render_new_project_dialog(ctx);
-        return;
-    }
 
-    // Initialize Git repository on first update
-    if !app.git_initialized {
-        app.git_initialized = true;
-        app.refresh_git_status();
-        app.refresh_git_history();
-        app.refresh_git_branches();
-        app.refresh_git_remotes();
-        app.refresh_git_tags();
-        app.refresh_git_stashes();
-        tracing::info!("Git repository initialized for {}", app.root_path);
-    }
+        // Render file tree context menu and rename dialog
+        app.render_file_context_menu(ctx);
+        app.render_rename_file_dialog(ctx);
 
-    // Poll LSP responses (non-blocking)
-    app.poll_lsp_responses();
+        // Phase P: editor-side profiler (FPS / frame time / entity count).
+        app.render_profiler(ctx);
 
-    // Poll inlay hints (periodic, throttled)
-    app.poll_inlay_hints();
+        // Phase K: floating timeline window for animation keyframe editing.
+        app.render_timeline(ctx);
 
-    // Poll test runner results (non-blocking)
-    app.poll_test_results();
+        // Phase 10: floating dopesheet / curve editor window.
+        app.render_dopesheet(ctx);
 
-    // Poll DAP events (non-blocking)
-    app.poll_dap_events();
+        // Phase 13: floating animator controller editor window.
+        app.render_animator_editor(ctx);
 
-    // Poll remote development responses
-    app.poll_remote_responses();
+        // Phase 18: floating build settings window.
+        app.render_build_settings(ctx);
 
-    // Poll collaboration state
-    app.poll_collab();
+        // Phase 64: floating scene merge panel.
+        app.render_merge_panel(ctx);
 
-    // Poll gRPC responses (non-blocking)
-    app.poll_grpc_responses();
+        // Phase 72: floating visual script editor.
+        app.render_visual_script_editor(ctx);
 
-    // Poll file watcher events (non-blocking)
-    app.poll_file_watcher_events();
+        // Phase 74: floating shader graph editor.
+        app.render_shader_graph_editor(ctx);
 
-    // Poll run process output (non-blocking)
-    app.poll_run_output();
+        // Bevy-specific: System Execution Graph.
+        app.render_system_graph(ctx);
 
-    // Poll cargo check results (non-blocking)
-    app.poll_cargo_check();
+        // Bevy-specific: Event Monitor.
+        app.render_event_monitor(ctx);
 
-    // Poll test mode commands (non-blocking)
-    app.poll_test_commands();
+        // Bevy-specific: Query Visualizer.
+        app.render_query_viz(ctx);
 
-    // Update game view texture (captures running game window)
-    app.update_game_view(ctx);
+        // Bevy-specific: States Editor.
+        app.render_state_editor(ctx);
 
-    // Handle keyboard shortcuts
-    app.handle_editor_shortcuts(ctx);
-    app.handle_goto_definition_shortcut(ctx);
-    app.handle_find_references_shortcut(ctx);
-    app.handle_code_action_shortcut(ctx);
-    app.handle_macro_expand_shortcut(ctx);
-    app.handle_debug_shortcuts(ctx);
-    app.handle_settings_shortcuts(ctx);
+        // Bevy-specific: Plugin Browser.
+        app.render_plugin_browser(ctx);
 
-    // Render top header bar (VS Code style)
-    app.render_top_header(ctx);
-
-    // Render UI panels
-    app.render_activity_bar(ctx);
-
-    // Render dockable tool panel (bottom, must reserve space before CentralPanel)
-    app.render_tool_panel(ctx);
-
-    // Conditional panels based on active panel
-    if app.active_panel == ActivePanel::Terminal {
-        app.render_terminal_fullscreen(ctx);
-    } else if app.active_panel == ActivePanel::Git {
-        app.render_sidebar(ctx);
-        app.render_git_diff_viewer(ctx);
-    } else if app.active_panel == ActivePanel::GameView {
-        // Game View: sidebar (file tree) + central game view
-        app.render_sidebar(ctx);
-        egui::CentralPanel::default()
-            .frame(
-                egui::Frame::none()
-                    .fill(ui_colors::EDITOR_BG)
-                    .inner_margin(egui::Margin::same(8.0)),
-            )
-            .show(ctx, |ui| {
-                app.render_game_view_central(ui);
-            });
-    } else if app.active_panel == ActivePanel::SceneEditor {
-        // Unity-style 3-column layout:
-        //   Left   = Hierarchy  (handled by render_sidebar)
-        //   Right  = Inspector  (dedicated SidePanel::right, shown BEFORE CentralPanel)
-        //   Center = Scene View (CentralPanel)
-        app.render_sidebar(ctx);
-        egui::SidePanel::right("scene_inspector")
-            .default_width(300.0)
-            .width_range(240.0..=500.0)
-            .resizable(true)
-            .frame(
-                egui::Frame::none()
-                    .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(8.0)),
-            )
-            .show(ctx, |ui| {
-                app.render_scene_inspector(ui);
-            });
-        egui::CentralPanel::default()
-            .frame(
-                egui::Frame::none()
-                    .fill(ui_colors::EDITOR_BG)
-                    .inner_margin(egui::Margin::same(8.0)),
-            )
-            .show(ctx, |ui| {
-                app.render_scene_view(ui);
-            });
-    } else {
-        app.render_sidebar(ctx);
-        app.render_ai_chat_panel(ctx);
-        app.render_editor_area(ctx);
-    }
-
-    // Render scene preview panel for .scn.ron files
-    app.render_scene_preview(ctx);
-
-    // Render debug panel (bottom panel when debugging)
-    app.render_debug_panel(ctx);
-
-    // Render run output panel (bottom panel when running cargo)
-    app.render_run_panel(ctx);
-
-    // Render Play in Editor (Game View) window
-    app.render_game_view(ctx);
-
-    // Render diagnostics panel
-    if !app.lsp_diagnostics.is_empty() {
-        app.render_diagnostics_panel(ctx);
-    }
-
-    app.render_status_bar(ctx);
-
-    // Render search dialog if open
-    if app.search_dialog_open {
-        app.render_search_dialog(ctx);
-    }
-
-    // Render settings dialog
-    if app.show_settings {
-        app.render_settings_dialog(ctx);
-    }
-
-    // Render theme editor
-    if app.show_theme_editor {
-        app.render_theme_editor(ctx);
-    }
-
-    // Render LSP hover tooltip
-    if app.lsp_show_hover {
-        app.render_lsp_hover(ctx);
-    }
-
-    // Render definition picker window
-    if app.show_definition_picker {
-        app.render_definition_picker(ctx);
-    }
-
-    // Render references panel
-    if app.show_references_panel {
-        app.render_references_panel(ctx);
-    }
-
-    // Render rename dialog
-    app.render_rename_dialog(ctx);
-
-    // Render new file/folder dialogs
-    app.render_new_file_dialog(ctx);
-    app.render_new_folder_dialog(ctx);
-    app.render_new_project_dialog(ctx);
-
-    // Render file tree context menu and rename dialog
-    app.render_file_context_menu(ctx);
-    app.render_rename_file_dialog(ctx);
-
-    // Phase P: editor-side profiler (FPS / frame time / entity count).
-    app.render_profiler(ctx);
-
-    // Phase K: floating timeline window for animation keyframe editing.
-    app.render_timeline(ctx);
-
-    // Phase 10: floating dopesheet / curve editor window.
-    app.render_dopesheet(ctx);
-
-    // Phase 13: floating animator controller editor window.
-    app.render_animator_editor(ctx);
-
-    // Phase 18: floating build settings window.
-    app.render_build_settings(ctx);
-
-    // Phase 64: floating scene merge panel.
-    app.render_merge_panel(ctx);
-
-    // Phase 72: floating visual script editor.
-    app.render_visual_script_editor(ctx);
-
-    // Phase 74: floating shader graph editor.
-    app.render_shader_graph_editor(ctx);
-
-    // Bevy-specific: System Execution Graph.
-    app.render_system_graph(ctx);
-
-    // Bevy-specific: Event Monitor.
-    app.render_event_monitor(ctx);
-
-    // Bevy-specific: Query Visualizer.
-    app.render_query_viz(ctx);
-
-    // Bevy-specific: States Editor.
-    app.render_state_editor(ctx);
-
-    // Bevy-specific: Plugin Browser.
-    app.render_plugin_browser(ctx);
-
-    // Phase 75: hot reload polling.
-    {
-        let root = app.root_path.clone();
-        if let Some(msg) = app.hot_reload.poll(&root) {
-            app.status_message = msg;
-            app.status_message_timestamp = Some(std::time::Instant::now());
+        // Phase 75: hot reload polling.
+        {
+            let root = app.root_path.clone();
+            if let Some(msg) = app.hot_reload.poll(&root) {
+                app.status_message = msg;
+                app.status_message_timestamp = Some(std::time::Instant::now());
+            }
         }
-    }
 
-    // Reactive Mode: only repaint when status message is active
-    if app.status_message_timestamp.is_some() {
-        ctx.request_repaint_after(std::time::Duration::from_millis(100));
-    }
+        // Reactive Mode: only repaint when status message is active
+        if app.status_message_timestamp.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
     } // end of ctx borrow scope
 
     // GPU 3D preview: if active tab is GLTF/GLB, update preview scene and assign texture
@@ -1897,7 +1994,12 @@ pub fn berry_ui_system(
         if !app.editor_tabs.is_empty() && idx < app.editor_tabs.len() {
             let tab = &app.editor_tabs[idx];
             if tab.is_model {
-                let ext = tab.file_path.rsplit('.').next().unwrap_or("").to_lowercase();
+                let ext = tab
+                    .file_path
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or("")
+                    .to_lowercase();
                 if ext == "glb" || ext == "gltf" {
                     wants_gpu = true;
                     model_path = Some(tab.file_path.clone());
@@ -2007,7 +2109,9 @@ pub fn demo_capture_system(
             // Capture a frame for video only
             let encoder = app.demo_capture.encoder.clone();
             commands.spawn(Screenshot::primary_window()).observe(
-                move |trigger: bevy::prelude::Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                move |trigger: bevy::prelude::Trigger<
+                    bevy::render::view::screenshot::ScreenshotCaptured,
+                >| {
                     let img = trigger.event();
                     let w = img.width();
                     let h = img.height();
@@ -2047,7 +2151,9 @@ pub fn demo_capture_system(
             // Also capture a video frame during setup
             let encoder = app.demo_capture.encoder.clone();
             commands.spawn(Screenshot::primary_window()).observe(
-                move |trigger: bevy::prelude::Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                move |trigger: bevy::prelude::Trigger<
+                    bevy::render::view::screenshot::ScreenshotCaptured,
+                >| {
                     let img = trigger.event();
                     let w = img.width();
                     let h = img.height();
@@ -2065,11 +2171,15 @@ pub fn demo_capture_system(
 
             // Save screenshot to disk
             let path = output_dir.join(&name);
-            commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
+            commands
+                .spawn(Screenshot::primary_window())
+                .observe(save_to_disk(path));
 
             // Also feed to video encoder
             commands.spawn(Screenshot::primary_window()).observe(
-                move |trigger: bevy::prelude::Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                move |trigger: bevy::prelude::Trigger<
+                    bevy::render::view::screenshot::ScreenshotCaptured,
+                >| {
                     let img = trigger.event();
                     let w = img.width();
                     let h = img.height();

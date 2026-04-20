@@ -4,13 +4,13 @@ use walkdir::WalkDir;
 /// Asset entry types
 #[derive(Debug, Clone, PartialEq)]
 pub enum AssetType {
-    Image,      // .png, .jpg, .webp, .ktx2
-    Model3D,    // .gltf, .glb
-    Audio,      // .ogg, .wav, .mp3, .flac
-    Scene,      // .scn.ron, .ron
-    Font,       // .ttf, .otf
-    Shader,     // .wgsl, .frag, .vert
-    Data,       // .json, .toml, .yaml
+    Image,   // .png, .jpg, .webp, .ktx2
+    Model3D, // .gltf, .glb
+    Audio,   // .ogg, .wav, .mp3, .flac
+    Scene,   // .scn.ron, .ron
+    Font,    // .ttf, .otf
+    Shader,  // .wgsl, .frag, .vert
+    Data,    // .json, .toml, .yaml
     Other,
 }
 
@@ -59,7 +59,9 @@ impl Default for AssetBrowserState {
 impl AssetType {
     pub fn from_extension(ext: &str) -> Self {
         match ext.to_lowercase().as_str() {
-            "png" | "jpg" | "jpeg" | "webp" | "ktx2" | "bmp" | "tga" | "dds" | "hdr" => AssetType::Image,
+            "png" | "jpg" | "jpeg" | "webp" | "ktx2" | "bmp" | "tga" | "dds" | "hdr" => {
+                AssetType::Image
+            }
             "gltf" | "glb" | "obj" | "fbx" => AssetType::Model3D,
             "ogg" | "wav" | "mp3" | "flac" | "aac" => AssetType::Audio,
             "ron" => AssetType::Scene,
@@ -72,14 +74,14 @@ impl AssetType {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            AssetType::Image => "\u{eb60}",     // codicon-file-media
-            AssetType::Model3D => "\u{ea73}",   // codicon-file-code
-            AssetType::Audio => "\u{eb60}",     // codicon-file-media
-            AssetType::Scene => "\u{ea7b}",     // codicon-file
-            AssetType::Font => "\u{ea7b}",      // codicon-file
-            AssetType::Shader => "\u{ea73}",    // codicon-file-code
-            AssetType::Data => "\u{ea73}",      // codicon-file-code
-            AssetType::Other => "\u{ea7b}",     // codicon-file
+            AssetType::Image => "\u{eb60}",   // codicon-file-media
+            AssetType::Model3D => "\u{ea73}", // codicon-file-code
+            AssetType::Audio => "\u{eb60}",   // codicon-file-media
+            AssetType::Scene => "\u{ea7b}",   // codicon-file
+            AssetType::Font => "\u{ea7b}",    // codicon-file
+            AssetType::Shader => "\u{ea73}",  // codicon-file-code
+            AssetType::Data => "\u{ea73}",    // codicon-file-code
+            AssetType::Other => "\u{ea7b}",   // codicon-file
         }
     }
 
@@ -146,7 +148,9 @@ pub fn scan_assets(root_path: &str, asset_dir: &str) -> Vec<AssetEntry> {
 
     // Sort by type, then by name
     assets.sort_by(|a, b| {
-        a.asset_type.label().cmp(b.asset_type.label())
+        a.asset_type
+            .label()
+            .cmp(b.asset_type.label())
             .then(a.file_name.cmp(&b.file_name))
     });
 

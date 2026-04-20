@@ -1,6 +1,6 @@
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use notify::{RecommendedWatcher, RecursiveMode, Watcher, Event, EventKind};
 
 /// File system event types
 #[derive(Debug, Clone)]
@@ -22,8 +22,8 @@ impl FileWatcher {
     pub fn new() -> anyhow::Result<Self> {
         let (tx, rx) = mpsc::channel();
 
-        let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-            match res {
+        let watcher =
+            notify::recommended_watcher(move |res: Result<Event, notify::Error>| match res {
                 Ok(event) => {
                     let paths = event.paths;
                     match event.kind {
@@ -48,8 +48,7 @@ impl FileWatcher {
                 Err(e) => {
                     tracing::warn!("File watcher error: {}", e);
                 }
-            }
-        })?;
+            })?;
 
         Ok(Self {
             _watcher: watcher,
@@ -59,7 +58,8 @@ impl FileWatcher {
 
     /// Start watching a directory recursively
     pub fn watch(&mut self, path: &str) -> anyhow::Result<()> {
-        self._watcher.watch(Path::new(path), RecursiveMode::Recursive)?;
+        self._watcher
+            .watch(Path::new(path), RecursiveMode::Recursive)?;
         Ok(())
     }
 

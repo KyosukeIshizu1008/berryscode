@@ -1,8 +1,13 @@
 //! LSP integration: completions, diagnostics, hover, go-to-definition, find references
 
+use super::types::{
+    DiagnosticSeverity, LspCompletionItem, LspDiagnostic, LspHoverInfo, LspLocation, LspResponse,
+    PendingGotoDefinition,
+};
+use super::utils::{
+    calculate_line_column, parse_lsp_location, utf16_offset_to_utf8, utf8_offset_to_utf16,
+};
 use super::BerryCodeApp;
-use super::types::{LspCompletionItem, LspDiagnostic, LspHoverInfo, LspLocation, LspResponse, PendingGotoDefinition, DiagnosticSeverity};
-use super::utils::{parse_lsp_location, utf16_offset_to_utf8, utf8_offset_to_utf16, calculate_line_column};
 use crate::focus_stack::FocusLayer;
 use crate::native;
 
@@ -70,7 +75,11 @@ impl BerryCodeApp {
         let runtime = std::sync::Arc::clone(&self.lsp_runtime);
 
         runtime.spawn(async move {
-            tracing::info!("🚀 Requesting LSP completions at {}:{} (UTF-16)", line, utf16_column);
+            tracing::info!(
+                "🚀 Requesting LSP completions at {}:{} (UTF-16)",
+                line,
+                utf16_column
+            );
 
             let lang = match crate::native::lsp_native::detect_server_language(&file_path) {
                 Some(l) => l,
@@ -79,7 +88,10 @@ impl BerryCodeApp {
                     return;
                 }
             };
-            match client.get_completions(lang, file_path.clone(), line as u32, utf16_column as u32).await {
+            match client
+                .get_completions(lang, file_path.clone(), line as u32, utf16_column as u32)
+                .await
+            {
                 Ok(items) => {
                     tracing::info!("📋 LSP returned {} completion items", items.len());
 
@@ -87,7 +99,8 @@ impl BerryCodeApp {
                         .into_iter()
                         .map(|item| {
                             use lsp_types::CompletionItemKind;
-                            let is_snippet = item.insert_text_format == Some(lsp_types::InsertTextFormat::SNIPPET);
+                            let is_snippet = item.insert_text_format
+                                == Some(lsp_types::InsertTextFormat::SNIPPET);
                             let insert_text = item.insert_text.clone();
                             LspCompletionItem {
                                 label: item.label,
@@ -121,7 +134,8 @@ impl BerryCodeApp {
                                     Some(CompletionItemKind::OPERATOR) => "operator",
                                     Some(CompletionItemKind::TYPE_PARAMETER) => "type_parameter",
                                     _ => "unknown",
-                                }.to_string(),
+                                }
+                                .to_string(),
                             }
                         })
                         .collect();
@@ -236,7 +250,9 @@ impl BerryCodeApp {
                                 severity: match diag.severity {
                                     Some(LspSeverity::ERROR) => DiagnosticSeverity::Error,
                                     Some(LspSeverity::WARNING) => DiagnosticSeverity::Warning,
-                                    Some(LspSeverity::INFORMATION) => DiagnosticSeverity::Information,
+                                    Some(LspSeverity::INFORMATION) => {
+                                        DiagnosticSeverity::Information
+                                    }
                                     Some(LspSeverity::HINT) => DiagnosticSeverity::Hint,
                                     _ => DiagnosticSeverity::Error,
                                 },
@@ -303,10 +319,18 @@ impl BerryCodeApp {
 
                     for diagnostic in diagnostics.iter() {
                         let (icon, color) = match diagnostic.severity {
-                            DiagnosticSeverity::Error => ("❌", egui::Color32::from_rgb(255, 80, 80)),
-                            DiagnosticSeverity::Warning => ("⚠️", egui::Color32::from_rgb(255, 200, 100)),
-                            DiagnosticSeverity::Information => ("ℹ️", egui::Color32::from_rgb(100, 150, 255)),
-                            DiagnosticSeverity::Hint => ("💡", egui::Color32::from_rgb(150, 150, 150)),
+                            DiagnosticSeverity::Error => {
+                                ("❌", egui::Color32::from_rgb(255, 80, 80))
+                            }
+                            DiagnosticSeverity::Warning => {
+                                ("⚠️", egui::Color32::from_rgb(255, 200, 100))
+                            }
+                            DiagnosticSeverity::Information => {
+                                ("ℹ️", egui::Color32::from_rgb(100, 150, 255))
+                            }
+                            DiagnosticSeverity::Hint => {
+                                ("💡", egui::Color32::from_rgb(150, 150, 150))
+                            }
                         };
 
                         let file_path = if !self.editor_tabs.is_empty() {
@@ -318,7 +342,8 @@ impl BerryCodeApp {
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new(icon).color(color));
 
-                            let location = format!("{}:{}:{}",
+                            let location = format!(
+                                "{}:{}:{}",
                                 file_path.split('/').last().unwrap_or(""),
                                 diagnostic.line + 1,
                                 diagnostic.column + 1
@@ -375,7 +400,10 @@ impl BerryCodeApp {
                     return;
                 }
             };
-            match client.get_hover(lang, file_path.clone(), line as u32, column as u32).await {
+            match client
+                .get_hover(lang, file_path.clone(), line as u32, column as u32)
+                .await
+            {
                 Ok(hover_opt) => {
                     if let Some(hover) = hover_opt {
                         tracing::info!("💡 LSP returned hover info");
@@ -384,13 +412,17 @@ impl BerryCodeApp {
                         let contents_string = match hover.contents {
                             HoverContents::Scalar(marked) => match marked {
                                 MarkedString::String(s) => s,
-                                MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+                                MarkedString::LanguageString(ls) => {
+                                    format!("```{}\n{}\n```", ls.language, ls.value)
+                                }
                             },
                             HoverContents::Array(arr) => arr
                                 .into_iter()
                                 .map(|marked| match marked {
                                     MarkedString::String(s) => s,
-                                    MarkedString::LanguageString(ls) => format!("```{}\n{}\n```", ls.language, ls.value),
+                                    MarkedString::LanguageString(ls) => {
+                                        format!("```{}\n{}\n```", ls.language, ls.value)
+                                    }
                                 })
                                 .collect::<Vec<_>>()
                                 .join("\n\n"),
@@ -473,7 +505,8 @@ impl BerryCodeApp {
             }
         };
 
-        tracing::info!("🔍 Triggering find references at {}:{}:{} (UTF-16)",
+        tracing::info!(
+            "🔍 Triggering find references at {}:{}:{} (UTF-16)",
             file_path.split('/').last().unwrap_or(&file_path),
             cursor_line + 1,
             utf16_cursor_col + 1
@@ -551,9 +584,15 @@ impl BerryCodeApp {
                     .max_height(400.0)
                     .show(ui, |ui| {
                         for (idx, loc) in locations.iter().enumerate() {
-                            let file_name = loc.file_path.split('/').last().unwrap_or(&loc.file_path);
-                            let label = format!("{}  {}:{}  ({})",
-                                idx + 1, file_name, loc.line + 1, loc.file_path);
+                            let file_name =
+                                loc.file_path.split('/').last().unwrap_or(&loc.file_path);
+                            let label = format!(
+                                "{}  {}:{}  ({})",
+                                idx + 1,
+                                file_name,
+                                loc.line + 1,
+                                loc.file_path
+                            );
 
                             if ui.button(&label).clicked() {
                                 selected_location = Some(loc.clone());
@@ -604,8 +643,10 @@ impl BerryCodeApp {
                     .auto_shrink([false; 2])
                     .show(ui, |ui| {
                         for (_idx, loc) in references.iter().enumerate() {
-                            let file_name = loc.file_path.split('/').last().unwrap_or(&loc.file_path);
-                            let location_text = format!("{}:{}:{}", file_name, loc.line + 1, loc.column + 1);
+                            let file_name =
+                                loc.file_path.split('/').last().unwrap_or(&loc.file_path);
+                            let location_text =
+                                format!("{}:{}:{}", file_name, loc.line + 1, loc.column + 1);
                             if ui.link(&location_text).clicked() {
                                 selected_location = Some(loc.clone());
                             }
@@ -648,8 +689,14 @@ impl BerryCodeApp {
                 }
             };
 
-            tracing::info!("🚀 Requesting LSP goto_definition for '{}' at {}:{} (UTF-8: {}, UTF-16: {})",
-                word, line, utf16_column, utf8_column, utf16_column);
+            tracing::info!(
+                "🚀 Requesting LSP goto_definition for '{}' at {}:{} (UTF-8: {}, UTF-16: {})",
+                word,
+                line,
+                utf16_column,
+                utf8_column,
+                utf16_column
+            );
             self.spawn_goto_definition_request(current_file, line, utf16_column);
 
             self.pending_goto_definition = Some(PendingGotoDefinition {
@@ -686,7 +733,11 @@ impl BerryCodeApp {
             for pattern in &patterns {
                 if let Ok(regex) = regex::Regex::new(pattern) {
                     if regex.is_match(line) {
-                        tracing::info!("✅ Found definition at line {}: {}", line_idx + 1, line.trim());
+                        tracing::info!(
+                            "✅ Found definition at line {}: {}",
+                            line_idx + 1,
+                            line.trim()
+                        );
 
                         if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
                             tab.cursor_line = line_idx;
@@ -754,12 +805,7 @@ impl BerryCodeApp {
         ];
 
         for pattern in search_patterns {
-            match native::search::search_in_files(
-                &self.root_path,
-                &pattern,
-                false,
-                true,
-            ) {
+            match native::search::search_in_files(&self.root_path, &pattern, false, true) {
                 Ok(results) => {
                     if !results.is_empty() {
                         let first_result = &results[0];
@@ -773,7 +819,8 @@ impl BerryCodeApp {
                         let file_path = first_result.file_path.clone();
                         let line_number = first_result.line_number - 1;
 
-                        let file_already_open = self.editor_tabs
+                        let file_already_open = self
+                            .editor_tabs
                             .iter()
                             .position(|tab| tab.file_path == file_path);
 
@@ -787,7 +834,11 @@ impl BerryCodeApp {
                             tab.cursor_line = line_number;
                             tab.cursor_col = 0;
                             tab.pending_cursor_jump = Some((line_number, 0));
-                            tracing::info!("⏭️ Scheduled cursor jump to line {} in {}", line_number, file_path);
+                            tracing::info!(
+                                "⏭️ Scheduled cursor jump to line {} in {}",
+                                line_number,
+                                file_path
+                            );
                         }
 
                         return;
@@ -803,7 +854,12 @@ impl BerryCodeApp {
     }
 
     /// Spawn LSP goto_definition request asynchronously
-    pub(crate) fn spawn_goto_definition_request(&self, file_path: String, line: usize, column: usize) {
+    pub(crate) fn spawn_goto_definition_request(
+        &self,
+        file_path: String,
+        line: usize,
+        column: usize,
+    ) {
         let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
@@ -831,7 +887,10 @@ impl BerryCodeApp {
                     return;
                 }
             };
-            match client.goto_definition(lang, file_path.clone(), line as u32, column as u32).await {
+            match client
+                .goto_definition(lang, file_path.clone(), line as u32, column as u32)
+                .await
+            {
                 Ok(locations) => {
                     tracing::info!("📍 LSP returned {} locations", locations.len());
                     for (i, loc) in locations.iter().enumerate() {
@@ -861,14 +920,15 @@ impl BerryCodeApp {
         tracing::info!("   File: {}", location.file_path);
         tracing::info!("   Line: {}, Column: {}", location.line, location.column);
 
-        let is_stdlib = location.file_path.contains("/.rustup/")
-            || location.file_path.contains("\\.rustup\\");
+        let is_stdlib =
+            location.file_path.contains("/.rustup/") || location.file_path.contains("\\.rustup\\");
 
         if is_stdlib {
             tracing::info!("📖 Detected standard library file");
         }
 
-        let file_already_open = self.editor_tabs
+        let file_already_open = self
+            .editor_tabs
             .iter()
             .position(|tab| tab.file_path == location.file_path);
 
@@ -900,17 +960,30 @@ impl BerryCodeApp {
             tab.cursor_line = location.line;
             tab.cursor_col = utf8_column;
             tab.pending_cursor_jump = Some((location.line, utf8_column));
-            tracing::info!("⏭️ Scheduled cursor jump to line {} col {} (UTF-16: {}, UTF-8: {})",
-                location.line, utf8_column, location.column, utf8_column);
+            tracing::info!(
+                "⏭️ Scheduled cursor jump to line {} col {} (UTF-16: {}, UTF-8: {})",
+                location.line,
+                utf8_column,
+                location.column,
+                utf8_column
+            );
         }
 
-        self.status_message = format!("✅ Jumped to {}",
-            location.file_path.split('/').last().unwrap_or(""));
+        self.status_message = format!(
+            "✅ Jumped to {}",
+            location.file_path.split('/').last().unwrap_or("")
+        );
         self.status_message_timestamp = Some(std::time::Instant::now());
     }
 
     /// Spawn LSP find_references request asynchronously
-    pub(crate) fn spawn_find_references_request(&self, file_path: String, line: usize, column: usize, include_declaration: bool) {
+    pub(crate) fn spawn_find_references_request(
+        &self,
+        file_path: String,
+        line: usize,
+        column: usize,
+        include_declaration: bool,
+    ) {
         let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),
             None => {
@@ -929,7 +1002,12 @@ impl BerryCodeApp {
         runtime.spawn(async move {
             tracing::info!("🔍 Requesting LSP find_references");
             tracing::info!("   File: {}", file_path);
-            tracing::info!("   Position: line={}, column={}, include_decl={}", line, column, include_declaration);
+            tracing::info!(
+                "   Position: line={}, column={}, include_decl={}",
+                line,
+                column,
+                include_declaration
+            );
 
             let lang = match crate::native::lsp_native::detect_server_language(&file_path) {
                 Some(l) => l,
@@ -938,7 +1016,16 @@ impl BerryCodeApp {
                     return;
                 }
             };
-            match client.find_references(lang, file_path.clone(), line as u32, column as u32, include_declaration).await {
+            match client
+                .find_references(
+                    lang,
+                    file_path.clone(),
+                    line as u32,
+                    column as u32,
+                    include_declaration,
+                )
+                .await
+            {
                 Ok(locations) => {
                     tracing::info!("📍 LSP returned {} references", locations.len());
                     for (i, loc) in locations.iter().enumerate() {

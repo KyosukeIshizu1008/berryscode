@@ -29,7 +29,13 @@ impl Default for SplinePoint {
 /// Evaluate a cubic Bezier curve at parameter `t` (0..=1).
 ///
 /// `p0` and `p3` are the endpoints; `p1` and `p2` are the control points.
-pub fn evaluate_cubic_bezier(t: f32, p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3]) -> [f32; 3] {
+pub fn evaluate_cubic_bezier(
+    t: f32,
+    p0: [f32; 3],
+    p1: [f32; 3],
+    p2: [f32; 3],
+    p3: [f32; 3],
+) -> [f32; 3] {
     let u = 1.0 - t;
     let uu = u * u;
     let uuu = uu * u;
@@ -66,7 +72,11 @@ pub fn sample_spline(
 
     let segments_per_curve = segments_per_curve.max(1);
 
-    let curve_count = if closed { points.len() } else { points.len() - 1 };
+    let curve_count = if closed {
+        points.len()
+    } else {
+        points.len() - 1
+    };
 
     let mut result = Vec::with_capacity(curve_count * segments_per_curve + 1);
 
@@ -125,16 +135,34 @@ mod tests {
         let p3 = [10.0, 11.0, 12.0];
         let result = evaluate_cubic_bezier(1.0, p0, p1, p2, p3);
         for i in 0..3 {
-            assert!((result[i] - p3[i]).abs() < 1e-6, "component {} mismatch: {} vs {}", i, result[i], p3[i]);
+            assert!(
+                (result[i] - p3[i]).abs() < 1e-6,
+                "component {} mismatch: {} vs {}",
+                i,
+                result[i],
+                p3[i]
+            );
         }
     }
 
     #[test]
     fn sample_spline_open_returns_correct_count() {
         let points = vec![
-            SplinePoint { position: [0.0, 0.0, 0.0], tangent_in: [0.0; 3], tangent_out: [1.0, 0.0, 0.0] },
-            SplinePoint { position: [3.0, 0.0, 0.0], tangent_in: [-1.0, 0.0, 0.0], tangent_out: [1.0, 0.0, 0.0] },
-            SplinePoint { position: [6.0, 0.0, 0.0], tangent_in: [-1.0, 0.0, 0.0], tangent_out: [0.0; 3] },
+            SplinePoint {
+                position: [0.0, 0.0, 0.0],
+                tangent_in: [0.0; 3],
+                tangent_out: [1.0, 0.0, 0.0],
+            },
+            SplinePoint {
+                position: [3.0, 0.0, 0.0],
+                tangent_in: [-1.0, 0.0, 0.0],
+                tangent_out: [1.0, 0.0, 0.0],
+            },
+            SplinePoint {
+                position: [6.0, 0.0, 0.0],
+                tangent_in: [-1.0, 0.0, 0.0],
+                tangent_out: [0.0; 3],
+            },
         ];
         let segments = 10;
         let samples = sample_spline(&points, false, segments);
@@ -145,9 +173,21 @@ mod tests {
     #[test]
     fn sample_spline_closed_returns_correct_count() {
         let points = vec![
-            SplinePoint { position: [0.0, 0.0, 0.0], tangent_in: [0.0; 3], tangent_out: [1.0, 0.0, 0.0] },
-            SplinePoint { position: [3.0, 0.0, 0.0], tangent_in: [-1.0, 0.0, 0.0], tangent_out: [1.0, 0.0, 0.0] },
-            SplinePoint { position: [6.0, 0.0, 0.0], tangent_in: [-1.0, 0.0, 0.0], tangent_out: [0.0; 3] },
+            SplinePoint {
+                position: [0.0, 0.0, 0.0],
+                tangent_in: [0.0; 3],
+                tangent_out: [1.0, 0.0, 0.0],
+            },
+            SplinePoint {
+                position: [3.0, 0.0, 0.0],
+                tangent_in: [-1.0, 0.0, 0.0],
+                tangent_out: [1.0, 0.0, 0.0],
+            },
+            SplinePoint {
+                position: [6.0, 0.0, 0.0],
+                tangent_in: [-1.0, 0.0, 0.0],
+                tangent_out: [0.0; 3],
+            },
         ];
         let segments = 10;
         let samples = sample_spline(&points, true, segments);

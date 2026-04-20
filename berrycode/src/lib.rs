@@ -21,13 +21,13 @@ pub mod native;
 
 // ===== Common Utilities =====
 pub mod common;
-pub mod types;
 pub mod focus_stack;
+pub mod types;
 
 // ===== Bevy Application =====
 pub mod app;
-pub mod bevy_plugin;
 pub mod bevy_ide;
+pub mod bevy_plugin;
 
 // Backwards-compatible re-export
 pub mod egui_app {

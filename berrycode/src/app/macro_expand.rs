@@ -1,7 +1,7 @@
 //! Macro expansion: send rust-analyzer/expandMacro request and display result
 
-use super::BerryCodeApp;
 use super::types::LspResponse;
+use super::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Expand macro at current cursor position (rust-analyzer custom request)
@@ -62,7 +62,9 @@ impl BerryCodeApp {
     /// Handle keyboard shortcut for macro expansion (Ctrl+Shift+M)
     pub(crate) fn handle_macro_expand_shortcut(&mut self, ctx: &egui::Context) {
         let triggered = ctx.input(|i| {
-            (i.modifiers.command || i.modifiers.ctrl) && i.modifiers.shift && i.key_pressed(egui::Key::M)
+            (i.modifiers.command || i.modifiers.ctrl)
+                && i.modifiers.shift
+                && i.key_pressed(egui::Key::M)
         });
         if triggered {
             self.expand_macro_at_cursor();

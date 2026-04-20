@@ -136,9 +136,7 @@ pub fn screen_to_ray(
 
     let tan_half_fov = (FOV_Y / 2.0).tan();
 
-    let ray_dir = (forward
-        + right * (ndc_x * tan_half_fov * ASPECT)
-        + up * (ndc_y * tan_half_fov))
+    let ray_dir = (forward + right * (ndc_x * tan_half_fov * ASPECT) + up * (ndc_y * tan_half_fov))
         .normalize();
 
     (cam_pos, ray_dir)
@@ -154,8 +152,18 @@ pub fn ray_aabb_hit(
     aabb_max: Vec3,
 ) -> Option<f32> {
     // Avoid division by zero by treating zero components as a very small value.
-    let safe = |v: f32| if v.abs() < 1e-8 { 1e-8_f32.copysign(v.max(0.0)) } else { v };
-    let inv_d = Vec3::new(1.0 / safe(ray_dir.x), 1.0 / safe(ray_dir.y), 1.0 / safe(ray_dir.z));
+    let safe = |v: f32| {
+        if v.abs() < 1e-8 {
+            1e-8_f32.copysign(v.max(0.0))
+        } else {
+            v
+        }
+    };
+    let inv_d = Vec3::new(
+        1.0 / safe(ray_dir.x),
+        1.0 / safe(ray_dir.y),
+        1.0 / safe(ray_dir.z),
+    );
 
     let t1 = (aabb_min - ray_origin) * inv_d;
     let t2 = (aabb_max - ray_origin) * inv_d;
@@ -174,7 +182,10 @@ pub fn ray_aabb_hit(
 /// Compute a world-space AABB for a scene entity based on its first renderable
 /// component. The caller must supply the entity's world-space transform (since
 /// `entity.transform` is now local-space).
-pub fn aabb_for_entity(entity: &SceneEntity, world_transform: &TransformData) -> Option<(Vec3, Vec3)> {
+pub fn aabb_for_entity(
+    entity: &SceneEntity,
+    world_transform: &TransformData,
+) -> Option<(Vec3, Vec3)> {
     let pos = Vec3::from_array(world_transform.translation);
     let scale = Vec3::from_array(world_transform.scale);
 
@@ -269,7 +280,8 @@ pub fn aabb_for_entity(entity: &SceneEntity, world_transform: &TransformData) ->
                 // AABB from the first point (small marker), or fall back to
                 // entity position if the point list is empty.
                 if let Some(first) = points.first() {
-                    let p = Vec3::new(first.position[0], first.position[1], first.position[2]) + pos;
+                    let p =
+                        Vec3::new(first.position[0], first.position[1], first.position[2]) + pos;
                     return Some((p - Vec3::splat(0.15), p + Vec3::splat(0.15)));
                 }
                 return Some((pos - Vec3::splat(0.15), pos + Vec3::splat(0.15)));

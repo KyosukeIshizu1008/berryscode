@@ -52,9 +52,7 @@ fn find_bevy_dependency(content: &str, section_header: &str) -> Option<String> {
     let section_content = &content[section_start + section_header.len()..];
 
     // Find the end of this section (next section header starting with `[`)
-    let section_end = section_content
-        .find("\n[")
-        .unwrap_or(section_content.len());
+    let section_end = section_content.find("\n[").unwrap_or(section_content.len());
     let section_text = &section_content[..section_end];
 
     for line in section_text.lines() {
@@ -158,9 +156,7 @@ mod tests {
     #[test]
     fn test_extract_version_table() {
         assert_eq!(
-            extract_version(
-                r#"bevy = { version = "0.15", features = ["dynamic_linking"] }"#
-            ),
+            extract_version(r#"bevy = { version = "0.15", features = ["dynamic_linking"] }"#),
             Some("0.15".to_string())
         );
     }

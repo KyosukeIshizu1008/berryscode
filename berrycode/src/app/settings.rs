@@ -1,8 +1,8 @@
 //! Settings panel, color scheme settings, theme editor
 
-use super::BerryCodeApp;
 use super::syntax_colors;
 use super::ui_colors;
+use super::BerryCodeApp;
 
 impl BerryCodeApp {
     /// RustRover-style Settings Panel
@@ -16,14 +16,38 @@ impl BerryCodeApp {
                 ui.set_width(150.0);
                 ui.add_space(8.0);
 
-                ui.selectable_value(&mut self.active_settings_tab, super::types::SettingsTab::Appearance, "Appearance");
-                ui.selectable_value(&mut self.active_settings_tab, super::types::SettingsTab::EditorColor, "Editor > Color Scheme");
-                ui.selectable_value(&mut self.active_settings_tab, super::types::SettingsTab::Keybindings, "Keybindings");
+                ui.selectable_value(
+                    &mut self.active_settings_tab,
+                    super::types::SettingsTab::Appearance,
+                    "Appearance",
+                );
+                ui.selectable_value(
+                    &mut self.active_settings_tab,
+                    super::types::SettingsTab::EditorColor,
+                    "Editor > Color Scheme",
+                );
+                ui.selectable_value(
+                    &mut self.active_settings_tab,
+                    super::types::SettingsTab::Keybindings,
+                    "Keybindings",
+                );
 
                 ui.add_space(12.0);
-                ui.label(egui::RichText::new("Plugins").small().color(egui::Color32::GRAY));
-                ui.selectable_value(&mut self.active_settings_tab, super::types::SettingsTab::GitHub, "GitHub Review");
-                ui.selectable_value(&mut self.active_settings_tab, super::types::SettingsTab::Plugins, "Other Plugins");
+                ui.label(
+                    egui::RichText::new("Plugins")
+                        .small()
+                        .color(egui::Color32::GRAY),
+                );
+                ui.selectable_value(
+                    &mut self.active_settings_tab,
+                    super::types::SettingsTab::GitHub,
+                    "GitHub Review",
+                );
+                ui.selectable_value(
+                    &mut self.active_settings_tab,
+                    super::types::SettingsTab::Plugins,
+                    "Other Plugins",
+                );
             });
 
             ui.separator();
@@ -32,29 +56,27 @@ impl BerryCodeApp {
             ui.vertical(|ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        match self.active_settings_tab {
-                            super::types::SettingsTab::EditorColor => {
-                                self.render_color_scheme_settings(ui);
-                            }
-                            super::types::SettingsTab::Keybindings => {
-                                self.render_keybindings_settings(ui);
-                            }
-                            super::types::SettingsTab::Appearance => {
-                                ui.heading("Appearance");
-                                ui.label("Window theme, font settings, etc.");
-                                ui.label("Coming soon...");
-                            }
-                            super::types::SettingsTab::GitHub => {
-                                ui.heading("GitHub Code Review");
-                                ui.label("Pull request review features.");
-                                ui.label("Coming soon...");
-                            }
-                            super::types::SettingsTab::Plugins => {
-                                ui.heading("Other Plugins");
-                                ui.label("Additional plugin configurations.");
-                                ui.label("Coming soon...");
-                            }
+                    .show(ui, |ui| match self.active_settings_tab {
+                        super::types::SettingsTab::EditorColor => {
+                            self.render_color_scheme_settings(ui);
+                        }
+                        super::types::SettingsTab::Keybindings => {
+                            self.render_keybindings_settings(ui);
+                        }
+                        super::types::SettingsTab::Appearance => {
+                            ui.heading("Appearance");
+                            ui.label("Window theme, font settings, etc.");
+                            ui.label("Coming soon...");
+                        }
+                        super::types::SettingsTab::GitHub => {
+                            ui.heading("GitHub Code Review");
+                            ui.label("Pull request review features.");
+                            ui.label("Coming soon...");
+                        }
+                        super::types::SettingsTab::Plugins => {
+                            ui.heading("Other Plugins");
+                            ui.label("Additional plugin configurations.");
+                            ui.label("Coming soon...");
                         }
                     });
             });
@@ -282,7 +304,9 @@ impl BerryCodeApp {
 
         ui.heading("Keyboard Shortcuts");
         ui.add_space(4.0);
-        ui.label("Current keybinding assignments. Edit keybindings.ron for advanced customization.");
+        ui.label(
+            "Current keybinding assignments. Edit keybindings.ron for advanced customization.",
+        );
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(4.0);

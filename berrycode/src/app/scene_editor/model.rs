@@ -665,96 +665,204 @@ impl ComponentData {
     /// Returns a list of all component types with their display names and default instances.
     pub fn default_all() -> Vec<(&'static str, ComponentData)> {
         vec![
-            ("Mesh Cube", ComponentData::MeshCube {
-                size: 1.0, color: [0.5, 0.5, 1.0],
-                metallic: 0.0, roughness: 0.5, emissive: [0.0, 0.0, 0.0],
-                texture_path: None, normal_map_path: None,
-            }),
-            ("Mesh Sphere", ComponentData::MeshSphere {
-                radius: 0.5, color: [1.0, 0.5, 0.5],
-                metallic: 0.0, roughness: 0.5, emissive: [0.0, 0.0, 0.0],
-                texture_path: None, normal_map_path: None,
-            }),
-            ("Mesh Plane", ComponentData::MeshPlane {
-                size: 10.0, color: [0.3, 0.3, 0.3],
-                metallic: 0.0, roughness: 0.5, emissive: [0.0, 0.0, 0.0],
-                texture_path: None, normal_map_path: None,
-            }),
-            ("Mesh From File", ComponentData::MeshFromFile {
-                path: String::new(), texture_path: None, normal_map_path: None,
-            }),
-            ("Light", ComponentData::Light { intensity: 10000.0, color: [1.0, 1.0, 1.0] }),
-            ("Spot Light", ComponentData::SpotLight {
-                intensity: 10000.0, color: [1.0, 1.0, 1.0],
-                range: 20.0, inner_angle: 0.5, outer_angle: 0.8,
-            }),
-            ("Directional Light", ComponentData::DirectionalLight {
-                intensity: 10000.0, color: [1.0, 1.0, 1.0], shadows: false,
-            }),
+            (
+                "Mesh Cube",
+                ComponentData::MeshCube {
+                    size: 1.0,
+                    color: [0.5, 0.5, 1.0],
+                    metallic: 0.0,
+                    roughness: 0.5,
+                    emissive: [0.0, 0.0, 0.0],
+                    texture_path: None,
+                    normal_map_path: None,
+                },
+            ),
+            (
+                "Mesh Sphere",
+                ComponentData::MeshSphere {
+                    radius: 0.5,
+                    color: [1.0, 0.5, 0.5],
+                    metallic: 0.0,
+                    roughness: 0.5,
+                    emissive: [0.0, 0.0, 0.0],
+                    texture_path: None,
+                    normal_map_path: None,
+                },
+            ),
+            (
+                "Mesh Plane",
+                ComponentData::MeshPlane {
+                    size: 10.0,
+                    color: [0.3, 0.3, 0.3],
+                    metallic: 0.0,
+                    roughness: 0.5,
+                    emissive: [0.0, 0.0, 0.0],
+                    texture_path: None,
+                    normal_map_path: None,
+                },
+            ),
+            (
+                "Mesh From File",
+                ComponentData::MeshFromFile {
+                    path: String::new(),
+                    texture_path: None,
+                    normal_map_path: None,
+                },
+            ),
+            (
+                "Light",
+                ComponentData::Light {
+                    intensity: 10000.0,
+                    color: [1.0, 1.0, 1.0],
+                },
+            ),
+            (
+                "Spot Light",
+                ComponentData::SpotLight {
+                    intensity: 10000.0,
+                    color: [1.0, 1.0, 1.0],
+                    range: 20.0,
+                    inner_angle: 0.5,
+                    outer_angle: 0.8,
+                },
+            ),
+            (
+                "Directional Light",
+                ComponentData::DirectionalLight {
+                    intensity: 10000.0,
+                    color: [1.0, 1.0, 1.0],
+                    shadows: false,
+                },
+            ),
             ("Camera", ComponentData::Camera),
-            ("Audio Source", ComponentData::AudioSource {
-                path: String::new(), volume: 1.0, looped: false, autoplay: true,
-            }),
+            (
+                "Audio Source",
+                ComponentData::AudioSource {
+                    path: String::new(),
+                    volume: 1.0,
+                    looped: false,
+                    autoplay: true,
+                },
+            ),
             ("Audio Listener", ComponentData::AudioListener),
-            ("Rigidbody", ComponentData::RigidBody {
-                body_type: RigidBodyType::Dynamic, mass: 1.0,
-            }),
-            ("Collider", ComponentData::Collider {
-                shape: ColliderShape::default(), friction: 0.5, restitution: 0.0,
-            }),
-            ("UI Text", ComponentData::UiText {
-                text: "Text".into(), font_size: 16.0, color: [1.0, 1.0, 1.0, 1.0],
-            }),
-            ("UI Button", ComponentData::UiButton {
-                label: "Button".into(), background: [0.2, 0.2, 0.3, 1.0],
-            }),
-            ("UI Image", ComponentData::UiImage {
-                path: String::new(), tint: [1.0, 1.0, 1.0, 1.0],
-            }),
-            ("Particle Emitter", ComponentData::ParticleEmitter {
-                rate: 30.0, lifetime: 1.5, speed: 2.0, spread: 0.3,
-                start_size: 0.1, end_size: 0.0,
-                start_color: [1.0, 0.6, 0.2, 1.0], end_color: [1.0, 0.0, 0.0, 0.0],
-                max_particles: 200, gravity: -1.0,
-            }),
-            ("Animation", ComponentData::Animation {
-                duration: 2.0, tracks: vec![], looped: true,
-            }),
-            ("Custom Script", ComponentData::CustomScript {
-                type_name: String::new(), fields: vec![],
-            }),
-            ("Skybox", ComponentData::Skybox {
-                path: String::new(),
-            }),
-            ("Animator", ComponentData::Animator {
-                controller_path: String::new(),
-            }),
-            ("LOD Group", ComponentData::LodGroup {
-                levels: vec![],
-            }),
-            ("Spline", ComponentData::Spline {
-                points: vec![],
-                closed: false,
-            }),
-            ("Terrain", ComponentData::Terrain {
-                resolution: 64,
-                world_size: [100.0, 100.0],
-                heights: vec![0.0; 64 * 64],
-                base_color: [0.3, 0.5, 0.3],
-            }),
-            ("Skinned Mesh", ComponentData::SkinnedMesh {
-                path: String::new(),
-                bones: vec![],
-            }),
-            ("Visual Script", ComponentData::VisualScript {
-                path: String::new(),
-            }),
-            ("NavMesh", ComponentData::NavMesh {
-                cell_size: 1.0,
-                grid: vec![],
-                width: 0,
-                height: 0,
-            }),
+            (
+                "Rigidbody",
+                ComponentData::RigidBody {
+                    body_type: RigidBodyType::Dynamic,
+                    mass: 1.0,
+                },
+            ),
+            (
+                "Collider",
+                ComponentData::Collider {
+                    shape: ColliderShape::default(),
+                    friction: 0.5,
+                    restitution: 0.0,
+                },
+            ),
+            (
+                "UI Text",
+                ComponentData::UiText {
+                    text: "Text".into(),
+                    font_size: 16.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                },
+            ),
+            (
+                "UI Button",
+                ComponentData::UiButton {
+                    label: "Button".into(),
+                    background: [0.2, 0.2, 0.3, 1.0],
+                },
+            ),
+            (
+                "UI Image",
+                ComponentData::UiImage {
+                    path: String::new(),
+                    tint: [1.0, 1.0, 1.0, 1.0],
+                },
+            ),
+            (
+                "Particle Emitter",
+                ComponentData::ParticleEmitter {
+                    rate: 30.0,
+                    lifetime: 1.5,
+                    speed: 2.0,
+                    spread: 0.3,
+                    start_size: 0.1,
+                    end_size: 0.0,
+                    start_color: [1.0, 0.6, 0.2, 1.0],
+                    end_color: [1.0, 0.0, 0.0, 0.0],
+                    max_particles: 200,
+                    gravity: -1.0,
+                },
+            ),
+            (
+                "Animation",
+                ComponentData::Animation {
+                    duration: 2.0,
+                    tracks: vec![],
+                    looped: true,
+                },
+            ),
+            (
+                "Custom Script",
+                ComponentData::CustomScript {
+                    type_name: String::new(),
+                    fields: vec![],
+                },
+            ),
+            (
+                "Skybox",
+                ComponentData::Skybox {
+                    path: String::new(),
+                },
+            ),
+            (
+                "Animator",
+                ComponentData::Animator {
+                    controller_path: String::new(),
+                },
+            ),
+            ("LOD Group", ComponentData::LodGroup { levels: vec![] }),
+            (
+                "Spline",
+                ComponentData::Spline {
+                    points: vec![],
+                    closed: false,
+                },
+            ),
+            (
+                "Terrain",
+                ComponentData::Terrain {
+                    resolution: 64,
+                    world_size: [100.0, 100.0],
+                    heights: vec![0.0; 64 * 64],
+                    base_color: [0.3, 0.5, 0.3],
+                },
+            ),
+            (
+                "Skinned Mesh",
+                ComponentData::SkinnedMesh {
+                    path: String::new(),
+                    bones: vec![],
+                },
+            ),
+            (
+                "Visual Script",
+                ComponentData::VisualScript {
+                    path: String::new(),
+                },
+            ),
+            (
+                "NavMesh",
+                ComponentData::NavMesh {
+                    cell_size: 1.0,
+                    grid: vec![],
+                    width: 0,
+                    height: 0,
+                },
+            ),
         ]
     }
 
@@ -1103,10 +1211,7 @@ impl SceneModel {
         let child_world_before = self.compute_world_transform(child_id);
 
         // Detach from current parent / root list
-        let old_parent = self
-            .entities
-            .get(&child_id)
-            .and_then(|e| e.parent);
+        let old_parent = self.entities.get(&child_id).and_then(|e| e.parent);
         match old_parent {
             Some(old) => {
                 if let Some(parent) = self.entities.get_mut(&old) {
@@ -1365,8 +1470,14 @@ mod tests {
     fn lod_group_component_roundtrip() {
         let comp = ComponentData::LodGroup {
             levels: vec![
-                LodLevel { mesh_path: "high.glb".into(), screen_percentage: 0.5 },
-                LodLevel { mesh_path: "low.glb".into(), screen_percentage: 0.1 },
+                LodLevel {
+                    mesh_path: "high.glb".into(),
+                    screen_percentage: 0.5,
+                },
+                LodLevel {
+                    mesh_path: "low.glb".into(),
+                    screen_percentage: 0.1,
+                },
             ],
         };
         let json = serde_json::to_string(&comp).unwrap();

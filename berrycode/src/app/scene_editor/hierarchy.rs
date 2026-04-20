@@ -31,7 +31,8 @@ impl BerryCodeApp {
                     } else {
                         self.scene_tabs[i].label.clone()
                     };
-                    if ui.selectable_label(selected, &label).clicked() && i != self.active_scene_tab {
+                    if ui.selectable_label(selected, &label).clicked() && i != self.active_scene_tab
+                    {
                         switch_to = Some(i);
                     }
                 }
@@ -74,19 +75,45 @@ impl BerryCodeApp {
                     self.active_tool_tab = crate::app::dock::ToolTab::Dopesheet;
                     ui.close_menu();
                 }
-                if ui.button("Systems").clicked() { self.system_graph_open = !self.system_graph_open; ui.close_menu(); }
-                if ui.button("Events").clicked() { self.event_monitor_open = !self.event_monitor_open; ui.close_menu(); }
-                if ui.button("Queries").clicked() { self.query_viz_open = !self.query_viz_open; ui.close_menu(); }
-                if ui.button("States").clicked() { self.state_editor_open = !self.state_editor_open; ui.close_menu(); }
-                if ui.button("Plugins").clicked() { self.plugin_browser_open = !self.plugin_browser_open; ui.close_menu(); }
+                if ui.button("Systems").clicked() {
+                    self.system_graph_open = !self.system_graph_open;
+                    ui.close_menu();
+                }
+                if ui.button("Events").clicked() {
+                    self.event_monitor_open = !self.event_monitor_open;
+                    ui.close_menu();
+                }
+                if ui.button("Queries").clicked() {
+                    self.query_viz_open = !self.query_viz_open;
+                    ui.close_menu();
+                }
+                if ui.button("States").clicked() {
+                    self.state_editor_open = !self.state_editor_open;
+                    ui.close_menu();
+                }
+                if ui.button("Plugins").clicked() {
+                    self.plugin_browser_open = !self.plugin_browser_open;
+                    ui.close_menu();
+                }
                 ui.separator();
                 if ui.button("Export .scn.ron").clicked() {
-                    let path = self.scene_model.file_path.clone().unwrap_or_else(|| {
-                        format!("{}/scenes/scene.bscene", self.root_path)
-                    });
-                    match crate::app::scene_editor::bevy_scene_export::save_bevy_scene(&self.scene_model, &path) {
-                        Ok(p) => { self.status_message = format!("Exported: {}", p); self.status_message_timestamp = Some(std::time::Instant::now()); }
-                        Err(e) => { self.status_message = format!("Export failed: {}", e); self.status_message_timestamp = Some(std::time::Instant::now()); }
+                    let path = self
+                        .scene_model
+                        .file_path
+                        .clone()
+                        .unwrap_or_else(|| format!("{}/scenes/scene.bscene", self.root_path));
+                    match crate::app::scene_editor::bevy_scene_export::save_bevy_scene(
+                        &self.scene_model,
+                        &path,
+                    ) {
+                        Ok(p) => {
+                            self.status_message = format!("Exported: {}", p);
+                            self.status_message_timestamp = Some(std::time::Instant::now());
+                        }
+                        Err(e) => {
+                            self.status_message = format!("Export failed: {}", e);
+                            self.status_message_timestamp = Some(std::time::Instant::now());
+                        }
                     }
                     ui.close_menu();
                 }
@@ -213,10 +240,8 @@ impl BerryCodeApp {
             }
             if ui.button("+ Audio Listener").clicked() {
                 self.scene_snapshot();
-                self.scene_model.add_entity(
-                    "Audio Listener".into(),
-                    vec![ComponentData::AudioListener],
-                );
+                self.scene_model
+                    .add_entity("Audio Listener".into(), vec![ComponentData::AudioListener]);
             }
             if ui.button("+ Rigidbody").clicked() {
                 self.scene_snapshot();
@@ -340,9 +365,7 @@ impl BerryCodeApp {
                 self.scene_snapshot();
                 self.scene_model.add_entity(
                     "LOD Group".into(),
-                    vec![ComponentData::LodGroup {
-                        levels: vec![],
-                    }],
+                    vec![ComponentData::LodGroup { levels: vec![] }],
                 );
             }
             if ui.button("+ Spline").clicked() {
@@ -501,7 +524,12 @@ impl BerryCodeApp {
     /// Testable without UI context.
     pub fn get_filtered_entity_names(&self, filter: &str) -> Vec<String> {
         if filter.is_empty() {
-            return self.scene_model.entities.values().map(|e| e.name.clone()).collect();
+            return self
+                .scene_model
+                .entities
+                .values()
+                .map(|e| e.name.clone())
+                .collect();
         }
         let lower = filter.to_lowercase();
         self.scene_model
@@ -596,8 +624,7 @@ impl BerryCodeApp {
 
                 if is_renaming {
                     let edit = ui.add(
-                        egui::TextEdit::singleline(&mut self.rename_buffer)
-                            .desired_width(160.0),
+                        egui::TextEdit::singleline(&mut self.rename_buffer).desired_width(160.0),
                     );
                     edit.request_focus();
                     if edit.lost_focus() {
@@ -624,7 +651,7 @@ impl BerryCodeApp {
                     };
                     let resp = ui.add(
                         egui::Label::new(egui::RichText::new(label).color(label_color))
-                        .sense(egui::Sense::click_and_drag()),
+                            .sense(egui::Sense::click_and_drag()),
                     );
 
                     // Selection background highlight.
@@ -674,10 +701,7 @@ impl BerryCodeApp {
                                 ui.painter().rect_stroke(
                                     resp.rect,
                                     2.0,
-                                    egui::Stroke::new(
-                                        1.5,
-                                        egui::Color32::from_rgb(80, 200, 255),
-                                    ),
+                                    egui::Stroke::new(1.5, egui::Color32::from_rgb(80, 200, 255)),
                                 );
                             }
                         }
@@ -701,7 +725,9 @@ impl BerryCodeApp {
                             request_copy = true;
                             ui.close_menu();
                         }
-                        if ui.button("Paste").on_disabled_hover_text("Nothing in clipboard")
+                        if ui
+                            .button("Paste")
+                            .on_disabled_hover_text("Nothing in clipboard")
                             .clicked()
                         {
                             request_paste = true;
@@ -764,14 +790,22 @@ impl BerryCodeApp {
                 use crate::app::scene_editor::history::SceneCommand;
                 if ids_to_dup.len() == 1 {
                     self.command_history.execute(
-                        SceneCommand::DuplicateEntity { source_id: ids_to_dup[0], new_id: 0 },
+                        SceneCommand::DuplicateEntity {
+                            source_id: ids_to_dup[0],
+                            new_id: 0,
+                        },
                         &self.scene_model,
                     );
                 } else {
-                    let cmds: Vec<SceneCommand> = ids_to_dup.iter()
-                        .map(|&sid| SceneCommand::DuplicateEntity { source_id: sid, new_id: 0 })
+                    let cmds: Vec<SceneCommand> = ids_to_dup
+                        .iter()
+                        .map(|&sid| SceneCommand::DuplicateEntity {
+                            source_id: sid,
+                            new_id: 0,
+                        })
                         .collect();
-                    self.command_history.execute(SceneCommand::Batch(cmds), &self.scene_model);
+                    self.command_history
+                        .execute(SceneCommand::Batch(cmds), &self.scene_model);
                 }
             }
             let mut last_new = None;
@@ -787,23 +821,28 @@ impl BerryCodeApp {
         }
         if request_delete {
             // Delete all selected entities if the right-clicked entity is in the selection.
-            let ids_to_del: Vec<u64> = if self.scene_model.is_selected(id) && self.scene_model.selected_ids.len() > 1 {
-                self.scene_model.selected_ids.iter().copied().collect()
-            } else {
-                vec![id]
-            };
+            let ids_to_del: Vec<u64> =
+                if self.scene_model.is_selected(id) && self.scene_model.selected_ids.len() > 1 {
+                    self.scene_model.selected_ids.iter().copied().collect()
+                } else {
+                    vec![id]
+                };
             {
                 use crate::app::scene_editor::history::SceneCommand;
                 if ids_to_del.len() == 1 {
                     self.command_history.execute(
-                        SceneCommand::RemoveEntity { entity_id: ids_to_del[0] },
+                        SceneCommand::RemoveEntity {
+                            entity_id: ids_to_del[0],
+                        },
                         &self.scene_model,
                     );
                 } else {
-                    let cmds: Vec<SceneCommand> = ids_to_del.iter()
+                    let cmds: Vec<SceneCommand> = ids_to_del
+                        .iter()
                         .map(|&eid| SceneCommand::RemoveEntity { entity_id: eid })
                         .collect();
-                    self.command_history.execute(SceneCommand::Batch(cmds), &self.scene_model);
+                    self.command_history
+                        .execute(SceneCommand::Batch(cmds), &self.scene_model);
                 }
             }
             for del_id in ids_to_del {
@@ -837,16 +876,21 @@ impl BerryCodeApp {
             self.scene_needs_sync = true;
         }
         if request_save_prefab {
-            if let Some(prefab) = crate::app::scene_editor::prefab::build_prefab_from_entity(
-                &self.scene_model,
-                id,
-            ) {
+            if let Some(prefab) =
+                crate::app::scene_editor::prefab::build_prefab_from_entity(&self.scene_model, id)
+            {
                 // Save under <root>/prefabs/<entity_name>.bprefab
                 let dir = format!("{}/prefabs", self.root_path);
                 let _ = std::fs::create_dir_all(&dir);
                 let safe_name: String = name
                     .chars()
-                    .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+                    .map(|c| {
+                        if c.is_alphanumeric() || c == '_' || c == '-' {
+                            c
+                        } else {
+                            '_'
+                        }
+                    })
                     .collect();
                 let path = format!("{}/{}.bprefab", dir, safe_name);
                 match crate::app::scene_editor::prefab::save_prefab(&prefab, &path) {
@@ -865,10 +909,8 @@ impl BerryCodeApp {
         }
 
         if request_copy {
-            self.entity_clipboard = crate::app::scene_editor::prefab::build_prefab_from_entity(
-                &self.scene_model,
-                id,
-            );
+            self.entity_clipboard =
+                crate::app::scene_editor::prefab::build_prefab_from_entity(&self.scene_model, id);
             if self.entity_clipboard.is_some() {
                 self.status_message = format!("Copied entity: {}", name);
                 self.status_message_timestamp = Some(std::time::Instant::now());

@@ -52,10 +52,7 @@ pub fn remove_field_from_resource(resource: &mut ResourceDef, index: usize) -> b
 
 /// Render the "Scene Resources" section in the Inspector panel.
 /// Returns `true` if any resource was mutated this frame.
-pub fn render_resource_inspector(
-    ui: &mut egui::Ui,
-    resources: &mut Vec<ResourceDef>,
-) -> bool {
+pub fn render_resource_inspector(ui: &mut egui::Ui, resources: &mut Vec<ResourceDef>) -> bool {
     let mut mutated = false;
     let mut remove_idx: Option<usize> = None;
 

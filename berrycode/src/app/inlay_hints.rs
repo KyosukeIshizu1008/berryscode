@@ -1,7 +1,7 @@
 //! Inlay hints: fetch from LSP and render inline ghost text (type annotations, parameter names)
 
-use super::BerryCodeApp;
 use super::types::{LspInlayHint, LspResponse};
+use super::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Periodically request inlay hints from LSP for the current file
@@ -85,7 +85,10 @@ impl BerryCodeApp {
     /// Call this from within the editor rendering loop, after drawing each line's text.
     ///
     /// Returns a list of (line, x_offset, label) to draw after the main text.
-    pub(crate) fn get_inlay_hints_for_line(&self, line_idx: usize) -> Vec<(usize, String, &'static str)> {
+    pub(crate) fn get_inlay_hints_for_line(
+        &self,
+        line_idx: usize,
+    ) -> Vec<(usize, String, &'static str)> {
         if !self.inlay_hints_enabled {
             return Vec::new();
         }

@@ -1,7 +1,7 @@
 //! Search panel, search dialog, and search operations
 
-use super::BerryCodeApp;
 use super::types::SearchMatch;
+use super::BerryCodeApp;
 use crate::buffer::TextBuffer;
 use crate::native;
 
@@ -32,45 +32,54 @@ impl BerryCodeApp {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-            if !self.search_results.is_empty() {
-                ui.label(format!("Found {} matches:", self.search_results.len()));
-                ui.add_space(4.0);
+                if !self.search_results.is_empty() {
+                    ui.label(format!("Found {} matches:", self.search_results.len()));
+                    ui.add_space(4.0);
 
-                // Clone results to avoid borrowing issues
-                let results = self.search_results.clone();
-                for (idx, result) in results.iter().enumerate() {
-                    let is_selected = idx == self.current_search_index;
+                    // Clone results to avoid borrowing issues
+                    let results = self.search_results.clone();
+                    for (idx, result) in results.iter().enumerate() {
+                        let is_selected = idx == self.current_search_index;
 
-                    // Prepare display text and file path outside closure
-                    let display_text = if let Some(ref file_path) = result.file_path {
-                        // Extract filename from path
-                        let filename = std::path::Path::new(file_path)
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or(file_path);
-                        format!("{}:{} - {}", filename, result.line_number + 1, result.line_text.trim())
-                    } else {
-                        // In-file search, just show line number
-                        format!("Line {}: {}", result.line_number + 1, result.line_text.trim())
-                    };
-                    let file_path_clone = result.file_path.clone();
+                        // Prepare display text and file path outside closure
+                        let display_text = if let Some(ref file_path) = result.file_path {
+                            // Extract filename from path
+                            let filename = std::path::Path::new(file_path)
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or(file_path);
+                            format!(
+                                "{}:{} - {}",
+                                filename,
+                                result.line_number + 1,
+                                result.line_text.trim()
+                            )
+                        } else {
+                            // In-file search, just show line number
+                            format!(
+                                "Line {}: {}",
+                                result.line_number + 1,
+                                result.line_text.trim()
+                            )
+                        };
+                        let file_path_clone = result.file_path.clone();
 
-                    ui.horizontal(|ui| {
-                        if ui.selectable_label(is_selected, display_text).clicked() {
-                            self.current_search_index = idx;
+                        ui.horizontal(|ui| {
+                            if ui.selectable_label(is_selected, display_text).clicked() {
+                                self.current_search_index = idx;
 
-                            // If clicking on a project-wide search result, open the file
-                            if let Some(file_path) = file_path_clone {
-                                self.open_file_from_path(&file_path);
+                                // If clicking on a project-wide search result, open the file
+                                if let Some(file_path) = file_path_clone {
+                                    self.open_file_from_path(&file_path);
+                                }
+                                // TODO: Jump to line in editor
                             }
-                            // TODO: Jump to line in editor
-                        }
-                    });
+                        });
+                    }
+                } else if !self.search_query.is_empty() {
+                    ui.label("No results found");
                 }
-            } else if !self.search_query.is_empty() {
-                ui.label("No results found");
-            }
-        });
+            });
     }
 
     /// Render search dialog
@@ -160,13 +169,23 @@ impl BerryCodeApp {
                                 let is_current = idx == self.current_search_index;
 
                                 // Format the display text
-                                let display_text = if let Some(file_path) = &match_result.file_path {
+                                let display_text = if let Some(file_path) = &match_result.file_path
+                                {
                                     // Project-wide search: show file path and line
                                     let filename = file_path.split('/').last().unwrap_or(file_path);
-                                    format!("{}:{}: {}", filename, match_result.line_number + 1, match_result.line_text.trim())
+                                    format!(
+                                        "{}:{}: {}",
+                                        filename,
+                                        match_result.line_number + 1,
+                                        match_result.line_text.trim()
+                                    )
                                 } else {
                                     // In-file search: just show line number
-                                    format!("Line {}: {}", match_result.line_number + 1, match_result.line_text.trim())
+                                    format!(
+                                        "Line {}: {}",
+                                        match_result.line_number + 1,
+                                        match_result.line_text.trim()
+                                    )
                                 };
 
                                 // Make each result clickable
@@ -245,7 +264,11 @@ impl BerryCodeApp {
             }
         }
 
-        tracing::info!("🔍 Search found {} matches for '{}'", self.search_results.len(), self.search_query);
+        tracing::info!(
+            "🔍 Search found {} matches for '{}'",
+            self.search_results.len(),
+            self.search_query
+        );
 
         // Jump to first match if any results found
         if !self.search_results.is_empty() {
@@ -262,7 +285,11 @@ impl BerryCodeApp {
             return;
         }
 
-        tracing::info!("🔍 Starting project-wide search for '{}' in {}", self.search_query, self.root_path);
+        tracing::info!(
+            "🔍 Starting project-wide search for '{}' in {}",
+            self.search_query,
+            self.root_path
+        );
 
         // Use native::search::search_in_files() for parallel search
         match native::search::search_in_files(
@@ -308,7 +335,11 @@ impl BerryCodeApp {
         }
 
         self.current_search_index = (self.current_search_index + 1) % self.search_results.len();
-        tracing::info!("🔍 Next match: {}/{}", self.current_search_index + 1, self.search_results.len());
+        tracing::info!(
+            "🔍 Next match: {}/{}",
+            self.current_search_index + 1,
+            self.search_results.len()
+        );
 
         // Jump to the match location
         self.jump_to_current_match();
@@ -325,7 +356,11 @@ impl BerryCodeApp {
         } else {
             self.current_search_index -= 1;
         }
-        tracing::info!("🔍 Previous match: {}/{}", self.current_search_index + 1, self.search_results.len());
+        tracing::info!(
+            "🔍 Previous match: {}/{}",
+            self.current_search_index + 1,
+            self.search_results.len()
+        );
 
         // Jump to the match location
         self.jump_to_current_match();
@@ -343,7 +378,8 @@ impl BerryCodeApp {
         // If this is a project-wide search result with a file path, open that file first
         if let Some(file_path) = &match_result.file_path {
             // Check if the file is already open
-            let file_already_open = self.editor_tabs
+            let file_already_open = self
+                .editor_tabs
                 .iter()
                 .position(|tab| tab.file_path == *file_path);
 
@@ -413,7 +449,9 @@ impl BerryCodeApp {
 
             // Remove this match and move to next
             self.search_results.remove(self.current_search_index);
-            if !self.search_results.is_empty() && self.current_search_index >= self.search_results.len() {
+            if !self.search_results.is_empty()
+                && self.current_search_index >= self.search_results.len()
+            {
                 self.current_search_index = 0;
             }
 
@@ -442,7 +480,10 @@ impl BerryCodeApp {
 
             while let Some(pos) = result[start..].to_lowercase().find(&query_lower) {
                 let actual_pos = start + pos;
-                result.replace_range(actual_pos..actual_pos + self.search_query.len(), &self.replace_query);
+                result.replace_range(
+                    actual_pos..actual_pos + self.search_query.len(),
+                    &self.replace_query,
+                );
                 start = actual_pos + self.replace_query.len();
             }
             result

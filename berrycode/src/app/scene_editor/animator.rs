@@ -52,12 +52,23 @@ pub struct AnimTransition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TransitionCondition {
     /// Transition when a bool parameter is true/false.
-    BoolParam { name: String, value: bool },
+    BoolParam {
+        name: String,
+        value: bool,
+    },
     /// Transition when a float parameter crosses a threshold.
-    FloatGreater { name: String, threshold: f32 },
-    FloatLess { name: String, threshold: f32 },
+    FloatGreater {
+        name: String,
+        threshold: f32,
+    },
+    FloatLess {
+        name: String,
+        threshold: f32,
+    },
     /// Transition when a trigger parameter is set.
-    Trigger { name: String },
+    Trigger {
+        name: String,
+    },
     /// Always transition (after clip finishes).
     OnComplete,
 }
@@ -128,8 +139,8 @@ mod tests {
             value: false,
         });
 
-        let s = ron::ser::to_string_pretty(&c, ron::ser::PrettyConfig::default())
-            .expect("serialize");
+        let s =
+            ron::ser::to_string_pretty(&c, ron::ser::PrettyConfig::default()).expect("serialize");
         let loaded: AnimatorController = ron::from_str(&s).expect("deserialize");
         assert_eq!(loaded.states.len(), 2);
         assert_eq!(loaded.transitions.len(), 1);

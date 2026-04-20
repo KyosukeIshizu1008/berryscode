@@ -54,8 +54,8 @@ async fn test_ollama_direct_tool_call() {
     println!("\n=== Ollama Response ===");
     println!("{}", body);
 
-    let json_response: serde_json::Value = serde_json::from_str(&body)
-        .expect("Failed to parse JSON");
+    let json_response: serde_json::Value =
+        serde_json::from_str(&body).expect("Failed to parse JSON");
 
     if let Some(message) = json_response.get("message") {
         if let Some(content) = message.get("content") {
@@ -63,8 +63,8 @@ async fn test_ollama_direct_tool_call() {
             println!("{}", content.as_str().unwrap());
 
             // Check if it's a tool call
-            let is_tool_call = content.as_str().unwrap().contains("<function=") ||
-                             content.as_str().unwrap().contains("{\"type\"");
+            let is_tool_call = content.as_str().unwrap().contains("<function=")
+                || content.as_str().unwrap().contains("{\"type\"");
 
             println!("\n=== Analysis ===");
             println!("Is tool call: {}", is_tool_call);
@@ -138,7 +138,8 @@ async fn test_simple_create_file_request() {
             let content_str = content.as_str().unwrap();
             println!("\nContent: {}", content_str);
 
-            let is_tool_call = content_str.contains("<function=") || content_str.contains("{\"type\"");
+            let is_tool_call =
+                content_str.contains("<function=") || content_str.contains("{\"type\"");
             println!("Is tool call: {}", is_tool_call);
         }
     }

@@ -88,14 +88,14 @@ impl Default for CollabState {
             pending_edits: Vec::new(),
             share_link: String::new(),
             color_palette: vec![
-                [66, 133, 244],   // blue
-                [234, 67, 53],    // red
-                [52, 168, 83],    // green
-                [251, 188, 4],    // yellow
-                [171, 71, 188],   // purple
-                [255, 112, 67],   // orange
-                [0, 172, 193],    // teal
-                [233, 30, 99],    // pink
+                [66, 133, 244], // blue
+                [234, 67, 53],  // red
+                [52, 168, 83],  // green
+                [251, 188, 4],  // yellow
+                [171, 71, 188], // purple
+                [255, 112, 67], // orange
+                [0, 172, 193],  // teal
+                [233, 30, 99],  // pink
             ],
             next_color_idx: 0,
         }
@@ -210,16 +210,19 @@ impl BerryCodeApp {
             .show(ctx, |ui| {
                 // Tab bar
                 ui.horizontal(|ui| {
-                    if ui.selectable_label(
-                        self.collab_dialog.tab == CollabDialogTab::Session,
-                        "Session",
-                    ).clicked() {
+                    if ui
+                        .selectable_label(
+                            self.collab_dialog.tab == CollabDialogTab::Session,
+                            "Session",
+                        )
+                        .clicked()
+                    {
                         self.collab_dialog.tab = CollabDialogTab::Session;
                     }
-                    if ui.selectable_label(
-                        self.collab_dialog.tab == CollabDialogTab::Chat,
-                        "Chat",
-                    ).clicked() {
+                    if ui
+                        .selectable_label(self.collab_dialog.tab == CollabDialogTab::Chat, "Chat")
+                        .clicked()
+                    {
                         self.collab_dialog.tab = CollabDialogTab::Chat;
                     }
                 });
@@ -258,13 +261,17 @@ impl BerryCodeApp {
                 ui.add_space(12.0);
 
                 // Host button
-                if ui.add(
-                    egui::Button::new(
-                        egui::RichText::new("\u{ebb5} Start Session")
-                            .size(14.0)
-                            .color(egui::Color32::from_rgb(80, 200, 80)),
-                    ).min_size(egui::vec2(380.0, 32.0))
-                ).clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ebb5} Start Session")
+                                .size(14.0)
+                                .color(egui::Color32::from_rgb(80, 200, 80)),
+                        )
+                        .min_size(egui::vec2(380.0, 32.0)),
+                    )
+                    .clicked()
+                {
                     self.collab.host_session();
                 }
 
@@ -280,7 +287,8 @@ impl BerryCodeApp {
                             .hint_text("Session ID")
                             .desired_width(250.0),
                     );
-                    if ui.button("Join").clicked() && !self.collab_dialog.join_session_id.is_empty() {
+                    if ui.button("Join").clicked() && !self.collab_dialog.join_session_id.is_empty()
+                    {
                         let id = self.collab_dialog.join_session_id.clone();
                         self.collab.join_session(&id);
                     }
@@ -303,14 +311,21 @@ impl BerryCodeApp {
 
                 // Collaborators list
                 ui.label(
-                    egui::RichText::new(format!("Participants ({})", self.collab.collaborators.len()))
-                        .size(12.0)
-                        .color(egui::Color32::from_rgb(140, 140, 140)),
+                    egui::RichText::new(format!(
+                        "Participants ({})",
+                        self.collab.collaborators.len()
+                    ))
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(140, 140, 140)),
                 );
 
                 for collab in &self.collab.collaborators {
                     ui.horizontal(|ui| {
-                        let color = egui::Color32::from_rgb(collab.color[0], collab.color[1], collab.color[2]);
+                        let color = egui::Color32::from_rgb(
+                            collab.color[0],
+                            collab.color[1],
+                            collab.color[2],
+                        );
                         ui.label(egui::RichText::new("\u{25cf}").color(color)); // colored dot
                         ui.label(&collab.name);
                         if collab.is_self {
@@ -333,12 +348,16 @@ impl BerryCodeApp {
 
                 ui.add_space(12.0);
 
-                if ui.add(
-                    egui::Button::new(
-                        egui::RichText::new("Leave Session")
-                            .color(egui::Color32::from_rgb(230, 80, 80)),
-                    ).min_size(egui::vec2(380.0, 28.0))
-                ).clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("Leave Session")
+                                .color(egui::Color32::from_rgb(230, 80, 80)),
+                        )
+                        .min_size(egui::vec2(380.0, 28.0)),
+                    )
+                    .clicked()
+                {
                     self.collab.leave_session();
                 }
             }
@@ -409,8 +428,17 @@ impl BerryCodeApp {
     }
 
     /// Broadcast a local edit to all collaborators
-    pub(crate) fn broadcast_edit(&mut self, file_path: &str, line: usize, col: usize, delete_count: usize, insert_text: &str) {
-        if self.collab.status != CollabStatus::Hosting && self.collab.status != CollabStatus::Connected {
+    pub(crate) fn broadcast_edit(
+        &mut self,
+        file_path: &str,
+        line: usize,
+        col: usize,
+        delete_count: usize,
+        insert_text: &str,
+    ) {
+        if self.collab.status != CollabStatus::Hosting
+            && self.collab.status != CollabStatus::Connected
+        {
             return;
         }
 
@@ -434,7 +462,9 @@ impl BerryCodeApp {
 
     /// Update local cursor position for broadcasting
     pub(crate) fn update_collab_cursor(&mut self) {
-        if self.collab.status != CollabStatus::Hosting && self.collab.status != CollabStatus::Connected {
+        if self.collab.status != CollabStatus::Hosting
+            && self.collab.status != CollabStatus::Connected
+        {
             return;
         }
 
@@ -453,14 +483,18 @@ impl BerryCodeApp {
 
         for edit in edits {
             // Find the tab for this file
-            let tab_idx = self.editor_tabs.iter().position(|t| t.file_path == edit.file_path);
+            let tab_idx = self
+                .editor_tabs
+                .iter()
+                .position(|t| t.file_path == edit.file_path);
             if let Some(idx) = tab_idx {
                 let tab = &mut self.editor_tabs[idx];
                 let mut text = tab.buffer.to_string();
                 let lines: Vec<&str> = text.lines().collect();
 
                 if edit.line < lines.len() {
-                    let line_offset: usize = lines.iter().take(edit.line).map(|l| l.len() + 1).sum();
+                    let line_offset: usize =
+                        lines.iter().take(edit.line).map(|l| l.len() + 1).sum();
                     let offset = (line_offset + edit.col).min(text.len());
                     let end = (offset + edit.delete_count).min(text.len());
 
@@ -495,9 +529,7 @@ impl BerryCodeApp {
         self.collab
             .collaborators
             .iter()
-            .filter(|c| {
-                !c.is_self && c.file_path.as_deref() == Some(file_path)
-            })
+            .filter(|c| !c.is_self && c.file_path.as_deref() == Some(file_path))
             .map(|c| (c.cursor_line, c.cursor_col, c.color, c.name.as_str()))
             .collect()
     }

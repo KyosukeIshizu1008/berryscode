@@ -54,10 +54,7 @@ pub fn search_bevy_crates(query: &str) -> Vec<CrateResult> {
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
-                downloads: c
-                    .get("downloads")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
+                downloads: c.get("downloads").and_then(|v| v.as_u64()).unwrap_or(0),
             });
         }
     }
@@ -65,11 +62,7 @@ pub fn search_bevy_crates(query: &str) -> Vec<CrateResult> {
 }
 
 /// Add a crate to the project's Cargo.toml
-pub fn add_crate_to_cargo_toml(
-    root: &str,
-    crate_name: &str,
-    version: &str,
-) -> Result<(), String> {
+pub fn add_crate_to_cargo_toml(root: &str, crate_name: &str, version: &str) -> Result<(), String> {
     let cargo_path = format!("{}/Cargo.toml", root);
     let content = std::fs::read_to_string(&cargo_path).map_err(|e| e.to_string())?;
 
@@ -120,11 +113,9 @@ impl BerryCodeApp {
                             .desired_width(300.0),
                     );
                     if ui.button("Search").clicked()
-                        || (response.lost_focus()
-                            && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                        || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                     {
-                        self.plugin_search_results =
-                            search_bevy_crates(&self.plugin_search_query);
+                        self.plugin_search_results = search_bevy_crates(&self.plugin_search_query);
                     }
                 });
 
@@ -154,17 +145,13 @@ impl BerryCodeApp {
                                                         Some(std::time::Instant::now());
                                                 }
                                                 Err(e) => {
-                                                    self.status_message =
-                                                        format!("Failed: {}", e);
+                                                    self.status_message = format!("Failed: {}", e);
                                                     self.status_message_timestamp =
                                                         Some(std::time::Instant::now());
                                                 }
                                             }
                                         }
-                                        ui.label(format!(
-                                            "{} downloads",
-                                            result.downloads
-                                        ));
+                                        ui.label(format!("{} downloads", result.downloads));
                                     },
                                 );
                             });
@@ -175,8 +162,7 @@ impl BerryCodeApp {
                             );
                         });
                     }
-                    if self.plugin_search_results.is_empty()
-                        && !self.plugin_search_query.is_empty()
+                    if self.plugin_search_results.is_empty() && !self.plugin_search_query.is_empty()
                     {
                         ui.label("No results. Try a different search term.");
                     }

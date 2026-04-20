@@ -83,9 +83,7 @@ impl StateGraph {
 pub fn generate_states_code(graph: &StateGraph) -> String {
     let mut code = String::new();
     code.push_str("use bevy::prelude::*;\n\n");
-    code.push_str(
-        "#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]\n",
-    );
+    code.push_str("#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]\n");
     code.push_str("pub enum GameState {\n");
     for (i, state) in graph.states.iter().enumerate() {
         if i == graph.initial_state {

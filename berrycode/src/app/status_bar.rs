@@ -1,7 +1,7 @@
 //! Status bar rendering
 
-use super::BerryCodeApp;
 use super::ui_colors;
+use super::BerryCodeApp;
 
 impl BerryCodeApp {
     /// Render Status Bar (bottom)

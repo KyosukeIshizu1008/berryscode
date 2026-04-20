@@ -260,21 +260,28 @@ mod tests {
             .values()
             .find(|e| e.name == "B")
             .expect("child B in prefab");
-        assert_eq!(
-            child_in_prefab.prefab_source.as_deref(),
-            Some("x.bprefab")
-        );
+        assert_eq!(child_in_prefab.prefab_source.as_deref(), Some("x.bprefab"));
 
         // Instantiate the prefab into a new scene.
         let mut target = SceneModel::new();
         let new_root = instantiate_prefab(&mut target, &prefab);
         // Root should have no prefab_source (not called with _from_path).
-        assert!(target.entities.get(&new_root).unwrap().prefab_source.is_none());
+        assert!(target
+            .entities
+            .get(&new_root)
+            .unwrap()
+            .prefab_source
+            .is_none());
 
         // The child entity should still carry the nested prefab_source.
         let child_id = target.entities.get(&new_root).unwrap().children[0];
         assert_eq!(
-            target.entities.get(&child_id).unwrap().prefab_source.as_deref(),
+            target
+                .entities
+                .get(&child_id)
+                .unwrap()
+                .prefab_source
+                .as_deref(),
             Some("x.bprefab")
         );
     }

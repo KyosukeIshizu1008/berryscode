@@ -115,7 +115,12 @@ impl SearchEngine {
             self.query.to_lowercase()
         };
 
-        for (line_idx, line) in lines.iter().enumerate().skip(start_line).take(end_line - start_line) {
+        for (line_idx, line) in lines
+            .iter()
+            .enumerate()
+            .skip(start_line)
+            .take(end_line - start_line)
+        {
             let search_text = if self.options.case_sensitive {
                 line.to_string()
             } else {
@@ -129,8 +134,10 @@ impl SearchEngine {
 
                 // Check whole word boundary
                 if self.options.whole_word {
-                    let before_ok = actual_pos == 0 || !line.chars().nth(actual_pos - 1).unwrap().is_alphanumeric();
-                    let after_ok = end_pos >= line.len() || !line.chars().nth(end_pos).unwrap().is_alphanumeric();
+                    let before_ok = actual_pos == 0
+                        || !line.chars().nth(actual_pos - 1).unwrap().is_alphanumeric();
+                    let after_ok = end_pos >= line.len()
+                        || !line.chars().nth(end_pos).unwrap().is_alphanumeric();
 
                     if !before_ok || !after_ok {
                         start = actual_pos + 1;
@@ -162,15 +169,22 @@ impl SearchEngine {
             Err(_) => return, // Invalid regex
         };
 
-        for (line_idx, line) in lines.iter().enumerate().skip(start_line).take(end_line - start_line) {
+        for (line_idx, line) in lines
+            .iter()
+            .enumerate()
+            .skip(start_line)
+            .take(end_line - start_line)
+        {
             for cap in regex.find_iter(line) {
                 let start_pos = cap.start();
                 let end_pos = cap.end();
 
                 // Check whole word boundary if needed
                 if self.options.whole_word {
-                    let before_ok = start_pos == 0 || !line.chars().nth(start_pos - 1).unwrap().is_alphanumeric();
-                    let after_ok = end_pos >= line.len() || !line.chars().nth(end_pos).unwrap().is_alphanumeric();
+                    let before_ok = start_pos == 0
+                        || !line.chars().nth(start_pos - 1).unwrap().is_alphanumeric();
+                    let after_ok = end_pos >= line.len()
+                        || !line.chars().nth(end_pos).unwrap().is_alphanumeric();
 
                     if !before_ok || !after_ok {
                         continue;
@@ -296,7 +310,6 @@ impl Default for SearchEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_literal_search() {

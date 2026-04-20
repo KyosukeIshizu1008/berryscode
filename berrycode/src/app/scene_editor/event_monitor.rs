@@ -4,8 +4,8 @@
 //! During Play Mode, animation, physics, and other subsystems push entries
 //! into the log. The user can filter by event type.
 
-use serde::{Deserialize, Serialize};
 use crate::app::BerryCodeApp;
+use serde::{Deserialize, Serialize};
 
 /// A single event entry in the monitor log.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,8 +105,7 @@ impl BerryCodeApp {
                     .show(ui, |ui| {
                         for entry in &self.event_log {
                             // Apply type filter
-                            if !filter_types.is_empty()
-                                && !filter_types.contains(&entry.event_type)
+                            if !filter_types.is_empty() && !filter_types.contains(&entry.event_type)
                             {
                                 continue;
                             }
@@ -154,7 +153,8 @@ impl BerryCodeApp {
     pub(crate) fn log_event(&mut self, event_type: impl Into<String>, data: impl Into<String>) {
         // Use a monotonic counter based on event log length as a simple timestamp.
         let timestamp = self.event_log.len() as f64 * 0.016;
-        self.event_log.push(EventEntry::new(timestamp, event_type, data));
+        self.event_log
+            .push(EventEntry::new(timestamp, event_type, data));
 
         // Cap the log to prevent unbounded growth.
         const MAX_EVENTS: usize = 10_000;

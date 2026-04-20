@@ -15,9 +15,9 @@ impl ChangeType {
     /// Get the gutter color for this change type
     pub fn gutter_color(&self) -> &'static str {
         match self {
-            ChangeType::Added => "#587c0c",      // Green
-            ChangeType::Modified => "#0c7d9d",   // Blue
-            ChangeType::Deleted => "#94151b",    // Red
+            ChangeType::Added => "#587c0c",    // Green
+            ChangeType::Modified => "#0c7d9d", // Blue
+            ChangeType::Deleted => "#94151b",  // Red
         }
     }
 
@@ -47,7 +47,11 @@ impl LineChange {
         }
     }
 
-    pub fn with_old_content(line_number: usize, change_type: ChangeType, old_content: String) -> Self {
+    pub fn with_old_content(
+        line_number: usize,
+        change_type: ChangeType,
+        old_content: String,
+    ) -> Self {
         Self {
             line_number,
             change_type,
@@ -204,11 +208,8 @@ mod tests {
         assert_eq!(change.change_type, ChangeType::Modified);
         assert!(change.old_content.is_none());
 
-        let change_with_content = LineChange::with_old_content(
-            42,
-            ChangeType::Deleted,
-            "old content".to_string(),
-        );
+        let change_with_content =
+            LineChange::with_old_content(42, ChangeType::Deleted, "old content".to_string());
         assert!(change_with_content.old_content.is_some());
     }
 

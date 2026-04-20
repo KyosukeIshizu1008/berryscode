@@ -28,7 +28,9 @@ fn play_audio_file(path: &str) {
             // for .ogg/.mp3, use Start-Process with wmplayer as fallback.
             std::process::Command::new("powershell")
                 .args(&[
-                    "-WindowStyle", "Hidden", "-Command",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-Command",
                     &format!(
                         "(New-Object Media.SoundPlayer '{}').PlaySync()",
                         path.replace('\'', "''")
@@ -105,12 +107,19 @@ impl BerryCodeApp {
             Some(e) => e,
             None => return vec![],
         };
-        entity.components.iter().map(|c| c.label().to_string()).collect()
+        entity
+            .components
+            .iter()
+            .map(|c| c.label().to_string())
+            .collect()
     }
 
     /// Get entity name by id (testable without UI).
     pub fn get_entity_name(&self, entity_id: u64) -> Option<String> {
-        self.scene_model.entities.get(&entity_id).map(|e| e.name.clone())
+        self.scene_model
+            .entities
+            .get(&entity_id)
+            .map(|e| e.name.clone())
     }
 
     /// Render the Inspector panel for the currently selected entity.
@@ -124,7 +133,10 @@ impl BerryCodeApp {
                 if self.scene_model.selected_ids.is_empty() {
                     ui.label("No entity selected");
                 } else {
-                    ui.label(format!("{} entities selected (no primary)", self.scene_model.selected_ids.len()));
+                    ui.label(format!(
+                        "{} entities selected (no primary)",
+                        self.scene_model.selected_ids.len()
+                    ));
                 }
                 return;
             }
@@ -187,12 +199,14 @@ impl BerryCodeApp {
             if let Some(ref prefab_path) = entity.prefab_source {
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new(format!("Prefab: {}",
+                        egui::RichText::new(format!(
+                            "Prefab: {}",
                             std::path::Path::new(prefab_path)
                                 .file_name()
                                 .map(|s| s.to_string_lossy().to_string())
                                 .unwrap_or_else(|| prefab_path.clone())
-                        )).color(egui::Color32::from_rgb(120, 200, 255))
+                        ))
+                        .color(egui::Color32::from_rgb(120, 200, 255)),
                     );
                 });
                 ui.horizontal(|ui| {
@@ -229,60 +243,60 @@ impl BerryCodeApp {
             } else {
                 "Transform"
             })
-                .default_open(true)
-                .show(ui, |ui| {
-                    egui::Grid::new("scene_transform_grid")
-                        .num_columns(4)
-                        .spacing([6.0, 4.0])
-                        .show(ui, |ui| {
-                            ui.label("Position");
-                            for axis in 0..3 {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut entity.transform.translation[axis])
-                                            .speed(0.1)
-                                            .prefix(["x: ", "y: ", "z: "][axis]),
-                                    )
-                                    .changed()
-                                {
-                                    mutated = true;
-                                }
+            .default_open(true)
+            .show(ui, |ui| {
+                egui::Grid::new("scene_transform_grid")
+                    .num_columns(4)
+                    .spacing([6.0, 4.0])
+                    .show(ui, |ui| {
+                        ui.label("Position");
+                        for axis in 0..3 {
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut entity.transform.translation[axis])
+                                        .speed(0.1)
+                                        .prefix(["x: ", "y: ", "z: "][axis]),
+                                )
+                                .changed()
+                            {
+                                mutated = true;
                             }
-                            ui.end_row();
+                        }
+                        ui.end_row();
 
-                            ui.label("Rotation");
-                            for axis in 0..3 {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(
-                                            &mut entity.transform.rotation_euler[axis],
-                                        )
+                        ui.label("Rotation");
+                        for axis in 0..3 {
+                            if ui
+                                .add(
+                                    egui::DragValue::new(
+                                        &mut entity.transform.rotation_euler[axis],
+                                    )
+                                    .speed(0.01)
+                                    .prefix(["x: ", "y: ", "z: "][axis]),
+                                )
+                                .changed()
+                            {
+                                mutated = true;
+                            }
+                        }
+                        ui.end_row();
+
+                        ui.label("Scale");
+                        for axis in 0..3 {
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut entity.transform.scale[axis])
                                         .speed(0.01)
                                         .prefix(["x: ", "y: ", "z: "][axis]),
-                                    )
-                                    .changed()
-                                {
-                                    mutated = true;
-                                }
+                                )
+                                .changed()
+                            {
+                                mutated = true;
                             }
-                            ui.end_row();
-
-                            ui.label("Scale");
-                            for axis in 0..3 {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut entity.transform.scale[axis])
-                                            .speed(0.01)
-                                            .prefix(["x: ", "y: ", "z: "][axis]),
-                                    )
-                                    .changed()
-                                {
-                                    mutated = true;
-                                }
-                            }
-                            ui.end_row();
-                        });
-                });
+                        }
+                        ui.end_row();
+                    });
+            });
 
             // World transform (read-only) for child entities.
             if let Some(ref world) = world_transform_readout {
@@ -1763,7 +1777,14 @@ impl BerryCodeApp {
             // Add Component searchable dropdown
             ui.separator();
             ui.label("Add Component:");
-            if ui.button(if self.add_component_popup_open { "Cancel" } else { "Add Component..." }).clicked() {
+            if ui
+                .button(if self.add_component_popup_open {
+                    "Cancel"
+                } else {
+                    "Add Component..."
+                })
+                .clicked()
+            {
                 self.add_component_popup_open = !self.add_component_popup_open;
                 if self.add_component_popup_open {
                     self.add_component_filter.clear();
@@ -1776,43 +1797,47 @@ impl BerryCodeApp {
                 });
                 let filter_lower = self.add_component_filter.to_lowercase();
                 let mut add_label = String::new();
-                egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                    for (name, _) in ComponentData::default_all() {
-                        if !filter_lower.is_empty() && !name.to_lowercase().contains(&filter_lower) {
-                            continue;
-                        }
-                        if ui.selectable_label(false, name).clicked() {
-                            add_label = name.to_string();
-                        }
-                    }
-
-                    // User-defined components from project scan
-                    if !self.scanned_user_components.is_empty() {
-                        ui.separator();
-                        ui.label("User Components:");
-                        for comp in &self.scanned_user_components {
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .show(ui, |ui| {
+                        for (name, _) in ComponentData::default_all() {
                             if !filter_lower.is_empty()
-                                && !comp.name.to_lowercase().contains(&filter_lower)
+                                && !name.to_lowercase().contains(&filter_lower)
                             {
                                 continue;
                             }
-                            if ui.selectable_label(false, &comp.name).clicked() {
-                                let fields: Vec<ScriptField> = comp
-                                    .fields
-                                    .iter()
-                                    .map(|f| ScriptField {
-                                        name: f.name.clone(),
-                                        value: script_value_from_type(&f.field_type),
-                                    })
-                                    .collect();
-                                add_component = Some(ComponentData::CustomScript {
-                                    type_name: comp.name.clone(),
-                                    fields,
-                                });
+                            if ui.selectable_label(false, name).clicked() {
+                                add_label = name.to_string();
                             }
                         }
-                    }
-                });
+
+                        // User-defined components from project scan
+                        if !self.scanned_user_components.is_empty() {
+                            ui.separator();
+                            ui.label("User Components:");
+                            for comp in &self.scanned_user_components {
+                                if !filter_lower.is_empty()
+                                    && !comp.name.to_lowercase().contains(&filter_lower)
+                                {
+                                    continue;
+                                }
+                                if ui.selectable_label(false, &comp.name).clicked() {
+                                    let fields: Vec<ScriptField> = comp
+                                        .fields
+                                        .iter()
+                                        .map(|f| ScriptField {
+                                            name: f.name.clone(),
+                                            value: script_value_from_type(&f.field_type),
+                                        })
+                                        .collect();
+                                    add_component = Some(ComponentData::CustomScript {
+                                        type_name: comp.name.clone(),
+                                        fields,
+                                    });
+                                }
+                            }
+                        }
+                    });
                 if !add_label.is_empty() {
                     for (name, default) in ComponentData::default_all() {
                         if name == add_label {
@@ -1827,7 +1852,11 @@ impl BerryCodeApp {
 
             // Paste Component button (enabled when clipboard has data)
             if self.component_clipboard.is_some() {
-                if ui.button("Paste Component").on_hover_text("Paste copied component").clicked() {
+                if ui
+                    .button("Paste Component")
+                    .on_hover_text("Paste copied component")
+                    .clicked()
+                {
                     paste_requested = true;
                 }
             }
@@ -1856,7 +1885,13 @@ impl BerryCodeApp {
             let nav = super::navmesh::bake_nav_grid(&self.scene_model, bake_cell_size);
             if let Some(entity) = self.scene_model.entities.get_mut(&selected_id) {
                 for component in &mut entity.components {
-                    if let ComponentData::NavMesh { grid, width, height, .. } = component {
+                    if let ComponentData::NavMesh {
+                        grid,
+                        width,
+                        height,
+                        ..
+                    } = component
+                    {
                         *grid = nav.cells.clone();
                         *width = nav.width;
                         *height = nav.height;
@@ -1895,15 +1930,27 @@ impl BerryCodeApp {
         if let Some(entity) = self.scene_model.entities.get(&selected_id) {
             for component in &entity.components {
                 let pbr = match component {
-                    ComponentData::MeshCube { color, metallic, roughness, emissive, .. } => {
-                        Some((*color, *metallic, *roughness, *emissive))
-                    }
-                    ComponentData::MeshSphere { color, metallic, roughness, emissive, .. } => {
-                        Some((*color, *metallic, *roughness, *emissive))
-                    }
-                    ComponentData::MeshPlane { color, metallic, roughness, emissive, .. } => {
-                        Some((*color, *metallic, *roughness, *emissive))
-                    }
+                    ComponentData::MeshCube {
+                        color,
+                        metallic,
+                        roughness,
+                        emissive,
+                        ..
+                    } => Some((*color, *metallic, *roughness, *emissive)),
+                    ComponentData::MeshSphere {
+                        color,
+                        metallic,
+                        roughness,
+                        emissive,
+                        ..
+                    } => Some((*color, *metallic, *roughness, *emissive)),
+                    ComponentData::MeshPlane {
+                        color,
+                        metallic,
+                        roughness,
+                        emissive,
+                        ..
+                    } => Some((*color, *metallic, *roughness, *emissive)),
                     _ => None,
                 };
                 if let Some((color, met, rough, emis)) = pbr {
@@ -1948,7 +1995,10 @@ impl BerryCodeApp {
             if let Some(entity) = self.scene_model.entities.get(&selected_id) {
                 if let Some(ref path) = entity.prefab_source {
                     let path = path.clone();
-                    if let Some(prefab) = crate::app::scene_editor::prefab::build_prefab_from_entity(&self.scene_model, selected_id) {
+                    if let Some(prefab) = crate::app::scene_editor::prefab::build_prefab_from_entity(
+                        &self.scene_model,
+                        selected_id,
+                    ) {
                         match crate::app::scene_editor::prefab::save_prefab(&prefab, &path) {
                             Ok(_) => {
                                 self.status_message = format!("Applied to prefab: {}", path);
@@ -1997,11 +2047,13 @@ impl BerryCodeApp {
                     }
                     Err(_) => {
                         // File doesn't exist or is invalid; create a new controller.
-                        self.editing_animator = Some(crate::app::scene_editor::animator::AnimatorController::default());
+                        self.editing_animator =
+                            Some(crate::app::scene_editor::animator::AnimatorController::default());
                     }
                 }
             } else {
-                self.editing_animator = Some(crate::app::scene_editor::animator::AnimatorController::default());
+                self.editing_animator =
+                    Some(crate::app::scene_editor::animator::AnimatorController::default());
             }
             self.editing_animator_path = animator_path_for_editor;
             self.animator_editor_open = true;
@@ -2013,10 +2065,7 @@ impl BerryCodeApp {
         }
 
         // Bevy Resource Editor: show editable global resources below entity components.
-        if super::resource_editor::render_resource_inspector(
-            ui,
-            &mut self.scene_model.resources,
-        ) {
+        if super::resource_editor::render_resource_inspector(ui, &mut self.scene_model.resources) {
             self.scene_model.modified = true;
         }
     }

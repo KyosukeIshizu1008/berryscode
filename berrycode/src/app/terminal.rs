@@ -29,11 +29,14 @@ impl BerryCodeApp {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .add(egui::Button::new(
-                        egui::RichText::new("\u{eab0}") // codicon: terminal
-                            .size(14.0)
-                            .color(egui::Color32::from_rgb(160, 160, 160)),
-                    ).frame(false))
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{eab0}") // codicon: terminal
+                                .size(14.0)
+                                .color(egui::Color32::from_rgb(160, 160, 160)),
+                        )
+                        .frame(false),
+                    )
                     .on_hover_text("Open fullscreen terminal")
                     .clicked()
                 {
@@ -68,8 +71,7 @@ impl BerryCodeApp {
                                 let mut run_bold = false;
 
                                 for (col_idx, cell) in line.iter().enumerate() {
-                                    let same =
-                                        cell.fg == run_fg && cell.bold == run_bold;
+                                    let same = cell.fg == run_fg && cell.bold == run_bold;
                                     if !same && !run_text.is_empty() {
                                         let mut rt = egui::RichText::new(&run_text)
                                             .color(run_fg)
@@ -137,11 +139,7 @@ impl BerryCodeApp {
         ctx.request_repaint();
 
         egui::CentralPanel::default()
-            .frame(
-                egui::Frame::none()
-                    .fill(TERM_BG)
-                    .inner_margin(0.0),
-            )
+            .frame(egui::Frame::none().fill(TERM_BG).inner_margin(0.0))
             .show(ctx, |ui| {
                 // ─── Tab bar ────────────────────────────────────
                 self.render_tab_bar(ui);
@@ -165,8 +163,7 @@ impl BerryCodeApp {
         );
 
         // Background
-        ui.painter()
-            .rect_filled(bar_rect, 0.0, TAB_BAR_BG);
+        ui.painter().rect_filled(bar_rect, 0.0, TAB_BAR_BG);
 
         // Bottom border
         ui.painter().line_segment(
@@ -289,8 +286,10 @@ impl BerryCodeApp {
                         && idx + 1 != self.terminal.active_tab
                     {
                         ui.painter().line_segment(
-                            [rect.right_top() + egui::vec2(0.0, 6.0),
-                             rect.right_bottom() - egui::vec2(0.0, 6.0)],
+                            [
+                                rect.right_top() + egui::vec2(0.0, 6.0),
+                                rect.right_bottom() - egui::vec2(0.0, 6.0),
+                            ],
                             egui::Stroke::new(1.0, egui::Color32::from_rgb(50, 50, 50)),
                         );
                     }
@@ -340,10 +339,8 @@ impl BerryCodeApp {
 
         let bar_rect = ui.available_rect_before_wrap();
         let bar_h = 32.0;
-        let rect = egui::Rect::from_min_size(
-            bar_rect.left_top(),
-            egui::vec2(bar_rect.width(), bar_h),
-        );
+        let rect =
+            egui::Rect::from_min_size(bar_rect.left_top(), egui::vec2(bar_rect.width(), bar_h));
         ui.painter()
             .rect_filled(rect, 0.0, egui::Color32::from_rgb(38, 38, 38));
 
@@ -405,10 +402,8 @@ impl BerryCodeApp {
         let padding_x = 6.0;
         let padding_y = 4.0;
 
-        let grid_cols =
-            ((available.width() - padding_x * 2.0) / cell_w).max(10.0) as usize;
-        let grid_rows =
-            ((available.height() - padding_y * 2.0) / cell_h).max(4.0) as usize;
+        let grid_cols = ((available.width() - padding_x * 2.0) / cell_w).max(10.0) as usize;
+        let grid_rows = ((available.height() - padding_y * 2.0) / cell_h).max(4.0) as usize;
 
         // Resize PTY if dimensions changed
         if let Some(tab) = self.terminal.active_tab_mut() {
@@ -416,10 +411,8 @@ impl BerryCodeApp {
         }
 
         // Allocate the full area and handle input
-        let (response, painter) = ui.allocate_painter(
-            available.size(),
-            egui::Sense::click_and_drag(),
-        );
+        let (response, painter) =
+            ui.allocate_painter(available.size(), egui::Sense::click_and_drag());
         let rect = response.rect;
 
         // Fill background
@@ -504,20 +497,16 @@ impl BerryCodeApp {
                             } else {
                                 font_id.clone()
                             };
-                            painter.text(
-                                text_pos,
-                                egui::Align2::LEFT_TOP,
-                                &run_text,
-                                fid,
-                                run_fg,
-                            );
+                            painter.text(text_pos, egui::Align2::LEFT_TOP, &run_text, fid, run_fg);
 
                             // Underline
                             if run_underline {
                                 let ul_y = y + cell_h - 2.0;
                                 painter.line_segment(
-                                    [egui::pos2(x, ul_y),
-                                     egui::pos2(x + run_text.len() as f32 * cell_w, ul_y)],
+                                    [
+                                        egui::pos2(x, ul_y),
+                                        egui::pos2(x + run_text.len() as f32 * cell_w, ul_y),
+                                    ],
                                     egui::Stroke::new(1.0, run_fg),
                                 );
                             }
@@ -555,10 +544,8 @@ impl BerryCodeApp {
                 if grid.cursor_visible && self.terminal.cursor_visible_blink {
                     let cx = origin.x + grid.cursor_col as f32 * cell_w;
                     let cy = origin.y + grid.cursor_row as f32 * cell_h;
-                    let cursor_rect = egui::Rect::from_min_size(
-                        egui::pos2(cx, cy),
-                        egui::vec2(cell_w, cell_h),
-                    );
+                    let cursor_rect =
+                        egui::Rect::from_min_size(egui::pos2(cx, cy), egui::vec2(cell_w, cell_h));
 
                     // Block cursor with slight transparency
                     painter.rect_filled(
@@ -589,13 +576,10 @@ impl BerryCodeApp {
                 if total_lines > grid.rows {
                     let scrollbar_x = rect.right() - 8.0;
                     let scrollbar_h = rect.height();
-                    let thumb_h =
-                        (grid.rows as f32 / total_lines as f32 * scrollbar_h).max(20.0);
-                    let scroll_frac = 1.0
-                        - (grid.scroll_offset as f32
-                            / grid.scrollback.len().max(1) as f32);
-                    let thumb_y =
-                        rect.top() + scroll_frac * (scrollbar_h - thumb_h);
+                    let thumb_h = (grid.rows as f32 / total_lines as f32 * scrollbar_h).max(20.0);
+                    let scroll_frac =
+                        1.0 - (grid.scroll_offset as f32 / grid.scrollback.len().max(1) as f32);
+                    let thumb_y = rect.top() + scroll_frac * (scrollbar_h - thumb_h);
 
                     let thumb_rect = egui::Rect::from_min_size(
                         egui::pos2(scrollbar_x, thumb_y),
@@ -871,12 +855,10 @@ impl BerryCodeApp {
                     let max_scroll = grid.scrollback.len();
                     if lines > 0 {
                         // Scroll up (into scrollback)
-                        grid.scroll_offset =
-                            (grid.scroll_offset + lines as usize).min(max_scroll);
+                        grid.scroll_offset = (grid.scroll_offset + lines as usize).min(max_scroll);
                     } else {
                         // Scroll down (toward current)
-                        grid.scroll_offset =
-                            grid.scroll_offset.saturating_sub((-lines) as usize);
+                        grid.scroll_offset = grid.scroll_offset.saturating_sub((-lines) as usize);
                     }
                 }
             }

@@ -1,7 +1,7 @@
 //! Editor keyboard shortcuts and file operations
 
-use super::BerryCodeApp;
 use super::types::ActivePanel;
+use super::BerryCodeApp;
 use crate::app::keymap::KeyAction;
 use crate::focus_stack::FocusLayer;
 use crate::native;
@@ -12,15 +12,33 @@ impl BerryCodeApp {
         // Panel switching: Ctrl+1..9 (Cmd+number is intercepted by macOS)
         ctx.input(|i| {
             if i.modifiers.ctrl {
-                if i.key_pressed(egui::Key::Num1) { self.active_panel = ActivePanel::Explorer; }
-                if i.key_pressed(egui::Key::Num2) { self.active_panel = ActivePanel::Search; }
-                if i.key_pressed(egui::Key::Num3) { self.active_panel = ActivePanel::Git; }
-                if i.key_pressed(egui::Key::Num4) { self.active_panel = ActivePanel::Terminal; }
-                if i.key_pressed(egui::Key::Num5) { self.active_panel = ActivePanel::EcsInspector; }
-                if i.key_pressed(egui::Key::Num6) { self.active_panel = ActivePanel::BevyTemplates; }
-                if i.key_pressed(egui::Key::Num7) { self.active_panel = ActivePanel::AssetBrowser; }
-                if i.key_pressed(egui::Key::Num8) { self.active_panel = ActivePanel::SceneEditor; }
-                if i.key_pressed(egui::Key::Num9) { self.active_panel = ActivePanel::GameView; }
+                if i.key_pressed(egui::Key::Num1) {
+                    self.active_panel = ActivePanel::Explorer;
+                }
+                if i.key_pressed(egui::Key::Num2) {
+                    self.active_panel = ActivePanel::Search;
+                }
+                if i.key_pressed(egui::Key::Num3) {
+                    self.active_panel = ActivePanel::Git;
+                }
+                if i.key_pressed(egui::Key::Num4) {
+                    self.active_panel = ActivePanel::Terminal;
+                }
+                if i.key_pressed(egui::Key::Num5) {
+                    self.active_panel = ActivePanel::EcsInspector;
+                }
+                if i.key_pressed(egui::Key::Num6) {
+                    self.active_panel = ActivePanel::BevyTemplates;
+                }
+                if i.key_pressed(egui::Key::Num7) {
+                    self.active_panel = ActivePanel::AssetBrowser;
+                }
+                if i.key_pressed(egui::Key::Num8) {
+                    self.active_panel = ActivePanel::SceneEditor;
+                }
+                if i.key_pressed(egui::Key::Num9) {
+                    self.active_panel = ActivePanel::GameView;
+                }
             }
         });
 
@@ -94,7 +112,8 @@ impl BerryCodeApp {
                         let line_content = lines[tab.cursor_line].to_string();
                         let insert_pos = tab.buffer.line_to_char(tab.cursor_line + 1);
                         let new_line = format!("{}\n", line_content);
-                        tab.buffer.insert(insert_pos.min(tab.buffer.len_chars()), &new_line);
+                        tab.buffer
+                            .insert(insert_pos.min(tab.buffer.len_chars()), &new_line);
                         tab.text_cache_version = 0; // invalidate cache
                         tab.is_dirty = true;
                     }
@@ -188,7 +207,9 @@ impl BerryCodeApp {
                     tracing::info!("💾 File saved: {} ({} bytes)", file_path, content.len());
 
                     // Notify LSP about the save (textDocument/didSave)
-                    if let Some(lang) = crate::native::lsp_native::detect_server_language(&file_path) {
+                    if let Some(lang) =
+                        crate::native::lsp_native::detect_server_language(&file_path)
+                    {
                         if let Some(client) = &self.lsp_native_client {
                             let client = client.clone();
                             let path = file_path.clone();
@@ -233,7 +254,8 @@ impl BerryCodeApp {
                     if output.status.success() {
                         match native::fs::read_file(&tab.file_path) {
                             Ok(formatted_content) => {
-                                tab.buffer = crate::buffer::TextBuffer::from_str(&formatted_content);
+                                tab.buffer =
+                                    crate::buffer::TextBuffer::from_str(&formatted_content);
                                 tracing::info!("✅ File formatted successfully");
 
                                 // Logged via tracing above
@@ -280,11 +302,17 @@ impl BerryCodeApp {
 
         // Find word boundaries at cursor
         let mut word_start = cursor_char_offset;
-        while word_start > 0 && (chars.get(word_start - 1).map_or(false, |c| c.is_alphanumeric() || *c == '_')) {
+        while word_start > 0
+            && (chars
+                .get(word_start - 1)
+                .map_or(false, |c| c.is_alphanumeric() || *c == '_'))
+        {
             word_start -= 1;
         }
         let mut word_end = cursor_char_offset;
-        while word_end < chars.len() && (chars[word_end].is_alphanumeric() || chars[word_end] == '_') {
+        while word_end < chars.len()
+            && (chars[word_end].is_alphanumeric() || chars[word_end] == '_')
+        {
             word_end += 1;
         }
 
@@ -340,8 +368,7 @@ impl BerryCodeApp {
             if keymap.is_pressed(KeyAction::DuplicateEntity, i) {
                 duplicate_requested = true;
             }
-            if keymap.is_pressed(KeyAction::DeleteEntity, i)
-                || i.key_pressed(egui::Key::Backspace)
+            if keymap.is_pressed(KeyAction::DeleteEntity, i) || i.key_pressed(egui::Key::Backspace)
             {
                 delete_requested = true;
             }

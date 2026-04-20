@@ -4,8 +4,8 @@
 //! - Crate name completion (fuzzy search via crates.io API)
 //! - Version completion (list available versions for a crate)
 
-use super::BerryCodeApp;
 use super::types::{LspCompletionItem, LspResponse};
+use super::BerryCodeApp;
 
 /// Crate info from crates.io
 #[derive(Debug, Clone)]
@@ -65,10 +65,7 @@ async fn search_crates(query: &str) -> Vec<CrateInfo> {
                     .and_then(|d| d.as_str())
                     .unwrap_or("")
                     .to_string(),
-                downloads: c
-                    .get("downloads")
-                    .and_then(|d| d.as_u64())
-                    .unwrap_or(0),
+                downloads: c.get("downloads").and_then(|d| d.as_u64()).unwrap_or(0),
             });
         }
     }
@@ -106,10 +103,7 @@ async fn fetch_crate_versions(crate_name: &str) -> Vec<String> {
     if let Some(vs) = json.get("versions").and_then(|v| v.as_array()) {
         for v in vs.iter().take(20) {
             if let Some(num) = v.get("num").and_then(|n| n.as_str()) {
-                let yanked = v
-                    .get("yanked")
-                    .and_then(|y| y.as_bool())
-                    .unwrap_or(false);
+                let yanked = v.get("yanked").and_then(|y| y.as_bool()).unwrap_or(false);
                 if !yanked {
                     versions.push(num.to_string());
                 }
