@@ -1,8 +1,103 @@
-# コードエディタ
+# Code Editor / コードエディタ
 
-中央エリアに表示されるマルチタブコードエディタ。VS Code クラスの機能を備えています。
+[English](#english) | [日本語](#japanese)
 
 ---
+
+<a name="english"></a>
+
+## English
+
+Multi-tab code editor displayed in the central area. VS Code-class features.
+
+### Core Features
+
+- Multi-tab editing (file icons + close buttons)
+- Line number gutter
+- Syntax highlighting (Tree-sitter + Syntect) — Rust, Python, JavaScript, C, C++, TOML, Markdown
+- Selection highlight
+- Cursor position display
+- Code folding (brace matching)
+
+### LSP Integration
+
+| Feature | Shortcut | Description |
+|---------|----------|-------------|
+| Completions | `Cmd+Space` | Auto-complete with snippet support |
+| Hover | Mouse over | Type info & documentation |
+| Go to Definition | `F12` / `Cmd+Click` | Jump to symbol definition |
+| Find References | `Shift+F12` | Show all usages |
+| Diagnostics | Auto | Real-time error/warning display |
+| Format | `Cmd+Shift+F` | Format with rustfmt |
+| Rename | Dialog | Workspace-wide symbol rename |
+| Code Actions | Lightbulb | Quick fixes & refactoring |
+| Inlay Hints | Auto | Inline type annotations & parameter names |
+| Macro Expand | `Ctrl+Shift+M` | Show expanded Rust macro |
+
+### Vim Mode
+
+Full modal editing. Modes: Normal, Insert, Visual, Command, Replace.
+
+- **Operators**: `d`(delete), `c`(change), `y`(yank), `>`(indent), `<`(dedent), `~`(case toggle)
+- **Text objects**: `iw`, `aw`, `i"`, `a"`, `i(`, `a(`, `i{`, `a{`
+- **Dot repeat** (`.`), **registers** (`"a`-`"z`), **marks** (`ma`, `'a`), **count prefix** (`5dw`)
+
+### Minimap
+
+60px code overview on right side. Comments in green, functions/keywords in blue, viewport indicator.
+
+### Snippets
+
+- LSP snippet syntax: `$1`, `${2:placeholder}`, `${3|choice1,choice2|}`
+- Tab/Shift+Tab navigation between stops
+- Custom snippets: `~/.berrycode/snippets/*.json` (VS Code compatible)
+- Built-in Rust snippet library
+
+### Cargo.toml Completion
+
+- Fuzzy crate name search via crates.io API
+- Version list fetching
+- Crate info (name, version, description, downloads)
+
+### Peek Definition
+
+- Float below cursor line with file/line header
+- Preview first 10 lines of definition
+- `Esc` to close
+
+### Code Folding
+
+- Click fold markers in gutter
+- Placeholder: `// ... (N lines)`
+- Brace-matching auto-detection
+- Per-tab fold state persistence
+
+### Image Preview
+
+- Formats: PNG, JPG, GIF, WebP, BMP, ICO, SVG
+- Fit-to-view scaling, SVG via resvg
+
+### 3D Model Preview
+
+- Formats: GLB/GLTF, OBJ, STL, PLY
+- Mesh/vertex/triangle/material/animation counts
+- Gaussian Splatting support (PLY)
+- GPU-rendered preview (512x512 off-screen, orbit camera)
+
+### Test Runner
+
+- Scan `#[test]` / `#[tokio::test]` from .rs files
+- Run individual tests (`cargo test --exact`)
+- Inline pass/fail results
+- Test explorer panel
+
+---
+
+<a name="japanese"></a>
+
+## 日本語
+
+中央エリアに表示されるマルチタブコードエディタ。VS Code クラスの機能を備えています。
 
 ## 基本機能
 

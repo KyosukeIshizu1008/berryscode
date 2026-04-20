@@ -1,6 +1,76 @@
-# キーボードショートカット
+# Keyboard Shortcuts / キーボードショートカット
+
+[English](#english) | [日本語](#japanese)
 
 ---
+
+<a name="english"></a>
+
+## English
+
+### Panel Switch
+
+| Shortcut | Panel |
+|----------|-------|
+| `Ctrl+1` | Explorer |
+| `Ctrl+2` | Search |
+| `Ctrl+3` | Git |
+| `Ctrl+4` | Terminal |
+| `Ctrl+5` | Settings |
+| `Ctrl+6` | ECS Inspector |
+| `Ctrl+7` | Bevy Templates |
+| `Ctrl+8` | Asset Browser |
+| `Ctrl+9` | Scene Editor |
+
+### Editor
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+S` | Save |
+| `Cmd+Z` | Undo |
+| `Cmd+Shift+Z` | Redo |
+| `Cmd+Shift+D` | Duplicate line |
+| `Cmd+F` | Find |
+| `Cmd+H` | Replace |
+| `Cmd+Shift+F` | Format (rustfmt) |
+| `Cmd+Space` | LSP completions |
+| `Ctrl+Shift+M` | Macro expand |
+
+### Code Navigation
+
+| Shortcut | Action |
+|----------|--------|
+| `F12` | Go to definition |
+| `Cmd+Click` | Go to definition |
+| `Shift+F12` | Find references |
+
+### Scene Editor
+
+| Shortcut | Action |
+|----------|--------|
+| `W` | Gizmo: Move |
+| `E` | Gizmo: Rotate |
+| `R` | Gizmo: Scale |
+| `Delete` | Delete entity |
+| `Cmd+D` | Duplicate entity |
+
+### Debug
+
+| Shortcut | Action |
+|----------|--------|
+| `F5` | Start/Continue debug |
+| `F9` | Toggle breakpoint |
+| `F10` | Step over |
+| `F11` | Step into |
+| `Shift+F11` | Step out |
+
+> Note: macOS uses `Cmd`, Linux/Windows uses `Ctrl`. Keybindings are customizable in Settings.
+
+---
+
+<a name="japanese"></a>
+
+## 日本語
 
 ## パネル切替
 

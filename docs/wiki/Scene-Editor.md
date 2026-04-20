@@ -1,6 +1,89 @@
-# シーンエディタ
+# Scene Editor / シーンエディタ
 
-Unity クラスの 3D シーン編集環境。Bevy シーンの視覚的な編集が可能です。
+[English](#english) | [日本語](#japanese)
+
+---
+
+<a name="english"></a>
+
+## English
+
+**Unity-class scene editing, built specifically for Bevy.** Edit `.scn.ron` files visually instead of as text. Inspect ECS components with type-aware editors. Preview your scene with the same renderer your game uses.
+
+### 3D Viewport (Scene View)
+
+| Action | Input |
+|--------|-------|
+| Orbit | LMB drag on empty space |
+| Zoom | Scroll wheel |
+| Select entity | Click (Ray vs AABB picking) |
+| Gizmo | Drag axis/plane |
+| Switch gizmo | `W`(Move) / `E`(Rotate) / `R`(Scale) |
+
+- Yellow wireframe AABB on selected entity
+- Transform gizmo (Red=X, Green=Y, Blue=Z)
+- Grid floor, lighting preview
+- Quad-view (Perspective / Front / Right / Top)
+- Orthographic/Perspective toggle
+
+### Gizmo
+
+- **Move (W)**: 3 axis arrows + XY/YZ/XZ plane handles
+- **Rotate (E)**: Rotation arcs per axis
+- **Scale (R)**: Scale boxes per axis
+- Axis locking, snap support, screen-space projection
+
+### Inspector (Right Panel)
+
+Edit selected entity properties with type-aware field editors:
+
+- Float: drag slider | Int: number field | Bool: checkbox
+- String: text input | Vec3/Vec4/Quat: multi-field | Color: color picker
+- Texture: file picker + preview | Enum: dropdown | Audio: play button
+- Add/Remove component buttons
+
+### Animation
+
+- **Timeline**: Visual keyframe editing, scrubber, loop, speed control
+- **Dopesheet**: Per-property keyframes, add/delete/move, interpolation types
+- **Animator**: Clip selection, playback controls, blend settings
+
+### Visual Scripting & Shader Graph
+
+- Node-based scripting (Blueprint-style) with node palette and connections
+- Visual shader editor with real-time preview and code output
+
+### Bevy-Specific Tools
+
+- **System Graph** — Visualize system dependencies and execution order
+- **Event Monitor** — Real-time Bevy event log with filter
+- **Query Visualizer** — Show query matching and entity results
+- **State Editor** — Manage Bevy states, manual transitions
+- **Plugin Browser** — Search crates.io for Bevy plugins
+
+### Scene Management
+
+- Formats: `.bscene` (binary), `.scn.ron` (Bevy RON), GLTF/GLB export
+- Multi-scene tabs with independent undo/redo
+- Prefab system (create, instantiate, override)
+- Play Mode (Play/Pause/Stop, speed control, live inspection)
+
+### Additional Tools
+
+- Terrain editor (brush tools, texture painting, heightmap)
+- Skeleton/Rig editor (bone hierarchy, IK chains, weight painting)
+- Navmesh generator (path visualization, agent parameters)
+- Physics simulator (gravity, collision visualization)
+- Particle preview (emitter visualization, lifetime editor)
+- Material preview (PBR properties, real-time preview sphere)
+
+---
+
+<a name="japanese"></a>
+
+## 日本語
+
+**Bevy 専用の Unity クラスのシーン編集環境。** `.scn.ron` ファイルをテキストではなくビジュアルに編集。ECS コンポーネントを型対応エディタで検査。ゲームと同じレンダラーでシーンをプレビュー。
 
 ---
 

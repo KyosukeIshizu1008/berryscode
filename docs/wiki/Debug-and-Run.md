@@ -1,6 +1,60 @@
-# デバッグ・実行
+# Debug & Run / デバッグ・実行
+
+[English](#english) | [日本語](#japanese)
 
 ---
+
+<a name="english"></a>
+
+## English
+
+### Debugger Panel (Bottom)
+
+VS Code-style debug UI.
+
+**Toolbar**: Continue / Pause / Stop / Step Over / Step Into / Step Out
+
+| Tab | Content |
+|-----|---------|
+| **Variables** | Local variable tree (expandable) |
+| **Watch** | Watch expression editor + evaluation results |
+| **Call Stack** | Call stack list (click to jump to frame) |
+| **Debug Console** | Debug console I/O |
+
+**Features**: Breakpoint management (set/clear/conditional), gutter indicators, stopped-location highlighting, thread selection, DAP integration.
+
+### Run Panel (Bottom)
+
+Execute and monitor `cargo run`.
+
+- Debug / Release mode toggle
+- Real-time output streaming
+- Line severity classification (Info / Warning / Error)
+- Process lifecycle management
+- Game window capture integration
+
+### Tool Panel (Bottom Dock)
+
+Resizable bottom panel with 4 tabs:
+
+- **Console** — stderr/stdout display, auto-scroll, severity colors
+- **Timeline** — Visual keyframe timeline, animation editing
+- **Dopesheet** — Per-property keyframe editing, curve editor
+- **Profiler** — Frame time graph, per-system timing, memory usage, FPS counter
+
+### Build System
+
+- One-click "Run Bevy Project" button in header
+- Debug/Release toggle
+- Build progress indicator
+- Auto `cargo check` on file save
+- Diagnostics reflected in editor
+
+---
+
+<a name="japanese"></a>
+
+## 日本語
 
 ## デバッガーパネル (底部)
 

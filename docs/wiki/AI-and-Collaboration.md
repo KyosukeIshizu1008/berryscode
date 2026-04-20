@@ -1,6 +1,60 @@
-# AI・コラボレーション
+# AI & Collaboration / AI・コラボレーション
+
+[English](#english) | [日本語](#japanese)
 
 ---
+
+<a name="english"></a>
+
+## English
+
+### AI Chat (Right Panel)
+
+Integrated AI assistant connected to LLM via berry-api gRPC server.
+
+- Header: connection status (green/red dot) + "New Chat" button
+- Message area: user messages (blue bg) / AI responses (dark bg)
+- Input area: text field + send button
+- Image attachment via drag & drop (PNG/JPG/GIF/WebP/BMP)
+- Conversation history retention
+- Code-related questions, generation, explanation
+
+### Live Collaboration
+
+VS Code Live Share-style real-time co-editing.
+
+- WebSocket relay server architecture
+- Full-doc sync (CRDT planned)
+- Remote cursor display (colored caret + name label)
+- Shared document editing
+- Session sharing link
+- In-session chat
+- States: Inactive → Hosting/Joining → Connected
+
+### Remote Development
+
+SSH-based remote editing (VS Code Remote style).
+
+- SSH tunnel + berrycode-server
+- JSON-RPC protocol
+- Remote: file operations, LSP proxy, PTY proxy
+- Remote file browser with file cache
+- Messages: `fs/read`, `fs/write`, `lsp/*`, `pty/*`
+
+### Plugin System
+
+- `manifest.json` per plugin
+- Activation events: `onLanguage`, `onCommand`
+- Contributing commands & keybindings
+- Shell command execution
+- Plugin manager UI with enable/disable toggle
+- Future: WASM-based plugins
+
+---
+
+<a name="japanese"></a>
+
+## 日本語
 
 ## AI Chat (右パネル)
 
