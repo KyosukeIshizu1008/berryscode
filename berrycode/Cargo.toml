@@ -5,8 +5,8 @@ edition = "2021"
 description = "100% Rust Native Desktop Code Editor with egui + WGPU Rendering"
 authors = ["BerryCode Team"]
 license = "MIT"
-repository = "https://github.com/Oracleberry/berryscode"
-homepage = "https://github.com/Oracleberry/berryscode"
+repository = "https://github.com/KyosukeIshizu1008/berryscode"
+homepage = "https://github.com/KyosukeIshizu1008/berryscode"
 
 # Binaries
 [[bin]]
