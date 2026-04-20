@@ -31,7 +31,8 @@ jobs:
             libwayland-dev \
             libgtk-3-dev \
             libatk1.0-dev \
-            libglib2.0-dev
+            libglib2.0-dev \
+            protobuf-compiler
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -67,6 +68,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install protobuf
+        run: brew install protobuf
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -91,6 +95,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install protobuf
+        run: choco install protoc -y
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
