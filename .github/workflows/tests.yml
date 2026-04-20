@@ -33,6 +33,9 @@ jobs:
             libatk1.0-dev \
             libglib2.0-dev \
             libpipewire-0.3-dev \
+            libgbm-dev \
+            libxcb1-dev \
+            libegl-dev \
             protobuf-compiler
 
       - name: Setup Rust
