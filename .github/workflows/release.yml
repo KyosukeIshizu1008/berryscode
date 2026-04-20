@@ -38,21 +38,17 @@ jobs:
             target
           key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install OpenSSL for cross-compilation
-        run: |
-          brew install openssl@3
-          # Set up for x86_64 cross-compile
-          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$(brew --prefix openssl@3)/lib" >> $GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$(brew --prefix openssl@3)/include" >> $GITHUB_ENV
-
       - name: Build x86_64
         env:
-          PKG_CONFIG_ALLOW_CROSS: 1
-        run: cargo build --release --bin berrycode --target x86_64-apple-darwin
+          OPENSSL_STATIC: 1
+          OPENSSL_RUST_USE_VENDORED: 1
+        run: cargo build --release --bin berrycode --target x86_64-apple-darwin --features vendored-openssl
 
       - name: Build aarch64
-        run: cargo build --release --bin berrycode --target aarch64-apple-darwin
+        env:
+          OPENSSL_STATIC: 1
+          OPENSSL_RUST_USE_VENDORED: 1
+        run: cargo build --release --bin berrycode --target aarch64-apple-darwin --features vendored-openssl
 
       - name: Create Universal Binary
         run: |

@@ -44,6 +44,7 @@ memmap2 = "0.9"  # Memory-mapped I/O for large files
 
 # ===== Git Integration =====
 git2 = "0.19"
+openssl = { version = "0.10", optional = true, features = ["vendored"] }
 
 # ===== Search & Replace =====
 regex = "1.10"
@@ -112,6 +113,10 @@ prost-types = "0.13"
 
 # ===== Native LSP Client =====
 lsp-types = "0.95"
+
+[features]
+default = []
+vendored-openssl = ["openssl"]
 
 [build-dependencies]
 tonic-build = "0.12"
