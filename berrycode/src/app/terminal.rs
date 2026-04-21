@@ -447,94 +447,110 @@ impl BerryCodeApp {
                     let mut run_underline = false;
 
                     for col in 0..=grid.cols.min(line.len()) {
-                        let flush = if col < grid.cols.min(line.len()) {
-                            let cell = &line[col];
+                        let at_end = col >= grid.cols.min(line.len());
 
-                            // Check if selection overrides colors
-                            let in_selection = tab
-                                .selection
-                                .as_ref()
-                                .filter(|s| s.active)
-                                .map_or(false, |s| s.contains(row, col));
-
-                            let (cell_fg, cell_bg) = if in_selection {
-                                (egui::Color32::WHITE, SELECTION_BG)
-                            } else {
-                                (cell.fg, cell.bg)
-                            };
-
-                            let same = cell_fg == run_fg
-                                && cell_bg == run_bg
-                                && cell.bold == run_bold
-                                && cell.underline == run_underline;
-
-                            if same {
-                                run_text.push(cell.ch);
-                                false
-                            } else {
-                                true
-                            }
-                        } else {
-                            true // flush remaining
-                        };
-
-                        if flush && !run_text.is_empty() {
-                            let x = origin.x + run_start_col as f32 * cell_w;
-
-                            // Background rect
-                            if run_bg != TERM_BG {
-                                let bg_rect = egui::Rect::from_min_size(
-                                    egui::pos2(x, y),
-                                    egui::vec2(run_text.len() as f32 * cell_w, cell_h),
+                        if at_end {
+                            // Flush remaining run
+                            if !run_text.is_empty() {
+                                let x = origin.x + run_start_col as f32 * cell_w;
+                                if run_bg != TERM_BG {
+                                    let bg_rect = egui::Rect::from_min_size(
+                                        egui::pos2(x, y),
+                                        egui::vec2(run_text.len() as f32 * cell_w, cell_h),
+                                    );
+                                    painter.rect_filled(bg_rect, 0.0, run_bg);
+                                }
+                                let text_pos = egui::pos2(x, y + 1.0);
+                                let fid = if run_bold {
+                                    egui::FontId::monospace(font_size)
+                                } else {
+                                    font_id.clone()
+                                };
+                                painter.text(
+                                    text_pos,
+                                    egui::Align2::LEFT_TOP,
+                                    &run_text,
+                                    fid,
+                                    run_fg,
                                 );
-                                painter.rect_filled(bg_rect, 0.0, run_bg);
+                                if run_underline {
+                                    let ul_y = y + cell_h - 2.0;
+                                    painter.line_segment(
+                                        [
+                                            egui::pos2(x, ul_y),
+                                            egui::pos2(x + run_text.len() as f32 * cell_w, ul_y),
+                                        ],
+                                        egui::Stroke::new(1.0, run_fg),
+                                    );
+                                }
                             }
-
-                            // Text
-                            let text_pos = egui::pos2(x, y + 1.0);
-                            let fid = if run_bold {
-                                egui::FontId::monospace(font_size) // egui doesn't have bold monospace; we use color intensity
-                            } else {
-                                font_id.clone()
-                            };
-                            painter.text(text_pos, egui::Align2::LEFT_TOP, &run_text, fid, run_fg);
-
-                            // Underline
-                            if run_underline {
-                                let ul_y = y + cell_h - 2.0;
-                                painter.line_segment(
-                                    [
-                                        egui::pos2(x, ul_y),
-                                        egui::pos2(x + run_text.len() as f32 * cell_w, ul_y),
-                                    ],
-                                    egui::Stroke::new(1.0, run_fg),
-                                );
-                            }
-
-                            run_text.clear();
-                            run_start_col = col;
+                            break;
                         }
 
-                        if col < grid.cols.min(line.len()) {
-                            let cell = &line[col];
-                            let in_selection = tab
-                                .selection
-                                .as_ref()
-                                .filter(|s| s.active)
-                                .map_or(false, |s| s.contains(row, col));
+                        let cell = &line[col];
+                        let in_selection = tab
+                            .selection
+                            .as_ref()
+                            .filter(|s| s.active)
+                            .map_or(false, |s| s.contains(row, col));
 
-                            if run_text.is_empty() {
-                                run_start_col = col;
-                                if in_selection {
-                                    run_fg = egui::Color32::WHITE;
-                                    run_bg = SELECTION_BG;
-                                } else {
-                                    run_fg = cell.fg;
-                                    run_bg = cell.bg;
+                        let (cell_fg, cell_bg) = if in_selection {
+                            (egui::Color32::WHITE, SELECTION_BG)
+                        } else {
+                            (cell.fg, cell.bg)
+                        };
+
+                        let same_style = !run_text.is_empty()
+                            && cell_fg == run_fg
+                            && cell_bg == run_bg
+                            && cell.bold == run_bold
+                            && cell.underline == run_underline;
+
+                        if same_style {
+                            run_text.push(cell.ch);
+                        } else {
+                            // Flush previous run
+                            if !run_text.is_empty() {
+                                let x = origin.x + run_start_col as f32 * cell_w;
+                                if run_bg != TERM_BG {
+                                    let bg_rect = egui::Rect::from_min_size(
+                                        egui::pos2(x, y),
+                                        egui::vec2(run_text.len() as f32 * cell_w, cell_h),
+                                    );
+                                    painter.rect_filled(bg_rect, 0.0, run_bg);
                                 }
-                                run_bold = cell.bold;
-                                run_underline = cell.underline;
+                                let text_pos = egui::pos2(x, y + 1.0);
+                                let fid = if run_bold {
+                                    egui::FontId::monospace(font_size)
+                                } else {
+                                    font_id.clone()
+                                };
+                                painter.text(
+                                    text_pos,
+                                    egui::Align2::LEFT_TOP,
+                                    &run_text,
+                                    fid,
+                                    run_fg,
+                                );
+                                if run_underline {
+                                    let ul_y = y + cell_h - 2.0;
+                                    painter.line_segment(
+                                        [
+                                            egui::pos2(x, ul_y),
+                                            egui::pos2(x + run_text.len() as f32 * cell_w, ul_y),
+                                        ],
+                                        egui::Stroke::new(1.0, run_fg),
+                                    );
+                                }
+                                run_text.clear();
                             }
+
+                            // Start new run
+                            run_start_col = col;
+                            run_fg = cell_fg;
+                            run_bg = cell_bg;
+                            run_bold = cell.bold;
+                            run_underline = cell.underline;
                             run_text.push(cell.ch);
                         }
                     }

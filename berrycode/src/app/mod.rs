@@ -1577,6 +1577,13 @@ pub fn setup_egui_fonts_and_style(mut egui_ctx: bevy_egui::EguiContexts) {
         egui::FontData::from_static(CODICON_FONT_BYTES).into(),
     );
 
+    // Add Nerd Font Symbols for terminal glyphs (powerline, devicons, etc.)
+    const NERD_FONT_BYTES: &[u8] = include_bytes!("../../assets/nerd-symbols.ttf");
+    fonts.font_data.insert(
+        "nerd-symbols".to_owned(),
+        egui::FontData::from_static(NERD_FONT_BYTES).into(),
+    );
+
     // Create a custom font family for Codicon icons
     fonts.families.insert(
         egui::FontFamily::Name("codicon".into()),
@@ -1589,7 +1596,19 @@ pub fn setup_egui_fonts_and_style(mut egui_ctx: bevy_egui::EguiContexts) {
         .get_mut(&egui::FontFamily::Proportional)
         .unwrap()
         .insert(0, "codicon".to_owned());
-    tracing::info!("Codicon font added to custom family and Proportional family");
+
+    // Add Nerd Font Symbols as fallback for Monospace and Proportional
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Monospace)
+        .unwrap()
+        .push("nerd-symbols".to_owned());
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Proportional)
+        .unwrap()
+        .push("nerd-symbols".to_owned());
+    tracing::info!("Codicon + Nerd Font Symbols loaded");
 
     // Add Japanese font (try monospace fonts first for better baseline alignment)
     let japanese_font_paths = vec![
