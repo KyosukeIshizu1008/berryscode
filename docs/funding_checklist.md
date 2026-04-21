@@ -15,10 +15,10 @@
 
 ### 配布チャネル
 - [x] Homebrew formula PR作成
-- [ ] Flathub 登録
-- [ ] Snapcraft 登録
-- [ ] WinGet 登録
-- [ ] crates.io にライブラリ公開
+- [x] Flathub マニフェスト作成 (PRは後日提出)
+- [x] Snapcraft マニフェスト作成 (publishは後日)
+- [x] WinGet マニフェスト作成 (PRは後日提出)
+- [x] crates.io にライブラリ公開 (berrycode v0.2.1)
 
 ### インフラ・CI
 - [x] GitHub Actions 確認

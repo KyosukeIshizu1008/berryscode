@@ -528,21 +528,35 @@ pub fn get_blame(repo_path: impl AsRef<Path>, file_path: &str) -> Result<Vec<Git
 
     let mut results = Vec::new();
 
+    // Read the file content so we can populate blame line text
+    let repo_workdir = repo.workdir().context("Bare repository has no workdir")?;
+    let full_path = repo_workdir.join(file_path);
+    let file_lines: Vec<String> = std::fs::read_to_string(&full_path)
+        .unwrap_or_default()
+        .lines()
+        .map(String::from)
+        .collect();
+
     for i in 0..blame.len() {
         let hunk = blame.get_index(i).context("Failed to get blame hunk")?;
         let commit = repo
             .find_commit(hunk.final_commit_id())
             .context("Failed to find commit")?;
 
-        // Get file content for this line (simplified - just showing line number)
         let line_number = hunk.final_start_line() as u32;
+
+        // Read the actual file line (final_start_line is 1-based)
+        let content = file_lines
+            .get(line_number.saturating_sub(1) as usize)
+            .cloned()
+            .unwrap_or_default();
 
         results.push(GitBlame {
             line_number,
             commit_id: hunk.final_commit_id().to_string(),
             author: commit.author().name().unwrap_or("").to_string(),
             date: commit.time().seconds() as u64,
-            content: String::new(), // Would need to read file content
+            content,
         });
     }
 

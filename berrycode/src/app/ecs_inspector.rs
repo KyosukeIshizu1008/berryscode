@@ -229,10 +229,62 @@ impl BerryCodeApp {
     }
 
     fn refresh_ecs_data(&mut self) {
-        // TODO: async refresh via channel
+        let endpoint = self.ecs_inspector.endpoint.clone();
+        let runtime = self.lsp_runtime.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        runtime.spawn(async move {
+            let mut client = crate::bevy_ide::inspector::brp_client::BrpClient::new(&endpoint);
+            let result = client.list_entities().await;
+            let _ = tx.send(result);
+        });
+
+        // Try to receive the result immediately; if not ready yet,
+        // the next refresh call or frame will pick it up.
+        match rx.try_recv() {
+            Ok(Ok(entities)) => {
+                self.ecs_inspector.entities = entities;
+                self.ecs_inspector.error_message = None;
+                self.ecs_inspector.last_poll = Some(std::time::Instant::now());
+            }
+            Ok(Err(e)) => {
+                self.ecs_inspector.error_message = Some(format!("Refresh failed: {}", e));
+                tracing::warn!("ECS refresh error: {}", e);
+            }
+            Err(_) => {
+                // Result not ready yet — will be available on next poll
+            }
+        }
     }
 
-    fn load_entity_components(&mut self, _entity_id: u64) {
-        // TODO: async load via channel
+    fn load_entity_components(&mut self, entity_id: u64) {
+        let endpoint = self.ecs_inspector.endpoint.clone();
+        let runtime = self.lsp_runtime.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        runtime.spawn(async move {
+            let mut client = crate::bevy_ide::inspector::brp_client::BrpClient::new(&endpoint);
+            let result = client.get_entity_components(entity_id).await;
+            let _ = tx.send(result);
+        });
+
+        // Try to receive immediately
+        match rx.try_recv() {
+            Ok(Ok(components)) => {
+                for (name, value) in components {
+                    self.ecs_inspector
+                        .component_values
+                        .insert((entity_id, name), value);
+                }
+            }
+            Ok(Err(e)) => {
+                self.ecs_inspector.error_message =
+                    Some(format!("Failed to load components: {}", e));
+                tracing::warn!("ECS load components error: {}", e);
+            }
+            Err(_) => {
+                // Result not ready yet
+            }
+        }
     }
 }

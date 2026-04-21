@@ -72,7 +72,11 @@ impl BerryCodeApp {
                                 if let Some(file_path) = file_path_clone {
                                     self.open_file_from_path(&file_path);
                                 }
-                                // TODO: Jump to line in editor
+                                // Jump to the matched line in the editor
+                                if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                                    tab.pending_cursor_jump =
+                                        Some((results[idx].line_number, results[idx].start_col));
+                                }
                             }
                         });
                     }
