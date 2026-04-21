@@ -71,6 +71,9 @@ impl BerryCodeApp {
             return;
         }
 
+        // Force continuous repaints while game is running (override reactive mode)
+        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+
         // Throttle: only capture every 100ms
         let now = std::time::Instant::now();
         if let Some(last) = self.game_view_last_capture {
@@ -86,13 +89,27 @@ impl BerryCodeApp {
 
         let windows = match xcap::Window::all() {
             Ok(w) => w,
-            Err(_) => return,
+            Err(e) => {
+                tracing::warn!("xcap::Window::all() failed: {}", e);
+                return;
+            }
         };
 
-        // Strategy 1: Match by PID (most reliable)
-        // Strategy 2: Match by project name in window title or app name
-        // Strategy 3: Match any Bevy window (title contains "Bevy" or "App")
-        // Find the game window — exclude our own BerryCode window
+        // Debug: log windows periodically to diagnose capture issues
+        static LOG_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count % 100 == 0 {
+            tracing::info!("xcap found {} windows (frame {}):", windows.len(), count);
+            for w in &windows {
+                let name = w.app_name().unwrap_or_default();
+                let title = w.title().unwrap_or_default();
+                let width = w.width().unwrap_or(0);
+                if width > 0 {
+                    tracing::info!("  app='{}' title='{}' w={}", name, title, width);
+                }
+            }
+        }
+
         let crate_name = Self::detect_crate_name(&self.root_path);
         let target_window = windows.iter().find(|w| {
             let app_name = w.app_name().unwrap_or_default();
