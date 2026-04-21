@@ -20,6 +20,12 @@ impl BerryCodeApp {
                 // Save the full panel rect before any layout happens
                 let _full_panel_rect = ui.max_rect();
 
+                // If game is running with game view, show Game View in central area
+                if self.game_view_open && self.run_process.is_some() {
+                    self.render_game_view_central(ui);
+                    return;
+                }
+
                 if self.editor_tabs.is_empty() {
                     // No file open - show placeholder
                     ui.vertical_centered(|ui| {
