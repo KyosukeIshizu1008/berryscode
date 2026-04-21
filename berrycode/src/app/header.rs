@@ -1,8 +1,10 @@
 //! Top header and activity bar rendering
 
+use super::types::ActivePanel;
 use super::ui_colors;
 use super::BerryCodeApp;
 use super::MAIN_PANELS;
+use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// Render top header bar (tab bar under native title)
@@ -73,7 +75,7 @@ impl BerryCodeApp {
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new("Close Project")
+                                egui::RichText::new(t(self.ui_language, "Close Project"))
                                     .size(12.0)
                                     .color(egui::Color32::from_rgb(180, 180, 180)),
                             )
@@ -94,7 +96,7 @@ impl BerryCodeApp {
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new("+ New Bevy Project")
+                                egui::RichText::new(t(self.ui_language, "+ New Bevy Project"))
                                     .size(12.0)
                                     .color(egui::Color32::from_rgb(200, 200, 200)),
                             )
@@ -114,9 +116,15 @@ impl BerryCodeApp {
                     if is_bevy_project {
                         let is_running = self.run_process.is_some();
                         let (label, color) = if is_running {
-                            ("Stop", egui::Color32::from_rgb(255, 100, 100))
+                            (
+                                t(self.ui_language, "Stop"),
+                                egui::Color32::from_rgb(255, 100, 100),
+                            )
                         } else {
-                            ("Run", egui::Color32::from_rgb(120, 220, 120))
+                            (
+                                t(self.ui_language, "Run"),
+                                egui::Color32::from_rgb(120, 220, 120),
+                            )
                         };
 
                         if ui
@@ -137,9 +145,9 @@ impl BerryCodeApp {
 
                         // Release mode toggle
                         let mode_label = if self.run_release_mode {
-                            "Release"
+                            t(self.ui_language, "Release")
                         } else {
-                            "Debug"
+                            t(self.ui_language, "Debug")
                         };
                         let mode_color = if self.run_release_mode {
                             egui::Color32::from_rgb(255, 180, 80)
@@ -165,7 +173,7 @@ impl BerryCodeApp {
                         if ui
                             .add(
                                 egui::Button::new(
-                                    egui::RichText::new("Play in Editor")
+                                    egui::RichText::new(t(self.ui_language, "Play in Editor"))
                                         .size(12.0)
                                         .color(egui::Color32::from_rgb(180, 220, 255)),
                                 )
@@ -183,7 +191,7 @@ impl BerryCodeApp {
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new("Build Settings")
+                                egui::RichText::new(t(self.ui_language, "Build Settings"))
                                     .size(12.0)
                                     .color(egui::Color32::from_rgb(200, 200, 200)),
                             )
@@ -230,6 +238,21 @@ impl BerryCodeApp {
                         }
 
                         ui.add_space(4.0);
+                    }
+
+                    // Push settings icon to bottom
+                    let remaining = ui.available_height() - 40.0;
+                    if remaining > 0.0 {
+                        ui.add_space(remaining);
+                    }
+
+                    // Settings gear icon at bottom
+                    let is_settings = self.active_panel == ActivePanel::Settings;
+                    let gear_icon = egui::RichText::new("\u{eb52}") // codicon-settings-gear
+                        .size(20.0)
+                        .family(egui::FontFamily::Name("codicon".into()));
+                    if ui.selectable_label(is_settings, gear_icon).clicked() {
+                        self.active_panel = ActivePanel::Settings;
                     }
                 });
             });

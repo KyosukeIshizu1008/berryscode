@@ -4,6 +4,7 @@ use super::peek::render_peek_standalone;
 use super::types::{ColorTheme, LspInlayHint};
 use super::ui_colors;
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 use crate::syntax::{SyntaxHighlighter, TokenType};
 
 impl BerryCodeApp {
@@ -23,11 +24,15 @@ impl BerryCodeApp {
                     // No file open - show placeholder
                     ui.vertical_centered(|ui| {
                         ui.add_space(100.0);
-                        ui.heading("BerryCode Editor");
+                        ui.heading(t(self.ui_language, "BerryCode Editor"));
                         ui.add_space(16.0);
-                        ui.label("ファイルツリーからファイルを選択してください");
+                        ui.label(t(self.ui_language, "Select a file from the file tree"));
                         ui.add_space(8.0);
-                        ui.label(format!("プロジェクト: {}", self.root_path));
+                        ui.label(format!(
+                            "{} {}",
+                            t(self.ui_language, "Project:"),
+                            self.root_path
+                        ));
                     });
                     return;
                 }
@@ -136,9 +141,9 @@ impl BerryCodeApp {
                 if self.editor_tabs.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(100.0);
-                        ui.heading("BerryCode Editor");
+                        ui.heading(t(self.ui_language, "BerryCode Editor"));
                         ui.add_space(16.0);
-                        ui.label("ファイルツリーからファイルを選択してください");
+                        ui.label(t(self.ui_language, "Select a file from the file tree"));
                     });
                     return;
                 }
@@ -1315,7 +1320,11 @@ impl BerryCodeApp {
                     ui.separator();
 
                     // Diagnostics count
-                    ui.label(format!("Diagnostics: {}", self.lsp_diagnostics.len()));
+                    ui.label(format!(
+                        "{} {}",
+                        t(self.ui_language, "Diagnostics:"),
+                        self.lsp_diagnostics.len()
+                    ));
 
                     // Inline blame info in status bar
                     if !self.blame_cache_text.is_empty() {
@@ -1330,7 +1339,10 @@ impl BerryCodeApp {
                     ui.separator();
 
                     // Completion trigger button
-                    if ui.button("Show Completions (Ctrl+Space)").clicked() {
+                    if ui
+                        .button(t(self.ui_language, "Show Completions (Ctrl+Space)"))
+                        .clicked()
+                    {
                         self.trigger_lsp_completions();
                     }
                 });
