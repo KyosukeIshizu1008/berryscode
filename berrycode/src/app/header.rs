@@ -138,8 +138,11 @@ impl BerryCodeApp {
                         {
                             if is_running {
                                 self.stop_run();
+                                self.game_view_open = false;
                             } else {
                                 self.start_run();
+                                self.open_game_view();
+                                self.tool_panel_open = true;
                             }
                         }
 
@@ -164,24 +167,6 @@ impl BerryCodeApp {
                             .clicked()
                         {
                             self.run_release_mode = !self.run_release_mode;
-                        }
-                    }
-
-                    ui.add_space(8.0);
-
-                    if is_bevy_project {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new(t(self.ui_language, "Play in Editor"))
-                                        .size(12.0)
-                                        .color(egui::Color32::from_rgb(180, 220, 255)),
-                                )
-                                .frame(false),
-                            )
-                            .clicked()
-                        {
-                            self.open_game_view();
                         }
                     }
 

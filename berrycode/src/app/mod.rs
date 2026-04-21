@@ -157,11 +157,6 @@ const MAIN_PANELS: &[SidebarPanel] = &[
         icon: "\u{ea9a}", // codicon-symbol-structure
         _name: "Scene Editor",
     },
-    SidebarPanel {
-        variant: ActivePanel::GameView,
-        icon: "\u{ebb5}", // codicon-play
-        _name: "Game View",
-    },
 ];
 
 /// Main application state
