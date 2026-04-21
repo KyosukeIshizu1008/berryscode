@@ -145,7 +145,12 @@ impl CollabState {
             is_self: true,
         });
 
-        // Would connect to WebSocket server here
+        // WebSocket connection is not yet available; set status and log.
+        tracing::info!(
+            "Joining collab session '{}' as '{}' (WebSocket transport not yet implemented)",
+            self.session_id,
+            self.display_name,
+        );
         self.status = CollabStatus::Connected;
     }
 

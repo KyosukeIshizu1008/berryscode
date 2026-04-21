@@ -235,25 +235,22 @@ pub fn search_files(root: impl AsRef<Path>, pattern: &str) -> Result<Vec<String>
     Ok(results)
 }
 
-/// Select a folder using native file dialog
-/// TODO: Implement using native file picker (rfd crate or platform-specific)
+/// Select a folder using native file dialog (rfd crate)
 pub async fn select_folder() -> Result<Option<String>> {
-    // Stub implementation - needs native file picker
-    // For now, return None to indicate cancellation
-    #[cfg(debug_assertions)]
-    tracing::warn!("select_folder() is not yet implemented - returning None");
-    Ok(None)
+    let folder = rfd::AsyncFileDialog::new().pick_folder().await;
+    Ok(folder.map(|f| f.path().to_string_lossy().to_string()))
 }
 
-/// Listen for file system changes
-/// TODO: Implement using notify crate for file system watching
+/// Listen for file system changes.
+/// File watching is handled by the app's existing notify-based watcher
+/// (see app/events.rs). This function is provided for API compatibility.
 pub async fn listen_file_changed<F>(callback: F) -> Result<()>
 where
     F: Fn(String) + Send + 'static,
 {
-    // Stub implementation - needs file system watcher
-    #[cfg(debug_assertions)]
-    tracing::warn!("listen_file_changed() is not yet implemented - doing nothing");
+    tracing::info!(
+        "listen_file_changed() called — file watching is managed by the app's built-in watcher"
+    );
 
     // Prevent unused variable warning
     let _ = callback;

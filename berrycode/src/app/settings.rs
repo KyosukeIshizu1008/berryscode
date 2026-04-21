@@ -109,17 +109,66 @@ impl BerryCodeApp {
                         super::types::SettingsTab::Appearance => {
                             ui.heading(t(self.ui_language, "Appearance"));
                             ui.label(t(self.ui_language, "Window theme, font settings, etc."));
-                            ui.label(t(self.ui_language, "Coming soon..."));
+                            ui.add_space(12.0);
+
+                            // Font size info
+                            ui.label("Editor font: monospace 13.0px (default)");
+                            ui.add_space(8.0);
+
+                            // Theme selector
+                            ui.label("Theme:");
+                            ui.horizontal(|ui| {
+                                if ui.button("Open Theme Editor").clicked() {
+                                    self.show_theme_editor = true;
+                                }
+                                if ui.button("Open Color Scheme").clicked() {
+                                    self.active_settings_tab =
+                                        super::types::SettingsTab::EditorColor;
+                                }
+                            });
                         }
                         super::types::SettingsTab::GitHub => {
                             ui.heading(t(self.ui_language, "GitHub Review"));
-                            ui.label(t(self.ui_language, "Pull request review features."));
-                            ui.label(t(self.ui_language, "Coming soon..."));
+                            ui.add_space(8.0);
+                            ui.label("Review pull requests directly in the editor.");
+                            ui.label("Features planned:");
+                            ui.indent("gh_features", |ui| {
+                                ui.label("- Browse open pull requests from within BerryCode");
+                                ui.label("- Inline diff view with comment threads");
+                                ui.label("- Submit reviews (approve / request changes)");
+                                ui.label("- Resolve conversations and merge PRs");
+                            });
+                            ui.add_space(8.0);
+                            ui.colored_label(
+                                egui::Color32::from_rgb(140, 140, 140),
+                                "Requires GitHub CLI (gh) authentication.",
+                            );
                         }
                         super::types::SettingsTab::Plugins => {
                             ui.heading(t(self.ui_language, "Other Plugins"));
-                            ui.label(t(self.ui_language, "Additional plugin configurations."));
-                            ui.label(t(self.ui_language, "Coming soon..."));
+                            ui.add_space(8.0);
+                            let count = self.plugin_manager.plugins.len();
+                            ui.label(format!("Installed plugins: {}", count));
+                            ui.add_space(4.0);
+                            if count == 0 {
+                                ui.label(
+                                    "No plugins installed. Place plugins in ~/.berrycode/plugins/",
+                                );
+                            } else {
+                                for plugin in &self.plugin_manager.plugins {
+                                    ui.horizontal(|ui| {
+                                        let status = if plugin.enabled {
+                                            "enabled"
+                                        } else {
+                                            "disabled"
+                                        };
+                                        ui.label(format!(
+                                            "  {} v{} ({})",
+                                            plugin.manifest.name, plugin.manifest.version, status
+                                        ));
+                                    });
+                                }
+                            }
                         }
                     });
             });
@@ -276,12 +325,23 @@ impl BerryCodeApp {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.heading("Editor Settings");
                     ui.separator();
+
                     ui.label("Font size:");
-                    ui.label("(Font size control coming soon)");
+                    ui.label("  13.0px (monospace, fixed)");
+                    ui.colored_label(
+                        egui::Color32::from_rgb(120, 120, 120),
+                        "Font size customization will be available in a future release.",
+                    );
                     ui.add_space(8.0);
+
                     ui.label("Tab size:");
-                    ui.label("(Tab size control coming soon)");
+                    ui.label("  4 spaces (fixed)");
+                    ui.colored_label(
+                        egui::Color32::from_rgb(120, 120, 120),
+                        "Tab size customization will be available in a future release.",
+                    );
                     ui.add_space(8.0);
+
                     ui.label("Theme:");
                     if ui.button("Open Theme Editor").clicked() {
                         self.show_theme_editor = true;

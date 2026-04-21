@@ -273,6 +273,7 @@ impl BerryCodeApp {
 
         let filter = self.plugin_manager.search_query.to_lowercase();
         let mut toggle_idx: Option<usize> = None;
+        let mut install_requested: Option<String> = None;
 
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
@@ -415,7 +416,7 @@ impl BerryCodeApp {
                                         );
                                     } else {
                                         if ui.small_button("Install").clicked() {
-                                            // Would download and install the plugin
+                                            install_requested = Some(plugin.name.clone());
                                         }
                                     }
                                 },
@@ -426,11 +427,16 @@ impl BerryCodeApp {
                 }
             });
 
-        // Process deferred
+        // Process deferred actions
         if let Some(idx) = toggle_idx {
             if let Some(p) = self.plugin_manager.plugins.get_mut(idx) {
                 p.enabled = !p.enabled;
             }
+        }
+        if let Some(name) = install_requested {
+            self.status_message = "Plugin installation requires manual cargo add. See plugin repository for instructions.".to_string();
+            self.status_message_timestamp = Some(std::time::Instant::now());
+            tracing::info!("Plugin install requested: {}", name);
         }
     }
 }

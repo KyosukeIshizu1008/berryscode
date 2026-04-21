@@ -563,7 +563,10 @@ impl BerryCodeApp {
                     self.debug_state
                         .debug_output
                         .push(("input".to_string(), format!("> {}", cmd)));
-                    // TODO: evaluate expression via DAP evaluate request
+                    let result = format!("> {} => (evaluation not connected to debugger)", cmd);
+                    self.debug_state
+                        .debug_output
+                        .push(("console".to_string(), result));
                     self.debug_state.console_input.clear();
                 }
             }
