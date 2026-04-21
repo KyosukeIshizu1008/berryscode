@@ -1,8 +1,8 @@
 [package]
-name = "berry-editor"
-version = "0.2.0"
+name = "berrycode"
+version = "0.2.1"
 edition = "2021"
-description = "100% Rust Native Desktop Code Editor with egui + WGPU Rendering"
+description = "The IDE built for the Bevy game engine — Scene Editor, ECS Inspector, and more"
 authors = ["BerryCode Team"]
 license = "MIT"
 repository = "https://github.com/KyosukeIshizu1008/berryscode"
