@@ -1891,10 +1891,13 @@ pub fn berry_ui_system(
         app.render_debug_panel(ctx);
 
         // Render run output panel (bottom panel when running cargo)
-        app.render_run_panel(ctx);
+        // Skip if tool panel is open (console is shown there instead)
+        if !app.tool_panel_open {
+            app.render_run_panel(ctx);
+        }
 
-        // Render Play in Editor (Game View) window
-        app.render_game_view(ctx);
+        // Game view capture (no floating window — rendered in central editor area)
+        app.update_game_view(ctx);
 
         // Render diagnostics panel
         if !app.lsp_diagnostics.is_empty() {

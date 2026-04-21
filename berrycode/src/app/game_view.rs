@@ -3,16 +3,17 @@
 use super::BerryCodeApp;
 use crate::app::i18n::t;
 
-/// Hide an external window by moving it off-screen.
-/// Platform-specific: uses AppleScript on macOS, wmctrl/xdotool on Linux,
-/// and the Windows API concepts via powershell on Windows.
+/// Hide an external window by making the process invisible.
+/// Platform-specific: uses AppleScript on macOS, xdotool on Linux,
+/// and PowerShell on Windows.
 #[allow(unused_variables)]
 fn hide_external_window(window: &xcap::Window) {
     #[cfg(target_os = "macos")]
     {
         if let Ok(app_name) = window.app_name() {
+            // set visible to false — hides the entire process from the Dock and screen
             let script = format!(
-                "tell application \"System Events\" to set position of first window of (first process whose name is \"{}\") to {{-10000, -10000}}",
+                "tell application \"System Events\" to set visible of process \"{}\" to false",
                 app_name
             );
             std::process::Command::new("osascript")
@@ -91,13 +92,16 @@ impl BerryCodeApp {
         // Strategy 1: Match by PID (most reliable)
         // Strategy 2: Match by project name in window title or app name
         // Strategy 3: Match any Bevy window (title contains "Bevy" or "App")
-        // Exclude our own BerryCode window
+        // Find the game window — exclude our own BerryCode window
+        let crate_name = Self::detect_crate_name(&self.root_path);
         let target_window = windows.iter().find(|w| {
             let app_name = w.app_name().unwrap_or_default();
             let title = w.title().unwrap_or_default();
 
-            // Skip our own editor window
-            if app_name.contains("berrycode") || title.contains("BerryCode") {
+            // Skip our own editor window (match both "berrycode" and "BerryCode")
+            let app_lower = app_name.to_lowercase();
+            let title_lower = title.to_lowercase();
+            if app_lower.contains("berrycode") || title_lower.contains("berrycode") {
                 return false;
             }
 
@@ -108,39 +112,39 @@ impl BerryCodeApp {
                 }
             }
 
-            // Match by PID
-            if let Some(pid) = target_pid {
-                if let Ok(w_pid) = w.current_monitor().map(|_| w.id()) {
-                    // xcap doesn't expose PID directly, so try name matching
-                    let _ = (pid, w_pid);
-                }
+            // Must have a running process
+            if target_pid.is_none() {
+                return false;
             }
 
-            // Match by project/binary name
-            let name_lower = app_name.to_lowercase();
-            let title_lower = title.to_lowercase();
             let proj_lower = project_name.to_lowercase();
 
+            // Match by project name in app name or title
             if !proj_lower.is_empty()
-                && (name_lower.contains(&proj_lower) || title_lower.contains(&proj_lower))
+                && (app_lower.contains(&proj_lower) || title_lower.contains(&proj_lower))
             {
                 return true;
             }
 
-            // Match common Bevy window titles
-            if title_lower.contains("bevy") || title_lower.contains("app") {
-                // Only match if we have a running process
-                if target_pid.is_some() {
+            // Match by crate name
+            if let Some(ref cn) = crate_name {
+                let cn_lower = cn.to_lowercase();
+                if app_lower.contains(&cn_lower) || title_lower.contains(&cn_lower) {
                     return true;
                 }
             }
 
-            // Match by cargo-built binary name (often the crate name)
-            if let Some(crate_name) = Self::detect_crate_name(&self.root_path) {
-                let crate_lower = crate_name.to_lowercase();
-                if name_lower.contains(&crate_lower) || title_lower.contains(&crate_lower) {
-                    return true;
-                }
+            // Match common Bevy default window titles ("App", "Bevy App")
+            // but exclude common system apps
+            if (title == "App" || title_lower.contains("bevy"))
+                && !app_lower.contains("finder")
+                && !app_lower.contains("system")
+                && !app_lower.contains("chrome")
+                && !app_lower.contains("discord")
+                && !app_lower.contains("code")
+                && !app_lower.contains("iterm")
+            {
+                return true;
             }
 
             false
@@ -166,13 +170,9 @@ impl BerryCodeApp {
                     ));
                 }
 
-                // Hide the external window by moving it off-screen (capture still works)
-                // Retry every few captures in case the window reappears
-                if !self.game_view_window_hidden {
-                    hide_external_window(window);
-                    // Give the OS a moment to move the window, then mark as hidden
-                    self.game_view_window_hidden = true;
-                }
+                // Always try to hide the external window (it may reappear after resize etc.)
+                hide_external_window(window);
+                self.game_view_window_hidden = true;
             }
         }
 
@@ -186,61 +186,7 @@ impl BerryCodeApp {
             return;
         }
 
-        // Skip floating window when GameView is the active central panel
-        if self.active_panel == super::types::ActivePanel::GameView {
-            return;
-        }
-
-        egui::Window::new(t(self.ui_language, "Game View"))
-            .default_size([800.0, 600.0])
-            .resizable(true)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let is_running = self.run_process.is_some();
-                    if !is_running {
-                        if ui.button(t(self.ui_language, "Play")).clicked() {
-                            self.start_run();
-                        }
-                        ui.label(t(
-                            self.ui_language,
-                            "Game not running. Click Play to start.",
-                        ));
-                    } else {
-                        if ui.button(t(self.ui_language, "Stop")).clicked() {
-                            self.stop_run();
-                            self.game_view_texture = None;
-                        }
-                        ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "Playing");
-                    }
-
-                    ui.separator();
-                    if ui.button(t(self.ui_language, "Close")).clicked() {
-                        self.game_view_open = false;
-                    }
-                });
-
-                ui.separator();
-
-                // Display captured frame
-                if let Some(texture) = &self.game_view_texture {
-                    let available = ui.available_size();
-                    let tex_size = texture.size_vec2();
-                    let scale = (available.x / tex_size.x).min(available.y / tex_size.y);
-                    let display_size = egui::vec2(tex_size.x * scale, tex_size.y * scale);
-
-                    ui.centered_and_justified(|ui| {
-                        ui.image(egui::load::SizedTexture::new(texture.id(), display_size));
-                    });
-                } else if self.run_process.is_some() {
-                    ui.centered_and_justified(|ui| {
-                        ui.label(t(self.ui_language, "Waiting for game window..."));
-                    });
-                } else {
-                    ui.centered_and_justified(|ui| {
-                        ui.label(t(self.ui_language, "Game not running."));
-                    });
-                }
-            });
+        // Game view is now rendered inline in the editor area, not as a floating window
     }
 
     /// Detect the crate name from Cargo.toml in the project
