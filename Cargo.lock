@@ -653,6 +653,7 @@ dependencies = [
  "vte",
  "walkdir",
  "whoami",
+ "winit",
  "xcap",
 ]
 

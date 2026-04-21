@@ -46,73 +46,106 @@ fn is_droppable_asset(filename: &str) -> bool {
 }
 
 impl BerryCodeApp {
-    /// Render File Tree panel (Phase 2: full implementation)
+    /// Render File Tree panel (VS Code style)
     pub(crate) fn render_file_tree(&mut self, ui: &mut egui::Ui) {
-        // Project name dropdown
-        let project_name = self.root_path.split('/').last().unwrap_or("oracleberry");
+        let project_name = self.root_path.split('/').last().unwrap_or("project");
 
+        // VS Code: "EXPLORER" header with action icons on the right
         ui.horizontal(|ui| {
-            // Folder icon
             ui.label(
-                egui::RichText::new("\u{ea83}") // codicon-folder
-                    .size(16.0)
-                    .color(ui_colors::TEXT_DEFAULT)
-                    .family(egui::FontFamily::Name("codicon".into())),
-            );
-
-            ui.add_space(4.0);
-
-            // Project name with dropdown
-            let response = ui.button(
-                egui::RichText::new(format!("{} ▼", project_name.to_uppercase()))
+                egui::RichText::new(t(self.ui_language, "Explorer").to_uppercase())
                     .size(11.0)
+                    .color(egui::Color32::from_rgb(187, 187, 187))
                     .strong(),
             );
 
-            // TODO: Show dropdown menu when clicked
-            if response.clicked() {
-                // Future: Show project switcher menu
-            }
-        });
-
-        ui.separator();
-
-        // New File / New Folder buttons
-        ui.horizontal(|ui| {
-            if ui
-                .button(
-                    egui::RichText::new("\u{ea7f}") // codicon: new-file
-                        .family(egui::FontFamily::Name("codicon".into())),
-                )
-                .on_hover_text("New File")
-                .clicked()
-            {
-                self.new_file_dialog_open = true;
-            }
-            if ui
-                .button(
-                    egui::RichText::new("\u{ea83}") // codicon: new-folder
-                        .family(egui::FontFamily::Name("codicon".into())),
-                )
-                .on_hover_text("New Folder")
-                .clicked()
-            {
-                self.new_folder_dialog_open = true;
-            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                // Action icons (right-aligned, VS Code style)
+                let icon_color = egui::Color32::from_rgb(150, 150, 150);
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ea83}") // new-folder
+                                .size(14.0)
+                                .color(icon_color)
+                                .family(egui::FontFamily::Name("codicon".into())),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_text(t(self.ui_language, "New Folder"))
+                    .clicked()
+                {
+                    self.new_folder_dialog_open = true;
+                }
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ea7f}") // new-file
+                                .size(14.0)
+                                .color(icon_color)
+                                .family(egui::FontFamily::Name("codicon".into())),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_text(t(self.ui_language, "New File"))
+                    .clicked()
+                {
+                    self.new_file_dialog_open = true;
+                }
+            });
         });
 
         ui.add_space(4.0);
 
+        // Project folder header (collapsible, bold, uppercase)
+        let is_root_expanded = self.expanded_dirs.contains(&self.root_path);
+        let chevron = if is_root_expanded {
+            "\u{eab4}"
+        } else {
+            "\u{eab6}"
+        }; // codicon: chevron-down / chevron-right
+
+        let root_resp = ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.label(
+                egui::RichText::new(chevron)
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180))
+                    .family(egui::FontFamily::Name("codicon".into())),
+            );
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(project_name.to_uppercase())
+                        .size(11.0)
+                        .strong()
+                        .color(egui::Color32::from_rgb(204, 204, 204)),
+                )
+                .sense(egui::Sense::click()),
+            )
+        });
+
+        if root_resp.inner.clicked() {
+            if is_root_expanded {
+                self.expanded_dirs.remove(&self.root_path);
+            } else {
+                self.expanded_dirs.insert(self.root_path.clone());
+            }
+        }
+
+        ui.add_space(2.0);
+
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                // Set font style ONCE for the whole tree (not per node)
+                // VS Code: 13px font, compact spacing
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    .insert(egui::TextStyle::Body, egui::FontId::proportional(13.0));
                 ui.style_mut()
                     .text_styles
-                    .insert(egui::TextStyle::Button, egui::FontId::proportional(15.0));
+                    .insert(egui::TextStyle::Button, egui::FontId::proportional(13.0));
+                ui.spacing_mut().item_spacing.y = 0.0;
 
                 // Load file tree on first render
                 if self.file_tree_cache.is_empty() && self.file_tree_load_pending {
@@ -127,7 +160,6 @@ impl BerryCodeApp {
                             );
                             self.file_tree_cache = entries;
                             self.file_tree_load_pending = false;
-                            // Auto-expand root folder on first load
                             self.expanded_dirs.insert(self.root_path.clone());
                         }
                         Err(e) => {
@@ -140,36 +172,7 @@ impl BerryCodeApp {
                     }
                 }
 
-                // Root folder row
-                let root_name = self.root_path.split('/').last().unwrap_or(&self.root_path);
-
-                let is_root_expanded = self.expanded_dirs.contains(&self.root_path);
-                let root_icon = if is_root_expanded {
-                    "\u{ea7c}"
-                } else {
-                    "\u{ea83}"
-                };
-
-                let response = ui
-                    .horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(root_icon)
-                                .family(egui::FontFamily::Name("codicon".into())),
-                        );
-                        ui.add(egui::Label::new(root_name).sense(egui::Sense::click()))
-                    })
-                    .inner;
-
-                if response.clicked() {
-                    if is_root_expanded {
-                        self.expanded_dirs.remove(&self.root_path);
-                    } else {
-                        self.expanded_dirs.insert(self.root_path.clone());
-                    }
-                }
-
-                // Render children without cloning: take cache, render read-only,
-                // restore cache, then apply any event.
+                // Render children
                 if is_root_expanded {
                     let cache = std::mem::take(&mut self.file_tree_cache);
                     let selected = self
@@ -220,8 +223,7 @@ impl BerryCodeApp {
             });
     }
 
-    /// Render a single tree node (file or directory) recursively.
-    /// Read-only: does not mutate self. Returns at most one FileTreeEvent per frame.
+    /// Render a single tree node (VS Code style).
     pub(crate) fn render_tree_node(
         ui: &mut egui::Ui,
         node: &DirEntry,
@@ -229,30 +231,71 @@ impl BerryCodeApp {
         expanded_dirs: &std::collections::HashSet<String>,
         selected_file: Option<&str>,
     ) -> Option<FileTreeEvent> {
-        let indent = depth as f32 * 20.0;
+        let indent = depth as f32 * 16.0;
+        let row_height = 22.0;
         let mut event: Option<FileTreeEvent> = None;
+
+        let text_color = egui::Color32::from_rgb(229, 229, 229);
+        let hover_bg = egui::Color32::from_rgb(42, 45, 46); // #2A2D2E
+        let selected_bg = egui::Color32::from_rgb(4, 57, 94); // #04395E
 
         if node.is_dir {
             let is_expanded = expanded_dirs.contains(&node.path);
-            let icon = if is_expanded { "\u{ea7c}" } else { "\u{ea83}" };
+            let chevron = if is_expanded { "\u{eab4}" } else { "\u{eab6}" }; // chevron-down / right
+            let folder_icon = if is_expanded { "\u{ea7c}" } else { "\u{ea83}" }; // folder-opened / folder
 
-            ui.add_space(1.0);
-            let row_response = ui.horizontal(|ui| {
-                ui.add_space(indent);
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.label(
-                    egui::RichText::new(icon).family(egui::FontFamily::Name("codicon".into())),
+            let (rect, response) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), row_height),
+                egui::Sense::click(),
+            );
+
+            // Hover highlight
+            if response.hovered() {
+                ui.painter().rect_filled(rect, 0.0, hover_bg);
+            }
+
+            // Indent guide lines
+            for d in 1..depth {
+                let line_x = rect.left() + d as f32 * 16.0 + 8.0;
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(line_x, rect.top()),
+                        egui::pos2(line_x, rect.bottom()),
+                    ],
+                    egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 55, 55)),
                 );
-                ui.add(
-                    egui::Label::new(egui::RichText::new(&node.name).strong())
-                        .sense(egui::Sense::click()),
-                )
-            });
+            }
 
-            let label_response = row_response.inner;
-            let full_response = row_response.response.interact(egui::Sense::hover());
+            let text_left = rect.left() + indent;
 
-            if label_response.clicked() {
+            // Chevron
+            ui.painter().text(
+                egui::pos2(text_left, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                chevron,
+                egui::FontId::new(10.0, egui::FontFamily::Name("codicon".into())),
+                egui::Color32::from_rgb(150, 150, 150),
+            );
+
+            // Folder icon
+            ui.painter().text(
+                egui::pos2(text_left + 16.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                folder_icon,
+                egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into())),
+                egui::Color32::from_rgb(220, 180, 80),
+            );
+
+            // Folder name
+            ui.painter().text(
+                egui::pos2(text_left + 34.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                &node.name,
+                egui::FontId::proportional(13.0),
+                text_color,
+            );
+
+            if response.clicked() {
                 event = Some(if is_expanded {
                     FileTreeEvent::CollapseDir(node.path.clone())
                 } else {
@@ -260,13 +303,8 @@ impl BerryCodeApp {
                 });
             }
 
-            if label_response.secondary_clicked() {
+            if response.secondary_clicked() {
                 event = Some(FileTreeEvent::ContextMenu(node.path.clone(), true));
-            }
-
-            // Hover cursor
-            if full_response.hovered() || label_response.hovered() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
             }
 
             if is_expanded {
@@ -297,61 +335,68 @@ impl BerryCodeApp {
             let is_selected = selected_file == Some(node.path.as_str());
             let droppable = is_droppable_asset(&node.name);
 
-            ui.add_space(1.0);
+            let sense = if droppable {
+                egui::Sense::click_and_drag()
+            } else {
+                egui::Sense::click()
+            };
 
-            // Draw selection background before the row
-            let row_response = ui.horizontal(|ui| {
-                ui.add_space(indent);
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.label(
-                    egui::RichText::new(icon)
-                        .color(color)
-                        .family(egui::FontFamily::Name("codicon".into())),
-                );
-                let text = if is_selected {
-                    egui::RichText::new(&node.name).color(egui::Color32::WHITE)
-                } else {
-                    egui::RichText::new(&node.name)
-                };
-                // Droppable assets need click_and_drag so we can detect a drag
-                // start and forward the path to the Scene View.
-                let sense = if droppable {
-                    egui::Sense::click_and_drag()
-                } else {
-                    egui::Sense::click()
-                };
-                ui.add(egui::Label::new(text).sense(sense))
-            });
+            let (rect, response) =
+                ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), sense);
 
-            let label_response = row_response.inner;
-
-            // Selection/hover highlight - use label rect (not full row)
-            let highlight_rect = label_response.rect.expand2(egui::vec2(4.0, 1.0));
-
+            // Selection / hover highlight (full row width, VS Code style)
             if is_selected {
-                ui.painter().rect_filled(
-                    highlight_rect,
-                    3.0,
-                    egui::Color32::from_rgba_premultiplied(60, 100, 180, 80), // subtle blue selection
-                );
-            } else if label_response.hovered() {
-                ui.painter().rect_filled(
-                    highlight_rect,
-                    3.0,
-                    egui::Color32::from_rgba_premultiplied(255, 255, 255, 12),
+                ui.painter().rect_filled(rect, 0.0, selected_bg);
+            } else if response.hovered() {
+                ui.painter().rect_filled(rect, 0.0, hover_bg);
+            }
+
+            // Indent guide lines
+            for d in 1..depth {
+                let line_x = rect.left() + d as f32 * 16.0 + 8.0;
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(line_x, rect.top()),
+                        egui::pos2(line_x, rect.bottom()),
+                    ],
+                    egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 55, 55)),
                 );
             }
 
-            if label_response.clicked() {
+            let text_left = rect.left() + indent;
+
+            // File icon (colored)
+            ui.painter().text(
+                egui::pos2(text_left + 16.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                icon,
+                egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into())),
+                color,
+            );
+
+            // File name
+            let name_color = if is_selected {
+                egui::Color32::WHITE
+            } else {
+                text_color
+            };
+            ui.painter().text(
+                egui::pos2(text_left + 34.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                &node.name,
+                egui::FontId::proportional(13.0),
+                name_color,
+            );
+
+            if response.clicked() {
                 event = Some(FileTreeEvent::OpenFile(node.path.clone()));
             }
 
-            if label_response.secondary_clicked() {
+            if response.secondary_clicked() {
                 event = Some(FileTreeEvent::ContextMenu(node.path.clone(), false));
             }
 
-            // Detect drag-start on droppable assets (3D models, etc).
-            if droppable && label_response.drag_started() {
+            if droppable && response.drag_started() {
                 event = Some(FileTreeEvent::StartAssetDrag(node.path.clone()));
             }
         }
