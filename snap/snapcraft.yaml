@@ -1,0 +1,32 @@
+name: berrycode
+version: '0.2.0'
+summary: The IDE built for the Bevy game engine
+description: |
+  A fully-featured native IDE built on Bevy + bevy_egui + WGPU,
+  designed for Rust and Bevy game development. Features include
+  Scene Editor, ECS Inspector, System Graph, LSP integration,
+  Vim mode, Git panel, and terminal emulator.
+  100% Rust, open source (MIT).
+
+grade: devel
+confinement: classic
+base: core22
+architectures:
+  - build-on: amd64
+
+parts:
+  berrycode:
+    plugin: dump
+    source: https://github.com/KyosukeIshizu1008/berryscode/releases/download/v0.2.0/berrycode-0.2.0-linux-x86_64.tar.gz
+    organize:
+      berrycode-0.2.0-linux-x86_64/berrycode: bin/berrycode
+      berrycode-0.2.0-linux-x86_64/assets: share/berrycode/assets
+
+apps:
+  berrycode:
+    command: bin/berrycode
+    desktop: share/applications/berrycode.desktop
+
+layout:
+  /usr/share/berrycode:
+    bind: $SNAP/share/berrycode

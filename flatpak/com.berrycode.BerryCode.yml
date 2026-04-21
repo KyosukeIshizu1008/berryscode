@@ -1,0 +1,25 @@
+app-id: com.berrycode.BerryCode
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: berrycode
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=home
+  - --talk-name=org.freedesktop.Flatpak
+
+modules:
+  - name: berrycode
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 berrycode /app/bin/berrycode
+      - install -Dm644 berrycode.desktop /app/share/applications/com.berrycode.BerryCode.desktop
+      - install -Dm644 berrycode.png /app/share/icons/hicolor/256x256/apps/com.berrycode.BerryCode.png
+    sources:
+      - type: archive
+        url: https://github.com/KyosukeIshizu1008/berryscode/releases/download/v0.2.0/berrycode-0.2.0-linux-x86_64.tar.gz
+        sha256: ce638b12a4dfe385cef054cf8069c66690826b9a0ca66e9c7d8c70561a276dc8
