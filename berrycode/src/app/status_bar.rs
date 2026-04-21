@@ -2,6 +2,7 @@
 
 use super::ui_colors;
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// Render Status Bar (bottom)
@@ -19,7 +20,7 @@ impl BerryCodeApp {
                     ui.separator();
                     ui.label(format!("📁 {}", self.root_path));
                     ui.separator();
-                    ui.label(format!("ファイル数: {}", self.file_tree_cache.len()));
+                    ui.label(format!("{} {}", t(self.ui_language, "File count:"), self.file_tree_cache.len()));
 
                     // LSP connection status
                     ui.separator();
@@ -53,7 +54,7 @@ impl BerryCodeApp {
                     if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
                         if tab.is_readonly {
                             ui.separator();
-                            ui.label(egui::RichText::new("📖 READ-ONLY")
+                            ui.label(egui::RichText::new(format!("📖 {}", t(self.ui_language, "READ-ONLY")))
                                 .color(egui::Color32::from_rgb(255, 200, 0)));
                         }
 
@@ -69,12 +70,12 @@ impl BerryCodeApp {
                         } else {
                             "Plain Text"
                         };
-                        ui.label(format!("言語: {}", lang));
+                        ui.label(format!("{} {}", t(self.ui_language, "Language:"), lang));
 
                         // Format button (only for supported languages)
                         if tab.file_path.ends_with(".rs") {
                             ui.separator();
-                            if ui.button("Format (Cmd+Shift+F)").clicked() {
+                            if ui.button(t(self.ui_language, "Format (Cmd+Shift+F)")).clicked() {
                                 self.format_current_file();
                             }
                         }

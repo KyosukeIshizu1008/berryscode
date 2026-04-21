@@ -3,6 +3,7 @@
 use super::types::{AIChatMode, GrpcMessage, GrpcResponse};
 use super::utils::strip_thinking_blocks;
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// Render AI Chat panel (right side of editor)
@@ -60,7 +61,7 @@ impl BerryCodeApp {
                             ui.label(egui::RichText::new("●").color(dot_color).size(9.0));
                             ui.add_space(6.0);
                             ui.label(
-                                egui::RichText::new("AI Chat")
+                                egui::RichText::new(t(self.ui_language, "AI Chat"))
                                     .color(egui::Color32::from_rgb(200, 205, 220))
                                     .size(14.0)
                                     .strong(),
@@ -71,7 +72,9 @@ impl BerryCodeApp {
                                 |ui| {
                                     // New Chat button
                                     let btn = egui::Button::new(
-                                        egui::RichText::new("＋ New").size(12.0).color(TEXT_DIM),
+                                        egui::RichText::new(t(self.ui_language, "+ New"))
+                                            .size(12.0)
+                                            .color(TEXT_DIM),
                                     )
                                     .fill(egui::Color32::from_rgb(35, 37, 46))
                                     .stroke(egui::Stroke::new(
@@ -154,9 +157,9 @@ impl BerryCodeApp {
                                     }
 
                                     let hint = if self.chat_attachment.is_some() {
-                                        "画像について質問…"
+                                        t(self.ui_language, "Ask about image...")
                                     } else {
-                                        "Ask anything…"
+                                        t(self.ui_language, "Ask anything...")
                                     };
                                     let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
                                         .id(input_id)
@@ -182,13 +185,16 @@ impl BerryCodeApp {
                                                 ui.horizontal(|ui| {
                                                     ui.spacing_mut().item_spacing.x = 0.0;
                                                     let chat_btn = egui::Button::new(
-                                                        egui::RichText::new("Chat")
-                                                            .size(12.0)
-                                                            .color(if !is_auto {
-                                                                egui::Color32::WHITE
-                                                            } else {
-                                                                TEXT_DIM
-                                                            }),
+                                                        egui::RichText::new(t(
+                                                            self.ui_language,
+                                                            "Chat",
+                                                        ))
+                                                        .size(12.0)
+                                                        .color(if !is_auto {
+                                                            egui::Color32::WHITE
+                                                        } else {
+                                                            TEXT_DIM
+                                                        }),
                                                     )
                                                     .fill(if !is_auto {
                                                         ACCENT
@@ -201,13 +207,16 @@ impl BerryCodeApp {
                                                         self.ai_chat_mode = AIChatMode::Chat;
                                                     }
                                                     let auto_btn = egui::Button::new(
-                                                        egui::RichText::new("Auto")
-                                                            .size(12.0)
-                                                            .color(if is_auto {
-                                                                egui::Color32::WHITE
-                                                            } else {
-                                                                TEXT_DIM
-                                                            }),
+                                                        egui::RichText::new(t(
+                                                            self.ui_language,
+                                                            "Auto",
+                                                        ))
+                                                        .size(12.0)
+                                                        .color(if is_auto {
+                                                            egui::Color32::WHITE
+                                                        } else {
+                                                            TEXT_DIM
+                                                        }),
                                                     )
                                                     .fill(if is_auto {
                                                         ACCENT
@@ -299,7 +308,7 @@ impl BerryCodeApp {
                                     ui.add_space((avail * 0.15).max(30.0));
                                     ui.vertical_centered(|ui| {
                                         ui.label(
-                                            egui::RichText::new("AI Chat")
+                                            egui::RichText::new(t(self.ui_language, "AI Chat"))
                                                 .size(18.0)
                                                 .strong()
                                                 .color(egui::Color32::from_rgb(180, 185, 200)),
@@ -313,13 +322,13 @@ impl BerryCodeApp {
                                         ui.add_space(28.0);
 
                                         // Suggestion chips
-                                        let suggestions: &[(&str, &str)] = &[
-                                            ("設計を教えて", "[ 設計 ]"),
-                                            ("コンパイルエラーを直して", "[ Fix ]"),
-                                            ("変更をコミットして", "[ Git ]"),
-                                            ("セキュリティチェック", "[ Sec ]"),
+                                        let suggestions: Vec<(&str, &str)> = vec![
+                                            (t(self.ui_language, "Explain the design"), "[ 設計 ]"),
+                                            (t(self.ui_language, "Fix compile errors"), "[ Fix ]"),
+                                            (t(self.ui_language, "Commit changes"), "[ Git ]"),
+                                            (t(self.ui_language, "Security check"), "[ Sec ]"),
                                         ];
-                                        for (text, label) in suggestions {
+                                        for (text, label) in &suggestions {
                                             ui.horizontal(|ui| {
                                                 egui::Frame::none()
                                                     .fill(egui::Color32::from_rgb(38, 42, 58))
@@ -358,9 +367,10 @@ impl BerryCodeApp {
 
                                         ui.add_space(20.0);
                                         ui.label(
-                                            egui::RichText::new(
-                                                "画像はドラッグ&ドロップで添付できます",
-                                            )
+                                            egui::RichText::new(t(
+                                                self.ui_language,
+                                                "Images can be attached via drag & drop",
+                                            ))
                                             .size(11.0)
                                             .color(egui::Color32::from_rgb(70, 75, 90)),
                                         );

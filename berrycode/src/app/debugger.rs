@@ -2,6 +2,7 @@
 //! VS Code-style debugger with Call Stack, Variables, Watch, Console, and Toolbar
 
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 use crate::native::dap::*;
 
 /// Watch expression
@@ -89,12 +90,13 @@ impl BerryCodeApp {
                 // ─── Main content: tabs ──────────────────────
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
-                    for (tab, label) in [
-                        (DebugTab::Variables, "Variables"),
-                        (DebugTab::Watch, "Watch"),
-                        (DebugTab::CallStack, "Call Stack"),
-                        (DebugTab::Console, "Debug Console"),
-                    ] {
+                    let tab_labels: [(DebugTab, &str); 4] = [
+                        (DebugTab::Variables, t(self.ui_language, "Variables")),
+                        (DebugTab::Watch, t(self.ui_language, "Watch")),
+                        (DebugTab::CallStack, t(self.ui_language, "Call Stack")),
+                        (DebugTab::Console, t(self.ui_language, "Debug Console")),
+                    ];
+                    for (tab, label) in tab_labels {
                         let active = self.debug_state.active_tab == tab;
                         let color = if active {
                             egui::Color32::from_rgb(200, 200, 200)
@@ -149,7 +151,7 @@ impl BerryCodeApp {
                         )
                         .min_size(btn_size),
                     )
-                    .on_hover_text("Continue (F5)")
+                    .on_hover_text(t(self.ui_language, "Continue (F5)"))
                     .clicked()
                 {
                     self.debug_continue();
@@ -164,7 +166,7 @@ impl BerryCodeApp {
                         )
                         .min_size(btn_size),
                     )
-                    .on_hover_text("Pause")
+                    .on_hover_text(t(self.ui_language, "Pause"))
                     .clicked()
                 {
                     // Pause not directly supported in basic DAP flow
@@ -186,7 +188,7 @@ impl BerryCodeApp {
                         egui::Sense::hover()
                     }),
                 )
-                .on_hover_text("Step Over (F10)")
+                .on_hover_text(t(self.ui_language, "Step Over (F10)"))
                 .clicked()
             {
                 self.debug_step_over();
@@ -207,7 +209,7 @@ impl BerryCodeApp {
                         egui::Sense::hover()
                     }),
                 )
-                .on_hover_text("Step Into (F11)")
+                .on_hover_text(t(self.ui_language, "Step Into (F11)"))
                 .clicked()
             {
                 self.debug_step_into();
@@ -228,7 +230,7 @@ impl BerryCodeApp {
                         egui::Sense::hover()
                     }),
                 )
-                .on_hover_text("Step Out (Shift+F11)")
+                .on_hover_text(t(self.ui_language, "Step Out (Shift+F11)"))
                 .clicked()
             {
                 self.debug_step_out();
@@ -244,7 +246,7 @@ impl BerryCodeApp {
                     )
                     .min_size(btn_size),
                 )
-                .on_hover_text("Restart (Ctrl+Shift+F5)")
+                .on_hover_text(t(self.ui_language, "Restart (Ctrl+Shift+F5)"))
                 .clicked()
             {
                 self.debug_stop();
@@ -261,7 +263,7 @@ impl BerryCodeApp {
                     )
                     .min_size(btn_size),
                 )
-                .on_hover_text("Stop (Shift+F5)")
+                .on_hover_text(t(self.ui_language, "Stop (Shift+F5)"))
                 .clicked()
             {
                 self.debug_stop();
@@ -338,17 +340,17 @@ impl BerryCodeApp {
                     .show(ui, |ui| {
                         // Header
                         ui.label(
-                            egui::RichText::new("Name")
+                            egui::RichText::new(t(self.ui_language, "Name"))
                                 .size(11.0)
                                 .color(egui::Color32::from_rgb(140, 140, 140)),
                         );
                         ui.label(
-                            egui::RichText::new("Value")
+                            egui::RichText::new(t(self.ui_language, "Value"))
                                 .size(11.0)
                                 .color(egui::Color32::from_rgb(140, 140, 140)),
                         );
                         ui.label(
-                            egui::RichText::new("Type")
+                            egui::RichText::new(t(self.ui_language, "Type"))
                                 .size(11.0)
                                 .color(egui::Color32::from_rgb(140, 140, 140)),
                         );
@@ -429,7 +431,7 @@ impl BerryCodeApp {
                 ui.horizontal(|ui| {
                     let resp = ui.add(
                         egui::TextEdit::singleline(&mut self.debug_state.watch_input)
-                            .hint_text("Add expression...")
+                            .hint_text(t(self.ui_language, "Add expression..."))
                             .font(egui::FontId::monospace(12.0))
                             .desired_width(200.0),
                     );

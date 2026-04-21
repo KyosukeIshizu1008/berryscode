@@ -3,11 +3,12 @@
 use super::syntax_colors;
 use super::ui_colors;
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// RustRover-style Settings Panel
     pub(crate) fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading("⚙️ Settings");
+        ui.heading(format!("⚙️ {}", t(self.ui_language, "Settings")));
         ui.separator();
 
         ui.horizontal_top(|ui| {
@@ -19,34 +20,39 @@ impl BerryCodeApp {
                 ui.selectable_value(
                     &mut self.active_settings_tab,
                     super::types::SettingsTab::Appearance,
-                    "Appearance",
+                    t(self.ui_language, "Appearance"),
                 );
                 ui.selectable_value(
                     &mut self.active_settings_tab,
                     super::types::SettingsTab::EditorColor,
-                    "Editor > Color Scheme",
+                    t(self.ui_language, "Editor > Color Scheme"),
                 );
                 ui.selectable_value(
                     &mut self.active_settings_tab,
                     super::types::SettingsTab::Keybindings,
-                    "Keybindings",
+                    t(self.ui_language, "Keybindings"),
+                );
+                ui.selectable_value(
+                    &mut self.active_settings_tab,
+                    super::types::SettingsTab::Language,
+                    t(self.ui_language, "Language"),
                 );
 
                 ui.add_space(12.0);
                 ui.label(
-                    egui::RichText::new("Plugins")
+                    egui::RichText::new(t(self.ui_language, "Plugins"))
                         .small()
                         .color(egui::Color32::GRAY),
                 );
                 ui.selectable_value(
                     &mut self.active_settings_tab,
                     super::types::SettingsTab::GitHub,
-                    "GitHub Review",
+                    t(self.ui_language, "GitHub Review"),
                 );
                 ui.selectable_value(
                     &mut self.active_settings_tab,
                     super::types::SettingsTab::Plugins,
-                    "Other Plugins",
+                    t(self.ui_language, "Other Plugins"),
                 );
             });
 
@@ -63,20 +69,57 @@ impl BerryCodeApp {
                         super::types::SettingsTab::Keybindings => {
                             self.render_keybindings_settings(ui);
                         }
+                        super::types::SettingsTab::Language => {
+                            use super::types::UiLanguage;
+                            let heading = match self.ui_language {
+                                UiLanguage::English => "Language",
+                                UiLanguage::Japanese => "言語設定",
+                            };
+                            ui.heading(heading);
+                            ui.add_space(8.0);
+
+                            let label = match self.ui_language {
+                                UiLanguage::English => "UI Language",
+                                UiLanguage::Japanese => "表示言語",
+                            };
+                            ui.label(label);
+                            ui.add_space(4.0);
+
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .selectable_label(
+                                        self.ui_language == UiLanguage::English,
+                                        "English",
+                                    )
+                                    .clicked()
+                                {
+                                    self.ui_language = UiLanguage::English;
+                                }
+                                if ui
+                                    .selectable_label(
+                                        self.ui_language == UiLanguage::Japanese,
+                                        "日本語",
+                                    )
+                                    .clicked()
+                                {
+                                    self.ui_language = UiLanguage::Japanese;
+                                }
+                            });
+                        }
                         super::types::SettingsTab::Appearance => {
-                            ui.heading("Appearance");
-                            ui.label("Window theme, font settings, etc.");
-                            ui.label("Coming soon...");
+                            ui.heading(t(self.ui_language, "Appearance"));
+                            ui.label(t(self.ui_language, "Window theme, font settings, etc."));
+                            ui.label(t(self.ui_language, "Coming soon..."));
                         }
                         super::types::SettingsTab::GitHub => {
-                            ui.heading("GitHub Code Review");
-                            ui.label("Pull request review features.");
-                            ui.label("Coming soon...");
+                            ui.heading(t(self.ui_language, "GitHub Review"));
+                            ui.label(t(self.ui_language, "Pull request review features."));
+                            ui.label(t(self.ui_language, "Coming soon..."));
                         }
                         super::types::SettingsTab::Plugins => {
-                            ui.heading("Other Plugins");
-                            ui.label("Additional plugin configurations.");
-                            ui.label("Coming soon...");
+                            ui.heading(t(self.ui_language, "Other Plugins"));
+                            ui.label(t(self.ui_language, "Additional plugin configurations."));
+                            ui.label(t(self.ui_language, "Coming soon..."));
                         }
                     });
             });
@@ -85,59 +128,65 @@ impl BerryCodeApp {
 
     /// Color Scheme Settings (RustRover Darcula)
     pub(crate) fn render_color_scheme_settings(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Color Scheme: Darcula (Customized)");
-        ui.label("Customize syntax highlighting colors:");
+        ui.heading(t(self.ui_language, "Color Scheme: Darcula (Customized)"));
+        ui.label(t(self.ui_language, "Customize syntax highlighting colors:"));
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.keyword_color);
-            ui.label("Keyword (fn, let, match)");
+            ui.label(t(self.ui_language, "Keyword (fn, let, match)"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.function_color);
-            ui.label("Function / Macro");
+            ui.label(t(self.ui_language, "Function / Macro"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.type_color);
-            ui.label("Type (struct, enum)");
+            ui.label(t(self.ui_language, "Type (struct, enum)"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.string_color);
-            ui.label("String");
+            ui.label(t(self.ui_language, "String"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.number_color);
-            ui.label("Number");
+            ui.label(t(self.ui_language, "Number"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.comment_color);
-            ui.label("Comment");
+            ui.label(t(self.ui_language, "Comment"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.macro_color);
-            ui.label("Macro (println!)");
+            ui.label(t(self.ui_language, "Macro (println!)"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.attribute_color);
-            ui.label("Attribute (#[derive])");
+            ui.label(t(self.ui_language, "Attribute (#[derive])"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.constant_color);
-            ui.label("Constant (STATIC)");
+            ui.label(t(self.ui_language, "Constant (STATIC)"));
         });
         ui.horizontal(|ui| {
             ui.color_edit_button_srgba(&mut self.lifetime_color);
-            ui.label("Lifetime ('a, 'static)");
+            ui.label(t(self.ui_language, "Lifetime ('a, 'static)"));
         });
 
         ui.add_space(20.0);
         ui.separator();
-        ui.label(egui::RichText::new("Live Preview:").strong());
+        ui.label(egui::RichText::new(t(self.ui_language, "Live Preview:")).strong());
         ui.add_space(8.0);
         self.render_color_preview(ui);
 
         ui.add_space(16.0);
-        if ui.button("🔄 Reset to Darcula Defaults").clicked() {
+        if ui
+            .button(format!(
+                "🔄 {}",
+                t(self.ui_language, "Reset to Darcula Defaults")
+            ))
+            .clicked()
+        {
             self.reset_colors_to_darcula();
         }
     }
@@ -302,7 +351,7 @@ impl BerryCodeApp {
     pub(crate) fn render_keybindings_settings(&mut self, ui: &mut egui::Ui) {
         use super::keymap::KeyAction;
 
-        ui.heading("Keyboard Shortcuts");
+        ui.heading(t(self.ui_language, "Keybindings"));
         ui.add_space(4.0);
         ui.label(
             "Current keybinding assignments. Edit keybindings.ron for advanced customization.",

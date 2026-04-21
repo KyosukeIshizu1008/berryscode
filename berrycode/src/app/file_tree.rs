@@ -4,6 +4,7 @@ use super::file_icon_colors;
 use super::types::FileTreeEvent;
 use super::ui_colors;
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 use crate::native;
 use crate::native::fs::DirEntry;
 
@@ -115,7 +116,7 @@ impl BerryCodeApp {
 
                 // Load file tree on first render
                 if self.file_tree_cache.is_empty() && self.file_tree_load_pending {
-                    ui.label("読み込み中...");
+                    ui.label(t(self.ui_language, "Loading..."));
 
                     match native::fs::read_dir(&self.root_path, Some(1)) {
                         Ok(entries) => {
@@ -130,7 +131,10 @@ impl BerryCodeApp {
                             self.expanded_dirs.insert(self.root_path.clone());
                         }
                         Err(e) => {
-                            ui.colored_label(egui::Color32::RED, format!("エラー: {}", e));
+                            ui.colored_label(
+                                egui::Color32::RED,
+                                format!("{} {}", t(self.ui_language, "Error:"), e),
+                            );
                             self.file_tree_load_pending = false;
                         }
                     }
@@ -597,17 +601,19 @@ impl BerryCodeApp {
     pub(crate) fn render_new_file_dialog(&mut self, ctx: &egui::Context) {
         if self.new_file_dialog_open {
             let mut open = true;
-            egui::Window::new("New File")
+            egui::Window::new(t(self.ui_language, "New File"))
                 .collapsible(false)
                 .resizable(false)
                 .open(&mut open)
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("File name:");
+                        ui.label(t(self.ui_language, "File name:"));
                         ui.text_edit_singleline(&mut self.new_file_name);
                     });
                     ui.horizontal(|ui| {
-                        if ui.button("Create").clicked() && !self.new_file_name.is_empty() {
+                        if ui.button(t(self.ui_language, "Create")).clicked()
+                            && !self.new_file_name.is_empty()
+                        {
                             let path = format!("{}/{}", self.root_path, self.new_file_name);
                             match crate::native::fs::create_file(&path) {
                                 Ok(_) => {
@@ -626,7 +632,7 @@ impl BerryCodeApp {
                             self.new_file_name.clear();
                             self.new_file_dialog_open = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t(self.ui_language, "Cancel")).clicked() {
                             self.new_file_name.clear();
                             self.new_file_dialog_open = false;
                         }
@@ -643,17 +649,19 @@ impl BerryCodeApp {
     pub(crate) fn render_new_folder_dialog(&mut self, ctx: &egui::Context) {
         if self.new_folder_dialog_open {
             let mut open = true;
-            egui::Window::new("New Folder")
+            egui::Window::new(t(self.ui_language, "New Folder"))
                 .collapsible(false)
                 .resizable(false)
                 .open(&mut open)
                 .show(ctx, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Folder name:");
+                        ui.label(t(self.ui_language, "Folder name:"));
                         ui.text_edit_singleline(&mut self.new_folder_name);
                     });
                     ui.horizontal(|ui| {
-                        if ui.button("Create").clicked() && !self.new_folder_name.is_empty() {
+                        if ui.button(t(self.ui_language, "Create")).clicked()
+                            && !self.new_folder_name.is_empty()
+                        {
                             let path = format!("{}/{}", self.root_path, self.new_folder_name);
                             match std::fs::create_dir_all(&path) {
                                 Ok(_) => {
@@ -671,7 +679,7 @@ impl BerryCodeApp {
                             self.new_folder_name.clear();
                             self.new_folder_dialog_open = false;
                         }
-                        if ui.button("Cancel").clicked() {
+                        if ui.button(t(self.ui_language, "Cancel")).clicked() {
                             self.new_folder_name.clear();
                             self.new_folder_dialog_open = false;
                         }
@@ -698,13 +706,16 @@ impl BerryCodeApp {
                         ui.set_min_width(160.0);
 
                         if self.context_menu_is_dir {
-                            if ui.button("New File Here...").clicked() {
+                            if ui.button(t(self.ui_language, "New File Here...")).clicked() {
                                 // Set parent dir for new file creation
                                 self.new_file_name = String::new();
                                 self.new_file_dialog_open = true;
                                 close_menu = true;
                             }
-                            if ui.button("New Folder Here...").clicked() {
+                            if ui
+                                .button(t(self.ui_language, "New Folder Here..."))
+                                .clicked()
+                            {
                                 self.new_folder_name = String::new();
                                 self.new_folder_dialog_open = true;
                                 close_menu = true;
@@ -712,7 +723,7 @@ impl BerryCodeApp {
                             ui.separator();
                         }
 
-                        if ui.button("Rename...").clicked() {
+                        if ui.button(t(self.ui_language, "Rename...")).clicked() {
                             let name = path.rsplit('/').next().unwrap_or(&path).to_string();
                             self.rename_file_old_path = path.clone();
                             self.rename_file_new_name = name;
@@ -720,7 +731,7 @@ impl BerryCodeApp {
                             close_menu = true;
                         }
 
-                        if ui.button("Delete").clicked() {
+                        if ui.button(t(self.ui_language, "Delete")).clicked() {
                             let is_dir = std::path::Path::new(&path).is_dir();
                             let result = if is_dir {
                                 std::fs::remove_dir_all(&path)
@@ -758,7 +769,7 @@ impl BerryCodeApp {
 
                         ui.separator();
 
-                        if ui.button("Copy Path").clicked() {
+                        if ui.button(t(self.ui_language, "Copy Path")).clicked() {
                             ui.ctx().copy_text(path.clone());
                             self.status_message = "Path copied".to_string();
                             self.status_message_timestamp = Some(std::time::Instant::now());
@@ -767,7 +778,7 @@ impl BerryCodeApp {
 
                         {
                             let reveal_label = if cfg!(target_os = "macos") {
-                                "Reveal in Finder"
+                                t(self.ui_language, "Reveal in Finder")
                             } else if cfg!(target_os = "windows") {
                                 "Show in Explorer"
                             } else {
@@ -811,13 +822,13 @@ impl BerryCodeApp {
         let mut should_rename = false;
         let mut should_close = false;
 
-        egui::Window::new("Rename")
+        egui::Window::new(t(self.ui_language, "Rename"))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("New name:");
+                    ui.label(t(self.ui_language, "New name:"));
                     let response = ui.text_edit_singleline(&mut self.rename_file_new_name);
                     if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         should_rename = true;
@@ -825,10 +836,12 @@ impl BerryCodeApp {
                     response.request_focus();
                 });
                 ui.horizontal(|ui| {
-                    if ui.button("Rename").clicked() && !self.rename_file_new_name.is_empty() {
+                    if ui.button(t(self.ui_language, "Rename")).clicked()
+                        && !self.rename_file_new_name.is_empty()
+                    {
                         should_rename = true;
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t(self.ui_language, "Cancel")).clicked() {
                         should_close = true;
                     }
                 });

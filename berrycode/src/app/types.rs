@@ -3,6 +3,22 @@
 use crate::buffer::TextBuffer;
 use crate::native;
 
+/// UI language setting
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiLanguage {
+    English,
+    Japanese,
+}
+
+impl UiLanguage {
+    pub fn label(&self) -> &'static str {
+        match self {
+            UiLanguage::English => "English",
+            UiLanguage::Japanese => "日本語",
+        }
+    }
+}
+
 /// Simple EditorTab structure (replaces core::virtual_editor::EditorTab)
 #[derive(Clone)]
 pub struct EditorTab {
@@ -105,6 +121,7 @@ pub enum SettingsTab {
     Appearance,
     EditorColor,
     Keybindings,
+    Language,
     Plugins,
     GitHub,
 }

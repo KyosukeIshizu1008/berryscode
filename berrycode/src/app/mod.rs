@@ -27,6 +27,7 @@ mod folding;
 mod game_view;
 mod git;
 mod header;
+pub(crate) mod i18n;
 mod image_preview;
 mod inlay_hints;
 pub(crate) mod keymap;
@@ -277,6 +278,7 @@ pub struct BerryCodeApp {
     // === Settings ===
     pub(crate) show_settings: bool,
     pub(crate) active_settings_tab: SettingsTab,
+    pub(crate) ui_language: UiLanguage,
 
     // === Theme (Customizable Syntax Colors) ===
     pub(crate) show_theme_editor: bool,
@@ -1175,6 +1177,7 @@ impl BerryCodeApp {
             chat_attachment: None,
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
+            ui_language: UiLanguage::English,
             show_theme_editor: false,
             keyword_color: syntax_colors::KEYWORD,
             function_color: syntax_colors::FUNCTION,

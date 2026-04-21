@@ -1,5 +1,6 @@
 use super::scene_editor::asset_import::AssetImportSettings;
 use super::BerryCodeApp;
+use crate::app::i18n::t;
 use crate::bevy_ide::assets::scanner::{format_size, scan_assets, AssetType, AssetViewMode};
 
 impl BerryCodeApp {
@@ -11,12 +12,12 @@ impl BerryCodeApp {
             self.asset_browser.scan_pending = false;
         }
 
-        ui.heading("Asset Browser");
+        ui.heading(t(self.ui_language, "Asset Browser"));
         ui.separator();
 
         // Asset root directory
         ui.horizontal(|ui| {
-            ui.label("Root:");
+            ui.label(t(self.ui_language, "Root:"));
             if ui
                 .text_edit_singleline(&mut self.asset_browser.asset_root)
                 .changed()
@@ -30,19 +31,19 @@ impl BerryCodeApp {
 
         // Filter bar
         ui.horizontal(|ui| {
-            ui.label("Filter:");
+            ui.label(t(self.ui_language, "Filter:"));
             ui.text_edit_singleline(&mut self.asset_browser.filter_query);
         });
 
         // Type filter buttons
         ui.horizontal_wrapped(|ui| {
-            let types = [
-                ("All", None),
-                ("Images", Some(AssetType::Image)),
-                ("Models", Some(AssetType::Model3D)),
-                ("Audio", Some(AssetType::Audio)),
-                ("Scenes", Some(AssetType::Scene)),
-                ("Shaders", Some(AssetType::Shader)),
+            let types: [(&str, Option<AssetType>); 6] = [
+                (t(self.ui_language, "All"), None),
+                (t(self.ui_language, "Images"), Some(AssetType::Image)),
+                (t(self.ui_language, "Models"), Some(AssetType::Model3D)),
+                (t(self.ui_language, "Audio"), Some(AssetType::Audio)),
+                (t(self.ui_language, "Scenes"), Some(AssetType::Scene)),
+                (t(self.ui_language, "Shaders"), Some(AssetType::Shader)),
             ];
             for (label, filter_type) in &types {
                 let selected = self.asset_browser.filter_type == *filter_type;
@@ -133,9 +134,9 @@ impl BerryCodeApp {
 
             if filtered_assets.is_empty() {
                 if self.asset_browser.assets.is_empty() {
-                    ui.label("No assets directory found. Create an 'assets/' folder in your project root.");
+                    ui.label(t(self.ui_language, "No assets directory found. Create an 'assets/' folder in your project root."));
                 } else {
-                    ui.label("No assets match the current filter.");
+                    ui.label(t(self.ui_language, "No assets match the current filter."));
                 }
             }
         });
@@ -261,7 +262,7 @@ impl BerryCodeApp {
 
                 // Process button (applies import settings to the asset)
                 if !matches!(settings, AssetImportSettings::Unknown) {
-                    if ui.button("Process").clicked() {
+                    if ui.button(t(self.ui_language, "Process")).clicked() {
                         match settings.process(&asset_path_str) {
                             Ok(msg) => {
                                 tracing::info!("Asset processed: {}", msg);
