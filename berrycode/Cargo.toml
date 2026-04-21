@@ -70,6 +70,9 @@ serde_json = "1.0"
 # ===== HTTP Client (for BRP) =====
 reqwest = { version = "0.12", features = ["json"] }
 
+# ===== Window Icon =====
+winit = "0.30"
+
 # ===== Utilities =====
 anyhow = "1.0"
 thiserror = "1.0"

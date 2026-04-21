@@ -37,69 +37,108 @@ impl BerryCodeApp {
                     return;
                 }
 
-                // Tab bar with close buttons
+                // Tab bar (VS Code style)
                 let mut tab_to_close: Option<usize> = None;
 
+                let tab_bar_bg = egui::Color32::from_rgb(37, 37, 38); // #252526
+                let tab_active_bg = egui::Color32::from_rgb(30, 30, 30); // #1E1E1E
+                let tab_inactive_bg = egui::Color32::from_rgb(45, 45, 46); // #2D2D2E
+                let tab_border = egui::Color32::from_rgb(37, 37, 38);
+                let tab_active_indicator = egui::Color32::from_rgb(0, 122, 204); // #007ACC
+                let tab_text_active = egui::Color32::from_rgb(255, 255, 255);
+                let tab_text_inactive = egui::Color32::from_rgb(150, 150, 150);
+
+                // Tab bar background
+                let tab_bar_rect = egui::Rect::from_min_size(
+                    ui.cursor().min,
+                    egui::vec2(ui.available_width(), 35.0),
+                );
+                ui.painter().rect_filled(tab_bar_rect, 0.0, tab_bar_bg);
+
+                // Collect tab info
+                let tab_info: Vec<(usize, String, &'static str, egui::Color32)> = self
+                    .editor_tabs
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, t)| {
+                        let filename = t
+                            .file_path
+                            .split('/')
+                            .last()
+                            .unwrap_or(&t.file_path)
+                            .to_string();
+                        let (icon, color) = Self::get_file_icon_with_color(&filename);
+                        (idx, filename, icon, color)
+                    })
+                    .collect();
+
                 ui.horizontal(|ui| {
-                    // Larger font for tabs
-                    ui.style_mut()
-                        .text_styles
-                        .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    ui.set_height(35.0);
 
-                    // Collect tab info first to avoid borrow checker issues
-                    let tab_info: Vec<(usize, String, &'static str, egui::Color32)> = self
-                        .editor_tabs
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, t)| {
-                            let filename = t
-                                .file_path
-                                .split('/')
-                                .last()
-                                .unwrap_or(&t.file_path)
-                                .to_string();
-                            let (icon, color) = Self::get_file_icon_with_color(&filename);
-                            (idx, filename, icon, color)
-                        })
-                        .collect();
+                    for (idx, filename, file_icon, icon_color) in &tab_info {
+                        let is_active = *idx == self.active_tab_idx;
+                        let bg = if is_active {
+                            tab_active_bg
+                        } else {
+                            tab_inactive_bg
+                        };
+                        let text_color = if is_active {
+                            tab_text_active
+                        } else {
+                            tab_text_inactive
+                        };
 
-                    for (idx, filename, file_icon, icon_color) in tab_info {
-                        ui.group(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 4.0;
+                        let tab_frame = egui::Frame::none()
+                            .fill(bg)
+                            .inner_margin(egui::Margin::symmetric(12.0, 0.0))
+                            .stroke(egui::Stroke::new(1.0, tab_border));
 
-                                // Colored icon
+                        let resp = tab_frame.show(ui, |ui| {
+                            ui.set_height(35.0);
+                            ui.horizontal_centered(|ui| {
+                                ui.spacing_mut().item_spacing.x = 6.0;
+
+                                // File icon
                                 ui.label(
-                                    egui::RichText::new(file_icon)
-                                        .color(icon_color)
+                                    egui::RichText::new(*file_icon)
+                                        .size(14.0)
+                                        .color(*icon_color)
                                         .family(egui::FontFamily::Name("codicon".into())),
                                 );
 
-                                // Tab label (clickable to switch)
-                                let filename_text = egui::RichText::new(&filename)
-                                    .color(egui::Color32::from_rgb(0xD4, 0xD4, 0xD4));
-                                if ui
-                                    .selectable_label(idx == self.active_tab_idx, filename_text)
-                                    .clicked()
-                                {
-                                    self.active_tab_idx = idx;
+                                // Filename
+                                let resp = ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(filename).size(13.0).color(text_color),
+                                    )
+                                    .sense(egui::Sense::click()),
+                                );
+                                if resp.clicked() {
+                                    self.active_tab_idx = *idx;
                                 }
 
-                                // Close button - Codicon: \u{ea76} = codicon-close
-                                if ui
-                                    .add(
-                                        egui::Button::new(
-                                            egui::RichText::new("\u{ea76}")
-                                                .family(egui::FontFamily::Name("codicon".into())),
-                                        )
-                                        .small(),
-                                    )
-                                    .clicked()
-                                {
-                                    tab_to_close = Some(idx);
+                                // Close button (only show on hover or active)
+                                let close_text = egui::RichText::new("\u{ea76}")
+                                    .size(12.0)
+                                    .color(text_color)
+                                    .family(egui::FontFamily::Name("codicon".into()));
+                                if ui.add(egui::Button::new(close_text).frame(false)).clicked() {
+                                    tab_to_close = Some(*idx);
                                 }
                             });
                         });
+
+                        // Active tab indicator (blue bottom line)
+                        if is_active {
+                            let tab_rect = resp.response.rect;
+                            let indicator_rect = egui::Rect::from_min_size(
+                                egui::pos2(tab_rect.left(), tab_rect.bottom() - 2.0),
+                                egui::vec2(tab_rect.width(), 2.0),
+                            );
+                            ui.painter()
+                                .rect_filled(indicator_rect, 0.0, tab_active_indicator);
+                        }
                     }
                 });
 
