@@ -39,7 +39,7 @@ impl Plugin for BerryCodePlugin {
             } else {
                 WinitSettings {
                     focused_mode: UpdateMode::reactive_low_power(Duration::from_millis(16)), // ~60fps while interacting
-                    unfocused_mode: UpdateMode::reactive_low_power(Duration::from_secs(1)), // 1fps when unfocused
+                    unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(200)), // 5fps when unfocused (needed for Game View capture)
                 }
             })
             .insert_non_send_resource(BerryCodeApp::new())

@@ -47,7 +47,13 @@ impl BerryCodeApp {
 
         let project_path = self.root_path.clone();
 
-        let mut cmd = Command::new("cargo");
+        // Resolve cargo path — .app bundles may not inherit shell PATH
+        let cargo_bin = dirs::home_dir()
+            .map(|h| h.join(".cargo/bin/cargo"))
+            .filter(|p| p.exists())
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "cargo".to_string());
+        let mut cmd = Command::new(&cargo_bin);
         cmd.arg("run");
         if self.run_release_mode {
             cmd.arg("--release");

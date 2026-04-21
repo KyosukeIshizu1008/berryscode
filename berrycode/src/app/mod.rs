@@ -1806,6 +1806,11 @@ pub fn berry_ui_system(
         // Poll run process output (non-blocking)
         app.poll_run_output();
 
+        // Keep repainting while a game process is running
+        if app.run_process.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+
         // Poll cargo check results (non-blocking)
         app.poll_cargo_check();
 
@@ -1813,6 +1818,12 @@ pub fn berry_ui_system(
         app.poll_test_commands();
 
         // Update game view texture (captures running game window)
+        if app.run_process.is_some() {
+            eprintln!(
+                "[DEBUG] run_process alive, game_view_open={}",
+                app.game_view_open
+            );
+        }
         app.update_game_view(ctx);
 
         // Handle keyboard shortcuts

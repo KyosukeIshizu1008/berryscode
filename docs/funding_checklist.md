@@ -6,11 +6,11 @@
 - [x] GitHub Sponsors プロフィール設定
 - [x] Open Collective プロジェクト登録
 - [x] Liberapay 登録
-- [ ] Ko-fi 登録
-- [ ] Buy Me a Coffee 登録
-- [ ] Thanks.dev 登録
-- [ ] Polar.sh 登録
-- [ ] IssueHunt 登録
+- [x] Ko-fi 登録
+- [x] Buy Me a Coffee 登録
+- [ ] Thanks.dev 登録 (SSL証明書期限切れでアクセス不可 — 後日再試行)
+- [ ] ~~Polar.sh 登録~~ (廃れた — スキップ)
+- [x] IssueHunt 登録
 - [x] StackAid 登録
 
 ### 配布チャネル
