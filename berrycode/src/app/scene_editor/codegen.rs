@@ -1759,7 +1759,7 @@ bevy = "0.15"
     // === Full scene compile check (all component types at once) ===
 
     #[test]
-    #[ignore] // Slow: runs cargo check. Run with: cargo test -p berry-editor --lib -- --ignored codegen_all_components_compile_check
+    #[ignore] // Slow: runs cargo check. Run with: cargo test -p berrycode --lib -- --ignored codegen_all_components_compile_check
     fn codegen_all_components_compile_check() {
         let mut scene = SceneModel::new();
 

@@ -49,7 +49,7 @@ impl Default for EditorSettings {
 
 impl EditorSettings {
     #[allow(dead_code)]
-    const STORAGE_KEY: &'static str = "berry-editor-settings";
+    const STORAGE_KEY: &'static str = "berrycode-settings";
 
     /// Get settings file path
     fn settings_path() -> std::path::PathBuf {

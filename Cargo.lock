@@ -595,8 +595,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "berry-editor"
-version = "0.2.0"
+name = "berrycode"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "arboard",

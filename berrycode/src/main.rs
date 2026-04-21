@@ -1,13 +1,13 @@
 //! BerryCode - Bevy-based IDE for Bevy Game Engine
 
-use berry_editor::bevy_plugin::BerryCodePlugin;
+use berrycode::bevy_plugin::BerryCodePlugin;
 use bevy::prelude::*;
 use bevy::winit::WinitWindows;
 
 fn main() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         tracing_subscriber::EnvFilter::new("warn")
-            .add_directive("berry_editor=info".parse().unwrap())
+            .add_directive("berrycode=info".parse().unwrap())
             .add_directive("berrycode=info".parse().unwrap())
     });
 

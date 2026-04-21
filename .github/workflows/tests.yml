@@ -59,10 +59,10 @@ jobs:
         run: cargo build --release --bin berrycode
 
       - name: Run unit tests
-        run: cargo test -p berry-editor --lib --verbose
+        run: cargo test -p berrycode --lib --verbose
 
       - name: Clippy
-        run: cargo clippy -p berry-editor -- -W warnings
+        run: cargo clippy -p berrycode -- -W warnings
         continue-on-error: true
 
   # ─── Build check (macOS) ─────────────────────────────────────
@@ -93,7 +93,7 @@ jobs:
         run: cargo build --release --bin berrycode
 
       - name: Run unit tests
-        run: cargo test -p berry-editor --lib
+        run: cargo test -p berrycode --lib
 
   # ─── Build check (Windows) ───────────────────────────────────
   check-windows:
@@ -123,7 +123,7 @@ jobs:
         run: cargo build --release --bin berrycode
 
       - name: Run unit tests
-        run: cargo test -p berry-editor --lib
+        run: cargo test -p berrycode --lib
 
   # ─── Gate ────────────────────────────────────────────────────
   ci-passed:
