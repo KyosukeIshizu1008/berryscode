@@ -1515,6 +1515,12 @@ impl BerryCodeApp {
                 });
             });
 
+        // Dismiss completions on mouse click (not typing)
+        if ctx.input(|i| i.pointer.any_click()) && !self.lsp_auto_trigger_pending {
+            self.lsp_show_completions = false;
+            self.lsp_completions.clear();
+        }
+
         // Auto-trigger completions on typing (VS Code behavior)
         if self.lsp_auto_trigger_pending && self.lsp_connected {
             self.lsp_auto_trigger_pending = false;
