@@ -40,56 +40,34 @@ impl BerryCodeApp {
             .show_separator_line(true)
             .frame(egui::Frame::none().fill(PANEL_BG).inner_margin(0.0))
             .show(ctx, |ui| {
-                // ── Header ─────────────────────────────────────────────
-                egui::Frame::none()
-                    .fill(HEADER_BG)
-                    .inner_margin(egui::Margin {
-                        left: 16.0,
-                        right: 12.0,
-                        top: 10.0,
-                        bottom: 10.0,
-                    })
-                    .stroke(egui::Stroke::new(1.0, DIVIDER))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            // Status dot
-                            let dot_color = if self.grpc_connected {
-                                egui::Color32::from_rgb(72, 199, 116)
-                            } else {
-                                egui::Color32::from_rgb(80, 80, 90)
-                            };
-                            ui.label(egui::RichText::new("●").color(dot_color).size(9.0));
-                            ui.add_space(6.0);
-                            ui.label(
-                                egui::RichText::new(t(self.ui_language, "AI Chat"))
-                                    .color(egui::Color32::from_rgb(200, 205, 220))
-                                    .size(14.0)
-                                    .strong(),
-                            );
-
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    // New Chat button
-                                    let btn = egui::Button::new(
-                                        egui::RichText::new(t(self.ui_language, "+ New"))
-                                            .size(12.0)
-                                            .color(TEXT_DIM),
-                                    )
-                                    .fill(egui::Color32::from_rgb(35, 37, 46))
-                                    .stroke(egui::Stroke::new(
-                                        1.0,
-                                        egui::Color32::from_rgb(55, 57, 68),
-                                    ))
-                                    .rounding(6.0);
-                                    if ui.add(btn).clicked() {
-                                        self.grpc_messages.clear();
-                                        self.grpc_input.clear();
-                                    }
-                                },
-                            );
-                        });
+                // ── Header (VS Code Copilot style) ────────────────────
+                ui.horizontal(|ui| {
+                    ui.add_space(12.0);
+                    ui.label(
+                        egui::RichText::new("Copilot")
+                            .size(12.0)
+                            .color(egui::Color32::from_rgb(200, 205, 220)),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(8.0);
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new("+")
+                                        .size(14.0)
+                                        .color(egui::Color32::from_rgb(180, 180, 180)),
+                                )
+                                .frame(false),
+                            )
+                            .on_hover_text("New Chat")
+                            .clicked()
+                        {
+                            self.grpc_messages.clear();
+                            self.grpc_input.clear();
+                        }
                     });
+                });
+                ui.add_space(2.0);
 
                 // ── Layout: input pinned to bottom, scroll fills rest ──
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -170,67 +148,10 @@ impl BerryCodeApp {
                                         .frame(false);
                                     let response = ui.add(text_edit);
 
-                                    ui.add_space(6.0);
+                                    ui.add_space(4.0);
 
-                                    // Controls row
+                                    // Send button row
                                     ui.horizontal(|ui| {
-                                        // Mode toggle: [Chat] [Auto] pill
-                                        let is_auto = self.ai_chat_mode == AIChatMode::Autonomous;
-                                        let toggle_bg = egui::Color32::from_rgb(32, 34, 44);
-                                        egui::Frame::none()
-                                            .fill(toggle_bg)
-                                            .rounding(8.0)
-                                            .inner_margin(egui::Margin::symmetric(2.0, 2.0))
-                                            .show(ui, |ui| {
-                                                ui.horizontal(|ui| {
-                                                    ui.spacing_mut().item_spacing.x = 0.0;
-                                                    let chat_btn = egui::Button::new(
-                                                        egui::RichText::new(t(
-                                                            self.ui_language,
-                                                            "Chat",
-                                                        ))
-                                                        .size(12.0)
-                                                        .color(if !is_auto {
-                                                            egui::Color32::WHITE
-                                                        } else {
-                                                            TEXT_DIM
-                                                        }),
-                                                    )
-                                                    .fill(if !is_auto {
-                                                        ACCENT
-                                                    } else {
-                                                        egui::Color32::TRANSPARENT
-                                                    })
-                                                    .rounding(6.0)
-                                                    .min_size(egui::vec2(46.0, 22.0));
-                                                    if ui.add(chat_btn).clicked() {
-                                                        self.ai_chat_mode = AIChatMode::Chat;
-                                                    }
-                                                    let auto_btn = egui::Button::new(
-                                                        egui::RichText::new(t(
-                                                            self.ui_language,
-                                                            "Auto",
-                                                        ))
-                                                        .size(12.0)
-                                                        .color(if is_auto {
-                                                            egui::Color32::WHITE
-                                                        } else {
-                                                            TEXT_DIM
-                                                        }),
-                                                    )
-                                                    .fill(if is_auto {
-                                                        ACCENT
-                                                    } else {
-                                                        egui::Color32::TRANSPARENT
-                                                    })
-                                                    .rounding(6.0)
-                                                    .min_size(egui::vec2(46.0, 22.0));
-                                                    if ui.add(auto_btn).clicked() {
-                                                        self.ai_chat_mode = AIChatMode::Autonomous;
-                                                    }
-                                                });
-                                            });
-
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
@@ -303,77 +224,45 @@ impl BerryCodeApp {
                                 ui.set_min_width(ui.available_width());
 
                                 if self.grpc_messages.is_empty() && !self.grpc_streaming {
-                                    // ── Welcome / empty state ─────────────
-                                    let avail = ui.available_height();
-                                    ui.add_space((avail * 0.15).max(30.0));
+                                    // ── Welcome / empty state (VS Code Copilot style) ──
+                                    ui.add_space(40.0);
                                     ui.vertical_centered(|ui| {
-                                        ui.label(
-                                            egui::RichText::new(t(self.ui_language, "AI Chat"))
-                                                .size(18.0)
-                                                .strong()
-                                                .color(egui::Color32::from_rgb(180, 185, 200)),
-                                        );
-                                        ui.add_space(4.0);
-                                        ui.label(
-                                            egui::RichText::new("gRPC · berry-api-server")
-                                                .size(11.0)
-                                                .color(TEXT_DIM),
-                                        );
-                                        ui.add_space(28.0);
-
-                                        // Suggestion chips
-                                        let suggestions: Vec<(&str, &str)> = vec![
-                                            (t(self.ui_language, "Explain the design"), "[ 設計 ]"),
-                                            (t(self.ui_language, "Fix compile errors"), "[ Fix ]"),
-                                            (t(self.ui_language, "Commit changes"), "[ Git ]"),
-                                            (t(self.ui_language, "Security check"), "[ Sec ]"),
-                                        ];
-                                        for (text, label) in &suggestions {
-                                            ui.horizontal(|ui| {
-                                                egui::Frame::none()
-                                                    .fill(egui::Color32::from_rgb(38, 42, 58))
-                                                    .rounding(6.0)
-                                                    .inner_margin(egui::Margin::symmetric(7.0, 3.0))
-                                                    .show(ui, |ui| {
-                                                        ui.label(
-                                                            egui::RichText::new(*label)
-                                                                .size(10.0)
-                                                                .monospace()
-                                                                .color(ACCENT),
-                                                        );
-                                                    });
-                                                let chip = egui::Button::new(
-                                                    egui::RichText::new(*text).size(13.0).color(
-                                                        egui::Color32::from_rgb(185, 190, 210),
-                                                    ),
-                                                )
-                                                .fill(egui::Color32::from_rgb(26, 28, 36))
-                                                .stroke(egui::Stroke::new(
-                                                    1.0,
-                                                    egui::Color32::from_rgb(45, 49, 63),
-                                                ))
-                                                .rounding(10.0);
-                                                if ui
-                                                    .add(chip)
-                                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                                                    .clicked()
-                                                {
-                                                    self.grpc_input = text.to_string();
-                                                    self.send_grpc_message();
-                                                }
-                                            });
-                                            ui.add_space(7.0);
-                                        }
-
                                         ui.add_space(20.0);
                                         ui.label(
-                                            egui::RichText::new(t(
-                                                self.ui_language,
-                                                "Images can be attached via drag & drop",
-                                            ))
-                                            .size(11.0)
-                                            .color(egui::Color32::from_rgb(70, 75, 90)),
+                                            egui::RichText::new(
+                                                "Ask anything or type / for commands",
+                                            )
+                                            .size(13.0)
+                                            .color(egui::Color32::from_rgb(130, 135, 150)),
                                         );
+                                        ui.add_space(24.0);
+
+                                        // Simple suggestion buttons (no category tags)
+                                        let suggestions = vec![
+                                            t(self.ui_language, "Explain the design"),
+                                            t(self.ui_language, "Fix compile errors"),
+                                            t(self.ui_language, "Commit changes"),
+                                            t(self.ui_language, "Security check"),
+                                        ];
+                                        for text in &suggestions {
+                                            let btn = egui::Button::new(
+                                                egui::RichText::new(*text)
+                                                    .size(12.0)
+                                                    .color(egui::Color32::from_rgb(180, 185, 200)),
+                                            )
+                                            .fill(egui::Color32::from_rgb(35, 37, 42))
+                                            .stroke(egui::Stroke::new(
+                                                1.0,
+                                                egui::Color32::from_rgb(55, 57, 63),
+                                            ))
+                                            .rounding(6.0)
+                                            .min_size(egui::vec2(200.0, 28.0));
+                                            if ui.add(btn).clicked() {
+                                                self.grpc_input = text.to_string();
+                                                self.send_grpc_message();
+                                            }
+                                            ui.add_space(4.0);
+                                        }
                                     });
                                 } else {
                                     ui.add_space(16.0);
