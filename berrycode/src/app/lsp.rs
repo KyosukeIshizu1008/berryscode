@@ -474,6 +474,8 @@ impl BerryCodeApp {
 
     /// Render diagnostics panel at the bottom of the editor
     pub(crate) fn render_diagnostics_panel(&mut self, ctx: &egui::Context) {
+        let mut clear_diags = false;
+
         // Filter out diagnostics for non-Rust files (TOML, etc.)
         let rs_diagnostics: Vec<_> = self
             .lsp_diagnostics
@@ -487,15 +489,31 @@ impl BerryCodeApp {
 
         egui::TopBottomPanel::bottom("diagnostics_panel")
             .resizable(true)
-            .default_height(100.0)
-            .max_height(150.0)
+            .default_height(80.0)
+            .max_height(120.0)
+            .min_height(40.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new(format!("Problems ({})", rs_diagnostics.len()))
-                            .size(12.0)
+                            .size(11.0)
                             .strong(),
                     );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new("×")
+                                        .size(14.0)
+                                        .color(egui::Color32::from_rgb(180, 180, 180)),
+                                )
+                                .frame(false),
+                            )
+                            .clicked()
+                        {
+                            clear_diags = true;
+                        }
+                    });
                 });
                 ui.separator();
 
@@ -580,6 +598,10 @@ impl BerryCodeApp {
                     }
                 });
             });
+
+        if clear_diags {
+            self.lsp_diagnostics.clear();
+        }
     }
 
     /// Request hover information
