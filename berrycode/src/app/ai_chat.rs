@@ -688,58 +688,65 @@ impl BerryCodeApp {
         self.grpc_current_response.clear();
         self.grpc_streaming_message = Some(String::new());
 
-        // Get session ID
-        let session_id = match &self.grpc_session_id {
-            Some(id) => id.clone(),
-            None => {
-                tracing::error!("❌ No active gRPC session - berry-api-server may not be running");
-                self.grpc_streaming = false;
-
-                self.grpc_messages.push(GrpcMessage {
-                    content: "⚠️ AI Chat is not available. Please start berry-api-server:\ncd berry_api && cargo run --bin berry-api-server".to_string(),
-                    is_user: false,
-                });
-
-                self.status_message = "❌ AI Chat unavailable - start berry-api-server".to_string();
-                self.status_message_timestamp = Some(std::time::Instant::now());
-                return;
-            }
-        };
-
-        // Send message to berry-api-server via gRPC
-        let grpc_client = self.grpc_client.clone();
         let tx = self.grpc_response_tx.clone();
-        let autonomous = self.ai_chat_mode == AIChatMode::Autonomous;
+        let repo_path = self.root_path.clone();
 
-        tracing::info!(
-            "📤 Sending AI message (autonomous={}): {}",
-            autonomous,
-            message
-        );
+        // Try gRPC first, fallback to REST (berry-core-api)
+        if let Some(session_id) = &self.grpc_session_id {
+            // Use gRPC (legacy berry-api-server)
+            let grpc_client = self.grpc_client.clone();
+            let session_id = session_id.clone();
+            let autonomous = self.ai_chat_mode == AIChatMode::Autonomous;
 
-        // Spawn async task to handle streaming response
-        self.lsp_runtime.spawn(async move {
-            match grpc_client
-                .chat_stream(session_id, message, autonomous)
-                .await
-            {
-                Ok(mut rx) => {
-                    // Stream chunks back to UI
-                    while let Some(chunk) = rx.recv().await {
+            tracing::info!("📤 Sending via gRPC: {}", message);
+
+            self.lsp_runtime.spawn(async move {
+                match grpc_client
+                    .chat_stream(session_id, message, autonomous)
+                    .await
+                {
+                    Ok(mut rx) => {
+                        while let Some(chunk) = rx.recv().await {
+                            if let Some(tx) = &tx {
+                                let _ = tx.send(GrpcResponse::ChatChunk(chunk));
+                            }
+                        }
                         if let Some(tx) = &tx {
-                            let _ = tx.send(GrpcResponse::ChatChunk(chunk));
+                            let _ = tx.send(GrpcResponse::ChatStreamCompleted);
                         }
                     }
-                    // Signal completion
-                    if let Some(tx) = &tx {
-                        let _ = tx.send(GrpcResponse::ChatStreamCompleted);
+                    Err(e) => {
+                        tracing::error!("❌ gRPC chat failed: {}", e);
                     }
                 }
-                Err(e) => {
-                    tracing::error!("❌ Failed to send chat message: {}", e);
+            });
+        } else {
+            // Use REST (berry-core-api)
+            tracing::info!("📤 Sending via REST (berry-core-api): {}", message);
+
+            let rest_client = crate::native::rest_client::get_client().clone();
+
+            self.lsp_runtime.spawn(async move {
+                match rest_client.chat(&repo_path, &message, None).await {
+                    Ok(response) => {
+                        if let Some(tx) = &tx {
+                            let _ = tx.send(GrpcResponse::ChatChunk(response));
+                            let _ = tx.send(GrpcResponse::ChatStreamCompleted);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("❌ REST chat failed: {}", e);
+                        if let Some(tx) = &tx {
+                            let _ = tx.send(GrpcResponse::ChatChunk(format!(
+                                "⚠️ AI Chat error: {}.\n\nMake sure berry-core-api is running:\n```\ncd ../berry-core-api && cargo run\n```",
+                                e
+                            )));
+                            let _ = tx.send(GrpcResponse::ChatStreamCompleted);
+                        }
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     pub(crate) fn poll_grpc_responses(&mut self) {
