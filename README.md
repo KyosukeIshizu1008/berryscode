@@ -1,8 +1,10 @@
 # BerryCode - The IDE Built for Bevy
 
+[![CI](https://github.com/KyosukeIshizu1008/berryscode/actions/workflows/tests.yml/badge.svg)](https://github.com/KyosukeIshizu1008/berryscode/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/KyosukeIshizu1008)](https://github.com/sponsors/KyosukeIshizu1008)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi)](https://ko-fi.com/berrycode)
+[![crates.io](https://img.shields.io/crates/v/berrycode)](https://crates.io/crates/berrycode)
 
 [English](#english) | [日本語](#japanese)
 

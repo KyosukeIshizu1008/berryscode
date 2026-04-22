@@ -139,22 +139,22 @@ const MAIN_PANELS: &[SidebarPanel] = &[
     },
     SidebarPanel {
         variant: ActivePanel::EcsInspector,
-        icon: "\u{ea92}", // codicon-inspect
+        icon: "\u{eadf}", // codicon-eye
         _name: "ECS Inspector",
     },
     SidebarPanel {
         variant: ActivePanel::BevyTemplates,
-        icon: "\u{ea61}", // codicon-symbol-misc
+        icon: "\u{ea60}", // codicon-symbol-method
         _name: "Bevy Templates",
     },
     SidebarPanel {
         variant: ActivePanel::AssetBrowser,
-        icon: "\u{eb64}", // codicon-folder-library
+        icon: "\u{ea96}", // codicon-file-media
         _name: "Asset Browser",
     },
     SidebarPanel {
         variant: ActivePanel::SceneEditor,
-        icon: "\u{ea9a}", // codicon-symbol-structure
+        icon: "\u{eb44}", // codicon-layout
         _name: "Scene Editor",
     },
 ];
