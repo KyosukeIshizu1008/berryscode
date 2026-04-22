@@ -484,8 +484,9 @@ impl BerryCodeApp {
                     }
 
                     // Sync changes back to Rope buffer
-                    // Compare text with cached version to detect actual changes
-                    let text_changed = !is_readonly && text != tab.text_cache;
+                    // IMPORTANT: only sync when text is NOT folded, to avoid
+                    // saving folded (truncated) text back to the buffer.
+                    let text_changed = !is_readonly && !is_folded && text != tab.text_cache;
                     if text_changed {
                         tab.buffer = crate::buffer::TextBuffer::from_str(&text);
                         tab.text_cache_version = tab.buffer.version();
