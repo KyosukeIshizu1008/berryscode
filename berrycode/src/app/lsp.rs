@@ -153,132 +153,152 @@ impl BerryCodeApp {
         self.lsp_show_completions = true;
     }
 
-    /// Render LSP completion popup (VS Code style)
+    /// Render LSP completion popup (VS Code style — inline, no floating window)
     pub(crate) fn render_lsp_completions(&mut self, ctx: &egui::Context) {
-        let mut selected_item: Option<String> = None;
-
-        // Calculate popup position near cursor
-        let popup_pos = if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
-            // Position below the current cursor line
-            egui::pos2(300.0, 100.0 + (tab.cursor_line as f32 * 19.0).min(400.0))
-        } else {
-            egui::pos2(300.0, 200.0)
-        };
-
-        let bg = egui::Color32::from_rgb(37, 37, 38); // #252526
-        let border = egui::Color32::from_rgb(69, 69, 69); // #454545
-        let hover_bg = egui::Color32::from_rgb(4, 57, 94); // #04395E
-        let text_color = egui::Color32::from_rgb(212, 212, 212);
-        let detail_color = egui::Color32::from_rgb(128, 128, 128);
-
-        egui::Window::new("completions")
-            .title_bar(false)
-            .collapsible(false)
-            .resizable(false)
-            .fixed_pos(popup_pos)
-            .frame(
-                egui::Frame::none()
-                    .fill(bg)
-                    .stroke(egui::Stroke::new(1.0, border))
-                    .inner_margin(egui::Margin::same(2.0)),
-            )
-            .show(ctx, |ui| {
-                let items = self.lsp_completions.clone();
-                let max_items = 12;
-
-                egui::ScrollArea::vertical()
-                    .max_height(max_items as f32 * 22.0)
-                    .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing.y = 0.0;
-
-                        for (idx, item) in items.iter().take(max_items).enumerate() {
-                            let icon = match Some(item.kind.as_str()) {
-                                Some("Function") | Some("Method") => "ƒ",
-                                Some("Variable") | Some("Field") => "𝑥",
-                                Some("Struct") | Some("Class") => "S",
-                                Some("Module") => "M",
-                                Some("Keyword") => "K",
-                                Some("Snippet") => "{}",
-                                Some("Property") => "P",
-                                Some("Enum") => "E",
-                                Some("Constant") => "C",
-                                Some("Interface") | Some("Trait") => "I",
-                                _ => "•",
-                            };
-
-                            let icon_color = match Some(item.kind.as_str()) {
-                                Some("Function") | Some("Method") => {
-                                    egui::Color32::from_rgb(220, 170, 250)
-                                }
-                                Some("Variable") | Some("Field") => {
-                                    egui::Color32::from_rgb(120, 180, 240)
-                                }
-                                Some("Struct") | Some("Class") => {
-                                    egui::Color32::from_rgb(240, 200, 80)
-                                }
-                                Some("Keyword") => egui::Color32::from_rgb(86, 156, 214),
-                                Some("Module") => egui::Color32::from_rgb(200, 200, 200),
-                                _ => egui::Color32::from_rgb(180, 180, 180),
-                            };
-
-                            let (rect, response) = ui.allocate_exact_size(
-                                egui::vec2(ui.available_width(), 22.0),
-                                egui::Sense::click(),
-                            );
-
-                            if response.hovered() || idx == 0 {
-                                ui.painter().rect_filled(rect, 0.0, hover_bg);
-                            }
-
-                            // Icon
-                            ui.painter().text(
-                                egui::pos2(rect.left() + 8.0, rect.center().y),
-                                egui::Align2::LEFT_CENTER,
-                                icon,
-                                egui::FontId::monospace(11.0),
-                                icon_color,
-                            );
-
-                            // Label
-                            ui.painter().text(
-                                egui::pos2(rect.left() + 26.0, rect.center().y),
-                                egui::Align2::LEFT_CENTER,
-                                &item.label,
-                                egui::FontId::monospace(12.0),
-                                text_color,
-                            );
-
-                            // Detail (right-aligned)
-                            if let Some(ref detail) = item.detail {
-                                ui.painter().text(
-                                    egui::pos2(rect.right() - 8.0, rect.center().y),
-                                    egui::Align2::RIGHT_CENTER,
-                                    detail,
-                                    egui::FontId::monospace(11.0),
-                                    detail_color,
-                                );
-                            }
-
-                            if response.clicked() {
-                                selected_item =
-                                    Some(item.insert_text.clone().unwrap_or(item.label.clone()));
-                            }
-                        }
-                    });
+        // Dismiss on Escape, navigation keys, or clicking outside
+        let dismiss = ctx.input(|i| {
+            i.key_pressed(egui::Key::Escape)
+                || i.key_pressed(egui::Key::ArrowLeft)
+                || i.key_pressed(egui::Key::ArrowRight)
+                || i.key_pressed(egui::Key::Home)
+                || i.key_pressed(egui::Key::End)
+                || i.pointer.any_pressed() // any click dismisses
+        });
+        if dismiss {
+            // Check if click was inside the completion popup — if so, don't dismiss yet
+            let click_in_popup = ctx.input(|i| {
+                i.pointer.interact_pos().map_or(false, |pos| {
+                    // Approximate popup rect
+                    let popup_rect = egui::Rect::from_min_size(
+                        egui::pos2(350.0, 150.0),
+                        egui::vec2(380.0, 200.0),
+                    );
+                    popup_rect.contains(pos)
+                })
             });
-
-        // Handle selection or dismiss
-        if selected_item.is_some() || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.lsp_show_completions = false;
-            self.lsp_completions.clear();
+            if !click_in_popup {
+                self.lsp_show_completions = false;
+                self.lsp_completions.clear();
+                return;
+            }
         }
 
-        // Insert selected completion
-        if let Some(insert_text) = selected_item {
+        let mut selected_item: Option<String> = None;
+
+        // Enter/Tab to accept first item
+        let accept_first =
+            ctx.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab));
+        if accept_first && !self.lsp_completions.is_empty() {
+            let item = &self.lsp_completions[0];
+            selected_item = Some(item.insert_text.clone().unwrap_or(item.label.clone()));
+        }
+
+        if selected_item.is_none() {
+            let bg = egui::Color32::from_rgb(30, 30, 30);
+            let border = egui::Color32::from_rgb(69, 69, 69);
+            let selected_bg = egui::Color32::from_rgb(4, 57, 94);
+            let text_color = egui::Color32::from_rgb(212, 212, 212);
+            let detail_color = egui::Color32::from_rgb(110, 110, 110);
+
+            egui::Area::new(egui::Id::new("lsp_completions"))
+                .order(egui::Order::Foreground)
+                .fixed_pos(egui::pos2(350.0, 150.0))
+                .show(ctx, |ui| {
+                    egui::Frame::none()
+                        .fill(bg)
+                        .stroke(egui::Stroke::new(1.0, border))
+                        .inner_margin(egui::Margin::same(0.0))
+                        .show(ui, |ui| {
+                            ui.set_width(380.0);
+                            let items = self.lsp_completions.clone();
+                            let max_items = 10;
+
+                            for (idx, item) in items.iter().take(max_items).enumerate() {
+                                let (rect, response) = ui.allocate_exact_size(
+                                    egui::vec2(380.0, 20.0),
+                                    egui::Sense::click(),
+                                );
+
+                                // First item or hovered = selected
+                                if idx == 0 || response.hovered() {
+                                    ui.painter().rect_filled(rect, 0.0, selected_bg);
+                                }
+
+                                // Kind icon (single colored character)
+                                let (icon, icon_color) = match item.kind.as_str() {
+                                    "Function" | "Method" => {
+                                        ("f", egui::Color32::from_rgb(220, 170, 250))
+                                    }
+                                    "Variable" => ("v", egui::Color32::from_rgb(120, 180, 240)),
+                                    "Field" => ("f", egui::Color32::from_rgb(120, 180, 240)),
+                                    "Struct" | "Class" => {
+                                        ("S", egui::Color32::from_rgb(240, 200, 80))
+                                    }
+                                    "Module" => ("M", egui::Color32::from_rgb(200, 200, 200)),
+                                    "Keyword" => ("k", egui::Color32::from_rgb(86, 156, 214)),
+                                    "Snippet" => ("s", egui::Color32::from_rgb(200, 200, 200)),
+                                    "Property" => ("p", egui::Color32::from_rgb(120, 180, 240)),
+                                    "Enum" | "EnumMember" => {
+                                        ("E", egui::Color32::from_rgb(240, 200, 80))
+                                    }
+                                    "Constant" => ("C", egui::Color32::from_rgb(100, 180, 255)),
+                                    "Interface" | "Trait" | "TypeParameter" => {
+                                        ("T", egui::Color32::from_rgb(78, 201, 176))
+                                    }
+                                    _ => ("a", egui::Color32::from_rgb(150, 150, 150)),
+                                };
+
+                                ui.painter().text(
+                                    egui::pos2(rect.left() + 10.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    icon,
+                                    egui::FontId::monospace(11.0),
+                                    icon_color,
+                                );
+
+                                // Label
+                                ui.painter().text(
+                                    egui::pos2(rect.left() + 28.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    &item.label,
+                                    egui::FontId::monospace(12.0),
+                                    text_color,
+                                );
+
+                                // Detail
+                                if let Some(ref detail) = item.detail {
+                                    let short = if detail.len() > 30 {
+                                        format!("{}...", &detail[..27])
+                                    } else {
+                                        detail.clone()
+                                    };
+                                    ui.painter().text(
+                                        egui::pos2(rect.right() - 6.0, rect.center().y),
+                                        egui::Align2::RIGHT_CENTER,
+                                        &short,
+                                        egui::FontId::monospace(10.0),
+                                        detail_color,
+                                    );
+                                }
+
+                                if response.clicked() {
+                                    selected_item = Some(
+                                        item.insert_text.clone().unwrap_or(item.label.clone()),
+                                    );
+                                }
+                            }
+                        });
+                });
+        }
+
+        // Handle selection
+        if let Some(ref insert_text) = selected_item {
+            self.lsp_show_completions = false;
+            self.lsp_completions.clear();
+
             if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
                 let text = tab.buffer.to_string();
                 let cursor = tab.cursor_col + tab.buffer.line_to_char(tab.cursor_line);
-                // Find word start to replace
                 let chars: Vec<char> = text.chars().collect();
                 let mut word_start = cursor;
                 while word_start > 0
@@ -293,11 +313,14 @@ impl BerryCodeApp {
                 tab.buffer = crate::buffer::TextBuffer::from_str(&new_text);
                 tab.text_cache_version = tab.buffer.version();
                 tab.is_dirty = true;
+                // Update cursor position without scrolling
                 let new_cursor = word_start + insert_text.len();
-                tab.pending_cursor_jump = Some((
-                    text[..new_cursor].matches('\n').count(),
-                    new_cursor - text[..new_cursor].rfind('\n').map(|p| p + 1).unwrap_or(0),
-                ));
+                tab.cursor_line = new_text[..new_cursor].matches('\n').count();
+                tab.cursor_col = new_cursor
+                    - new_text[..new_cursor]
+                        .rfind('\n')
+                        .map(|p| p + 1)
+                        .unwrap_or(0);
             }
         }
     }
