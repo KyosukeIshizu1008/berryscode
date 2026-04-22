@@ -630,12 +630,14 @@ impl BerryCodeApp {
                                 );
                             }
 
-                            // --- Diagnostic highlight (error = red bg, warning = yellow bg) ---
+                            // --- Diagnostic highlight (only for .rs files) ---
+                            let is_rs = tab.file_path.ends_with(".rs");
                             let line_diag_severity = self
                                 .lsp_diagnostics
                                 .iter()
                                 .filter(|d| {
-                                    d.source.as_deref() == Some(&tab.file_path)
+                                    is_rs
+                                        && d.source.as_deref() == Some(&tab.file_path)
                                         && d.line == line_idx
                                 })
                                 .map(|d| &d.severity)
@@ -700,8 +702,8 @@ impl BerryCodeApp {
                                 num_color,
                             );
 
-                            // --- Diagnostic gutter icon + line border (VS Code style) ---
-                            {
+                            // --- Diagnostic gutter icon + line border (only .rs) ---
+                            if is_rs {
                                 let line_severity = self
                                     .lsp_diagnostics
                                     .iter()
