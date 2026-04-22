@@ -237,7 +237,7 @@ impl BerryCodeApp {
             scroll
         };
         scroll.show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 1.0; // Compact log lines
+            ui.spacing_mut().item_spacing.y = 0.0; // Compact log lines
             for &i in &visible_indices {
                 let line = &self.run_output[i];
                 let color = match classify_severity(line) {
@@ -252,7 +252,7 @@ impl BerryCodeApp {
                     }
                 };
                 ui.horizontal(|ui| {
-                    super::ansi::render_ansi_text(ui, line, color, 11.5);
+                    super::ansi::render_ansi_text(ui, line, color, 11.0);
                 });
             }
         });
