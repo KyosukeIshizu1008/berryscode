@@ -221,6 +221,7 @@ pub struct BerryCodeApp {
     pub(crate) lsp_show_completions: bool,
     pub(crate) lsp_show_hover: bool,
     pub(crate) lsp_auto_trigger_pending: bool,
+    pub(crate) lsp_completion_index: usize,
     pub(crate) lsp_response_rx: Option<mpsc::UnboundedReceiver<LspResponse>>,
     pub(crate) lsp_diagnostics_rx:
         Option<mpsc::UnboundedReceiver<native::lsp_native::PublishedDiagnostics>>,
@@ -1153,6 +1154,7 @@ impl BerryCodeApp {
             lsp_completions: Vec::new(),
             lsp_show_completions: false,
             lsp_auto_trigger_pending: false,
+            lsp_completion_index: 0,
             lsp_show_hover: false,
             lsp_response_rx: Some(lsp_rx),
             lsp_diagnostics_rx: Some(lsp_diagnostics_rx),

@@ -479,10 +479,13 @@ impl BerryCodeApp {
                         }
                     }
 
-                    // Sync changes back to Rope buffer (only if text was actually edited)
-                    if !is_readonly && output.response.changed() {
+                    // Sync changes back to Rope buffer
+                    // Compare text with cached version to detect actual changes
+                    let text_changed = !is_readonly && text != tab.text_cache;
+                    if text_changed {
                         tab.buffer = crate::buffer::TextBuffer::from_str(&text);
                         tab.text_cache_version = tab.buffer.version();
+                        tab.text_cache = text.clone();
                         tab.is_dirty = true;
 
                         // Notify LSP about changes
@@ -501,7 +504,7 @@ impl BerryCodeApp {
                             }
                         }
 
-                        // Flag to auto-trigger completions after borrow ends
+                        // Auto-trigger completions on typing
                         if let Some(cr) = output.cursor_range {
                             let cursor_pos = cr.primary.ccursor.index;
                             if cursor_pos > 0 {

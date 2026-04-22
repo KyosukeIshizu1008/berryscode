@@ -153,52 +153,93 @@ impl BerryCodeApp {
         self.lsp_show_completions = true;
     }
 
-    /// Render LSP completion popup (VS Code style — inline, no floating window)
+    /// Render LSP completion popup (VS Code style)
     pub(crate) fn render_lsp_completions(&mut self, ctx: &egui::Context) {
-        // Dismiss on Escape, navigation keys, or clicking outside
-        let dismiss = ctx.input(|i| {
-            i.key_pressed(egui::Key::Escape)
-                || i.key_pressed(egui::Key::ArrowLeft)
-                || i.key_pressed(egui::Key::ArrowRight)
-                || i.key_pressed(egui::Key::Home)
-                || i.key_pressed(egui::Key::End)
-                || i.pointer.any_pressed() // any click dismisses
-        });
-        if dismiss {
-            // Check if click was inside the completion popup — if so, don't dismiss yet
-            let click_in_popup = ctx.input(|i| {
-                i.pointer.interact_pos().map_or(false, |pos| {
-                    // Approximate popup rect
-                    let popup_rect = egui::Rect::from_min_size(
-                        egui::pos2(350.0, 150.0),
-                        egui::vec2(380.0, 200.0),
-                    );
-                    popup_rect.contains(pos)
-                })
-            });
-            if !click_in_popup {
-                self.lsp_show_completions = false;
-                self.lsp_completions.clear();
-                return;
+        // Get the current word being typed (for filtering)
+        let current_word = if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
+            let text = tab.text_cache.clone();
+            let cursor = tab.cursor_col + tab.buffer.line_to_char(tab.cursor_line);
+            let chars: Vec<char> = text.chars().collect();
+            let mut start = cursor;
+            while start > 0 && (chars[start - 1].is_alphanumeric() || chars[start - 1] == '_') {
+                start -= 1;
             }
+            chars[start..cursor]
+                .iter()
+                .collect::<String>()
+                .to_lowercase()
+        } else {
+            String::new()
+        };
+
+        // Filter completions by current word
+        let filtered: Vec<_> = self
+            .lsp_completions
+            .iter()
+            .filter(|item| {
+                if current_word.is_empty() {
+                    true
+                } else {
+                    item.label.to_lowercase().contains(&current_word)
+                }
+            })
+            .collect();
+
+        // No matches — dismiss
+        if filtered.is_empty() {
+            self.lsp_show_completions = false;
+            self.lsp_completions.clear();
+            return;
+        }
+
+        // Keyboard: ↑↓ to navigate, Enter/Tab to accept, Esc to dismiss
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.lsp_show_completions = false;
+            self.lsp_completions.clear();
+            return;
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::ArrowDown)) {
+            self.lsp_completion_index =
+                (self.lsp_completion_index + 1).min(filtered.len().saturating_sub(1));
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::ArrowUp)) {
+            self.lsp_completion_index = self.lsp_completion_index.saturating_sub(1);
+        }
+        // Clamp index
+        if self.lsp_completion_index >= filtered.len() {
+            self.lsp_completion_index = 0;
         }
 
         let mut selected_item: Option<String> = None;
 
-        // Enter/Tab to accept first item
-        let accept_first =
-            ctx.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Tab));
-        if accept_first && !self.lsp_completions.is_empty() {
-            let item = &self.lsp_completions[0];
-            selected_item = Some(item.insert_text.clone().unwrap_or(item.label.clone()));
+        // Enter/Tab to accept selected item
+        if ctx.input(|i| i.key_pressed(egui::Key::Tab)) {
+            if let Some(item) = filtered.get(self.lsp_completion_index) {
+                selected_item = Some(item.insert_text.clone().unwrap_or(item.label.clone()));
+            }
+        }
+
+        // Click outside to dismiss
+        if ctx.input(|i| i.pointer.any_pressed()) {
+            let click_pos = ctx.input(|i| i.pointer.interact_pos());
+            let popup_rect =
+                egui::Rect::from_min_size(egui::pos2(350.0, 150.0), egui::vec2(400.0, 220.0));
+            if let Some(pos) = click_pos {
+                if !popup_rect.contains(pos) {
+                    self.lsp_show_completions = false;
+                    self.lsp_completions.clear();
+                    return;
+                }
+            }
         }
 
         if selected_item.is_none() {
             let bg = egui::Color32::from_rgb(30, 30, 30);
             let border = egui::Color32::from_rgb(69, 69, 69);
-            let selected_bg = egui::Color32::from_rgb(4, 57, 94);
+            let sel_bg = egui::Color32::from_rgb(4, 57, 94);
             let text_color = egui::Color32::from_rgb(212, 212, 212);
             let detail_color = egui::Color32::from_rgb(110, 110, 110);
+            let max_items = 10;
 
             egui::Area::new(egui::Id::new("lsp_completions"))
                 .order(egui::Order::Foreground)
@@ -209,22 +250,19 @@ impl BerryCodeApp {
                         .stroke(egui::Stroke::new(1.0, border))
                         .inner_margin(egui::Margin::same(0.0))
                         .show(ui, |ui| {
-                            ui.set_width(380.0);
-                            let items = self.lsp_completions.clone();
-                            let max_items = 10;
+                            ui.set_width(400.0);
 
-                            for (idx, item) in items.iter().take(max_items).enumerate() {
+                            for (idx, item) in filtered.iter().take(max_items).enumerate() {
                                 let (rect, response) = ui.allocate_exact_size(
-                                    egui::vec2(380.0, 20.0),
+                                    egui::vec2(400.0, 20.0),
                                     egui::Sense::click(),
                                 );
 
-                                // First item or hovered = selected
-                                if idx == 0 || response.hovered() {
-                                    ui.painter().rect_filled(rect, 0.0, selected_bg);
+                                // Highlight selected
+                                if idx == self.lsp_completion_index || response.hovered() {
+                                    ui.painter().rect_filled(rect, 0.0, sel_bg);
                                 }
 
-                                // Kind icon (single colored character)
                                 let (icon, icon_color) = match item.kind.as_str() {
                                     "Function" | "Method" => {
                                         ("f", egui::Color32::from_rgb(220, 170, 250))
@@ -236,13 +274,11 @@ impl BerryCodeApp {
                                     }
                                     "Module" => ("M", egui::Color32::from_rgb(200, 200, 200)),
                                     "Keyword" => ("k", egui::Color32::from_rgb(86, 156, 214)),
-                                    "Snippet" => ("s", egui::Color32::from_rgb(200, 200, 200)),
-                                    "Property" => ("p", egui::Color32::from_rgb(120, 180, 240)),
                                     "Enum" | "EnumMember" => {
                                         ("E", egui::Color32::from_rgb(240, 200, 80))
                                     }
                                     "Constant" => ("C", egui::Color32::from_rgb(100, 180, 255)),
-                                    "Interface" | "Trait" | "TypeParameter" => {
+                                    "Trait" | "TypeParameter" => {
                                         ("T", egui::Color32::from_rgb(78, 201, 176))
                                     }
                                     _ => ("a", egui::Color32::from_rgb(150, 150, 150)),
@@ -256,7 +292,6 @@ impl BerryCodeApp {
                                     icon_color,
                                 );
 
-                                // Label
                                 ui.painter().text(
                                     egui::pos2(rect.left() + 28.0, rect.center().y),
                                     egui::Align2::LEFT_CENTER,
@@ -265,7 +300,6 @@ impl BerryCodeApp {
                                     text_color,
                                 );
 
-                                // Detail
                                 if let Some(ref detail) = item.detail {
                                     let short = if detail.len() > 30 {
                                         format!("{}...", &detail[..27])
@@ -291,10 +325,11 @@ impl BerryCodeApp {
                 });
         }
 
-        // Handle selection
+        // Insert selected completion
         if let Some(ref insert_text) = selected_item {
             self.lsp_show_completions = false;
             self.lsp_completions.clear();
+            self.lsp_completion_index = 0;
 
             if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
                 let text = tab.buffer.to_string();
@@ -308,12 +343,12 @@ impl BerryCodeApp {
                 }
                 let mut new_text = String::new();
                 new_text.push_str(&text[..word_start]);
-                new_text.push_str(&insert_text);
+                new_text.push_str(insert_text);
                 new_text.push_str(&text[cursor..]);
                 tab.buffer = crate::buffer::TextBuffer::from_str(&new_text);
+                tab.text_cache = new_text.clone();
                 tab.text_cache_version = tab.buffer.version();
                 tab.is_dirty = true;
-                // Update cursor position without scrolling
                 let new_cursor = word_start + insert_text.len();
                 tab.cursor_line = new_text[..new_cursor].matches('\n').count();
                 tab.cursor_col = new_cursor
