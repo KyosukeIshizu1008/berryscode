@@ -285,7 +285,7 @@ impl BerryCodeApp {
                     ui.painter().text(
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
-                        "\u{eb52}",
+                        "\u{eb51}", // codicon-gear
                         egui::FontId::new(icon_size, egui::FontFamily::Name("codicon".into())),
                         gear_color,
                     );

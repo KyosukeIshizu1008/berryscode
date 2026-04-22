@@ -247,52 +247,54 @@ impl BerryCodeApp {
             .inner_margin(12.0)
             .rounding(4.0);
 
+        let font = egui::FontId::monospace(13.0);
+        let def = egui::Color32::from_rgb(212, 212, 212);
+
+        // Build a LayoutJob for pixel-perfect monospace rendering
+        let mut job = egui::text::LayoutJob::default();
+        let f = |color: egui::Color32| egui::TextFormat {
+            font_id: font.clone(),
+            color,
+            ..Default::default()
+        };
+
+        // fn main() {
+        job.append("fn", 0.0, f(self.keyword_color));
+        job.append(" main", 0.0, f(self.function_color));
+        job.append("() {\n", 0.0, f(def));
+        //     let x: u32 = 42;
+        job.append("    ", 0.0, f(def));
+        job.append("let", 0.0, f(self.keyword_color));
+        job.append(" x: ", 0.0, f(def));
+        job.append("u32", 0.0, f(self.type_color));
+        job.append(" = ", 0.0, f(def));
+        job.append("42", 0.0, f(self.number_color));
+        job.append(";\n", 0.0, f(def));
+        //     // Hello World
+        job.append("    ", 0.0, f(def));
+        job.append("// Hello World", 0.0, f(self.comment_color));
+        job.append("\n", 0.0, f(def));
+        //     println!("Ready!");
+        job.append("    ", 0.0, f(def));
+        job.append("println!", 0.0, f(self.macro_color));
+        job.append("(", 0.0, f(def));
+        job.append("\"Ready!\"", 0.0, f(self.string_color));
+        job.append(");\n", 0.0, f(def));
+        //     const MAX: usize = 100;
+        job.append("    ", 0.0, f(def));
+        job.append("const", 0.0, f(self.keyword_color));
+        job.append(" ", 0.0, f(def));
+        job.append("MAX", 0.0, f(self.constant_color));
+        job.append(": ", 0.0, f(def));
+        job.append("usize", 0.0, f(self.type_color));
+        job.append(" = ", 0.0, f(def));
+        job.append("100", 0.0, f(self.number_color));
+        job.append(";\n", 0.0, f(def));
+        // }
+        job.append("}", 0.0, f(def));
+
         frame.show(ui, |ui| {
-            ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
-
-            ui.horizontal(|ui| {
-                ui.colored_label(self.keyword_color, "fn");
-                ui.label(" ");
-                ui.colored_label(self.function_color, "main");
-                ui.label("() {");
-            });
-
-            ui.horizontal(|ui| {
-                ui.add_space(16.0);
-                ui.colored_label(self.keyword_color, "let");
-                ui.label(" x: ");
-                ui.colored_label(self.type_color, "u32");
-                ui.label(" = ");
-                ui.colored_label(self.number_color, "42");
-                ui.label(";");
-            });
-
-            ui.horizontal(|ui| {
-                ui.add_space(16.0);
-                ui.colored_label(self.comment_color, "// Hello World");
-            });
-
-            ui.horizontal(|ui| {
-                ui.add_space(16.0);
-                ui.colored_label(self.macro_color, "println!");
-                ui.label("(");
-                ui.colored_label(self.string_color, "\"Ready!\"");
-                ui.label(");");
-            });
-
-            ui.horizontal(|ui| {
-                ui.add_space(16.0);
-                ui.colored_label(self.keyword_color, "const");
-                ui.label(" ");
-                ui.colored_label(self.constant_color, "MAX");
-                ui.label(": ");
-                ui.colored_label(self.type_color, "usize");
-                ui.label(" = ");
-                ui.colored_label(self.number_color, "100");
-                ui.label(";");
-            });
-
-            ui.label("}");
+            ui.add(egui::Label::new(job));
         });
     }
 
