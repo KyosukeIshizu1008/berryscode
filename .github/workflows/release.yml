@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write  # Sigstore OIDC signing
 
 env:
   CARGO_TERM_COLOR: always
@@ -268,6 +269,21 @@ jobs:
       - name: List artifacts
         run: find artifacts -type f
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts with Sigstore
+        run: |
+          for file in \
+            artifacts/macos-dmg/*.dmg \
+            artifacts/linux-tarball/*.tar.gz \
+            artifacts/windows-zip/*.zip
+          do
+            cosign sign-blob --yes "$file" \
+              --output-signature "${file}.sig" \
+              --output-certificate "${file}.pem"
+          done
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -296,5 +312,11 @@ jobs:
           prerelease: false
           files: |
             artifacts/macos-dmg/*.dmg
+            artifacts/macos-dmg/*.sig
+            artifacts/macos-dmg/*.pem
             artifacts/linux-tarball/*.tar.gz
+            artifacts/linux-tarball/*.sig
+            artifacts/linux-tarball/*.pem
             artifacts/windows-zip/*.zip
+            artifacts/windows-zip/*.sig
+            artifacts/windows-zip/*.pem

@@ -282,6 +282,7 @@ impl BerryCodeApp {
 
                 // Read-only warning banner
                 let is_readonly = tab.is_readonly;
+                let is_toml = tab.file_path.ends_with(".toml");
                 if is_readonly {
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 200, 0),
@@ -362,7 +363,6 @@ impl BerryCodeApp {
                         })
                         .interactive(!is_readonly)
                         .layouter(&mut |ui, text, _wrap_width| {
-                            // For large files, skip syntax highlighting to keep UI responsive
                             let job = if text.len() > 200_000 {
                                 let mut job = egui::text::LayoutJob::single_section(
                                     text.to_string(),
@@ -372,6 +372,10 @@ impl BerryCodeApp {
                                         ..Default::default()
                                     },
                                 );
+                                job.wrap.max_width = f32::INFINITY;
+                                job
+                            } else if is_toml {
+                                let mut job = Self::toml_highlight_layouter(text);
                                 job.wrap.max_width = f32::INFINITY;
                                 job
                             } else {
@@ -1546,6 +1550,124 @@ impl BerryCodeApp {
         if self.show_code_actions && !self.lsp_code_actions.is_empty() {
             self.render_code_actions_window(ctx);
         }
+    }
+
+    /// TOML syntax highlighting
+    fn toml_highlight_layouter(text: &str) -> egui::text::LayoutJob {
+        let mut job = egui::text::LayoutJob::default();
+        const FONT_SIZE: f32 = 13.0;
+        let default_color = ui_colors::TEXT_DEFAULT;
+        let key_color = egui::Color32::from_rgb(86, 156, 214); // blue
+        let string_color = egui::Color32::from_rgb(206, 145, 120); // orange-brown
+        let number_color = egui::Color32::from_rgb(181, 206, 168); // light green
+        let comment_color = egui::Color32::from_rgb(106, 153, 85); // green
+        let section_color = egui::Color32::from_rgb(220, 220, 170); // yellow
+        let bool_color = egui::Color32::from_rgb(86, 156, 214); // blue
+        let eq_color = egui::Color32::from_rgb(212, 212, 212); // white
+
+        for line in text.lines() {
+            let trimmed = line.trim();
+
+            if trimmed.starts_with('#') {
+                // Comment
+                job.append(
+                    line,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: comment_color,
+                        ..Default::default()
+                    },
+                );
+            } else if trimmed.starts_with('[') {
+                // Section header [section] or [[array]]
+                job.append(
+                    line,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: section_color,
+                        ..Default::default()
+                    },
+                );
+            } else if let Some(eq_pos) = line.find('=') {
+                // key = value
+                let key = &line[..eq_pos];
+                let eq = "=";
+                let value = if eq_pos + 1 < line.len() {
+                    &line[eq_pos + 1..]
+                } else {
+                    ""
+                };
+
+                // Key
+                job.append(
+                    key,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: key_color,
+                        ..Default::default()
+                    },
+                );
+                // =
+                job.append(
+                    eq,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: eq_color,
+                        ..Default::default()
+                    },
+                );
+                // Value (detect type)
+                let val_trimmed = value.trim();
+                let val_color = if val_trimmed.starts_with('"') || val_trimmed.starts_with('\'') {
+                    string_color
+                } else if val_trimmed == "true" || val_trimmed == "false" {
+                    bool_color
+                } else if val_trimmed.starts_with(|c: char| c.is_ascii_digit()) {
+                    number_color
+                } else if val_trimmed.starts_with('[') || val_trimmed.starts_with('{') {
+                    default_color
+                } else {
+                    string_color
+                };
+                job.append(
+                    value,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: val_color,
+                        ..Default::default()
+                    },
+                );
+            } else {
+                // Other lines
+                job.append(
+                    line,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: egui::FontId::monospace(FONT_SIZE),
+                        color: default_color,
+                        ..Default::default()
+                    },
+                );
+            }
+
+            // Newline
+            job.append(
+                "\n",
+                0.0,
+                egui::TextFormat {
+                    font_id: egui::FontId::monospace(FONT_SIZE),
+                    color: default_color,
+                    ..Default::default()
+                },
+            );
+        }
+
+        job
     }
 
     /// Syntax highlighting layouter for egui::TextEdit
