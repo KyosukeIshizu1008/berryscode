@@ -7,15 +7,23 @@ use crate::app::i18n::t;
 use crate::native;
 
 impl BerryCodeApp {
-    /// Render Git panel (Phase 5.3)
+    /// Render Git panel (VS Code style)
     pub(crate) fn render_git_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading("🔀 Git");
-        ui.separator();
+        // Header
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new("SOURCE CONTROL")
+                    .size(11.0)
+                    .strong()
+                    .color(egui::Color32::from_rgb(187, 187, 187)),
+            );
+        });
+        ui.add_space(4.0);
 
-        // Tab bar
+        // Tab bar (VS Code style — flat, underline active)
         self.render_git_tab_bar(ui);
 
-        ui.separator();
+        ui.add_space(4.0);
 
         // Render the active tab
         match self.git_active_tab {
@@ -28,84 +36,120 @@ impl BerryCodeApp {
         }
     }
 
-    /// Render Git tab bar (6 tabs)
+    /// Render Git tab bar (VS Code flat style)
     fn render_git_tab_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.selectable_value(
-                &mut self.git_active_tab,
-                GitTab::Status,
-                t(self.ui_language, "Status"),
-            );
-            ui.selectable_value(
-                &mut self.git_active_tab,
-                GitTab::History,
-                t(self.ui_language, "History"),
-            );
-            ui.selectable_value(
-                &mut self.git_active_tab,
-                GitTab::Branches,
-                t(self.ui_language, "Branches"),
-            );
-            ui.selectable_value(
-                &mut self.git_active_tab,
-                GitTab::Remotes,
-                t(self.ui_language, "Remotes"),
-            );
-            ui.selectable_value(
-                &mut self.git_active_tab,
-                GitTab::Tags,
-                t(self.ui_language, "Tags"),
-            );
-            ui.selectable_value(
-                &mut self.git_active_tab,
-                GitTab::Stash,
-                t(self.ui_language, "Stash"),
-            );
+            ui.spacing_mut().item_spacing.x = 0.0;
+            let active_color = egui::Color32::from_rgb(255, 255, 255);
+            let inactive_color = egui::Color32::from_rgb(130, 130, 130);
+            let underline = egui::Color32::from_rgb(0, 122, 204);
+
+            let tabs = [
+                (GitTab::Status, t(self.ui_language, "Status")),
+                (GitTab::History, t(self.ui_language, "History")),
+                (GitTab::Branches, t(self.ui_language, "Branches")),
+                (GitTab::Remotes, t(self.ui_language, "Remotes")),
+                (GitTab::Tags, t(self.ui_language, "Tags")),
+                (GitTab::Stash, t(self.ui_language, "Stash")),
+            ];
+
+            for (tab, label) in &tabs {
+                let selected = self.git_active_tab == *tab;
+                let color = if selected {
+                    active_color
+                } else {
+                    inactive_color
+                };
+                let btn = egui::Button::new(egui::RichText::new(*label).size(11.0).color(color))
+                    .frame(false)
+                    .min_size(egui::vec2(0.0, 22.0));
+                let resp = ui.add(btn);
+                if selected {
+                    let r = resp.rect;
+                    ui.painter().rect_filled(
+                        egui::Rect::from_min_size(
+                            egui::pos2(r.left(), r.bottom() - 2.0),
+                            egui::vec2(r.width(), 2.0),
+                        ),
+                        0.0,
+                        underline,
+                    );
+                }
+                if resp.clicked() {
+                    self.git_active_tab = *tab;
+                }
+                ui.add_space(8.0);
+            }
         });
     }
 
-    /// Render Status tab (existing functionality with grouping)
+    /// Render Status tab (VS Code style)
     fn render_git_status_tab(&mut self, ui: &mut egui::Ui) {
-        // Refresh button and branch info
+        let btn_text = egui::Color32::from_rgb(200, 200, 200);
+        let btn_bg = egui::Color32::from_rgb(45, 45, 48);
+        let accent = egui::Color32::from_rgb(0, 122, 204);
+
+        // Branch + refresh
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("🔄 {}", t(self.ui_language, "Refresh")))
-                .clicked()
-            {
-                self.refresh_git_status();
-            }
-            ui.label(format!(
-                "{} {}",
-                t(self.ui_language, "Branch:"),
-                self.git_current_branch
-            ));
+            ui.label(
+                egui::RichText::new(&self.git_current_branch)
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180)),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add(
+                        egui::Button::new(egui::RichText::new("↻").size(13.0).color(btn_text))
+                            .frame(false),
+                    )
+                    .on_hover_text(t(self.ui_language, "Refresh"))
+                    .clicked()
+                {
+                    self.refresh_git_status();
+                }
+            });
         });
 
-        ui.add_space(8.0);
+        ui.add_space(4.0);
 
-        // Commit message input
-        ui.horizontal(|ui| {
-            ui.label(t(self.ui_language, "Message:"));
-            ui.text_edit_singleline(&mut self.git_commit_message);
-        });
+        // Commit message
+        ui.add(
+            egui::TextEdit::singleline(&mut self.git_commit_message)
+                .hint_text(t(self.ui_language, "Message:"))
+                .desired_width(f32::INFINITY)
+                .font(egui::FontId::proportional(12.0)),
+        );
 
+        ui.add_space(4.0);
+
+        // Commit + Stage All buttons (VS Code flat style)
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("✅ {}", t(self.ui_language, "Commit")))
-                .clicked()
-            {
+            let commit_btn = egui::Button::new(
+                egui::RichText::new(t(self.ui_language, "Commit"))
+                    .size(11.0)
+                    .color(egui::Color32::WHITE),
+            )
+            .fill(accent)
+            .rounding(3.0)
+            .min_size(egui::vec2(70.0, 22.0));
+            if ui.add(commit_btn).clicked() {
                 self.perform_git_commit();
             }
 
-            if ui
-                .button(format!("➕ {}", t(self.ui_language, "Stage All")))
-                .clicked()
-            {
+            let stage_btn = egui::Button::new(
+                egui::RichText::new(t(self.ui_language, "Stage All"))
+                    .size(11.0)
+                    .color(btn_text),
+            )
+            .fill(btn_bg)
+            .rounding(3.0)
+            .min_size(egui::vec2(70.0, 22.0));
+            if ui.add(stage_btn).clicked() {
                 self.perform_git_stage_all();
             }
         });
 
-        ui.separator();
+        ui.add_space(4.0);
 
         // Changed files list with grouping
         egui::ScrollArea::vertical()

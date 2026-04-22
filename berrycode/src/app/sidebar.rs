@@ -9,13 +9,14 @@ impl BerryCodeApp {
     pub(crate) fn render_sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("sidebar")
             .default_width(280.0)
-            .width_range(200.0..=500.0)
+            .width_range(150.0..=500.0)
             .resizable(true)
-            .show_separator_line(true)
+            .show_separator_line(false)
             .frame(
                 egui::Frame::none()
-                    .fill(ui_colors::SIDEBAR_BG) // #191A1C
-                    .inner_margin(egui::Margin::same(8.0)),
+                    .fill(ui_colors::SIDEBAR_BG)
+                    .inner_margin(egui::Margin::same(8.0))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(40, 40, 40))),
             )
             .show(ctx, |ui| {
                 // Update sidebar width from UI
