@@ -210,19 +210,52 @@ impl BerryCodeApp {
                         egui::FontId::proportional(20.0), // Increased from default
                     );
 
+                    let icon_size = 20.0;
+                    let btn_size = egui::vec2(40.0, 36.0);
+                    let active_bar_color = egui::Color32::from_rgb(255, 255, 255);
+                    let icon_active = egui::Color32::from_rgb(255, 255, 255);
+                    let icon_inactive = egui::Color32::from_rgb(120, 120, 120);
+                    let hover_bg = egui::Color32::from_rgb(45, 47, 50);
+
                     for panel in MAIN_PANELS {
                         let is_selected = self.active_panel == panel.variant;
 
-                        // Use selectable_label with custom color and explicit font family
-                        let icon_text = egui::RichText::new(panel.icon)
-                            .size(20.0) // Explicit size for icons
-                            .family(egui::FontFamily::Name("codicon".into())); // Use Codicon font
-                        if ui.selectable_label(is_selected, icon_text).clicked() {
-                            tracing::info!("📍 Panel changed to: {:?}", panel.variant);
+                        let (rect, response) =
+                            ui.allocate_exact_size(btn_size, egui::Sense::click());
+
+                        // Hover background
+                        if response.hovered() && !is_selected {
+                            ui.painter().rect_filled(rect, 0.0, hover_bg);
+                        }
+
+                        // Active indicator (left white bar, VS Code style)
+                        if is_selected {
+                            let bar = egui::Rect::from_min_size(
+                                egui::pos2(rect.left(), rect.top() + 6.0),
+                                egui::vec2(2.0, rect.height() - 12.0),
+                            );
+                            ui.painter().rect_filled(bar, 1.0, active_bar_color);
+                        }
+
+                        // Icon
+                        let color = if is_selected {
+                            icon_active
+                        } else {
+                            icon_inactive
+                        };
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            panel.icon,
+                            egui::FontId::new(icon_size, egui::FontFamily::Name("codicon".into())),
+                            color,
+                        );
+
+                        if response.clicked() {
                             self.active_panel = panel.variant;
                         }
 
-                        ui.add_space(4.0);
+                        ui.add_space(2.0);
                     }
 
                     // Push settings icon to bottom
@@ -233,10 +266,30 @@ impl BerryCodeApp {
 
                     // Settings gear icon at bottom
                     let is_settings = self.active_panel == ActivePanel::Settings;
-                    let gear_icon = egui::RichText::new("\u{eb52}") // codicon-settings-gear
-                        .size(20.0)
-                        .family(egui::FontFamily::Name("codicon".into()));
-                    if ui.selectable_label(is_settings, gear_icon).clicked() {
+                    let (rect, response) = ui.allocate_exact_size(btn_size, egui::Sense::click());
+                    if response.hovered() && !is_settings {
+                        ui.painter().rect_filled(rect, 0.0, hover_bg);
+                    }
+                    if is_settings {
+                        let bar = egui::Rect::from_min_size(
+                            egui::pos2(rect.left(), rect.top() + 6.0),
+                            egui::vec2(2.0, rect.height() - 12.0),
+                        );
+                        ui.painter().rect_filled(bar, 1.0, active_bar_color);
+                    }
+                    let gear_color = if is_settings {
+                        icon_active
+                    } else {
+                        icon_inactive
+                    };
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "\u{eb52}",
+                        egui::FontId::new(icon_size, egui::FontFamily::Name("codicon".into())),
+                        gear_color,
+                    );
+                    if response.clicked() {
                         self.active_panel = ActivePanel::Settings;
                     }
                 });
