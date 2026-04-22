@@ -1431,8 +1431,10 @@ impl BerryCodeApp {
                                                 },
                                             );
                                         }
-                                    } else if pos.x >= fold_zone_left {
-                                        // Fold toggle
+                                    } else if pos.x >= fold_zone_left
+                                        && pos.x < fold_zone_left + 14.0
+                                    {
+                                        // Fold toggle — only in the narrow fold icon area
                                         let line_text: &str =
                                             tab.text_cache.lines().nth(clicked_line).unwrap_or("");
                                         if line_text.contains('{') {
