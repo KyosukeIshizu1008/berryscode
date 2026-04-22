@@ -32,9 +32,14 @@ impl BerryCodeApp {
                     let lsp_label = if self.lsp_connected { "LSP" } else { "LSP off" };
                     ui.colored_label(lsp_color, lsp_label);
 
-                    if !self.lsp_diagnostics.is_empty() {
+                    let rs_diag_count = self
+                        .lsp_diagnostics
+                        .iter()
+                        .filter(|d| d.source.as_ref().map_or(true, |s| s.ends_with(".rs")))
+                        .count();
+                    if rs_diag_count > 0 {
                         ui.label(
-                            egui::RichText::new(format!("⚠ {}", self.lsp_diagnostics.len()))
+                            egui::RichText::new(format!("⚠ {}", rs_diag_count))
                                 .small()
                                 .color(egui::Color32::from_rgb(255, 200, 80)),
                         );
