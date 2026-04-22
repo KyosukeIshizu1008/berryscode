@@ -172,7 +172,7 @@ impl BerryCodeApp {
             String::new()
         };
 
-        // Filter completions by current word
+        // Filter completions: must START with current word (not just contain)
         let filtered: Vec<_> = self
             .lsp_completions
             .iter()
@@ -180,7 +180,7 @@ impl BerryCodeApp {
                 if current_word.is_empty() {
                     true
                 } else {
-                    item.label.to_lowercase().contains(&current_word)
+                    item.label.to_lowercase().starts_with(&current_word)
                 }
             })
             .collect();
@@ -213,7 +213,7 @@ impl BerryCodeApp {
         let mut selected_item: Option<String> = None;
 
         // Enter/Tab to accept selected item
-        if ctx.input(|i| i.key_pressed(egui::Key::Tab)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::Tab) || i.key_pressed(egui::Key::Enter)) {
             if let Some(item) = filtered.get(self.lsp_completion_index) {
                 selected_item = Some(item.insert_text.clone().unwrap_or(item.label.clone()));
             }
@@ -241,9 +241,20 @@ impl BerryCodeApp {
             let detail_color = egui::Color32::from_rgb(110, 110, 110);
             let max_items = 10;
 
+            // Position popup below cursor
+            let popup_pos = if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
+                // Approximate: gutter(64) + sidebar(280) + char_width(7.8) * col
+                let x = 64.0 + 280.0 + (tab.cursor_col as f32 * 7.8);
+                // header(32) + line_height(19.5) * (visible_line + 1)
+                let y = 32.0 + ((tab.cursor_line as f32 + 1.0) * 19.5).min(500.0);
+                egui::pos2(x.min(600.0), y)
+            } else {
+                egui::pos2(350.0, 150.0)
+            };
+
             egui::Area::new(egui::Id::new("lsp_completions"))
                 .order(egui::Order::Foreground)
-                .fixed_pos(egui::pos2(350.0, 150.0))
+                .fixed_pos(popup_pos)
                 .show(ctx, |ui| {
                     egui::Frame::none()
                         .fill(bg)
