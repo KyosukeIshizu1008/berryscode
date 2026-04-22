@@ -921,8 +921,8 @@ impl BerryCodeApp {
                         }
                     }
 
-                    // Draw diagnostic underlines (errors = red, warnings = yellow)
-                    {
+                    // Draw diagnostic underlines (only for .rs files)
+                    if tab.file_path.ends_with(".rs") {
                         let current_file = &tab.file_path;
                         for diag in &self.lsp_diagnostics {
                             if diag.source.as_deref() == Some(current_file) {
