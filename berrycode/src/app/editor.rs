@@ -500,6 +500,25 @@ impl BerryCodeApp {
                                 });
                             }
                         }
+
+                        // Flag to auto-trigger completions after borrow ends
+                        if let Some(cr) = output.cursor_range {
+                            let cursor_pos = cr.primary.ccursor.index;
+                            if cursor_pos > 0 {
+                                let chars: Vec<char> = text.chars().collect();
+                                let last_char = chars.get(cursor_pos - 1).copied();
+                                let should_trigger = last_char.map_or(false, |c| {
+                                    c.is_alphanumeric()
+                                        || c == '_'
+                                        || c == '.'
+                                        || c == ':'
+                                        || c == '<'
+                                });
+                                if should_trigger {
+                                    self.lsp_auto_trigger_pending = true;
+                                }
+                            }
+                        }
                     }
 
                     // Extract positions for overlays
@@ -630,7 +649,7 @@ impl BerryCodeApp {
                                 };
                                 // Highlight entire line
                                 let line_rect = egui::Rect::from_min_size(
-                                    egui::pos2(editor_rect.min.x, y),
+                                    egui::pos2(text_origin.x, y),
                                     egui::vec2(editor_rect.width(), lh),
                                 );
                                 ui.painter().rect_filled(line_rect, 0.0, bg_color);
@@ -673,40 +692,92 @@ impl BerryCodeApp {
                                 num_color,
                             );
 
-                            // --- Inlay hints (disabled — causes text overlap) ---
-                            let hints: Vec<&LspInlayHint> = vec![];
-                            for h in &hints {
-                                let col = h.column;
-                                let label = &h.label;
-                                let kind: &str = h.kind;
-                                // Calculate x position: use galley to find the char position
-                                let line_start =
-                                    line_char_offsets.get(line_idx).copied().unwrap_or(0);
-                                let hint_offset = line_start + col;
-                                let cc = egui::text::CCursor::new(hint_offset.min(text.len()));
-                                let cursor_obj = galley.from_ccursor(cc);
-                                let hint_pos = galley.pos_from_cursor(&cursor_obj);
-                                let hint_x = text_origin.x + hint_pos.max.x + 2.0;
+                            // --- Diagnostic gutter icon + line border (VS Code style) ---
+                            {
+                                let line_severity = self
+                                    .lsp_diagnostics
+                                    .iter()
+                                    .filter(|d| {
+                                        d.source.as_deref() == Some(&tab.file_path)
+                                            && d.line == line_idx
+                                    })
+                                    .map(|d| &d.severity)
+                                    .min_by_key(|s| match s {
+                                        super::types::DiagnosticSeverity::Error => 0,
+                                        super::types::DiagnosticSeverity::Warning => 1,
+                                        _ => 2,
+                                    });
 
-                                let hint_color = if kind == "parameter" {
-                                    egui::Color32::from_rgba_premultiplied(140, 180, 220, 160)
-                                } else {
-                                    egui::Color32::from_rgba_premultiplied(120, 160, 140, 160)
-                                };
+                                if let Some(severity) = line_severity {
+                                    let color = match severity {
+                                        super::types::DiagnosticSeverity::Error => {
+                                            egui::Color32::from_rgb(255, 80, 80)
+                                        }
+                                        super::types::DiagnosticSeverity::Warning => {
+                                            egui::Color32::from_rgb(255, 200, 0)
+                                        }
+                                        _ => egui::Color32::from_rgb(100, 180, 255),
+                                    };
+                                    // Left border
+                                    let border = egui::Rect::from_min_size(
+                                        egui::pos2(gutter_left, y),
+                                        egui::vec2(3.0, lh),
+                                    );
+                                    ui.painter().rect_filled(border, 0.0, color);
+                                    // Gutter icon
+                                    let icon = match severity {
+                                        super::types::DiagnosticSeverity::Error => "●",
+                                        super::types::DiagnosticSeverity::Warning => "▲",
+                                        _ => "ℹ",
+                                    };
+                                    ui.painter().text(
+                                        egui::pos2(gutter_left + 4.0, center_y),
+                                        egui::Align2::LEFT_CENTER,
+                                        icon,
+                                        egui::FontId::proportional(9.0),
+                                        color,
+                                    );
+                                }
+                            }
 
-                                let display = if kind == "parameter" {
-                                    format!("{}:", label)
-                                } else {
-                                    format!(": {}", label)
-                                };
+                            // --- Inlay hints (rendered at line end to avoid overlap) ---
+                            {
+                                let hints: Vec<_> = inlay_hints_snapshot
+                                    .iter()
+                                    .filter(|h| h.line == line_idx)
+                                    .collect();
+                                if !hints.is_empty() {
+                                    // Find the end of the line text
+                                    let line_start =
+                                        line_char_offsets.get(line_idx).copied().unwrap_or(0);
+                                    let line_end = line_char_offsets
+                                        .get(line_idx + 1)
+                                        .map(|o| o.saturating_sub(1))
+                                        .unwrap_or(text.len());
+                                    let cc_end = egui::text::CCursor::new(line_end.min(text.len()));
+                                    let cursor_end = galley.from_ccursor(cc_end);
+                                    let end_pos = galley.pos_from_cursor(&cursor_end);
+                                    let mut hint_x = text_origin.x + end_pos.max.x + 16.0;
 
-                                ui.painter().text(
-                                    egui::pos2(hint_x, y),
-                                    egui::Align2::LEFT_TOP,
-                                    &display,
-                                    egui::FontId::monospace(12.0),
-                                    hint_color,
-                                );
+                                    for h in &hints {
+                                        let hint_color = egui::Color32::from_rgba_premultiplied(
+                                            130, 150, 170, 140,
+                                        );
+                                        let display = if h.kind == "parameter" {
+                                            format!("{}:", h.label)
+                                        } else {
+                                            format!(": {}", h.label)
+                                        };
+                                        let text_rect = ui.painter().text(
+                                            egui::pos2(hint_x, y),
+                                            egui::Align2::LEFT_TOP,
+                                            &display,
+                                            egui::FontId::monospace(11.0),
+                                            hint_color,
+                                        );
+                                        hint_x = text_rect.max.x + 8.0;
+                                    }
+                                }
                             }
 
                             // --- Code action lightbulb (💡) ---
@@ -817,12 +888,12 @@ impl BerryCodeApp {
 
                                         let highlight_rect = egui::Rect::from_min_max(
                                             egui::pos2(
-                                                editor_rect.min.x + rect.min.x,
-                                                editor_rect.min.y + rect.min.y,
+                                                text_origin.x + rect.min.x,
+                                                text_origin.y + rect.min.y,
                                             ),
                                             egui::pos2(
-                                                editor_rect.min.x + rect_next.min.x,
-                                                editor_rect.min.y + rect.max.y,
+                                                text_origin.x + rect_next.min.x,
+                                                text_origin.y + rect.max.y,
                                             ),
                                         );
                                         ui.painter().rect_filled(
@@ -883,10 +954,10 @@ impl BerryCodeApp {
                                     _ => egui::Color32::from_rgb(100, 180, 255),
                                 };
 
-                                // Draw squiggly underline
-                                let y = editor_rect.min.y + start_rect.max.y;
-                                let x_start = editor_rect.min.x + start_rect.min.x;
-                                let x_end = editor_rect.min.x + end_rect.min.x;
+                                // Draw squiggly underline (VS Code style)
+                                let y = text_origin.y + start_rect.max.y;
+                                let x_start = text_origin.x + start_rect.min.x;
+                                let x_end = text_origin.x + end_rect.min.x;
 
                                 // Simple wave pattern
                                 let mut points = Vec::new();
@@ -964,15 +1035,13 @@ impl BerryCodeApp {
 
                                         // Draw underline
                                         let link_color = egui::Color32::from_rgb(86, 156, 214); // VS Code link blue
-                                        let underline_y = editor_rect.min.y + start_rect.max.y;
+                                        let underline_y = text_origin.y + start_rect.max.y;
                                         let underline_start = egui::pos2(
-                                            editor_rect.min.x + start_rect.min.x,
+                                            text_origin.x + start_rect.min.x,
                                             underline_y,
                                         );
-                                        let underline_end = egui::pos2(
-                                            editor_rect.min.x + end_rect.min.x,
-                                            underline_y,
-                                        );
+                                        let underline_end =
+                                            egui::pos2(text_origin.x + end_rect.min.x, underline_y);
 
                                         ui.painter().line_segment(
                                             [underline_start, underline_end],
@@ -982,15 +1051,15 @@ impl BerryCodeApp {
                                         // Draw colored overlay text
                                         let word_str: String = chars[start..end].iter().collect();
                                         let text_pos = egui::pos2(
-                                            editor_rect.min.x + start_rect.min.x,
-                                            editor_rect.min.y + start_rect.min.y,
+                                            text_origin.x + start_rect.min.x,
+                                            text_origin.y + start_rect.min.y,
                                         );
                                         // Paint a background rect to hide the original text, then draw colored text
                                         let bg_rect = egui::Rect::from_min_max(
                                             text_pos,
                                             egui::pos2(
-                                                editor_rect.min.x + end_rect.min.x,
-                                                editor_rect.min.y + start_rect.max.y,
+                                                text_origin.x + end_rect.min.x,
+                                                text_origin.y + start_rect.max.y,
                                             ),
                                         );
                                         ui.painter().rect_filled(
@@ -1108,13 +1177,10 @@ impl BerryCodeApp {
                                 ui.painter().line_segment(
                                     [
                                         egui::pos2(
-                                            editor_rect.min.x + x_offset,
-                                            editor_rect.min.y + y_start,
+                                            text_origin.x + x_offset,
+                                            text_origin.y + y_start,
                                         ),
-                                        egui::pos2(
-                                            editor_rect.min.x + x_offset,
-                                            editor_rect.min.y + y_end,
-                                        ),
+                                        egui::pos2(text_origin.x + x_offset, text_origin.y + y_end),
                                     ],
                                     egui::Stroke::new(0.5, indent_color),
                                 );
@@ -1243,9 +1309,9 @@ impl BerryCodeApp {
                                 let c = egui::text::CCursor::new(cursor_pos);
                                 let cursor_obj = galley.from_ccursor(c);
                                 let rect = galley.pos_from_cursor(&cursor_obj);
-                                let x = editor_rect.min.x + rect.min.x;
-                                let y_start = editor_rect.min.y + rect.min.y;
-                                let y_end = editor_rect.min.y + rect.max.y;
+                                let x = text_origin.x + rect.min.x;
+                                let y_start = text_origin.y + rect.min.y;
+                                let y_end = text_origin.y + rect.max.y;
                                 ui.painter().line_segment(
                                     [egui::pos2(x, y_start), egui::pos2(x, y_end)],
                                     egui::Stroke::new(1.5, egui::Color32::WHITE),
@@ -1445,6 +1511,12 @@ impl BerryCodeApp {
                     }
                 });
             });
+
+        // Auto-trigger completions on typing (VS Code behavior)
+        if self.lsp_auto_trigger_pending && self.lsp_connected {
+            self.lsp_auto_trigger_pending = false;
+            self.trigger_lsp_completions();
+        }
 
         // Handle keyboard shortcuts for LSP
         self.handle_lsp_shortcuts(ctx);
