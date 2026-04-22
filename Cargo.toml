@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "berrycode",
-    "berry_api"
 ]
 resolver = "2"
 

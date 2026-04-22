@@ -109,20 +109,12 @@ whoami = "1.5"
 # ===== Window Capture (Play in Editor) =====
 xcap = "0.9"
 
-# ===== gRPC Client for berry-api-server =====
-tonic = "0.12"
-prost = "0.13"
-prost-types = "0.13"
-
 # ===== Native LSP Client =====
 lsp-types = "0.95"
 
 [features]
 default = []
 vendored-openssl = ["openssl"]
-
-[build-dependencies]
-tonic-build = "0.12"
 
 # ═══════════════════════════════════════════════════════════
 # App bundling configuration (cargo-bundle / cargo-packager)

@@ -256,9 +256,7 @@ pub struct BerryCodeApp {
     pub(crate) rename_dialog_open: bool,
     pub(crate) rename_new_name: String,
 
-    // gRPC for AI integration
-    pub(crate) grpc_client: native::grpc::GrpcClient,
-    pub(crate) grpc_session_id: Option<String>,
+    // AI integration (REST via berry-core-api)
     pub(crate) grpc_connected: bool,
     pub(crate) grpc_response_tx: Option<mpsc::UnboundedSender<GrpcResponse>>,
     pub(crate) grpc_response_rx: Option<mpsc::UnboundedReceiver<GrpcResponse>>,
@@ -999,9 +997,6 @@ impl BerryCodeApp {
             native::lsp_native::NativeLspClient::new();
         let lsp_native_client = std::sync::Arc::new(lsp_native_client_inner);
 
-        // Create gRPC client
-        let grpc_client = native::grpc::GrpcClient::new("http://[::1]:50051");
-
         // Create LSP response channel
         let (lsp_tx, lsp_rx) = mpsc::unbounded_channel();
 
@@ -1042,35 +1037,22 @@ impl BerryCodeApp {
             }
         });
 
-        // Spawn gRPC connection and session initialization task
-        let runtime_clone = lsp_runtime.clone();
-        let root_path_for_grpc = root_path.clone();
-        let grpc_tx_clone = grpc_tx.clone();
-        let grpc_client_clone = grpc_client.clone();
-        runtime_clone.spawn(async move {
-            for attempt in 1..=24u32 {
-                match grpc_client_clone.connect().await {
-                    Ok(_) => {
-                        tracing::info!("✅ gRPC client connected to berry-api-server");
-                        match grpc_client_clone.start_session(root_path_for_grpc.clone(), true).await {
-                            Ok(session_id) => {
-                                tracing::info!("🎯 gRPC chat session started: {}", session_id);
-                                let _ = grpc_tx_clone.send(GrpcResponse::SessionStarted(session_id));
-                            }
-                            Err(e) => {
-                                tracing::error!("❌ Failed to start gRPC session: {:#}", e);
-                            }
-                        }
-                        return;
-                    }
-                    Err(_) => {
-                        tracing::info!("⏳ berry-api-server not ready, retrying in 5s (attempt {}/24)...", attempt);
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    }
+        // Spawn REST (berry-core-api) health check
+        {
+            let grpc_tx_clone = grpc_tx.clone();
+            lsp_runtime.spawn(async move {
+                let rest_client = crate::native::rest_client::get_client().clone();
+                if rest_client.is_healthy().await {
+                    tracing::info!("✅ berry-core-api is reachable");
+                    // Signal connected — the UI reads grpc_connected for status display
+                    let _ = grpc_tx_clone.send(GrpcResponse::SessionStarted("rest".to_string()));
+                } else {
+                    tracing::warn!(
+                        "⚠️  berry-core-api not reachable. AI chat will attempt on each message."
+                    );
                 }
-            }
-            tracing::warn!("⚠️  berry-api-server not found after 2 minutes. Start it with: cd berry_api && cargo run --bin berry-api-server");
-        });
+            });
+        }
 
         let bevy_version = scene_editor::bevy_version::detect_bevy_version(&root_path);
 
@@ -1179,8 +1161,6 @@ impl BerryCodeApp {
             rename_dialog_open: false,
             rename_new_name: String::new(),
 
-            grpc_client,
-            grpc_session_id: None,
             grpc_connected: false,
             grpc_response_tx: Some(grpc_tx),
             grpc_response_rx: Some(grpc_rx),

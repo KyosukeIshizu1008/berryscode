@@ -35,8 +35,7 @@ jobs:
             libpipewire-0.3-dev \
             libgbm-dev \
             libxcb1-dev \
-            libegl-dev \
-            protobuf-compiler
+            libegl-dev
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -72,11 +71,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install protobuf
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -101,11 +95,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install protobuf
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

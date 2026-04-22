@@ -1,6 +1,6 @@
 //! AI Chat panel rendering and gRPC communication
 
-use super::types::{AIChatMode, GrpcMessage, GrpcResponse};
+use super::types::{GrpcMessage, GrpcResponse};
 use super::utils::strip_thinking_blocks;
 use super::BerryCodeApp;
 use crate::app::i18n::t;
@@ -691,71 +691,39 @@ impl BerryCodeApp {
         let tx = self.grpc_response_tx.clone();
         let repo_path = self.root_path.clone();
 
-        // Try gRPC first, fallback to REST (berry-core-api)
-        if let Some(session_id) = &self.grpc_session_id {
-            // Use gRPC (legacy berry-api-server)
-            let grpc_client = self.grpc_client.clone();
-            let session_id = session_id.clone();
-            let autonomous = self.ai_chat_mode == AIChatMode::Autonomous;
+        // Use REST (berry-core-api)
+        tracing::info!("📤 Sending via REST (berry-core-api): {}", message);
 
-            tracing::info!("📤 Sending via gRPC: {}", message);
+        let rest_client = crate::native::rest_client::get_client().clone();
 
-            self.lsp_runtime.spawn(async move {
-                match grpc_client
-                    .chat_stream(session_id, message, autonomous)
-                    .await
-                {
-                    Ok(mut rx) => {
-                        while let Some(chunk) = rx.recv().await {
-                            if let Some(tx) = &tx {
-                                let _ = tx.send(GrpcResponse::ChatChunk(chunk));
-                            }
-                        }
-                        if let Some(tx) = &tx {
-                            let _ = tx.send(GrpcResponse::ChatStreamCompleted);
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("❌ gRPC chat failed: {}", e);
+        self.lsp_runtime.spawn(async move {
+            match rest_client.chat(&repo_path, &message, None).await {
+                Ok(response) => {
+                    if let Some(tx) = &tx {
+                        let _ = tx.send(GrpcResponse::ChatChunk(response));
+                        let _ = tx.send(GrpcResponse::ChatStreamCompleted);
                     }
                 }
-            });
-        } else {
-            // Use REST (berry-core-api)
-            tracing::info!("📤 Sending via REST (berry-core-api): {}", message);
-
-            let rest_client = crate::native::rest_client::get_client().clone();
-
-            self.lsp_runtime.spawn(async move {
-                match rest_client.chat(&repo_path, &message, None).await {
-                    Ok(response) => {
-                        if let Some(tx) = &tx {
-                            let _ = tx.send(GrpcResponse::ChatChunk(response));
-                            let _ = tx.send(GrpcResponse::ChatStreamCompleted);
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("❌ REST chat failed: {}", e);
-                        if let Some(tx) = &tx {
-                            let _ = tx.send(GrpcResponse::ChatChunk(format!(
-                                "⚠️ AI Chat error: {}.\n\nMake sure berry-core-api is running:\n```\ncd ../berry-core-api && cargo run\n```",
-                                e
-                            )));
-                            let _ = tx.send(GrpcResponse::ChatStreamCompleted);
-                        }
+                Err(e) => {
+                    tracing::error!("❌ REST chat failed: {}", e);
+                    if let Some(tx) = &tx {
+                        let _ = tx.send(GrpcResponse::ChatChunk(format!(
+                            "⚠️ AI Chat error: {}.\n\nMake sure berry-core-api is running:\n```\ncd ../berry-core-api && cargo run\n```",
+                            e
+                        )));
+                        let _ = tx.send(GrpcResponse::ChatStreamCompleted);
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     pub(crate) fn poll_grpc_responses(&mut self) {
         if let Some(rx) = &mut self.grpc_response_rx {
             while let Ok(response) = rx.try_recv() {
                 match response {
-                    GrpcResponse::SessionStarted(session_id) => {
-                        tracing::info!("🎯 gRPC session ready: {}", session_id);
-                        self.grpc_session_id = Some(session_id);
+                    GrpcResponse::SessionStarted(_) => {
+                        tracing::info!("✅ AI Chat ready (berry-core-api)");
                         self.grpc_connected = true;
                         self.status_message = "✅ AI Chat ready".to_string();
                         self.status_message_timestamp = Some(std::time::Instant::now());
