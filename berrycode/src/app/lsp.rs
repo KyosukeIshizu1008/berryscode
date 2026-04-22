@@ -474,7 +474,14 @@ impl BerryCodeApp {
 
     /// Render diagnostics panel at the bottom of the editor
     pub(crate) fn render_diagnostics_panel(&mut self, ctx: &egui::Context) {
-        if self.lsp_diagnostics.is_empty() {
+        // Filter out diagnostics for non-Rust files (TOML, etc.)
+        let rs_diagnostics: Vec<_> = self
+            .lsp_diagnostics
+            .iter()
+            .filter(|d| d.source.as_ref().map_or(true, |s| s.ends_with(".rs")))
+            .collect();
+
+        if rs_diagnostics.is_empty() {
             return;
         }
 
@@ -482,55 +489,93 @@ impl BerryCodeApp {
             .resizable(true)
             .default_height(150.0)
             .show(ctx, |ui| {
-                ui.heading(format!("📋 Problems ({})", self.lsp_diagnostics.len()));
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("Problems ({})", rs_diagnostics.len()))
+                            .size(12.0)
+                            .strong(),
+                    );
+                });
                 ui.separator();
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    let diagnostics = self.lsp_diagnostics.clone();
+                    ui.spacing_mut().item_spacing.y = 0.0;
 
-                    for diagnostic in diagnostics.iter() {
+                    for diagnostic in &rs_diagnostics {
                         let (icon, color) = match diagnostic.severity {
                             DiagnosticSeverity::Error => {
-                                ("❌", egui::Color32::from_rgb(255, 80, 80))
+                                ("×", egui::Color32::from_rgb(255, 80, 80))
                             }
                             DiagnosticSeverity::Warning => {
-                                ("⚠️", egui::Color32::from_rgb(255, 200, 100))
+                                ("⚠", egui::Color32::from_rgb(255, 200, 100))
                             }
                             DiagnosticSeverity::Information => {
-                                ("ℹ️", egui::Color32::from_rgb(100, 150, 255))
+                                ("ℹ", egui::Color32::from_rgb(100, 150, 255))
                             }
                             DiagnosticSeverity::Hint => {
-                                ("💡", egui::Color32::from_rgb(150, 150, 150))
+                                ("○", egui::Color32::from_rgb(150, 150, 150))
                             }
                         };
 
-                        let file_path = if !self.editor_tabs.is_empty() {
-                            self.editor_tabs[self.active_tab_idx].file_path.clone()
-                        } else {
-                            "unknown".to_string()
-                        };
+                        let file_name = diagnostic
+                            .source
+                            .as_ref()
+                            .and_then(|s| s.split('/').last())
+                            .unwrap_or("unknown");
 
-                        ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(icon).color(color));
+                        let (rect, response) = ui.allocate_exact_size(
+                            egui::vec2(ui.available_width(), 18.0),
+                            egui::Sense::click(),
+                        );
 
-                            let location = format!(
-                                "{}:{}:{}",
-                                file_path.split('/').last().unwrap_or(""),
-                                diagnostic.line + 1,
-                                diagnostic.column + 1
+                        if response.hovered() {
+                            ui.painter().rect_filled(
+                                rect,
+                                0.0,
+                                egui::Color32::from_rgb(42, 45, 46),
                             );
+                        }
 
-                            if ui.link(&location).clicked() {
-                                if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
-                                    tab.cursor_line = diagnostic.line;
-                                    tab.cursor_col = diagnostic.column;
-                                }
+                        // Icon
+                        ui.painter().text(
+                            egui::pos2(rect.left() + 8.0, rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            icon,
+                            egui::FontId::proportional(11.0),
+                            color,
+                        );
+
+                        // Location
+                        let loc = format!(
+                            "{}:{}:{}",
+                            file_name,
+                            diagnostic.line + 1,
+                            diagnostic.column + 1
+                        );
+                        ui.painter().text(
+                            egui::pos2(rect.left() + 22.0, rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            &loc,
+                            egui::FontId::monospace(11.0),
+                            egui::Color32::from_rgb(86, 156, 214),
+                        );
+
+                        // Message
+                        let msg_x = rect.left() + 22.0 + loc.len() as f32 * 7.0 + 8.0;
+                        ui.painter().text(
+                            egui::pos2(msg_x, rect.center().y),
+                            egui::Align2::LEFT_CENTER,
+                            &diagnostic.message,
+                            egui::FontId::proportional(11.0),
+                            color,
+                        );
+
+                        if response.clicked() {
+                            if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                                tab.cursor_line = diagnostic.line;
+                                tab.cursor_col = diagnostic.column;
                             }
-
-                            ui.label(egui::RichText::new(&diagnostic.message).color(color));
-                        });
-
-                        ui.separator();
+                        }
                     }
                 });
             });
