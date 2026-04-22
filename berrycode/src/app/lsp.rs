@@ -190,7 +190,7 @@ impl BerryCodeApp {
                         close_completions = true;
                     }
 
-                    ui.label("ℹ️ Full LSP integration coming soon");
+                    ui.label("ℹ️ Tab/Enter to insert • Esc to close");
                 });
             });
 

@@ -489,7 +489,7 @@ fn setup(mut commands: Commands) {
 }
 
 fn update() {
-    // TODO
+    // Game logic goes here
 }
 "#.to_string()
         }
