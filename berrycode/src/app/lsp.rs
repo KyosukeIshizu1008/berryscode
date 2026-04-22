@@ -518,22 +518,16 @@ impl BerryCodeApp {
                 ui.separator();
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
+                    ui.spacing_mut().item_spacing.y = 1.0;
 
                     for diagnostic in &rs_diagnostics {
-                        let (icon, color) = match diagnostic.severity {
-                            DiagnosticSeverity::Error => {
-                                ("×", egui::Color32::from_rgb(255, 80, 80))
-                            }
-                            DiagnosticSeverity::Warning => {
-                                ("⚠", egui::Color32::from_rgb(255, 200, 100))
-                            }
+                        let color = match diagnostic.severity {
+                            DiagnosticSeverity::Error => egui::Color32::from_rgb(255, 80, 80),
+                            DiagnosticSeverity::Warning => egui::Color32::from_rgb(255, 200, 100),
                             DiagnosticSeverity::Information => {
-                                ("ℹ", egui::Color32::from_rgb(100, 150, 255))
+                                egui::Color32::from_rgb(100, 150, 255)
                             }
-                            DiagnosticSeverity::Hint => {
-                                ("○", egui::Color32::from_rgb(150, 150, 150))
-                            }
+                            DiagnosticSeverity::Hint => egui::Color32::from_rgb(150, 150, 150),
                         };
 
                         let file_name = diagnostic
@@ -542,52 +536,54 @@ impl BerryCodeApp {
                             .and_then(|s| s.split('/').last())
                             .unwrap_or("unknown");
 
-                        let (rect, response) = ui.allocate_exact_size(
-                            egui::vec2(ui.available_width(), 20.0),
-                            egui::Sense::click(),
-                        );
-
-                        if response.hovered() {
-                            ui.painter().rect_filled(
-                                rect,
-                                0.0,
-                                egui::Color32::from_rgb(42, 45, 46),
-                            );
-                        }
-
-                        // Icon
-                        ui.painter().text(
-                            egui::pos2(rect.left() + 8.0, rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            icon,
-                            egui::FontId::proportional(12.0),
-                            color,
-                        );
-
-                        // Location
                         let loc = format!(
                             "{}:{}:{}",
                             file_name,
                             diagnostic.line + 1,
                             diagnostic.column + 1
                         );
-                        ui.painter().text(
-                            egui::pos2(rect.left() + 22.0, rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            &loc,
-                            egui::FontId::monospace(12.0),
-                            egui::Color32::from_rgb(86, 156, 214),
-                        );
 
-                        // Message
-                        let msg_x = rect.left() + 22.0 + loc.len() as f32 * 7.0 + 8.0;
-                        ui.painter().text(
-                            egui::pos2(msg_x, rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            &diagnostic.message,
-                            egui::FontId::proportional(12.0),
-                            color,
+                        // Truncate message to avoid overlap
+                        let msg = if diagnostic.message.len() > 80 {
+                            format!("{}...", &diagnostic.message[..77])
+                        } else {
+                            diagnostic.message.clone()
+                        };
+
+                        // Build as LayoutJob for clean rendering
+                        let mut job = egui::text::LayoutJob::default();
+                        let font = egui::FontId::monospace(11.5);
+                        job.append(
+                            &loc,
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: egui::Color32::from_rgb(86, 156, 214),
+                                ..Default::default()
+                            },
                         );
+                        job.append(
+                            "  ",
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: egui::Color32::TRANSPARENT,
+                                ..Default::default()
+                            },
+                        );
+                        job.append(
+                            &msg,
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color,
+                                ..Default::default()
+                            },
+                        );
+                        job.wrap.max_width = ui.available_width();
+                        job.wrap.max_rows = 1;
+
+                        let response = ui.add(egui::Label::new(job).sense(egui::Sense::click()));
 
                         if response.clicked() {
                             if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
