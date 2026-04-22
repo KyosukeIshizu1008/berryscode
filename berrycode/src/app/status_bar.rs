@@ -8,41 +8,70 @@ impl BerryCodeApp {
     /// Render Status Bar (bottom)
     pub(crate) fn render_status_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("status_bar")
-            .exact_height(24.0)
+            .exact_height(22.0)
             .frame(
                 egui::Frame::none()
-                    .fill(ui_colors::SIDEBAR_BG) // #191A1C
-                    .inner_margin(egui::Margin::symmetric(8.0, 2.0))
+                    .fill(ui_colors::SIDEBAR_BG)
+                    .inner_margin(egui::Margin::symmetric(8.0, 2.0)),
             )
             .show(ctx, |ui| {
+                let small = egui::TextStyle::Small;
+                ui.style_mut()
+                    .text_styles
+                    .insert(small.clone(), egui::FontId::proportional(11.0));
+
                 ui.horizontal(|ui| {
-                    ui.label("BerryEditor");
-                    ui.separator();
-                    ui.label(format!("📁 {}", self.root_path));
-                    ui.separator();
-                    ui.label(format!("{} {}", t(self.ui_language, "File count:"), self.file_tree_cache.len()));
+                    ui.spacing_mut().item_spacing.x = 8.0;
 
-                    // LSP connection status
-                    ui.separator();
-                    let status_text = if self.lsp_connected {
-                        "🟢 LSP: Connected | F12: Definition | Shift+F12: References | Cmd+Click: Jump"
+                    // Left side
+                    let lsp_color = if self.lsp_connected {
+                        egui::Color32::from_rgb(80, 200, 80)
                     } else {
-                        "🔴 LSP: Disconnected | Regex search only"
+                        egui::Color32::from_rgb(180, 80, 80)
                     };
-                    ui.label(status_text);
+                    let lsp_label = if self.lsp_connected { "LSP" } else { "LSP off" };
+                    ui.colored_label(lsp_color, lsp_label);
 
-                    // Diagnostics count
                     if !self.lsp_diagnostics.is_empty() {
-                        ui.separator();
-                        ui.label(format!("⚠️ {}", self.lsp_diagnostics.len()));
+                        ui.label(
+                            egui::RichText::new(format!("⚠ {}", self.lsp_diagnostics.len()))
+                                .small()
+                                .color(egui::Color32::from_rgb(255, 200, 80)),
+                        );
                     }
 
-                    // Status message display (auto-clear after 3 seconds)
+                    ui.separator();
+
+                    // Current file language
+                    if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
+                        let lang = if tab.file_path.ends_with(".rs") {
+                            "Rust"
+                        } else if tab.file_path.ends_with(".toml") {
+                            "TOML"
+                        } else if tab.file_path.ends_with(".md") {
+                            "Markdown"
+                        } else if tab.file_path.ends_with(".json") {
+                            "JSON"
+                        } else {
+                            t(self.ui_language, "Plain Text")
+                        };
+                        ui.label(egui::RichText::new(lang).small());
+
+                        if tab.is_readonly {
+                            ui.label(
+                                egui::RichText::new(t(self.ui_language, "READ-ONLY"))
+                                    .small()
+                                    .color(egui::Color32::from_rgb(255, 200, 0)),
+                            );
+                        }
+                    }
+
+                    // Status message (auto-clear after 3 seconds)
                     if !self.status_message.is_empty() {
                         if let Some(timestamp) = self.status_message_timestamp {
                             if timestamp.elapsed().as_secs() < 3 {
                                 ui.separator();
-                                ui.label(&self.status_message);
+                                ui.label(egui::RichText::new(&self.status_message).small());
                             } else {
                                 self.status_message.clear();
                                 self.status_message_timestamp = None;
@@ -50,43 +79,9 @@ impl BerryCodeApp {
                         }
                     }
 
-                    // Read-only warning
-                    if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
-                        if tab.is_readonly {
-                            ui.separator();
-                            ui.label(egui::RichText::new(format!("📖 {}", t(self.ui_language, "READ-ONLY")))
-                                .color(egui::Color32::from_rgb(255, 200, 0)));
-                        }
-
-                        ui.separator();
-
-                        // Language indicator
-                        let lang = if tab.file_path.ends_with(".rs") {
-                            "Rust"
-                        } else if tab.file_path.ends_with(".toml") {
-                            "TOML"
-                        } else if tab.file_path.ends_with(".md") {
-                            "Markdown"
-                        } else {
-                            "Plain Text"
-                        };
-                        ui.label(format!("{} {}", t(self.ui_language, "Language:"), lang));
-
-                        // Format button (only for supported languages)
-                        if tab.file_path.ends_with(".rs") {
-                            ui.separator();
-                            if ui.button(t(self.ui_language, "Format (Cmd+Shift+F)")).clicked() {
-                                self.format_current_file();
-                            }
-                        }
-                    }
-
+                    // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label("egui 0.29 + Native");
-                        if let Some(ref ver) = self.bevy_version {
-                            ui.separator();
-                            ui.label(format!("Bevy {}", ver));
-                        }
+                        ui.label(egui::RichText::new("Bevy 0.15 + WGPU").small());
                     });
                 });
             });

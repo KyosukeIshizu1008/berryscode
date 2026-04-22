@@ -843,6 +843,23 @@ impl BerryCodeApp {
             }
         }
 
+        // Restart LSP with the new project root
+        if let Some(client) = &self.lsp_native_client {
+            let root = path.to_string();
+            let runtime = self.lsp_runtime.clone();
+            let client = client.clone();
+            std::thread::spawn(move || {
+                runtime.block_on(async {
+                    if let Err(e) = client.start_server("rust", &root).await {
+                        tracing::warn!("LSP restart failed: {}", e);
+                    } else {
+                        tracing::info!("✅ LSP connected for project: {}", root);
+                    }
+                });
+            });
+            self.lsp_connected = true;
+        }
+
         self.status_message = format!("Opened project: {}", path);
         self.status_message_timestamp = Some(std::time::Instant::now());
         tracing::info!("Opened project: {}", path);
