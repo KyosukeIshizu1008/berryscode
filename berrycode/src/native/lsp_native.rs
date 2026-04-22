@@ -102,16 +102,23 @@ impl NativeLspClient {
 
     /// Start an LSP server for a language
     pub async fn start_server(&self, language: &str, root_path: &str) -> Result<()> {
-        let command = match language {
+        let command_name = match language {
             "rust" => "rust-analyzer",
             "typescript" | "javascript" => "typescript-language-server",
             "python" => "pylsp",
             _ => return Err(anyhow::anyhow!("Unsupported language: {}", language)),
         };
 
+        // Resolve full path — .app bundles may not inherit shell PATH
+        let command = dirs::home_dir()
+            .map(|h| h.join(format!(".cargo/bin/{}", command_name)))
+            .filter(|p| p.exists())
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| command_name.to_string());
+
         tracing::info!("Starting LSP server: {} for {}", command, language);
 
-        let mut child_command = Command::new(command);
+        let mut child_command = Command::new(&command);
         child_command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
