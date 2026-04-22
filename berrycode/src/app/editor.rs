@@ -603,6 +603,62 @@ impl BerryCodeApp {
                                 );
                             }
 
+                            // --- Diagnostic highlight (error = red bg, warning = yellow bg) ---
+                            let line_diag_severity = self
+                                .lsp_diagnostics
+                                .iter()
+                                .filter(|d| {
+                                    d.source.as_deref() == Some(&tab.file_path)
+                                        && d.line == line_idx
+                                })
+                                .map(|d| &d.severity)
+                                .min_by_key(|s| match s {
+                                    super::types::DiagnosticSeverity::Error => 0,
+                                    super::types::DiagnosticSeverity::Warning => 1,
+                                    _ => 2,
+                                });
+
+                            if let Some(severity) = line_diag_severity {
+                                let bg_color = match severity {
+                                    super::types::DiagnosticSeverity::Error => {
+                                        egui::Color32::from_rgba_unmultiplied(255, 50, 50, 20)
+                                    }
+                                    super::types::DiagnosticSeverity::Warning => {
+                                        egui::Color32::from_rgba_unmultiplied(255, 200, 0, 15)
+                                    }
+                                    _ => egui::Color32::TRANSPARENT,
+                                };
+                                // Highlight entire line
+                                let line_rect = egui::Rect::from_min_size(
+                                    egui::pos2(editor_rect.min.x, y),
+                                    egui::vec2(editor_rect.width(), lh),
+                                );
+                                ui.painter().rect_filled(line_rect, 0.0, bg_color);
+
+                                // Error/warning icon in gutter
+                                let icon = match severity {
+                                    super::types::DiagnosticSeverity::Error => "●",
+                                    super::types::DiagnosticSeverity::Warning => "▲",
+                                    _ => "ℹ",
+                                };
+                                let icon_color = match severity {
+                                    super::types::DiagnosticSeverity::Error => {
+                                        egui::Color32::from_rgb(255, 80, 80)
+                                    }
+                                    super::types::DiagnosticSeverity::Warning => {
+                                        egui::Color32::from_rgb(255, 200, 0)
+                                    }
+                                    _ => egui::Color32::from_rgb(100, 180, 255),
+                                };
+                                ui.painter().text(
+                                    egui::pos2(gutter_left + 2.0, y),
+                                    egui::Align2::LEFT_TOP,
+                                    icon,
+                                    egui::FontId::proportional(10.0),
+                                    icon_color,
+                                );
+                            }
+
                             // --- Line number (center) ---
                             let num_color = if line_idx == tab.cursor_line {
                                 egui::Color32::from_rgb(200, 200, 200)
