@@ -673,11 +673,8 @@ impl BerryCodeApp {
                                 num_color,
                             );
 
-                            // --- Inlay hints (ghost text after tokens) ---
-                            let hints: Vec<_> = inlay_hints_snapshot
-                                .iter()
-                                .filter(|h| h.line == line_idx)
-                                .collect();
+                            // --- Inlay hints (disabled — causes text overlap) ---
+                            let hints: Vec<&LspInlayHint> = vec![];
                             for h in &hints {
                                 let col = h.column;
                                 let label = &h.label;
