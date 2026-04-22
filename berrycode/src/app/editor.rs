@@ -504,21 +504,26 @@ impl BerryCodeApp {
                             }
                         }
 
-                        // Auto-trigger completions on typing
-                        if let Some(cr) = output.cursor_range {
-                            let cursor_pos = cr.primary.ccursor.index;
-                            if cursor_pos > 0 {
-                                let chars: Vec<char> = text.chars().collect();
-                                let last_char = chars.get(cursor_pos - 1).copied();
-                                let should_trigger = last_char.map_or(false, |c| {
-                                    c.is_alphanumeric()
-                                        || c == '_'
-                                        || c == '.'
-                                        || c == ':'
-                                        || c == '<'
-                                });
-                                if should_trigger {
-                                    self.lsp_auto_trigger_pending = true;
+                        // Auto-trigger completions only on actual keyboard typing
+                        // (not on programmatic text changes like completion insert)
+                        let had_key_input = ui
+                            .input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Text(_))));
+                        if had_key_input {
+                            if let Some(cr) = output.cursor_range {
+                                let cursor_pos = cr.primary.ccursor.index;
+                                if cursor_pos > 0 {
+                                    let chars: Vec<char> = text.chars().collect();
+                                    let last_char = chars.get(cursor_pos - 1).copied();
+                                    let should_trigger = last_char.map_or(false, |c| {
+                                        c.is_alphanumeric()
+                                            || c == '_'
+                                            || c == '.'
+                                            || c == ':'
+                                            || c == '<'
+                                    });
+                                    if should_trigger {
+                                        self.lsp_auto_trigger_pending = true;
+                                    }
                                 }
                             }
                         }
