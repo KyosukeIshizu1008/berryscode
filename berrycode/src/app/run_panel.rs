@@ -236,24 +236,110 @@ impl BerryCodeApp {
         } else {
             scroll
         };
+        // Build all log text for selectable display
+        let mut log_text = String::new();
+        let mut line_colors: Vec<egui::Color32> = Vec::new();
+        for &i in &visible_indices {
+            let line = &self.run_output[i];
+            let color = match classify_severity(line) {
+                Severity::Error => egui::Color32::from_rgb(255, 110, 110),
+                Severity::Warning => egui::Color32::from_rgb(230, 180, 60),
+                Severity::Info => {
+                    if line.starts_with("───") {
+                        egui::Color32::from_rgb(100, 180, 255)
+                    } else {
+                        egui::Color32::from_rgb(204, 204, 204)
+                    }
+                }
+            };
+            // Strip ANSI codes for display
+            let clean: String = line
+                .chars()
+                .fold((String::new(), false), |(mut s, in_esc), c| {
+                    if c == '\x1b' {
+                        (s, true)
+                    } else if in_esc {
+                        (s, c != 'm')
+                    } else {
+                        s.push(c);
+                        (s, false)
+                    }
+                })
+                .0;
+            log_text.push_str(&clean);
+            log_text.push('\n');
+            line_colors.push(color);
+        }
+
         scroll.show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0; // Compact log lines
-            for &i in &visible_indices {
-                let line = &self.run_output[i];
-                let color = match classify_severity(line) {
-                    Severity::Error => egui::Color32::from_rgb(255, 110, 110),
-                    Severity::Warning => egui::Color32::from_rgb(230, 180, 60),
-                    Severity::Info => {
-                        if line.starts_with("───") {
-                            egui::Color32::from_rgb(100, 180, 255)
-                        } else {
-                            egui::Color32::from_rgb(204, 204, 204)
+            // Build a colored LayoutJob
+            let mut job = egui::text::LayoutJob::default();
+            let font = egui::FontId::monospace(12.0);
+            for (idx, line) in log_text.lines().enumerate() {
+                let color = line_colors.get(idx).copied().unwrap_or(egui::Color32::GRAY);
+
+                // Check for file:line:col pattern for clickable links
+                job.append(
+                    line,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: font.clone(),
+                        color,
+                        ..Default::default()
+                    },
+                );
+                job.append(
+                    "\n",
+                    0.0,
+                    egui::TextFormat {
+                        font_id: font.clone(),
+                        color: egui::Color32::TRANSPARENT,
+                        ..Default::default()
+                    },
+                );
+            }
+            job.wrap.max_width = f32::INFINITY;
+
+            // Selectable label — allows copy
+            let response = ui.add(
+                egui::Label::new(job)
+                    .selectable(true)
+                    .sense(egui::Sense::click()),
+            );
+
+            // Handle click on file:line patterns
+            if response.clicked() {
+                if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                    // Find which line was clicked
+                    let line_height = 15.0_f32;
+                    let local_y = pos.y - response.rect.min.y;
+                    let clicked_line = (local_y / line_height).floor() as usize;
+
+                    if let Some(log_line) = log_text.lines().nth(clicked_line) {
+                        // Parse "file.rs:LINE:COL" pattern
+                        if let Some(file_match) =
+                            log_line.split_whitespace().find(|w| w.contains(".rs:"))
+                        {
+                            let parts: Vec<&str> = file_match.split(':').collect();
+                            if parts.len() >= 2 {
+                                if let Ok(line_num) = parts[1].parse::<usize>() {
+                                    // Find and open the file
+                                    let file_name = parts[0];
+                                    let full_path = format!("{}/src/{}", self.root_path, file_name);
+                                    if std::path::Path::new(&full_path).exists() {
+                                        self.open_file_from_path(&full_path);
+                                        if let Some(tab) =
+                                            self.editor_tabs.get_mut(self.active_tab_idx)
+                                        {
+                                            tab.pending_cursor_jump =
+                                                Some((line_num.saturating_sub(1), 0));
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                };
-                ui.horizontal(|ui| {
-                    super::ansi::render_ansi_text(ui, line, color, 11.0);
-                });
+                }
             }
         });
     }
