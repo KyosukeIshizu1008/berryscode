@@ -1,5 +1,6 @@
 //! Git panel rendering and operations
 
+use super::component_colors;
 use super::types::GitTab;
 use super::ui_colors;
 use super::BerryCodeApp;
@@ -38,56 +39,22 @@ impl BerryCodeApp {
 
     /// Render Git tab bar (VS Code flat style)
     fn render_git_tab_bar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            let active_color = egui::Color32::from_rgb(255, 255, 255);
-            let inactive_color = egui::Color32::from_rgb(130, 130, 130);
-            let underline = egui::Color32::from_rgb(0, 122, 204);
-
-            let tabs = [
-                (GitTab::Status, t(self.ui_language, "Status")),
-                (GitTab::History, t(self.ui_language, "History")),
-                (GitTab::Branches, t(self.ui_language, "Branches")),
-                (GitTab::Remotes, t(self.ui_language, "Remotes")),
-                (GitTab::Tags, t(self.ui_language, "Tags")),
-                (GitTab::Stash, t(self.ui_language, "Stash")),
-            ];
-
-            for (tab, label) in &tabs {
-                let selected = self.git_active_tab == *tab;
-                let color = if selected {
-                    active_color
-                } else {
-                    inactive_color
-                };
-                let btn = egui::Button::new(egui::RichText::new(*label).size(11.0).color(color))
-                    .frame(false)
-                    .min_size(egui::vec2(0.0, 22.0));
-                let resp = ui.add(btn);
-                if selected {
-                    let r = resp.rect;
-                    ui.painter().rect_filled(
-                        egui::Rect::from_min_size(
-                            egui::pos2(r.left(), r.bottom() - 2.0),
-                            egui::vec2(r.width(), 2.0),
-                        ),
-                        0.0,
-                        underline,
-                    );
-                }
-                if resp.clicked() {
-                    self.git_active_tab = *tab;
-                }
-                ui.add_space(8.0);
-            }
-        });
+        let tabs = [
+            (GitTab::Status, self.tr("Status")),
+            (GitTab::History, self.tr("History")),
+            (GitTab::Branches, self.tr("Branches")),
+            (GitTab::Remotes, self.tr("Remotes")),
+            (GitTab::Tags, self.tr("Tags")),
+            (GitTab::Stash, self.tr("Stash")),
+        ];
+        super::utils::render_tab_bar(ui, &tabs, &mut self.git_active_tab);
     }
 
     /// Render Status tab (VS Code style)
     fn render_git_status_tab(&mut self, ui: &mut egui::Ui) {
-        let btn_text = egui::Color32::from_rgb(200, 200, 200);
-        let btn_bg = egui::Color32::from_rgb(45, 45, 48);
-        let accent = egui::Color32::from_rgb(0, 122, 204);
+        let btn_text = component_colors::BUTTON_TEXT;
+        let btn_bg = component_colors::BUTTON_BG;
+        let accent = component_colors::ACCENT;
 
         // Branch + refresh
         ui.horizontal(|ui| {
@@ -102,7 +69,7 @@ impl BerryCodeApp {
                         egui::Button::new(egui::RichText::new("↻").size(13.0).color(btn_text))
                             .frame(false),
                     )
-                    .on_hover_text(t(self.ui_language, "Refresh"))
+                    .on_hover_text(self.tr("Refresh"))
                     .clicked()
                 {
                     self.refresh_git_status();
@@ -125,7 +92,7 @@ impl BerryCodeApp {
         // Commit + Stage All buttons (VS Code flat style)
         ui.horizontal(|ui| {
             let commit_btn = egui::Button::new(
-                egui::RichText::new(t(self.ui_language, "Commit"))
+                egui::RichText::new(self.tr("Commit"))
                     .size(11.0)
                     .color(egui::Color32::WHITE),
             )
@@ -137,7 +104,7 @@ impl BerryCodeApp {
             }
 
             let stage_btn = egui::Button::new(
-                egui::RichText::new(t(self.ui_language, "Stage All"))
+                egui::RichText::new(self.tr("Stage All"))
                     .size(11.0)
                     .color(btn_text),
             )
@@ -156,7 +123,7 @@ impl BerryCodeApp {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if self.git_status.is_empty() {
-                    ui.label(t(self.ui_language, "No changes"));
+                    ui.label(self.tr("No changes"));
                 } else {
                     // Group files by staged/unstaged
                     let git_statuses = self.git_status.clone();
@@ -237,10 +204,7 @@ impl BerryCodeApp {
     /// Render History tab (commit graph)
     fn render_git_history_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("🔄 {}", t(self.ui_language, "Refresh")))
-                .clicked()
-            {
+            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
                 self.refresh_git_history();
             }
 
@@ -249,7 +213,7 @@ impl BerryCodeApp {
                 "All branches",
             );
 
-            if ui.button(t(self.ui_language, "Load More")).clicked() {
+            if ui.button(self.tr("Load More")).clicked() {
                 self.git_history_state.page_limit += 100;
                 self.refresh_git_history();
             }
@@ -259,9 +223,9 @@ impl BerryCodeApp {
 
         // Filter inputs
         ui.horizontal(|ui| {
-            ui.label(t(self.ui_language, "Author:"));
+            ui.label(self.tr("Author:"));
             ui.text_edit_singleline(&mut self.git_history_state.filter_author);
-            ui.label(t(self.ui_language, "Message:"));
+            ui.label(self.tr("Message:"));
             ui.text_edit_singleline(&mut self.git_history_state.filter_message);
         });
 
@@ -277,7 +241,7 @@ impl BerryCodeApp {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         if self.git_history_state.graph_nodes.is_empty() {
-                            ui.label(t(self.ui_language, "No commits. Click Refresh to load."));
+                            ui.label(self.tr("No commits. Click Refresh to load."));
                         } else {
                             self.render_commit_graph(ui);
                         }
@@ -421,7 +385,7 @@ impl BerryCodeApp {
     /// Render commit details panel
     fn render_commit_details(&mut self, ui: &mut egui::Ui) {
         if let Some(detail) = &self.git_history_state.commit_details {
-            ui.heading(t(self.ui_language, "Commit Details"));
+            ui.heading(self.tr("Commit Details"));
             ui.separator();
 
             ui.label(format!("ID: {}", detail.commit.id));
@@ -459,17 +423,14 @@ impl BerryCodeApp {
                 }
             });
         } else {
-            ui.label(t(self.ui_language, "Select a commit to view details"));
+            ui.label(self.tr("Select a commit to view details"));
         }
     }
 
     /// Render Branches tab
     fn render_git_branches_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("🔄 {}", t(self.ui_language, "Refresh")))
-                .clicked()
-            {
+            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
                 self.refresh_git_branches();
             }
         });
@@ -545,10 +506,7 @@ impl BerryCodeApp {
     /// Render Remotes tab
     fn render_git_remotes_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("🔄 {}", t(self.ui_language, "Refresh")))
-                .clicked()
-            {
+            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
                 self.refresh_git_remotes();
             }
         });
@@ -603,10 +561,7 @@ impl BerryCodeApp {
     /// Render Tags tab
     fn render_git_tags_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("🔄 {}", t(self.ui_language, "Refresh")))
-                .clicked()
-            {
+            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
                 self.refresh_git_tags();
             }
         });
@@ -668,10 +623,7 @@ impl BerryCodeApp {
     /// Render Stash tab
     fn render_git_stash_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui
-                .button(format!("🔄 {}", t(self.ui_language, "Refresh")))
-                .clicked()
-            {
+            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
                 self.refresh_git_stashes();
             }
         });

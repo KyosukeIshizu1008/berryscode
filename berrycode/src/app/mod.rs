@@ -94,6 +94,27 @@ pub(crate) mod ui_colors {
     pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59); // #36393B Medium Gray
 }
 
+// ===== Component Color Palette =====
+// Shared colors for UI components (tabs, buttons, inputs, etc.)
+
+pub(crate) mod component_colors {
+    use egui::Color32;
+    // VS Code accent blue
+    pub const ACCENT: Color32 = Color32::from_rgb(0, 122, 204);
+    // Tab colors
+    pub const TAB_ACTIVE: Color32 = Color32::from_rgb(255, 255, 255);
+    pub const TAB_INACTIVE: Color32 = Color32::from_rgb(130, 130, 130);
+    // Button colors
+    pub const BUTTON_TEXT: Color32 = Color32::from_rgb(200, 200, 200);
+    pub const BUTTON_BG: Color32 = Color32::from_rgb(45, 45, 48);
+    // Hover
+    pub const HOVER_BG: Color32 = Color32::from_rgb(42, 45, 46);
+    // Input
+    pub const INPUT_BG: Color32 = Color32::from_rgb(28, 29, 34);
+    // Dim text
+    pub const TEXT_DIM: Color32 = Color32::from_rgb(110, 115, 130);
+}
+
 // ===== File Icon Color Palette =====
 
 pub(crate) mod file_icon_colors {
@@ -602,6 +623,11 @@ pub struct BerryCodeApp {
 }
 
 impl BerryCodeApp {
+    /// Shorthand for i18n translation
+    pub(crate) fn tr(&self, key: &'static str) -> &'static str {
+        crate::app::i18n::t(self.ui_language, key)
+    }
+
     /// Apply the BerryCode egui style — IntelliJ-inspired dark theme
     pub fn setup_egui_style(ctx: &egui::Context) {
         let mut style = egui::Style::default();

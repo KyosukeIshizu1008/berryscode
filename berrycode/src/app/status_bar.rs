@@ -2,7 +2,6 @@
 
 use super::ui_colors;
 use super::BerryCodeApp;
-use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// Render Status Bar (bottom)
@@ -32,11 +31,8 @@ impl BerryCodeApp {
                     let lsp_label = if self.lsp_connected { "LSP" } else { "LSP off" };
                     ui.colored_label(lsp_color, lsp_label);
 
-                    let rs_diag_count = self
-                        .lsp_diagnostics
-                        .iter()
-                        .filter(|d| d.source.as_ref().map_or(true, |s| s.ends_with(".rs")))
-                        .count();
+                    let rs_diag_count =
+                        super::utils::filter_rust_diagnostics(&self.lsp_diagnostics).len();
                     if rs_diag_count > 0 {
                         ui.label(
                             egui::RichText::new(format!("⚠ {}", rs_diag_count))
@@ -58,13 +54,13 @@ impl BerryCodeApp {
                         } else if tab.file_path.ends_with(".json") {
                             "JSON"
                         } else {
-                            t(self.ui_language, "Plain Text")
+                            self.tr("Plain Text")
                         };
                         ui.label(egui::RichText::new(lang).small());
 
                         if tab.is_readonly {
                             ui.label(
-                                egui::RichText::new(t(self.ui_language, "READ-ONLY"))
+                                egui::RichText::new(self.tr("READ-ONLY"))
                                     .small()
                                     .color(egui::Color32::from_rgb(255, 200, 0)),
                             );

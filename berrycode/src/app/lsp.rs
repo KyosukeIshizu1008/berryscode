@@ -477,11 +477,7 @@ impl BerryCodeApp {
         let mut clear_diags = false;
 
         // Filter out diagnostics for non-Rust files (TOML, etc.)
-        let rs_diagnostics: Vec<_> = self
-            .lsp_diagnostics
-            .iter()
-            .filter(|d| d.source.as_ref().map_or(true, |s| s.ends_with(".rs")))
-            .collect();
+        let rs_diagnostics = super::utils::filter_rust_diagnostics(&self.lsp_diagnostics);
 
         if rs_diagnostics.is_empty() {
             return;

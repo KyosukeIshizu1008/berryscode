@@ -4,7 +4,6 @@ use super::types::ActivePanel;
 use super::ui_colors;
 use super::BerryCodeApp;
 use super::MAIN_PANELS;
-use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// Render top header bar (tab bar under native title)
@@ -75,7 +74,7 @@ impl BerryCodeApp {
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new(t(self.ui_language, "Close Project"))
+                                egui::RichText::new(self.tr("Close Project"))
                                     .size(12.0)
                                     .color(egui::Color32::from_rgb(180, 180, 180)),
                             )
@@ -96,7 +95,7 @@ impl BerryCodeApp {
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new(t(self.ui_language, "+ New Bevy Project"))
+                                egui::RichText::new(self.tr("+ New Bevy Project"))
                                     .size(12.0)
                                     .color(egui::Color32::from_rgb(200, 200, 200)),
                             )
@@ -116,15 +115,9 @@ impl BerryCodeApp {
                     if is_bevy_project {
                         let is_running = self.run_process.is_some();
                         let (label, color) = if is_running {
-                            (
-                                t(self.ui_language, "Stop"),
-                                egui::Color32::from_rgb(255, 100, 100),
-                            )
+                            (self.tr("Stop"), egui::Color32::from_rgb(255, 100, 100))
                         } else {
-                            (
-                                t(self.ui_language, "Run"),
-                                egui::Color32::from_rgb(120, 220, 120),
-                            )
+                            (self.tr("Run"), egui::Color32::from_rgb(120, 220, 120))
                         };
 
                         if ui
@@ -148,9 +141,9 @@ impl BerryCodeApp {
 
                         // Release mode toggle
                         let mode_label = if self.run_release_mode {
-                            t(self.ui_language, "Release")
+                            self.tr("Release")
                         } else {
-                            t(self.ui_language, "Debug")
+                            self.tr("Debug")
                         };
                         let mode_color = if self.run_release_mode {
                             egui::Color32::from_rgb(255, 180, 80)
@@ -176,7 +169,7 @@ impl BerryCodeApp {
                     if ui
                         .add(
                             egui::Button::new(
-                                egui::RichText::new(t(self.ui_language, "Build Settings"))
+                                egui::RichText::new(self.tr("Build Settings"))
                                     .size(12.0)
                                     .color(egui::Color32::from_rgb(200, 200, 200)),
                             )

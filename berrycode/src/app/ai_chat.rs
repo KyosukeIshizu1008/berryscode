@@ -3,7 +3,6 @@
 use super::types::{GrpcMessage, GrpcResponse};
 use super::utils::strip_thinking_blocks;
 use super::BerryCodeApp;
-use crate::app::i18n::t;
 
 impl BerryCodeApp {
     /// Render AI Chat panel (right side of editor)
@@ -135,9 +134,9 @@ impl BerryCodeApp {
                                     }
 
                                     let hint = if self.chat_attachment.is_some() {
-                                        t(self.ui_language, "Ask about image...")
+                                        self.tr("Ask about image...")
                                     } else {
-                                        t(self.ui_language, "Ask anything...")
+                                        self.tr("Ask anything...")
                                     };
                                     let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
                                         .id(input_id)
@@ -239,10 +238,10 @@ impl BerryCodeApp {
 
                                         // Simple suggestion buttons (no category tags)
                                         let suggestions = vec![
-                                            t(self.ui_language, "Explain the design"),
-                                            t(self.ui_language, "Fix compile errors"),
-                                            t(self.ui_language, "Commit changes"),
-                                            t(self.ui_language, "Security check"),
+                                            self.tr("Explain the design"),
+                                            self.tr("Fix compile errors"),
+                                            self.tr("Commit changes"),
+                                            self.tr("Security check"),
                                         ];
                                         for text in &suggestions {
                                             let btn = egui::Button::new(

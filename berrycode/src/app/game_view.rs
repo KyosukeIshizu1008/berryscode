@@ -1,7 +1,6 @@
 //! In-editor game view - captures spawned Bevy game window and displays it
 
 use super::BerryCodeApp;
-use crate::app::i18n::t;
 
 /// Hide an external window by making the process invisible.
 /// Platform-specific: uses AppleScript on macOS, xdotool on Linux,
@@ -239,18 +238,18 @@ impl BerryCodeApp {
     /// Render the Game View as the main central panel (used when ActivePanel::GameView)
     pub(crate) fn render_game_view_central(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.heading(t(self.ui_language, "Game View"));
+            ui.heading(self.tr("Game View"));
             ui.separator();
 
             let is_running = self.run_process.is_some();
             if is_running {
-                if ui.button(t(self.ui_language, "Stop")).clicked() {
+                if ui.button(self.tr("Stop")).clicked() {
                     self.stop_run();
                     self.game_view_texture = None;
                 }
                 ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "Running");
             } else {
-                if ui.button(t(self.ui_language, "Play")).clicked() {
+                if ui.button(self.tr("Play")).clicked() {
                     self.game_view_open = true;
                     self.start_run();
                 }
@@ -278,19 +277,19 @@ impl BerryCodeApp {
             });
         } else if self.run_process.is_some() {
             ui.centered_and_justified(|ui| {
-                ui.label(t(self.ui_language, "Waiting for game window..."));
+                ui.label(self.tr("Waiting for game window..."));
             });
         } else {
             ui.vertical_centered(|ui| {
                 ui.add_space(80.0);
                 ui.label(
-                    egui::RichText::new(t(self.ui_language, "Click Play to run your Bevy project"))
+                    egui::RichText::new(self.tr("Click Play to run your Bevy project"))
                         .size(16.0)
                         .color(egui::Color32::from_gray(160)),
                 );
                 ui.add_space(16.0);
                 if ui
-                    .button(egui::RichText::new(t(self.ui_language, "Play")).size(14.0))
+                    .button(egui::RichText::new(self.tr("Play")).size(14.0))
                     .clicked()
                 {
                     self.game_view_open = true;

@@ -4,7 +4,6 @@ use super::peek::render_peek_standalone;
 use super::types::{ColorTheme, LspInlayHint};
 use super::ui_colors;
 use super::BerryCodeApp;
-use crate::app::i18n::t;
 use crate::syntax::{SyntaxHighlighter, TokenType};
 
 impl BerryCodeApp {
@@ -30,15 +29,11 @@ impl BerryCodeApp {
                     // No file open - show placeholder
                     ui.vertical_centered(|ui| {
                         ui.add_space(100.0);
-                        ui.heading(t(self.ui_language, "BerryCode Editor"));
+                        ui.heading(self.tr("BerryCode Editor"));
                         ui.add_space(16.0);
-                        ui.label(t(self.ui_language, "Select a file from the file tree"));
+                        ui.label(self.tr("Select a file from the file tree"));
                         ui.add_space(8.0);
-                        ui.label(format!(
-                            "{} {}",
-                            t(self.ui_language, "Project:"),
-                            self.root_path
-                        ));
+                        ui.label(format!("{} {}", self.tr("Project:"), self.root_path));
                     });
                     return;
                 }
@@ -50,7 +45,7 @@ impl BerryCodeApp {
                 let tab_active_bg = egui::Color32::from_rgb(30, 30, 30); // #1E1E1E
                 let tab_inactive_bg = egui::Color32::from_rgb(45, 45, 46); // #2D2D2E
                 let tab_border = egui::Color32::from_rgb(37, 37, 38);
-                let tab_active_indicator = egui::Color32::from_rgb(0, 122, 204); // #007ACC
+                let tab_active_indicator = super::component_colors::ACCENT; // #007ACC
                 let tab_text_active = egui::Color32::from_rgb(255, 255, 255);
                 let tab_text_inactive = egui::Color32::from_rgb(150, 150, 150);
 
@@ -186,9 +181,9 @@ impl BerryCodeApp {
                 if self.editor_tabs.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(100.0);
-                        ui.heading(t(self.ui_language, "BerryCode Editor"));
+                        ui.heading(self.tr("BerryCode Editor"));
                         ui.add_space(16.0);
-                        ui.label(t(self.ui_language, "Select a file from the file tree"));
+                        ui.label(self.tr("Select a file from the file tree"));
                     });
                     return;
                 }
@@ -1503,7 +1498,7 @@ impl BerryCodeApp {
                     // Diagnostics count
                     ui.label(format!(
                         "{} {}",
-                        t(self.ui_language, "Diagnostics:"),
+                        self.tr("Diagnostics:"),
                         self.lsp_diagnostics.len()
                     ));
 
@@ -1521,7 +1516,7 @@ impl BerryCodeApp {
 
                     // Completion trigger button
                     if ui
-                        .button(t(self.ui_language, "Show Completions (Ctrl+Space)"))
+                        .button(self.tr("Show Completions (Ctrl+Space)"))
                         .clicked()
                     {
                         self.trigger_lsp_completions();

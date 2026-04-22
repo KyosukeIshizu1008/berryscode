@@ -2,6 +2,60 @@
 
 use super::types::LspLocation;
 
+/// Get filename from a path
+pub fn get_filename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+/// Get file extension (lowercase)
+pub fn get_extension(path: &str) -> String {
+    path.rsplit('.').next().unwrap_or("").to_lowercase()
+}
+
+/// Filter diagnostics to Rust files only
+pub fn filter_rust_diagnostics(
+    diags: &[super::types::LspDiagnostic],
+) -> Vec<&super::types::LspDiagnostic> {
+    diags
+        .iter()
+        .filter(|d| d.source.as_ref().map_or(true, |s| s.ends_with(".rs")))
+        .collect()
+}
+
+/// Render a VS Code style tab bar with underline indicator
+pub fn render_tab_bar<T: PartialEq + Copy>(ui: &mut egui::Ui, tabs: &[(T, &str)], active: &mut T) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        for (tab, label) in tabs {
+            let selected = *active == *tab;
+            let color = if selected {
+                super::component_colors::TAB_ACTIVE
+            } else {
+                super::component_colors::TAB_INACTIVE
+            };
+            let btn = egui::Button::new(egui::RichText::new(*label).size(11.0).color(color))
+                .frame(false)
+                .min_size(egui::vec2(0.0, 22.0));
+            let resp = ui.add(btn);
+            if selected {
+                let r = resp.rect;
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_size(
+                        egui::pos2(r.left(), r.bottom() - 2.0),
+                        egui::vec2(r.width(), 2.0),
+                    ),
+                    0.0,
+                    super::component_colors::ACCENT,
+                );
+            }
+            if resp.clicked() {
+                *active = *tab;
+            }
+            ui.add_space(8.0);
+        }
+    });
+}
+
 /// Strip `<thinking>...</thinking>` blocks from LLM responses.
 /// CoT blocks are internal reasoning and should not be shown to users.
 pub(crate) fn strip_thinking_blocks(text: &str) -> String {

@@ -12,12 +12,12 @@ impl BerryCodeApp {
             self.asset_browser.scan_pending = false;
         }
 
-        ui.heading(t(self.ui_language, "Asset Browser"));
+        ui.heading(self.tr("Asset Browser"));
         ui.separator();
 
         // Asset root directory
         ui.horizontal(|ui| {
-            ui.label(t(self.ui_language, "Root:"));
+            ui.label(self.tr("Root:"));
             if ui
                 .text_edit_singleline(&mut self.asset_browser.asset_root)
                 .changed()
@@ -31,19 +31,19 @@ impl BerryCodeApp {
 
         // Filter bar
         ui.horizontal(|ui| {
-            ui.label(t(self.ui_language, "Filter:"));
+            ui.label(self.tr("Filter:"));
             ui.text_edit_singleline(&mut self.asset_browser.filter_query);
         });
 
         // Type filter buttons
         ui.horizontal_wrapped(|ui| {
             let types: [(&str, Option<AssetType>); 6] = [
-                (t(self.ui_language, "All"), None),
-                (t(self.ui_language, "Images"), Some(AssetType::Image)),
-                (t(self.ui_language, "Models"), Some(AssetType::Model3D)),
-                (t(self.ui_language, "Audio"), Some(AssetType::Audio)),
-                (t(self.ui_language, "Scenes"), Some(AssetType::Scene)),
-                (t(self.ui_language, "Shaders"), Some(AssetType::Shader)),
+                (self.tr("All"), None),
+                (self.tr("Images"), Some(AssetType::Image)),
+                (self.tr("Models"), Some(AssetType::Model3D)),
+                (self.tr("Audio"), Some(AssetType::Audio)),
+                (self.tr("Scenes"), Some(AssetType::Scene)),
+                (self.tr("Shaders"), Some(AssetType::Shader)),
             ];
             for (label, filter_type) in &types {
                 let selected = self.asset_browser.filter_type == *filter_type;
@@ -262,7 +262,7 @@ impl BerryCodeApp {
 
                 // Process button (applies import settings to the asset)
                 if !matches!(settings, AssetImportSettings::Unknown) {
-                    if ui.button(t(self.ui_language, "Process")).clicked() {
+                    if ui.button(self.tr("Process")).clicked() {
                         match settings.process(&asset_path_str) {
                             Ok(msg) => {
                                 tracing::info!("Asset processed: {}", msg);
