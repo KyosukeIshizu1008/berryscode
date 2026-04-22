@@ -299,7 +299,7 @@ impl BerryCodeApp {
                                     egui::pos2(rect.left() + 10.0, rect.center().y),
                                     egui::Align2::LEFT_CENTER,
                                     icon,
-                                    egui::FontId::monospace(11.0),
+                                    egui::FontId::monospace(12.0),
                                     icon_color,
                                 );
 
@@ -487,7 +487,8 @@ impl BerryCodeApp {
 
         egui::TopBottomPanel::bottom("diagnostics_panel")
             .resizable(true)
-            .default_height(150.0)
+            .default_height(100.0)
+            .max_height(150.0)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -524,7 +525,7 @@ impl BerryCodeApp {
                             .unwrap_or("unknown");
 
                         let (rect, response) = ui.allocate_exact_size(
-                            egui::vec2(ui.available_width(), 18.0),
+                            egui::vec2(ui.available_width(), 20.0),
                             egui::Sense::click(),
                         );
 
@@ -541,7 +542,7 @@ impl BerryCodeApp {
                             egui::pos2(rect.left() + 8.0, rect.center().y),
                             egui::Align2::LEFT_CENTER,
                             icon,
-                            egui::FontId::proportional(11.0),
+                            egui::FontId::proportional(12.0),
                             color,
                         );
 
@@ -556,7 +557,7 @@ impl BerryCodeApp {
                             egui::pos2(rect.left() + 22.0, rect.center().y),
                             egui::Align2::LEFT_CENTER,
                             &loc,
-                            egui::FontId::monospace(11.0),
+                            egui::FontId::monospace(12.0),
                             egui::Color32::from_rgb(86, 156, 214),
                         );
 
@@ -566,7 +567,7 @@ impl BerryCodeApp {
                             egui::pos2(msg_x, rect.center().y),
                             egui::Align2::LEFT_CENTER,
                             &diagnostic.message,
-                            egui::FontId::proportional(11.0),
+                            egui::FontId::proportional(12.0),
                             color,
                         );
 
