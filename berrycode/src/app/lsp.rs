@@ -153,50 +153,152 @@ impl BerryCodeApp {
         self.lsp_show_completions = true;
     }
 
-    /// Render LSP completion popup
+    /// Render LSP completion popup (VS Code style)
     pub(crate) fn render_lsp_completions(&mut self, ctx: &egui::Context) {
-        let mut close_completions = false;
+        let mut selected_item: Option<String> = None;
 
-        egui::Window::new("💡 Code Completions")
+        // Calculate popup position near cursor
+        let popup_pos = if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
+            // Position below the current cursor line
+            egui::pos2(300.0, 100.0 + (tab.cursor_line as f32 * 19.0).min(400.0))
+        } else {
+            egui::pos2(300.0, 200.0)
+        };
+
+        let bg = egui::Color32::from_rgb(37, 37, 38); // #252526
+        let border = egui::Color32::from_rgb(69, 69, 69); // #454545
+        let hover_bg = egui::Color32::from_rgb(4, 57, 94); // #04395E
+        let text_color = egui::Color32::from_rgb(212, 212, 212);
+        let detail_color = egui::Color32::from_rgb(128, 128, 128);
+
+        egui::Window::new("completions")
+            .title_bar(false)
             .collapsible(false)
             .resizable(false)
-            .default_pos([400.0, 200.0])
+            .fixed_pos(popup_pos)
+            .frame(
+                egui::Frame::none()
+                    .fill(bg)
+                    .stroke(egui::Stroke::new(1.0, border))
+                    .inner_margin(egui::Margin::same(2.0)),
+            )
             .show(ctx, |ui| {
-                ui.label("Ctrl+Space triggered completions (Phase 5.4 MVP)");
-                ui.separator();
-
                 let items = self.lsp_completions.clone();
+                let max_items = 12;
 
                 egui::ScrollArea::vertical()
-                    .max_height(200.0)
+                    .max_height(max_items as f32 * 22.0)
                     .show(ui, |ui| {
-                        for item in &items {
-                            let display_text = if let Some(ref detail) = item.detail {
-                                format!("{} → {}", item.label, detail)
-                            } else {
-                                item.label.clone()
+                        ui.spacing_mut().item_spacing.y = 0.0;
+
+                        for (idx, item) in items.iter().take(max_items).enumerate() {
+                            let icon = match Some(item.kind.as_str()) {
+                                Some("Function") | Some("Method") => "ƒ",
+                                Some("Variable") | Some("Field") => "𝑥",
+                                Some("Struct") | Some("Class") => "S",
+                                Some("Module") => "M",
+                                Some("Keyword") => "K",
+                                Some("Snippet") => "{}",
+                                Some("Property") => "P",
+                                Some("Enum") => "E",
+                                Some("Constant") => "C",
+                                Some("Interface") | Some("Trait") => "I",
+                                _ => "•",
                             };
 
-                            if ui.selectable_label(false, display_text).clicked() {
-                                tracing::info!("💡 Selected completion: {}", item.label);
-                                close_completions = true;
+                            let icon_color = match Some(item.kind.as_str()) {
+                                Some("Function") | Some("Method") => {
+                                    egui::Color32::from_rgb(220, 170, 250)
+                                }
+                                Some("Variable") | Some("Field") => {
+                                    egui::Color32::from_rgb(120, 180, 240)
+                                }
+                                Some("Struct") | Some("Class") => {
+                                    egui::Color32::from_rgb(240, 200, 80)
+                                }
+                                Some("Keyword") => egui::Color32::from_rgb(86, 156, 214),
+                                Some("Module") => egui::Color32::from_rgb(200, 200, 200),
+                                _ => egui::Color32::from_rgb(180, 180, 180),
+                            };
+
+                            let (rect, response) = ui.allocate_exact_size(
+                                egui::vec2(ui.available_width(), 22.0),
+                                egui::Sense::click(),
+                            );
+
+                            if response.hovered() || idx == 0 {
+                                ui.painter().rect_filled(rect, 0.0, hover_bg);
+                            }
+
+                            // Icon
+                            ui.painter().text(
+                                egui::pos2(rect.left() + 8.0, rect.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                icon,
+                                egui::FontId::monospace(11.0),
+                                icon_color,
+                            );
+
+                            // Label
+                            ui.painter().text(
+                                egui::pos2(rect.left() + 26.0, rect.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                &item.label,
+                                egui::FontId::monospace(12.0),
+                                text_color,
+                            );
+
+                            // Detail (right-aligned)
+                            if let Some(ref detail) = item.detail {
+                                ui.painter().text(
+                                    egui::pos2(rect.right() - 8.0, rect.center().y),
+                                    egui::Align2::RIGHT_CENTER,
+                                    detail,
+                                    egui::FontId::monospace(11.0),
+                                    detail_color,
+                                );
+                            }
+
+                            if response.clicked() {
+                                selected_item =
+                                    Some(item.insert_text.clone().unwrap_or(item.label.clone()));
                             }
                         }
                     });
-
-                ui.separator();
-                ui.horizontal(|ui| {
-                    if ui.button("Close (Esc)").clicked() {
-                        close_completions = true;
-                    }
-
-                    ui.label("ℹ️ Tab/Enter to insert • Esc to close");
-                });
             });
 
-        if close_completions {
+        // Handle selection or dismiss
+        if selected_item.is_some() || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.lsp_show_completions = false;
             self.lsp_completions.clear();
+        }
+
+        // Insert selected completion
+        if let Some(insert_text) = selected_item {
+            if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                let text = tab.buffer.to_string();
+                let cursor = tab.cursor_col + tab.buffer.line_to_char(tab.cursor_line);
+                // Find word start to replace
+                let chars: Vec<char> = text.chars().collect();
+                let mut word_start = cursor;
+                while word_start > 0
+                    && (chars[word_start - 1].is_alphanumeric() || chars[word_start - 1] == '_')
+                {
+                    word_start -= 1;
+                }
+                let mut new_text = String::new();
+                new_text.push_str(&text[..word_start]);
+                new_text.push_str(&insert_text);
+                new_text.push_str(&text[cursor..]);
+                tab.buffer = crate::buffer::TextBuffer::from_str(&new_text);
+                tab.text_cache_version = tab.buffer.version();
+                tab.is_dirty = true;
+                let new_cursor = word_start + insert_text.len();
+                tab.pending_cursor_jump = Some((
+                    text[..new_cursor].matches('\n').count(),
+                    new_cursor - text[..new_cursor].rfind('\n').map(|p| p + 1).unwrap_or(0),
+                ));
+            }
         }
     }
 
