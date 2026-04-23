@@ -1204,7 +1204,8 @@ impl BerryCodeApp {
                     if tab.git_changes_loaded && !tab.git_line_changes.is_empty() {
                         let clip = ui.clip_rect();
                         let bar_width = 3.0_f32;
-                        let bar_x = text_origin.x - 4.0; // just to the left of code text
+                        // Draw on the right edge of the editor panel (VS Code minimap style)
+                        let bar_x = editor_rect.right() - bar_width;
 
                         for change in &tab.git_line_changes {
                             if change.line >= line_char_offsets.len() {
