@@ -203,8 +203,8 @@ impl BerryCodeApp {
                         egui::FontId::proportional(20.0), // Increased from default
                     );
 
-                    let icon_size = 20.0;
-                    let btn_size = egui::vec2(40.0, 36.0);
+                    let icon_size = 24.0;
+                    let btn_size = egui::vec2(40.0, 40.0);
                     let active_bar_color = egui::Color32::from_rgb(255, 255, 255);
                     let icon_active = egui::Color32::from_rgb(255, 255, 255);
                     let icon_inactive = egui::Color32::from_rgb(120, 120, 120);

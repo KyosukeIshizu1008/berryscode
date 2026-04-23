@@ -1,13 +1,13 @@
 //! BerryCode - Bevy-based IDE for Bevy Game Engine
 
 use berrycode::bevy_plugin::BerryCodePlugin;
+use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::winit::WinitWindows;
 
 fn main() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         tracing_subscriber::EnvFilter::new("warn")
-            .add_directive("berrycode=info".parse().unwrap())
             .add_directive("berrycode=info".parse().unwrap())
     });
 
@@ -16,7 +16,7 @@ fn main() {
     tracing::info!("Starting BerryCode - Bevy IDE");
 
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+        .add_plugins(DefaultPlugins.build().disable::<LogPlugin>().set(WindowPlugin {
             primary_window: Some(Window {
                 title: "BerryCode - Bevy IDE".into(),
                 resolution: (1400.0, 900.0).into(),

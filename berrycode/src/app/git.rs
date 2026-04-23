@@ -125,63 +125,138 @@ impl BerryCodeApp {
                 if self.git_status.is_empty() {
                     ui.label(self.tr("No changes"));
                 } else {
-                    // Group files by staged/unstaged
-                    let git_statuses = self.git_status.clone();
-                    let staged: Vec<_> = git_statuses.iter().filter(|s| s.is_staged).collect();
-                    let unstaged: Vec<_> = git_statuses.iter().filter(|s| !s.is_staged).collect();
+                    // Group files by staged/unstaged (index-based to avoid borrow conflict with self)
+                    let staged_indices: Vec<usize> = self.git_status.iter().enumerate()
+                        .filter(|(_, s)| s.is_staged).map(|(i, _)| i).collect();
+                    let unstaged_indices: Vec<usize> = self.git_status.iter().enumerate()
+                        .filter(|(_, s)| !s.is_staged).map(|(i, _)| i).collect();
 
                     // Staged changes
-                    if !staged.is_empty() {
-                        ui.heading(format!("Staged Changes ({})", staged.len()));
+                    if !staged_indices.is_empty() {
+                        ui.heading(format!("Staged Changes ({})", staged_indices.len()));
                         ui.add_space(4.0);
-                        for status in staged {
-                            self.render_file_status_row(ui, status);
+                        for i in staged_indices {
+                            let status = self.git_status[i].clone();
+                            self.render_file_status_row(ui, &status);
                         }
                         ui.add_space(8.0);
                     }
 
                     // Unstaged changes
-                    if !unstaged.is_empty() {
-                        ui.heading(format!("Unstaged Changes ({})", unstaged.len()));
+                    if !unstaged_indices.is_empty() {
+                        ui.heading(format!("Unstaged Changes ({})", unstaged_indices.len()));
                         ui.add_space(4.0);
-                        for status in unstaged {
-                            self.render_file_status_row(ui, status);
+                        for i in unstaged_indices {
+                            let status = self.git_status[i].clone();
+                            self.render_file_status_row(ui, &status);
                         }
                     }
                 }
             });
     }
 
-    /// Helper function to render a file status row
+    /// Helper function to render a file status row (VS Code style)
     fn render_file_status_row(&mut self, ui: &mut egui::Ui, status: &native::git::GitStatus) {
-        let (icon, color) = match status.status.as_str() {
-            "modified" => ("📝", egui::Color32::from_rgb(255, 198, 109)),
-            "added" => ("➕", egui::Color32::from_rgb(106, 180, 89)),
-            "deleted" => ("🗑️", egui::Color32::from_rgb(255, 100, 100)),
-            _ => ("❓", egui::Color32::LIGHT_GRAY),
+        let status_letter = match status.status.as_str() {
+            "modified" => "M",
+            "added" => "A",
+            "deleted" => "D",
+            "renamed" => "R",
+            _ => "?",
+        };
+        let status_color = match status.status.as_str() {
+            "modified" => egui::Color32::from_rgb(255, 198, 109),
+            "added" => egui::Color32::from_rgb(106, 180, 89),
+            "deleted" => egui::Color32::from_rgb(255, 100, 100),
+            _ => egui::Color32::LIGHT_GRAY,
         };
         let is_staged = status.is_staged;
         let path = status.path.clone();
 
-        ui.horizontal(|ui| {
-            ui.colored_label(color, icon);
+        // Get file icon (same as file tree)
+        let filename = path.rsplit('/').next().unwrap_or(&path);
+        let (file_icon, icon_color) = Self::get_file_icon_with_color(filename);
 
-            // File path - click to show diff
-            if ui.button(&path).clicked() {
-                self.load_git_diff(&path);
+        let row_height = 22.0;
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(ui.available_width(), row_height),
+            egui::Sense::click(),
+        );
+
+        if ui.is_rect_visible(rect) {
+            // Hover background
+            if response.hovered() {
+                ui.painter().rect_filled(rect, 2.0, egui::Color32::from_rgb(45, 47, 50));
             }
 
-            // Stage/Unstage button
-            if is_staged {
-                if ui.small_button("Unstage").clicked() {
-                    self.perform_git_unstage(&path);
-                }
-            } else {
-                if ui.small_button("Stage").clicked() {
-                    self.perform_git_stage(&path);
+            let painter = ui.painter();
+
+            // File icon (codicon)
+            let icon_x = rect.left() + 10.0;
+            painter.text(
+                egui::pos2(icon_x, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                file_icon,
+                egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into())),
+                icon_color,
+            );
+
+            // File name
+            let name_x = icon_x + 20.0;
+            painter.text(
+                egui::pos2(name_x, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                filename,
+                egui::FontId::proportional(13.0),
+                egui::Color32::from_rgb(200, 205, 215),
+            );
+
+            // Status letter (M/A/D) on the right
+            let status_x = rect.right() - 30.0;
+            painter.text(
+                egui::pos2(status_x, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                status_letter,
+                egui::FontId::proportional(12.0),
+                status_color,
+            );
+
+            // Stage/Unstage icon on hover (+ or -)
+            if response.hovered() {
+                let action_icon = if is_staged { "\u{eb2a}" } else { "\u{ea7a}" }; // codicon: remove / add
+                let action_x = rect.right() - 50.0;
+                let action_rect = egui::Rect::from_center_size(
+                    egui::pos2(action_x, rect.center().y),
+                    egui::vec2(18.0, 18.0),
+                );
+                painter.text(
+                    action_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    action_icon,
+                    egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into())),
+                    egui::Color32::from_rgb(200, 200, 200),
+                );
+
+                // Check click on action icon
+                if response.clicked() {
+                    if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                        if action_rect.contains(pos) {
+                            if is_staged {
+                                self.perform_git_unstage(&path);
+                            } else {
+                                self.perform_git_stage(&path);
+                            }
+                            return;
+                        }
+                    }
                 }
             }
-        });
+        }
+
+        // Click on row → show diff
+        if response.clicked() {
+            self.load_git_diff(&path);
+        }
     }
 
     /// Load git diff for a file and display in center panel
@@ -260,8 +335,7 @@ impl BerryCodeApp {
 
     /// Render commit graph with egui painter
     fn render_commit_graph(&mut self, ui: &mut egui::Ui) {
-        let nodes = self.git_history_state.graph_nodes.clone();
-        let selected_id = self.git_history_state.selected_commit_id.clone();
+        let node_count = self.git_history_state.graph_nodes.len();
 
         const NODE_RADIUS: f32 = 4.0;
         const COLUMN_WIDTH: f32 = 16.0;
@@ -279,7 +353,16 @@ impl BerryCodeApp {
             egui::Color32::from_rgb(255, 171, 64),  // Orange
         ];
 
-        for (_idx, node) in nodes.iter().enumerate() {
+        for idx in 0..node_count {
+            // Extract display data before mutable closure
+            let node = &self.git_history_state.graph_nodes[idx];
+            let graph_lines: Vec<_> = node.graph_lines.iter().map(|l| (l.from_column, l.to_column, l.color_index, l.line_type.clone())).collect();
+            let graph_column = node.graph_column;
+            let commit_id = node.commit.id.clone();
+            let commit_message = node.commit.message.clone();
+            let commit_author = node.commit.author.clone();
+            let is_selected = self.git_history_state.selected_commit_id.as_ref() == Some(&commit_id);
+
             ui.horizontal(|ui| {
                 // Graph column (left side)
                 let (graph_rect, _graph_response) = ui.allocate_exact_size(
@@ -291,21 +374,21 @@ impl BerryCodeApp {
                     let painter = ui.painter();
 
                     // Draw graph lines
-                    for line in &node.graph_lines {
+                    for (from_col, to_col, color_idx, line_type) in &graph_lines {
                         let from_pos = graph_rect.min
                             + egui::vec2(
-                                line.from_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                                *from_col as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
                                 NODE_RADIUS,
                             );
                         let to_pos = graph_rect.min
                             + egui::vec2(
-                                line.to_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                                *to_col as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
                                 ROW_HEIGHT,
                             );
 
-                        let color = colors[line.color_index % colors.len()];
+                        let color = colors[color_idx % colors.len()];
 
-                        if line.line_type == native::git::GraphLineType::Direct {
+                        if *line_type == native::git::GraphLineType::Direct {
                             // Straight line
                             painter.line_segment([from_pos, to_pos], egui::Stroke::new(2.0, color));
                         } else {
@@ -329,15 +412,14 @@ impl BerryCodeApp {
                     // Draw node circle
                     let node_pos = graph_rect.min
                         + egui::vec2(
-                            node.graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
+                            graph_column as f32 * COLUMN_WIDTH + COLUMN_WIDTH / 2.0,
                             NODE_RADIUS,
                         );
-                    let node_color = colors[node.graph_column % colors.len()];
+                    let node_color = colors[graph_column % colors.len()];
                     painter.circle_filled(node_pos, NODE_RADIUS, node_color);
                 }
 
                 // Commit info (right side)
-                let is_selected = selected_id.as_ref() == Some(&node.commit.id);
                 let _text_color = if is_selected {
                     egui::Color32::from_rgb(0xAB, 0xB2, 0xBF)
                 } else {
@@ -346,7 +428,7 @@ impl BerryCodeApp {
 
                 if ui
                     .add(
-                        egui::Button::new(&node.commit.message).fill(if is_selected {
+                        egui::Button::new(&commit_message).fill(if is_selected {
                             egui::Color32::from_rgb(60, 60, 80)
                         } else {
                             egui::Color32::TRANSPARENT
@@ -354,16 +436,16 @@ impl BerryCodeApp {
                     )
                     .clicked()
                 {
-                    self.git_history_state.selected_commit_id = Some(node.commit.id.clone());
+                    self.git_history_state.selected_commit_id = Some(commit_id.clone());
                     // Load commit details
                     if let Ok(detail) =
-                        native::git::get_commit_detail(&self.root_path, &node.commit.id)
+                        native::git::get_commit_detail(&self.root_path, &commit_id)
                     {
                         self.git_history_state.commit_details = Some(detail);
                     }
                 }
 
-                ui.colored_label(egui::Color32::GRAY, &node.commit.author);
+                ui.colored_label(egui::Color32::GRAY, &commit_author);
 
                 // Branch/tag badges
                 for branch_name in &node.branch_names {
@@ -848,8 +930,6 @@ impl BerryCodeApp {
             return;
         }
 
-        let nodes = self.git_history_state.graph_nodes.clone();
-
         const NODE_RADIUS: f32 = 4.0;
         const COLUMN_WIDTH: f32 = 16.0;
         const ROW_HEIGHT: f32 = 24.0;
@@ -867,7 +947,7 @@ impl BerryCodeApp {
         ];
 
         // Display recent 10 commits in compact form with graph
-        for node in nodes.iter().take(10) {
+        for node in self.git_history_state.graph_nodes.iter().take(10) {
             ui.horizontal(|ui| {
                 // Graph column (left side)
                 let (graph_rect, _graph_response) = ui.allocate_exact_size(

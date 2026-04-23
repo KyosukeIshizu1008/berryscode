@@ -39,11 +39,11 @@ impl BerryCodeApp {
             .show_separator_line(true)
             .frame(egui::Frame::none().fill(PANEL_BG).inner_margin(0.0))
             .show(ctx, |ui| {
-                // ── Header (VS Code Copilot style) ────────────────────
+                // ── Header ────────────────────
                 ui.horizontal(|ui| {
                     ui.add_space(12.0);
                     ui.label(
-                        egui::RichText::new("Copilot")
+                        egui::RichText::new("Berry AI")
                             .size(12.0)
                             .color(egui::Color32::from_rgb(200, 205, 220)),
                     );

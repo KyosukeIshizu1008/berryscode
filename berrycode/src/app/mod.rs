@@ -836,6 +836,16 @@ impl BerryCodeApp {
         let _ = std::fs::write(&file_path, projects.join("\n"));
     }
 
+    /// Save the current recent projects list to disk
+    fn save_recent_projects(projects: &[String]) {
+        let config_dir = dirs::home_dir()
+            .map(|h| format!("{}/.berrycode", h.display()))
+            .unwrap_or_default();
+        let _ = std::fs::create_dir_all(&config_dir);
+        let file_path = format!("{}/recent_projects.txt", config_dir);
+        let _ = std::fs::write(&file_path, projects.join("\n"));
+    }
+
     /// Open a project: set root_path, refresh file tree, start LSP, etc.
     pub(crate) fn open_project(&mut self, path: &str) {
         self.root_path = path.to_string();
@@ -972,6 +982,7 @@ impl BerryCodeApp {
                                 ui.add_space(4.0);
 
                                 let recent = self.recent_projects.clone();
+                                let mut removed: Option<String> = None;
                                 for project in &recent {
                                     let name = project.rsplit('/').next().unwrap_or(project);
                                     ui.horizontal(|ui| {
@@ -991,7 +1002,27 @@ impl BerryCodeApp {
                                                 .size(11.0)
                                                 .color(egui::Color32::from_gray(120)),
                                         );
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            if ui
+                                                .add(
+                                                    egui::Button::new(
+                                                        egui::RichText::new("\u{ea76}")
+                                                            .size(12.0)
+                                                            .color(egui::Color32::from_gray(120)),
+                                                    )
+                                                    .frame(false),
+                                                )
+                                                .on_hover_text("Remove from list")
+                                                .clicked()
+                                            {
+                                                removed = Some(project.clone());
+                                            }
+                                        });
                                     });
+                                }
+                                if let Some(path) = removed {
+                                    self.recent_projects.retain(|p| p != &path);
+                                    Self::save_recent_projects(&self.recent_projects);
                                 }
                             });
                         });
@@ -1032,55 +1063,60 @@ impl BerryCodeApp {
         // Create AI response channel
         let (ai_tx, ai_rx) = mpsc::unbounded_channel();
 
-        // Create file watcher
-        let file_watcher = match native::watcher::FileWatcher::new() {
-            Ok(mut watcher) => {
-                if let Err(e) = watcher.watch(&root_path) {
-                    tracing::warn!("⚠️  Failed to start file watching for {}: {}", root_path, e);
-                    None
-                } else {
-                    tracing::info!("👁  File watcher started for: {}", root_path);
-                    Some(watcher)
-                }
-            }
-            Err(e) => {
-                tracing::warn!("⚠️  Failed to create file watcher: {}", e);
-                None
-            }
-        };
-
-        // Spawn native LSP initialization task
-        let client_clone = lsp_native_client.clone();
-        let root_path_clone = root_path.clone();
-        let tx_clone = lsp_tx.clone();
-
-        lsp_runtime.spawn(async move {
-            match client_clone.start_server("rust", &root_path_clone).await {
-                Ok(_) => {
-                    tracing::info!("✅ Native LSP (rust-analyzer) started");
-                    let _ = tx_clone.send(LspResponse::Connected);
+        // Only start file watcher, LSP, and API health check if a project is selected
+        let file_watcher = if !root_path.is_empty() {
+            match native::watcher::FileWatcher::new() {
+                Ok(mut watcher) => {
+                    if let Err(e) = watcher.watch(&root_path) {
+                        tracing::warn!("⚠️  Failed to start file watching for {}: {}", root_path, e);
+                        None
+                    } else {
+                        tracing::info!("👁  File watcher started for: {}", root_path);
+                        Some(watcher)
+                    }
                 }
                 Err(e) => {
-                    tracing::warn!("⚠️  Native LSP startup failed: {} (will use fallback)", e);
+                    tracing::warn!("⚠️  Failed to create file watcher: {}", e);
+                    None
                 }
             }
-        });
+        } else {
+            None
+        };
 
-        // Spawn REST (berry-core-api) health check
-        {
-            let ai_tx_clone = ai_tx.clone();
+        if !root_path.is_empty() {
+            // Spawn native LSP initialization task
+            let client_clone = lsp_native_client.clone();
+            let root_path_clone = root_path.clone();
+            let tx_clone = lsp_tx.clone();
+
             lsp_runtime.spawn(async move {
-                let rest_client = crate::native::rest_client::get_client().clone();
-                if rest_client.is_healthy().await {
-                    tracing::info!("✅ berry-core-api is reachable");
-                    // Signal connected — the UI reads ai_connected for status display
-                    let _ = ai_tx_clone.send(AiChatResponse::SessionStarted("rest".to_string()));
-                } else {
-                    tracing::warn!(
-                        "⚠️  berry-core-api not reachable. AI chat will attempt on each message."
-                    );
+                match client_clone.start_server("rust", &root_path_clone).await {
+                    Ok(_) => {
+                        tracing::info!("✅ Native LSP (rust-analyzer) started");
+                        let _ = tx_clone.send(LspResponse::Connected);
+                    }
+                    Err(e) => {
+                        tracing::warn!("⚠️  Native LSP startup failed: {} (will use fallback)", e);
+                    }
                 }
             });
+
+            // Spawn REST (berry-core-api) health check
+            {
+                let ai_tx_clone = ai_tx.clone();
+                lsp_runtime.spawn(async move {
+                    let rest_client = crate::native::rest_client::get_client().clone();
+                    if rest_client.is_healthy().await {
+                        tracing::info!("✅ berry-core-api is reachable");
+                        let _ = ai_tx_clone.send(AiChatResponse::SessionStarted("rest".to_string()));
+                    } else {
+                        tracing::warn!(
+                            "⚠️  berry-core-api not reachable. AI chat will attempt on each message."
+                        );
+                    }
+                });
+            }
         }
 
         let bevy_version = scene_editor::bevy_version::detect_bevy_version(&root_path);
@@ -2257,5 +2293,23 @@ pub fn demo_capture_system(
             app.demo_capture.finalize();
             std::process::exit(0);
         }
+    }
+}
+
+impl Drop for BerryCodeApp {
+    fn drop(&mut self) {
+        tracing::info!("Shutting down BerryCode...");
+
+        // Gracefully shutdown LSP servers before dropping the runtime
+        if let Some(client) = &self.lsp_native_client {
+            let client = client.clone();
+            let _ = self.lsp_runtime.block_on(async move {
+                if let Err(e) = client.shutdown_all().await {
+                    tracing::warn!("LSP shutdown error: {}", e);
+                }
+            });
+        }
+
+        tracing::info!("BerryCode shutdown complete");
     }
 }

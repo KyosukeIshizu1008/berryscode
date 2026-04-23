@@ -203,10 +203,11 @@ impl BerryCodeApp {
                 }
 
                 // Snapshot data that we need from self before taking &mut tab
-                let inlay_hints_snapshot: Vec<LspInlayHint> = if self.inlay_hints_enabled {
-                    self.lsp_inlay_hints.clone()
+                let empty_hints: Vec<LspInlayHint> = Vec::new();
+                let inlay_hints_snapshot: &[LspInlayHint] = if self.inlay_hints_enabled {
+                    &self.lsp_inlay_hints
                 } else {
-                    Vec::new()
+                    &empty_hints
                 };
                 let code_action_line = self.code_action_line;
                 let has_code_actions = !self.lsp_code_actions.is_empty();
@@ -219,16 +220,16 @@ impl BerryCodeApp {
                 let original_text = std::mem::take(&mut tab.text_cache);
 
                 // Apply code folding if any regions are folded
-                let (mut text, _fold_mapping) = if tab.folded_regions.is_empty() {
-                    (original_text.clone(), Vec::new())
-                } else {
+                let is_folded = !tab.folded_regions.is_empty();
+                let (mut text, _fold_mapping, original_for_cache) = if is_folded {
                     let (folded, mapping) =
                         super::folding::apply_folding(&original_text, &tab.folded_regions);
-                    (folded, mapping)
+                    // Keep original to restore cache after rendering
+                    (folded, mapping, Some(original_text))
+                } else {
+                    // No folding: text will be stored back directly, no clone needed
+                    (original_text, Vec::new(), None)
                 };
-                let is_folded = !tab.folded_regions.is_empty();
-                // Keep original for restoring cache
-                let original_for_cache = original_text;
 
                 // Detect language from file extension (syntect uses extension, not language name)
                 let extension = if tab.file_path.ends_with(".rs") {
@@ -489,18 +490,18 @@ impl BerryCodeApp {
                         let _ = std::mem::replace(&mut tab.text_cache, text.clone());
                         tab.is_dirty = true;
 
-                        // Notify LSP about changes
+                        // Notify LSP about changes (reuse cached text to avoid extra clone)
                         if let Some(lang) =
                             crate::native::lsp_native::detect_server_language(&tab.file_path)
                         {
                             if let Some(client) = &self.lsp_native_client {
                                 let client = client.clone();
                                 let path = tab.file_path.clone();
-                                let text_clone = text.clone();
+                                let text_for_lsp = tab.text_cache.clone();
                                 let language = lang.to_string();
                                 self.lsp_runtime.spawn(async move {
                                     let _ =
-                                        client.notify_change(&language, &path, &text_clone).await;
+                                        client.notify_change(&language, &path, &text_for_lsp).await;
                                 });
                             }
                         }
@@ -513,8 +514,9 @@ impl BerryCodeApp {
                             if let Some(cr) = output.cursor_range {
                                 let cursor_pos = cr.primary.ccursor.index;
                                 if cursor_pos > 0 {
-                                    let chars: Vec<char> = text.chars().collect();
-                                    let last_char = chars.get(cursor_pos - 1).copied();
+                                    let last_char = text.char_indices()
+                                        .nth(cursor_pos - 1)
+                                        .map(|(_, c)| c);
                                     let should_trigger = last_char.map_or(false, |c| {
                                         c.is_alphanumeric()
                                             || c == '_'
@@ -1280,7 +1282,7 @@ impl BerryCodeApp {
 
                                 let is_folded =
                                     tab.folded_regions.iter().any(|(s, _)| *s == line_idx);
-                                let icon = if is_folded { "\u{25B6}" } else { "\u{25BC}" };
+                                let icon = if is_folded { "\u{eab6}" } else { "\u{eab4}" };
                                 let fold_rect = egui::Rect::from_center_size(
                                     egui::pos2(fold_center_x, y + lh / 2.0),
                                     egui::vec2(14.0, lh),
@@ -1307,7 +1309,7 @@ impl BerryCodeApp {
                                     fold_rect.center(),
                                     egui::Align2::CENTER_CENTER,
                                     icon,
-                                    egui::FontId::proportional(9.0),
+                                    egui::FontId::new(10.0, egui::FontFamily::Name("codicon".into())),
                                     fold_color,
                                 );
                             }
@@ -1347,10 +1349,10 @@ impl BerryCodeApp {
 
                     // Store text back into cache (avoids re-conversion next frame)
                     // Restore original (unfolded) text to cache, not the folded version
-                    tab.text_cache = if tab.folded_regions.is_empty() {
-                        text
+                    tab.text_cache = if let Some(original) = original_for_cache {
+                        original
                     } else {
-                        original_for_cache
+                        text
                     };
 
                     // Return gutter layout info for click handling outside ScrollArea

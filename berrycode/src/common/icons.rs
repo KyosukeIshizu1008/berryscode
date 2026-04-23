@@ -33,7 +33,7 @@ pub const ICON_CONSOLE: &str = "console";
 
 /// Bot & AI icons
 pub const ICON_HUBOT: &str = "hubot";
-pub const ICON_COPILOT: &str = "copilot";
+pub const ICON_BERRY_AI: &str = "berry-ai";
 
 /// Settings icons
 pub const ICON_SETTINGS_GEAR: &str = "settings-gear";
