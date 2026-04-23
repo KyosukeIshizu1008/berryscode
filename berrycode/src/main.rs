@@ -22,6 +22,7 @@ fn main() {
                 resolution: (1400.0, 900.0).into(),
                 ..default()
             }),
+            exit_condition: bevy::window::ExitCondition::DontExit,
             ..default()
         }))
         .add_plugins(BerryCodePlugin)

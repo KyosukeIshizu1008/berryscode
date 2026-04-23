@@ -182,6 +182,13 @@ const MAIN_PANELS: &[SidebarPanel] = &[
     },
 ];
 
+/// Action chosen in the close confirmation dialog
+#[derive(Clone, Copy)]
+pub(crate) enum CloseAction {
+    SaveAll,
+    Discard,
+}
+
 /// Main application state
 #[allow(dead_code)]
 pub struct BerryCodeApp {
@@ -190,6 +197,10 @@ pub struct BerryCodeApp {
     pub(crate) selected_file: Option<(String, String)>, // (path, content)
     /// Whether the project picker should be shown (no project loaded yet)
     pub(crate) show_project_picker: bool,
+    /// Whether the "unsaved changes" close confirmation dialog is shown
+    pub(crate) show_close_confirm: bool,
+    /// Action chosen in the close confirmation dialog
+    pub(crate) close_action: Option<CloseAction>,
     /// Path being typed in the project picker dialog
     pub(crate) project_picker_path: String,
     /// Recently opened projects for quick access
@@ -1030,7 +1041,7 @@ impl BerryCodeApp {
 
                     ui.add_space(40.0);
                     ui.label(
-                        egui::RichText::new("v0.2.0 | Bevy 0.15 | 285 tests | 31MB binary")
+                        egui::RichText::new(format!("v{} | Bevy 0.15", env!("CARGO_PKG_VERSION")))
                             .size(11.0)
                             .color(egui::Color32::from_gray(100)),
                     );
@@ -1142,6 +1153,8 @@ impl BerryCodeApp {
             root_path,
             selected_file: None,
             show_project_picker: show_picker,
+            show_close_confirm: false,
+            close_action: None,
             project_picker_path: picker_path,
             recent_projects: recent,
             active_panel: ActivePanel::Explorer,
@@ -1737,12 +1750,47 @@ pub fn berry_ui_system(
     mut app: bevy::ecs::system::NonSendMut<BerryCodeApp>,
     mut egui_ctx: bevy_egui::EguiContexts,
     mut drop_events: bevy::ecs::event::EventReader<bevy::window::FileDragAndDrop>,
+    mut close_events: bevy::ecs::event::EventReader<bevy::window::WindowCloseRequested>,
+    mut app_exit: bevy::ecs::event::EventWriter<bevy::app::AppExit>,
     mut preview_scene: bevy::ecs::system::ResMut<preview_3d::ModelPreviewScene>,
     mut scene_render: bevy::ecs::system::ResMut<scene_editor::bevy_render::SceneEditorRender>,
     mut mat_preview: bevy::ecs::system::ResMut<
         scene_editor::material_preview::MaterialPreviewRender,
     >,
 ) {
+    // Handle window close — check for unsaved files
+    for _event in close_events.read() {
+        let has_unsaved = app.editor_tabs.iter().any(|tab| tab.is_dirty);
+        if has_unsaved {
+            app.show_close_confirm = true;
+        } else {
+            app_exit.send(bevy::app::AppExit::Success);
+        }
+    }
+
+    // Handle close confirmation dialog result
+    if let Some(action) = app.close_action.take() {
+        match action {
+            CloseAction::SaveAll => {
+                // Save all dirty files
+                for i in 0..app.editor_tabs.len() {
+                    if app.editor_tabs[i].is_dirty {
+                        let content = app.editor_tabs[i].buffer.to_string();
+                        let file_path = app.editor_tabs[i].file_path.clone();
+                        if let Ok(_) = crate::native::fs::write_file(&file_path, &content) {
+                            app.editor_tabs[i].is_dirty = false;
+                        }
+                    }
+                }
+                app.show_close_confirm = false;
+                app_exit.send(bevy::app::AppExit::Success);
+            }
+            CloseAction::Discard => {
+                app.show_close_confirm = false;
+                app_exit.send(bevy::app::AppExit::Success);
+            }
+        }
+    }
     // Handle drag-and-drop files from OS (via Bevy's FileDragAndDrop event)
     for event in drop_events.read() {
         if let bevy::window::FileDragAndDrop::DroppedFile { path_buf, .. } = event {
@@ -1996,6 +2044,11 @@ pub fn berry_ui_system(
         // Render theme editor
         if app.show_theme_editor {
             app.render_theme_editor(ctx);
+        }
+
+        // Render close confirmation dialog
+        if app.show_close_confirm {
+            app.render_close_confirm_dialog(ctx);
         }
 
         // Render LSP hover tooltip
@@ -2296,20 +2349,65 @@ pub fn demo_capture_system(
     }
 }
 
+impl BerryCodeApp {
+    /// Render the "unsaved changes" confirmation dialog
+    fn render_close_confirm_dialog(&mut self, ctx: &egui::Context) {
+        let unsaved: Vec<String> = self
+            .editor_tabs
+            .iter()
+            .filter(|tab| tab.is_dirty)
+            .map(|tab| {
+                tab.file_path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&tab.file_path)
+                    .to_string()
+            })
+            .collect();
+
+        egui::Window::new("Unsaved Changes")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .fixed_size([340.0, 0.0])
+            .show(ctx, |ui| {
+                ui.add_space(4.0);
+                ui.label("The following files have unsaved changes:");
+                ui.add_space(4.0);
+                for name in &unsaved {
+                    ui.horizontal(|ui| {
+                        ui.label("  •");
+                        ui.label(
+                            egui::RichText::new(name)
+                                .color(egui::Color32::from_rgb(255, 198, 109)),
+                        );
+                    });
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(
+                            egui::Button::new("Save All & Close")
+                                .fill(egui::Color32::from_rgb(0, 122, 204)),
+                        )
+                        .clicked()
+                    {
+                        self.close_action = Some(CloseAction::SaveAll);
+                    }
+                    if ui.button("Discard & Close").clicked() {
+                        self.close_action = Some(CloseAction::Discard);
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.show_close_confirm = false;
+                    }
+                });
+            });
+    }
+}
+
+
 impl Drop for BerryCodeApp {
     fn drop(&mut self) {
-        tracing::info!("Shutting down BerryCode...");
-
-        // Gracefully shutdown LSP servers before dropping the runtime
-        if let Some(client) = &self.lsp_native_client {
-            let client = client.clone();
-            let _ = self.lsp_runtime.block_on(async move {
-                if let Err(e) = client.shutdown_all().await {
-                    tracing::warn!("LSP shutdown error: {}", e);
-                }
-            });
-        }
-
         tracing::info!("BerryCode shutdown complete");
     }
 }
