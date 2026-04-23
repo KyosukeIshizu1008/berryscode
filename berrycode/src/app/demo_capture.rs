@@ -320,7 +320,7 @@ impl DemoCapture {
 
         let step = &steps[self.step_index];
 
-        // Phase 1: Set up UI state for this step
+        // Set up UI state for this step
         if !self.step_setup_done {
             self.step_setup_done = true;
             self.settle_frames = 0;
@@ -330,13 +330,13 @@ impl DemoCapture {
             };
         }
 
-        // Phase 2: Wait for UI to settle
+        // Wait for UI to settle
         self.settle_frames += 1;
         if self.settle_frames < SETTLE_FRAMES {
             return DemoAction::CaptureVideo;
         }
 
-        // Phase 3: Capture screenshot + video frame
+        // Capture screenshot + video frame
         let filename = step.filename.to_string();
         self.step_index += 1;
         self.step_setup_done = false;

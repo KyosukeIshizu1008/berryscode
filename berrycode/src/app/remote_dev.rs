@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Remote development: SSH-based remote editing
 //!
 //! Architecture (VS Code Remote style):

@@ -2,7 +2,7 @@
 //!
 //! Applies gravity, ground-plane collision, AABB entity-entity collision,
 //! friction damping, and terminal velocity clamping to entities with RigidBody
-//! components during play mode. Phase 11: Enhanced Physics Simulation.
+//! components during play mode. Enhanced Physics Simulation.
 
 use super::model::*;
 use std::collections::HashMap;

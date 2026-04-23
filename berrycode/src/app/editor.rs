@@ -7,7 +7,7 @@ use super::BerryCodeApp;
 use crate::syntax::{SyntaxHighlighter, TokenType};
 
 impl BerryCodeApp {
-    /// Render Editor area (Phase 3: full implementation with TextEdit)
+    /// Render Editor area (full implementation with TextEdit)
     pub(crate) fn render_editor_area(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
             .frame(
@@ -485,7 +485,8 @@ impl BerryCodeApp {
                     if text_changed {
                         tab.buffer = crate::buffer::TextBuffer::from_str(&text);
                         tab.text_cache_version = tab.buffer.version();
-                        tab.text_cache = text.clone();
+                        // Keep cache in sync (read by get_text())
+                        let _ = std::mem::replace(&mut tab.text_cache, text.clone());
                         tab.is_dirty = true;
 
                         // Notify LSP about changes
@@ -577,7 +578,7 @@ impl BerryCodeApp {
                     let line_num_right_x = gutter_left + 42.0; // line number right-align
                     let fold_center_x = gutter_left + 54.0; // fold icon center
 
-                    let mut bp_toggle_line: Option<usize> = None;
+                    let bp_toggle_line: Option<usize> = None;
                     {
                         let total_lines = text.lines().count();
                         let clip = ui.clip_rect();
@@ -758,7 +759,7 @@ impl BerryCodeApp {
                                     .collect();
                                 if !hints.is_empty() {
                                     // Find the end of the line text
-                                    let line_start =
+                                    let _line_start =
                                         line_char_offsets.get(line_idx).copied().unwrap_or(0);
                                     let line_end = line_char_offsets
                                         .get(line_idx + 1)

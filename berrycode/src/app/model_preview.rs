@@ -425,7 +425,7 @@ impl BerryCodeApp {
         let mut vertex_props: Vec<(String, String)> = Vec::new(); // (name, type)
         let mut in_vertex_element = false;
         #[allow(unused_assignments)]
-        let mut in_face_element = false;
+        let mut _in_face_element = false;
 
         for line in header_text.lines() {
             let trimmed = line.trim();
@@ -436,7 +436,7 @@ impl BerryCodeApp {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(0);
                 in_vertex_element = true;
-                in_face_element = false;
+                _in_face_element = false;
             } else if trimmed.starts_with("element face ") {
                 face_count = trimmed
                     .split_whitespace()
@@ -444,10 +444,10 @@ impl BerryCodeApp {
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(0);
                 in_vertex_element = false;
-                in_face_element = true;
+                _in_face_element = true;
             } else if trimmed.starts_with("element ") {
                 in_vertex_element = false;
-                in_face_element = false;
+                _in_face_element = false;
             } else if trimmed.starts_with("property ")
                 && in_vertex_element
                 && !trimmed.contains("list")

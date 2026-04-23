@@ -13,6 +13,7 @@ pub struct WatchExpression {
 }
 
 /// Debug session state
+#[allow(dead_code)]
 pub struct DebugState {
     pub active: bool,
     pub paused: bool,
@@ -616,14 +617,14 @@ impl BerryCodeApp {
 
         // Build the project first
         let root = self.root_path.clone();
-        let breakpoints = self.debug_state.breakpoints.clone();
+        let _breakpoints = self.debug_state.breakpoints.clone();
 
         self.debug_state
             .debug_output
             .push(("console".to_string(), format!("Building project: {}", root)));
 
         // Launch DAP adapter asynchronously
-        let runtime = self.lsp_runtime.clone();
+        let _runtime = self.lsp_runtime.clone();
         // We need to move dap_client out, use it, then put it back
         // For simplicity, we'll note that the actual DAP launch would happen here
         self.debug_state.debug_output.push((

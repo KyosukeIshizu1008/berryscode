@@ -6,7 +6,7 @@ use crate::buffer::TextBuffer;
 use crate::native;
 
 impl BerryCodeApp {
-    /// Render Search panel (Phase 5.2: project-wide search)
+    /// Render Search panel (project-wide search)
     pub(crate) fn render_search_panel(&mut self, ui: &mut egui::Ui) {
         ui.heading("🔍 Search in Files");
         ui.separator();

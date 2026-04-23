@@ -3,6 +3,7 @@
 
 /// Render a minimap (code overview) on the right side of the editor.
 /// Standalone function to avoid borrow conflicts with BerryCodeApp.
+#[allow(dead_code)]
 pub(crate) fn render_minimap_standalone(ui: &mut egui::Ui, text: &str, editor_rect: egui::Rect) {
     let minimap_width = 60.0_f32;
     let minimap_rect = egui::Rect::from_min_size(

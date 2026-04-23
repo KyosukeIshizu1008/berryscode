@@ -228,7 +228,7 @@ impl BerryCodeApp {
                 self.quad_view_enabled = !self.quad_view_enabled;
             }
 
-            // Play mode controls (Phase 15).
+            // Play mode controls.
             ui.separator();
             match self.play_mode {
                 super::play_mode::PlayModeState::Stopped => {
@@ -286,7 +286,7 @@ impl BerryCodeApp {
                     }
                 }
             });
-            // Terrain Brush controls (Phase 66).
+            // Terrain Brush controls.
             ui.separator();
             ui.checkbox(&mut self.terrain_brush.active, "Brush");
             if self.terrain_brush.active {
@@ -409,7 +409,7 @@ impl BerryCodeApp {
         // Quad View: when enabled, split the viewport into 2x2 quadrants.
         // Each quadrant stores an independent camera state. Clicking a
         // quadrant saves the current camera params back to the active slot
-        // and loads the clicked quadrant's state (Phase 10).
+        // and loads the clicked quadrant's state.
         if self.quad_view_enabled {
             let half_w = rect.width() * 0.5;
             let half_h = rect.height() * 0.5;
@@ -628,7 +628,7 @@ impl BerryCodeApp {
             }
         }
 
-        // Skeleton bone overlay (Phase 69): for entities with SkinnedMesh,
+        // Skeleton bone overlay: for entities with SkinnedMesh,
         // draw bone hierarchy as lines between joints + circles at joints.
         for (_id, entity) in &self.scene_model.entities {
             if !entity.enabled {
@@ -690,7 +690,7 @@ impl BerryCodeApp {
             }
         }
 
-        // NavMesh grid overlay (Phase 70): draw green/red cells on Y=0 plane.
+        // NavMesh grid overlay: draw green/red cells on Y=0 plane.
         for (_id, entity) in &self.scene_model.entities {
             if !entity.enabled {
                 continue;
@@ -760,7 +760,7 @@ impl BerryCodeApp {
             }
         }
 
-        // Particle preview (Phase M): tick the editor-side simulation and
+        // Particle preview: tick the editor-side simulation and
         // splat live particles as 2D dots on top of the scene view. Drawn
         // before the gizmo so the gizmo handles stay on top.
         self.particle_preview.tick(&self.scene_model);
@@ -806,7 +806,7 @@ impl BerryCodeApp {
         // input is happening.
         ui.ctx().request_repaint();
 
-        // Phase 16: tick simplified physics during play mode.
+        // tick simplified physics during play mode.
         if self.play_mode == super::play_mode::PlayModeState::Playing {
             self.physics_state.tick(&mut self.scene_model, true);
             self.scene_needs_sync = true;
@@ -1078,7 +1078,7 @@ impl BerryCodeApp {
 
         // Asset drop target (disabled during play mode): if the user released the primary button over this
         // scene view rect while dragging an asset from the file tree, spawn a
-        // new entity at the ray-vs-ground intersection point (Phase H).
+        // new entity at the ray-vs-ground intersection point.
         let pointer_released = ui.input(|i| i.pointer.primary_released());
         if editing_enabled && pointer_released && self.dragged_asset_path.is_some() {
             // Only handle drops that landed inside the scene view rect.
@@ -1109,7 +1109,7 @@ impl BerryCodeApp {
                         };
 
                         if asset_path.to_lowercase().ends_with(".bprefab") {
-                            // Instantiate prefab (Phase I).
+                            // Instantiate prefab.
                             match crate::app::scene_editor::prefab::load_prefab(&asset_path) {
                                 Ok(prefab) => {
                                     self.scene_snapshot();
@@ -1490,7 +1490,7 @@ impl BerryCodeApp {
         }
     }
 
-    // ----- Quad View camera state helpers (Phase 10) -----
+    // ----- Quad View camera state helpers -----
 
     /// Save the current main camera parameters into the given quadrant slot.
     pub(crate) fn save_camera_to_quad(&mut self, idx: usize) {

@@ -85,6 +85,7 @@ impl BerryCodeApp {
     /// Call this from within the editor rendering loop, after drawing each line's text.
     ///
     /// Returns a list of (line, x_offset, label) to draw after the main text.
+    #[allow(dead_code)]
     pub(crate) fn get_inlay_hints_for_line(
         &self,
         line_idx: usize,

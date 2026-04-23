@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Bevy render-to-texture system for the scene editor.
 //!
 //! Creates a dedicated off-screen camera on `RenderLayers::layer(2)` whose output

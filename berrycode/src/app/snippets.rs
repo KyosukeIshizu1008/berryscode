@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Snippet expansion engine: parse LSP snippet syntax and manage tab stop navigation
 //!
 //! Supports: $1, $0, ${1:placeholder}, ${2|choice1,choice2|}, $TM_FILENAME etc.

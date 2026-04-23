@@ -1,6 +1,7 @@
+#![allow(dead_code)]
 //! Undo/Redo via SceneModel snapshots with a command-pattern overlay.
 //!
-//! ## Hybrid Architecture (Phase 62)
+//! ## Hybrid Architecture
 //!
 //! The original snapshot-based `EditHistory` is retained as the backend: each
 //! undo/redo still restores a full `SceneModel` clone. On top of that we add

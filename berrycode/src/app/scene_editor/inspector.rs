@@ -183,7 +183,7 @@ impl BerryCodeApp {
         };
 
         // Capture GPU material preview texture id before entering the mutable
-        // entity borrow (Phase 8).
+        // entity borrow.
         let mat_preview_tex = self.material_preview_texture_id;
 
         {
@@ -1880,7 +1880,7 @@ impl BerryCodeApp {
             }
         }
 
-        // Deferred NavMesh bake (Phase 70): runs after the mutable entity borrow is released.
+        // Deferred NavMesh bake: runs after the mutable entity borrow is released.
         if let Some(bake_cell_size) = bake_navmesh_requested {
             let nav = super::navmesh::bake_nav_grid(&self.scene_model, bake_cell_size);
             if let Some(entity) = self.scene_model.entities.get_mut(&selected_id) {
@@ -1924,7 +1924,7 @@ impl BerryCodeApp {
             self.scene_needs_sync = true;
         }
 
-        // Push current PBR values to the material preview GPU sphere (Phase 8).
+        // Push current PBR values to the material preview GPU sphere.
         // We read the selected entity's first mesh component immutably now that
         // the mutable entity borrow has been released.
         if let Some(entity) = self.scene_model.entities.get(&selected_id) {
@@ -2059,7 +2059,7 @@ impl BerryCodeApp {
             self.animator_editor_open = true;
         }
 
-        // Phase 17: debug overlay for live values during play mode.
+        // debug overlay for live values during play mode.
         if self.play_mode.is_active() {
             self.render_debug_overlay(ui);
         }

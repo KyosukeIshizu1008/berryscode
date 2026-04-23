@@ -1,6 +1,6 @@
 //! Material preview for the Inspector panel.
 //!
-//! Phase 8 adds a Bevy render-to-texture pipeline that renders a real PBR
+//! Bevy render-to-texture pipeline that renders a real PBR
 //! sphere on `RenderLayers::layer(3)`. The original CPU approximation is
 //! kept as a fallback (used when the GPU preview texture is not yet ready).
 

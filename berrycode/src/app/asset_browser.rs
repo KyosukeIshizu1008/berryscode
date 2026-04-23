@@ -167,7 +167,7 @@ impl BerryCodeApp {
                 ));
                 ui.label(format!("Size: {}", format_size(asset.size_bytes)));
 
-                // Import settings (Phase 10)
+                // Import settings
                 let asset_path_str = asset.path.to_string_lossy().to_string();
                 let mut settings = AssetImportSettings::load(&asset_path_str);
                 let mut changed = false;

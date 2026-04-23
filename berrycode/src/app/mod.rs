@@ -85,6 +85,7 @@ pub(crate) mod syntax_colors {
 
 // ===== UI Color Palette =====
 
+#[allow(dead_code)]
 pub(crate) mod ui_colors {
     use egui::Color32;
 
@@ -97,6 +98,7 @@ pub(crate) mod ui_colors {
 // ===== Component Color Palette =====
 // Shared colors for UI components (tabs, buttons, inputs, etc.)
 
+#[allow(dead_code)]
 pub(crate) mod component_colors {
     use egui::Color32;
     // VS Code accent blue
@@ -181,6 +183,7 @@ const MAIN_PANELS: &[SidebarPanel] = &[
 ];
 
 /// Main application state
+#[allow(dead_code)]
 pub struct BerryCodeApp {
     // === Project State ===
     pub(crate) root_path: String,
@@ -278,17 +281,17 @@ pub struct BerryCodeApp {
     pub(crate) rename_new_name: String,
 
     // AI integration (REST via berry-core-api)
-    pub(crate) grpc_connected: bool,
-    pub(crate) grpc_response_tx: Option<mpsc::UnboundedSender<GrpcResponse>>,
-    pub(crate) grpc_response_rx: Option<mpsc::UnboundedReceiver<GrpcResponse>>,
-    pub(crate) grpc_streaming_message: Option<String>,
+    pub(crate) ai_connected: bool,
+    pub(crate) ai_response_tx: Option<mpsc::UnboundedSender<AiChatResponse>>,
+    pub(crate) ai_response_rx: Option<mpsc::UnboundedReceiver<AiChatResponse>>,
+    pub(crate) ai_streaming_message: Option<String>,
 
     // AI Chat Panel State
     pub(crate) ai_chat_mode: AIChatMode,
-    pub(crate) grpc_messages: Vec<GrpcMessage>,
-    pub(crate) grpc_input: String,
-    pub(crate) grpc_streaming: bool,
-    pub(crate) grpc_current_response: String,
+    pub(crate) ai_messages: Vec<AiChatMessage>,
+    pub(crate) ai_input: String,
+    pub(crate) ai_streaming: bool,
+    pub(crate) ai_current_response: String,
     pub(crate) chat_attachment: Option<String>,
 
     // === Settings ===
@@ -398,7 +401,7 @@ pub struct BerryCodeApp {
     pub(crate) run_release_mode: bool,
     pub(crate) run_output_rx: Option<std::sync::mpsc::Receiver<String>>,
 
-    // === Phase Q: Console filter state ===
+    // === Console filter state ===
     pub(crate) console_filter_text: String,
     pub(crate) console_show_info: bool,
     pub(crate) console_show_warning: bool,
@@ -460,27 +463,27 @@ pub struct BerryCodeApp {
     pub(crate) renaming_entity_id: Option<u64>,
     pub(crate) rename_buffer: String,
 
-    // === Scene Editor: Undo/Redo history (Phase 62: command-pattern overlay) ===
+    // === Scene Editor: Undo/Redo history (command-pattern overlay) ===
     pub(crate) command_history: scene_editor::history::CommandHistory,
 
     // === Scene Editor: Snapping ===
     pub(crate) snap_enabled: bool,
     pub(crate) snap_value: f32,
 
-    // === Scene Editor: Asset drag & drop (Phase H) ===
+    // === Scene Editor: Asset drag & drop ===
     /// Path of the asset currently being dragged from the file tree.
     /// Set when the user starts dragging a droppable file; cleared on drop or release.
     pub(crate) dragged_asset_path: Option<String>,
 
-    // === Scene Editor: Profiler panel (Phase P) ===
+    // === Scene Editor: Profiler panel ===
     pub(crate) profiler: scene_editor::profiler::ProfilerState,
 
-    // === Scene Editor: Particle preview (Phase M) ===
+    // === Scene Editor: Particle preview ===
     /// Editor-only live particle simulation state, advanced each frame and
     /// drawn as 2D dots over the Scene View.
     pub(crate) particle_preview: scene_editor::particle_preview::ParticlePreview,
 
-    // === Scene Editor: Animation playback (Phase K) ===
+    // === Scene Editor: Animation playback ===
     /// Editor-only per-entity animation playback state. Drives the Timeline
     /// window and applies sampled transforms during scene sync.
     pub(crate) animation_playback: scene_editor::animation::AnimationPlayback,
@@ -496,15 +499,15 @@ pub struct BerryCodeApp {
     pub(crate) editing_animator: Option<scene_editor::animator::AnimatorController>,
     /// File path of the animator controller being edited.
     pub(crate) editing_animator_path: String,
-    /// Index of the animator state node currently being dragged (Phase 3).
+    /// Index of the animator state node currently being dragged.
     pub(crate) animator_dragging_state: Option<usize>,
-    /// Source state index for a pending "Add Transition From Here" action (Phase 3).
+    /// Source state index for a pending "Add Transition From Here" action.
     pub(crate) pending_transition_from: Option<usize>,
-    /// Clipboard for entity copy/paste in the scene hierarchy (Phase 4).
+    /// Clipboard for entity copy/paste in the scene hierarchy.
     pub(crate) entity_clipboard: Option<scene_editor::prefab::PrefabFile>,
     /// Whether the quad-view mode is active in the Scene View.
     pub(crate) quad_view_enabled: bool,
-    /// Per-quadrant independent camera states (Phase 10).
+    /// Per-quadrant independent camera states.
     pub(crate) quad_camera_states: [scene_editor::scene_view::QuadCameraState; 4],
     /// Index of the currently active quadrant (0..3). The main camera
     /// parameters mirror this quadrant's state.
@@ -514,7 +517,7 @@ pub struct BerryCodeApp {
     /// Path of the audio file currently being previewed.
     pub(crate) audio_preview_path: String,
 
-    // === Scene Editor: Material Preview GPU texture (Phase 8) ===
+    // === Scene Editor: Material Preview GPU texture ===
     /// egui texture id for the GPU-rendered material preview sphere.
     /// Updated each frame from `MaterialPreviewRender` in `berry_ui_system`.
     pub(crate) material_preview_texture_id: Option<egui::TextureId>,
@@ -527,14 +530,14 @@ pub struct BerryCodeApp {
     /// Dirty flag: set true by the inspector when PBR values change.
     pub(crate) material_preview_dirty: bool,
 
-    // === Scene Editor: Play Mode (Phase 15) ===
+    // === Scene Editor: Play Mode ===
     pub(crate) play_mode: scene_editor::play_mode::PlayModeState,
     pub(crate) play_mode_snapshot: Option<scene_editor::model::SceneModel>,
 
-    // === Scene Editor: Physics Simulation (Phase 16) ===
+    // === Scene Editor: Physics Simulation ===
     pub(crate) physics_state: scene_editor::physics_sim::PhysicsState,
 
-    // === Scene Editor: Build Settings (Phase 18) ===
+    // === Scene Editor: Build Settings ===
     pub(crate) build_settings_open: bool,
     pub(crate) build_settings: scene_editor::build_settings::BuildSettings,
     pub(crate) player_settings: scene_editor::build_settings::PlayerSettings,
@@ -542,35 +545,35 @@ pub struct BerryCodeApp {
     // === Customizable Keyboard Shortcuts ===
     pub(crate) keymap: keymap::Keymap,
 
-    // === Dockable Tool Panel (Phase 3) ===
+    // === Dockable Tool Panel ===
     pub(crate) tool_panel_open: bool,
     pub(crate) active_tool_tab: dock::ToolTab,
 
-    // === Asset Thumbnails (Phase 11) ===
+    // === Asset Thumbnails ===
     pub(crate) thumbnail_cache: scene_editor::thumbnail_cache::ThumbnailCache,
 
-    // === Multiple Scene Tabs (Phase 8) ===
+    // === Multiple Scene Tabs ===
     pub(crate) scene_tabs: Vec<scene_editor::scene_tabs::SceneTab>,
     pub(crate) active_scene_tab: usize,
 
-    // === Asset Dependency Tracking (Phase 12) ===
+    // === Asset Dependency Tracking ===
     pub(crate) asset_dependencies: Option<scene_editor::asset_deps::AssetDependencies>,
 
-    // === Terrain Brush (Phase 66) ===
+    // === Terrain Brush ===
     pub(crate) terrain_brush: scene_editor::terrain::TerrainBrushState,
 
-    // === Visual Script Editor (Phase 72) ===
+    // === Visual Script Editor ===
     pub(crate) visual_script_editor_open: bool,
     pub(crate) editing_visual_script: Option<scene_editor::visual_script::VisualScript>,
 
-    // === Shader Graph Editor (Phase 74) ===
+    // === Shader Graph Editor ===
     pub(crate) shader_graph_editor_open: bool,
     pub(crate) editing_shader_graph: Option<scene_editor::shader_graph::ShaderGraph>,
 
-    // === Hot Reload (Phase 75) ===
+    // === Hot Reload ===
     pub(crate) hot_reload: scene_editor::hot_reload::HotReloadState,
 
-    // === Build Pipeline (Phase 76) ===
+    // === Build Pipeline ===
     pub(crate) build_output: Vec<String>,
     pub(crate) build_process: Option<std::process::Child>,
     pub(crate) build_output_rx: Option<std::sync::mpsc::Receiver<String>>,
@@ -588,7 +591,7 @@ pub struct BerryCodeApp {
     // === Scanned User Components (bidirectional sync) ===
     pub(crate) scanned_user_components: Vec<scene_editor::script_scan::ScannedComponent>,
 
-    // === Scene Merge (Phase 64) ===
+    // === Scene Merge ===
     pub(crate) merge_panel_open: bool,
     pub(crate) merge_base_path: String,
     pub(crate) merge_ours_path: String,
@@ -643,7 +646,7 @@ impl BerryCodeApp {
         let border = egui::Color32::from_rgb(60, 63, 68); // borders
         let border_focus = egui::Color32::from_rgb(75, 110, 175); // focused border (accent)
         let text = egui::Color32::from_rgb(205, 207, 213); // primary text
-        let text_dim = egui::Color32::from_rgb(140, 143, 150); // secondary text
+        let _text_dim = egui::Color32::from_rgb(140, 143, 150); // secondary text
 
         visuals.override_text_color = None;
         visuals.window_fill = bg_panel;
@@ -1026,8 +1029,8 @@ impl BerryCodeApp {
         // Create LSP response channel
         let (lsp_tx, lsp_rx) = mpsc::unbounded_channel();
 
-        // Create gRPC response channel
-        let (grpc_tx, grpc_rx) = mpsc::unbounded_channel();
+        // Create AI response channel
+        let (ai_tx, ai_rx) = mpsc::unbounded_channel();
 
         // Create file watcher
         let file_watcher = match native::watcher::FileWatcher::new() {
@@ -1065,13 +1068,13 @@ impl BerryCodeApp {
 
         // Spawn REST (berry-core-api) health check
         {
-            let grpc_tx_clone = grpc_tx.clone();
+            let ai_tx_clone = ai_tx.clone();
             lsp_runtime.spawn(async move {
                 let rest_client = crate::native::rest_client::get_client().clone();
                 if rest_client.is_healthy().await {
                     tracing::info!("✅ berry-core-api is reachable");
-                    // Signal connected — the UI reads grpc_connected for status display
-                    let _ = grpc_tx_clone.send(GrpcResponse::SessionStarted("rest".to_string()));
+                    // Signal connected — the UI reads ai_connected for status display
+                    let _ = ai_tx_clone.send(AiChatResponse::SessionStarted("rest".to_string()));
                 } else {
                     tracing::warn!(
                         "⚠️  berry-core-api not reachable. AI chat will attempt on each message."
@@ -1187,15 +1190,15 @@ impl BerryCodeApp {
             rename_dialog_open: false,
             rename_new_name: String::new(),
 
-            grpc_connected: false,
-            grpc_response_tx: Some(grpc_tx),
-            grpc_response_rx: Some(grpc_rx),
-            grpc_streaming_message: None,
+            ai_connected: false,
+            ai_response_tx: Some(ai_tx),
+            ai_response_rx: Some(ai_rx),
+            ai_streaming_message: None,
             ai_chat_mode: AIChatMode::Chat,
-            grpc_messages: Vec::new(),
-            grpc_input: String::new(),
-            grpc_streaming: false,
-            grpc_current_response: String::new(),
+            ai_messages: Vec::new(),
+            ai_input: String::new(),
+            ai_streaming: false,
+            ai_current_response: String::new(),
             chat_attachment: None,
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
@@ -1824,8 +1827,8 @@ pub fn berry_ui_system(
         // Poll collaboration state
         app.poll_collab();
 
-        // Poll gRPC responses (non-blocking)
-        app.poll_grpc_responses();
+        // Poll AI responses (non-blocking)
+        app.poll_ai_responses();
 
         // Poll file watcher events (non-blocking)
         app.poll_file_watcher_events();
@@ -1986,28 +1989,28 @@ pub fn berry_ui_system(
         app.render_file_context_menu(ctx);
         app.render_rename_file_dialog(ctx);
 
-        // Phase P: editor-side profiler (FPS / frame time / entity count).
+        // editor-side profiler (FPS / frame time / entity count).
         app.render_profiler(ctx);
 
-        // Phase K: floating timeline window for animation keyframe editing.
+        // floating timeline window for animation keyframe editing.
         app.render_timeline(ctx);
 
-        // Phase 10: floating dopesheet / curve editor window.
+        // floating dopesheet / curve editor window.
         app.render_dopesheet(ctx);
 
-        // Phase 13: floating animator controller editor window.
+        // floating animator controller editor window.
         app.render_animator_editor(ctx);
 
-        // Phase 18: floating build settings window.
+        // floating build settings window.
         app.render_build_settings(ctx);
 
-        // Phase 64: floating scene merge panel.
+        // floating scene merge panel.
         app.render_merge_panel(ctx);
 
-        // Phase 72: floating visual script editor.
+        // floating visual script editor.
         app.render_visual_script_editor(ctx);
 
-        // Phase 74: floating shader graph editor.
+        // floating shader graph editor.
         app.render_shader_graph_editor(ctx);
 
         // Bevy-specific: System Execution Graph.
@@ -2025,7 +2028,7 @@ pub fn berry_ui_system(
         // Bevy-specific: Plugin Browser.
         app.render_plugin_browser(ctx);
 
-        // Phase 75: hot reload polling.
+        // hot reload polling.
         {
             let root = app.root_path.clone();
             if let Some(msg) = app.hot_reload.poll(&root) {
@@ -2125,7 +2128,7 @@ pub fn berry_ui_system(
         }
     }
 
-    // === Material Preview render-target plumbing (Phase 8) ===
+    // === Material Preview render-target plumbing ===
     // Push PBR values from the inspector to the Bevy resource, then
     // re-register the render target texture with egui.
     {

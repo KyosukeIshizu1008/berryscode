@@ -484,13 +484,13 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                     let field_count = parse_param_u32(params, "fields", 0);
                     // Parse subsequent [BerryCode:CustomField] markers for this script
                     let mut fields = Vec::new();
-                    let field_re = Regex::new(
+                    let _field_re = Regex::new(
                         r"\[BerryCode:CustomField\]\s*name=(\S+)\s+value=(.+?)(?:\s*//|\s*$)",
                     )
                     .expect("valid regex");
                     // We need to re-scan for CustomField markers in the block
                     // They appear after the CustomScript marker
-                    let cf_re = Regex::new(r"\[BerryCode:CustomField\]\s+name=(\S+)\s+value=(.+?)(?:\s+//\s*\[BerryCode|\s*$)").expect("valid regex");
+                    let _cf_re = Regex::new(r"\[BerryCode:CustomField\]\s+name=(\S+)\s+value=(.+?)(?:\s+//\s*\[BerryCode|\s*$)").expect("valid regex");
                     // Simpler approach: find all CustomField markers sequentially
                     let cf_simple =
                         Regex::new(r"\[BerryCode:CustomField\]\s+name=(\S+)\s+value=(\S+)")

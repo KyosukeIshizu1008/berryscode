@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! In-editor game view - captures spawned Bevy game window and displays it
 
 use super::BerryCodeApp;
@@ -197,7 +198,7 @@ impl BerryCodeApp {
     }
 
     /// Render the game view panel (floating window, only when not in GameView panel)
-    pub(crate) fn render_game_view(&mut self, ctx: &egui::Context) {
+    pub(crate) fn render_game_view(&mut self, _ctx: &egui::Context) {
         if !self.game_view_open {
             return;
         }

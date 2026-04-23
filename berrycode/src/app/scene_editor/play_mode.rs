@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! In-process Play Mode.
 //!
 //! Snapshots the SceneModel, materializes it into Bevy entities on a dedicated

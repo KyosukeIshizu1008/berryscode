@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Live sync: query component values from a running Bevy game via BRP.
 //!
 //! During Play Mode (external process started via `cargo run`), the editor

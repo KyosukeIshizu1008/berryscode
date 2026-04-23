@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Visual scripting: node-based logic graph data model.
 
 use serde::{Deserialize, Serialize};

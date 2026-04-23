@@ -84,7 +84,7 @@ impl AnimationPlayback {
 }
 
 // ---------------------------------------------------------------------------
-// Easing functions (Phase 8 v2)
+// Easing functions
 // ---------------------------------------------------------------------------
 
 /// Evaluate an easing curve at parameter `t` in `[0, 1]`.
@@ -379,7 +379,7 @@ impl BerryCodeApp {
         }
     }
 
-    /// Render the floating Timeline window (Phase K). Advances per-entity
+    /// Render the floating Timeline window. Advances per-entity
     /// playback time while visible, draws a scrubber + keyframe markers, and
     /// provides play/pause/rewind plus "add keyframe at current time" for the
     /// currently selected entity that carries an [`ComponentData::Animation`].

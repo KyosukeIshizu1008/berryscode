@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Lazy thumbnail cache for asset previews.
 
 use std::collections::HashMap;

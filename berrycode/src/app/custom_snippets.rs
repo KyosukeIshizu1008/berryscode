@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Custom snippet system: load user-defined snippets from JSON files
 //!
 //! VS Code-compatible snippet format:

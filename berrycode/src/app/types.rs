@@ -291,9 +291,9 @@ pub struct SearchMatch {
     pub line_text: String,
 }
 
-/// gRPC AI Chat message
+/// AI Chat message
 #[derive(Debug, Clone)]
-pub struct GrpcMessage {
+pub struct AiChatMessage {
     pub content: String,
     pub is_user: bool,
 }
@@ -323,9 +323,9 @@ pub(crate) enum FileTreeEvent {
     StartAssetDrag(String),    // asset path (3D model dropped into Scene View)
 }
 
-/// gRPC response types
+/// AI Chat response types
 #[derive(Debug, Clone)]
-pub enum GrpcResponse {
+pub enum AiChatResponse {
     SessionStarted(String), // Session ID
     ChatChunk(String),      // Streaming chat response chunk
     ChatStreamCompleted,    // Stream finished
@@ -419,6 +419,7 @@ pub(crate) struct PendingGotoDefinition {
 
 /// AI Chat mode
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub(crate) enum AIChatMode {
     Chat,       // 対話式（通常のチャット）
     Autonomous, // 自動実行モード（dangerously-skip-permissions）

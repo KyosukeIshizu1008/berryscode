@@ -310,7 +310,7 @@ impl BerryCodeApp {
 
                 ui.separator();
 
-                // Build button and status (Phase 76)
+                // Build button and status
                 let is_building = self.build_process.is_some();
                 ui.add_enabled_ui(!is_building, |ui| {
                     if ui.button("Build").clicked() {

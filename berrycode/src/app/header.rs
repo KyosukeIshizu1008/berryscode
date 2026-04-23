@@ -165,7 +165,7 @@ impl BerryCodeApp {
 
                     ui.add_space(8.0);
 
-                    // Build Settings button (Phase 18)
+                    // Build Settings button
                     if ui
                         .add(
                             egui::Button::new(

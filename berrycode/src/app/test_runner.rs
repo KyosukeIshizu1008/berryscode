@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Test runner: detect #[test] functions, run individually, show inline results
 //!
 //! Features:
@@ -68,7 +69,7 @@ impl Default for TestRunnerState {
 pub fn scan_tests(file_path: &str, content: &str) -> Vec<TestItem> {
     let mut tests = Vec::new();
     let lines: Vec<&str> = content.lines().collect();
-    let mut in_test_module = false;
+    let mut _in_test_module = false;
     let mut module_depth = 0;
     let mut current_module = String::new();
 
@@ -77,7 +78,7 @@ pub fn scan_tests(file_path: &str, content: &str) -> Vec<TestItem> {
 
         // Track #[cfg(test)] modules
         if trimmed.contains("#[cfg(test)]") {
-            in_test_module = true;
+            _in_test_module = true;
         }
 
         // Track module nesting

@@ -1,7 +1,7 @@
 //! Visual state machine editor for AnimatorController.
 //!
 //! Displays states as draggable boxes and transitions as arrows.
-//! Phase 3: nodes are interactive — click-and-drag to reposition, right-click
+//! nodes are interactive — click-and-drag to reposition, right-click
 //! for context menus (add/delete transitions).
 
 use super::animator::*;

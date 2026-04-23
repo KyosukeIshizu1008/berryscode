@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Vim keybinding engine: modal editing with Normal/Insert/Visual/Command modes
 //!
 //! Supports:
@@ -516,7 +517,7 @@ impl BerryCodeApp {
         }
     }
 
-    fn process_normal_key(&mut self, key: egui::Key, modifiers: &egui::Modifiers) {
+    fn process_normal_key(&mut self, key: egui::Key, _modifiers: &egui::Modifiers) {
         match key {
             egui::Key::Escape => {
                 self.vim.pending_op = PendingOp::None;

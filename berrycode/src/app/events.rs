@@ -41,7 +41,7 @@ impl BerryCodeApp {
                             }
                         }
 
-                        // Phase 75: hot reload - notify on .rs file changes
+                        // hot reload - notify on .rs file changes
                         if path.extension().and_then(|e| e.to_str()) == Some("rs") {
                             self.hot_reload.notify_change();
                             // Rescan user component definitions for bidirectional sync
@@ -813,7 +813,6 @@ impl BerryCodeApp {
 
                 // Verification: save scene then load and compare (runtime match check)
                 "test:verify-save-matches-runtime" => {
-                    use crate::app::scene_editor::code_import::*;
                     use crate::app::scene_editor::codegen::*;
                     use crate::app::scene_editor::serialization::*;
 

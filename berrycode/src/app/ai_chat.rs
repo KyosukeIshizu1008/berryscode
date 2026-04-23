@@ -1,6 +1,6 @@
-//! AI Chat panel rendering and gRPC communication
+//! AI Chat panel rendering and REST communication
 
-use super::types::{GrpcMessage, GrpcResponse};
+use super::types::{AiChatMessage, AiChatResponse};
 use super::utils::strip_thinking_blocks;
 use super::BerryCodeApp;
 
@@ -61,8 +61,8 @@ impl BerryCodeApp {
                             .on_hover_text("New Chat")
                             .clicked()
                         {
-                            self.grpc_messages.clear();
-                            self.grpc_input.clear();
+                            self.ai_messages.clear();
+                            self.ai_input.clear();
                         }
                     });
                 });
@@ -138,7 +138,7 @@ impl BerryCodeApp {
                                     } else {
                                         self.tr("Ask anything...")
                                     };
-                                    let text_edit = egui::TextEdit::multiline(&mut self.grpc_input)
+                                    let text_edit = egui::TextEdit::multiline(&mut self.ai_input)
                                         .id(input_id)
                                         .desired_width(f32::INFINITY)
                                         .desired_rows(2)
@@ -154,11 +154,11 @@ impl BerryCodeApp {
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
-                                                if self.grpc_streaming {
+                                                if self.ai_streaming {
                                                     ui.spinner();
                                                 } else {
                                                     let send_enabled =
-                                                        !self.grpc_input.trim().is_empty()
+                                                        !self.ai_input.trim().is_empty()
                                                             || self.chat_attachment.is_some();
                                                     let send_btn = egui::Button::new(
                                                         egui::RichText::new("↑").size(16.0).color(
@@ -192,18 +192,18 @@ impl BerryCodeApp {
                                                         if let Some(ref img) =
                                                             self.chat_attachment.clone()
                                                         {
-                                                            if self.grpc_input.is_empty() {
-                                                                self.grpc_input =
+                                                            if self.ai_input.is_empty() {
+                                                                self.ai_input =
                                                                     format!("[image:{}]", img);
                                                             } else {
-                                                                self.grpc_input = format!(
+                                                                self.ai_input = format!(
                                                                     "[image:{}] {}",
-                                                                    img, self.grpc_input
+                                                                    img, self.ai_input
                                                                 );
                                                             }
                                                             self.chat_attachment = None;
                                                         }
-                                                        self.send_grpc_message();
+                                                        self.send_ai_message();
                                                     }
                                                 }
                                             },
@@ -222,7 +222,7 @@ impl BerryCodeApp {
                             ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                                 ui.set_min_width(ui.available_width());
 
-                                if self.grpc_messages.is_empty() && !self.grpc_streaming {
+                                if self.ai_messages.is_empty() && !self.ai_streaming {
                                     // ── Welcome / empty state (VS Code Copilot style) ──
                                     ui.add_space(40.0);
                                     ui.vertical_centered(|ui| {
@@ -257,8 +257,8 @@ impl BerryCodeApp {
                                             .rounding(6.0)
                                             .min_size(egui::vec2(200.0, 28.0));
                                             if ui.add(btn).clicked() {
-                                                self.grpc_input = text.to_string();
-                                                self.send_grpc_message();
+                                                self.ai_input = text.to_string();
+                                                self.send_ai_message();
                                             }
                                             ui.add_space(4.0);
                                         }
@@ -266,7 +266,7 @@ impl BerryCodeApp {
                                 } else {
                                     ui.add_space(16.0);
                                     let messages: Vec<(String, bool)> = self
-                                        .grpc_messages
+                                        .ai_messages
                                         .iter()
                                         .map(|m| (m.content.clone(), m.is_user))
                                         .collect();
@@ -327,7 +327,7 @@ impl BerryCodeApp {
                                 }
 
                                 // Streaming response
-                                if self.grpc_streaming {
+                                if self.ai_streaming {
                                     ui.horizontal(|ui| {
                                         ui.add_space(12.0);
                                         ui.vertical(|ui| {
@@ -339,7 +339,7 @@ impl BerryCodeApp {
                                             ui.add_space(2.0);
                                             ui.set_max_width(380.0);
                                             let visible =
-                                                strip_thinking_blocks(&self.grpc_current_response);
+                                                strip_thinking_blocks(&self.ai_current_response);
                                             if !visible.is_empty() {
                                                 Self::render_markdown(ui, &visible);
                                             }
@@ -666,28 +666,28 @@ impl BerryCodeApp {
         });
     }
 
-    /// Send a message to the AI via gRPC
-    pub(crate) fn send_grpc_message(&mut self) {
-        let message = self.grpc_input.trim().to_string();
+    /// Send a message to the AI via REST
+    pub(crate) fn send_ai_message(&mut self) {
+        let message = self.ai_input.trim().to_string();
         if message.is_empty() {
             return;
         }
 
         // Add user message to chat history
-        self.grpc_messages.push(GrpcMessage {
+        self.ai_messages.push(AiChatMessage {
             content: message.clone(),
             is_user: true,
         });
 
         // Clear input
-        self.grpc_input.clear();
+        self.ai_input.clear();
 
         // Set streaming state
-        self.grpc_streaming = true;
-        self.grpc_current_response.clear();
-        self.grpc_streaming_message = Some(String::new());
+        self.ai_streaming = true;
+        self.ai_current_response.clear();
+        self.ai_streaming_message = Some(String::new());
 
-        let tx = self.grpc_response_tx.clone();
+        let tx = self.ai_response_tx.clone();
         let repo_path = self.root_path.clone();
 
         // Use REST (berry-core-api)
@@ -699,71 +699,71 @@ impl BerryCodeApp {
             match rest_client.chat(&repo_path, &message, None).await {
                 Ok(response) => {
                     if let Some(tx) = &tx {
-                        let _ = tx.send(GrpcResponse::ChatChunk(response));
-                        let _ = tx.send(GrpcResponse::ChatStreamCompleted);
+                        let _ = tx.send(AiChatResponse::ChatChunk(response));
+                        let _ = tx.send(AiChatResponse::ChatStreamCompleted);
                     }
                 }
                 Err(e) => {
                     tracing::error!("❌ REST chat failed: {}", e);
                     if let Some(tx) = &tx {
-                        let _ = tx.send(GrpcResponse::ChatChunk(format!(
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!(
                             "⚠️ AI Chat error: {}.\n\nMake sure berry-core-api is running:\n```\ncd ../berry-core-api && cargo run\n```",
                             e
                         )));
-                        let _ = tx.send(GrpcResponse::ChatStreamCompleted);
+                        let _ = tx.send(AiChatResponse::ChatStreamCompleted);
                     }
                 }
             }
         });
     }
 
-    pub(crate) fn poll_grpc_responses(&mut self) {
-        if let Some(rx) = &mut self.grpc_response_rx {
+    pub(crate) fn poll_ai_responses(&mut self) {
+        if let Some(rx) = &mut self.ai_response_rx {
             while let Ok(response) = rx.try_recv() {
                 match response {
-                    GrpcResponse::SessionStarted(_) => {
+                    AiChatResponse::SessionStarted(_) => {
                         tracing::info!("✅ AI Chat ready (berry-core-api)");
-                        self.grpc_connected = true;
+                        self.ai_connected = true;
                         self.status_message = "✅ AI Chat ready".to_string();
                         self.status_message_timestamp = Some(std::time::Instant::now());
                     }
-                    GrpcResponse::ChatChunk(chunk) => {
+                    AiChatResponse::ChatChunk(chunk) => {
                         tracing::info!("🎨 UI received chunk: {} chars", chunk.len());
 
-                        self.grpc_current_response.push_str(&chunk);
+                        self.ai_current_response.push_str(&chunk);
 
-                        if let Some(streaming_msg) = &mut self.grpc_streaming_message {
+                        if let Some(streaming_msg) = &mut self.ai_streaming_message {
                             streaming_msg.push_str(&chunk);
                             tracing::info!(
                                 "📝 Accumulated message: {} chars total",
                                 streaming_msg.len()
                             );
                         } else {
-                            self.grpc_streaming_message = Some(String::new());
-                            if let Some(streaming_msg) = &mut self.grpc_streaming_message {
+                            self.ai_streaming_message = Some(String::new());
+                            if let Some(streaming_msg) = &mut self.ai_streaming_message {
                                 streaming_msg.push_str(&chunk);
                             }
                         }
                     }
-                    GrpcResponse::ChatStreamCompleted => {
+                    AiChatResponse::ChatStreamCompleted => {
                         tracing::info!("✅ Chat stream completed");
 
-                        if !self.grpc_current_response.is_empty() {
-                            let stripped = strip_thinking_blocks(&self.grpc_current_response);
+                        if !self.ai_current_response.is_empty() {
+                            let stripped = strip_thinking_blocks(&self.ai_current_response);
                             let content = if stripped.is_empty() {
-                                self.grpc_current_response.trim().to_string()
+                                self.ai_current_response.trim().to_string()
                             } else {
                                 stripped
                             };
-                            self.grpc_messages.push(GrpcMessage {
+                            self.ai_messages.push(AiChatMessage {
                                 content,
                                 is_user: false,
                             });
-                            self.grpc_current_response.clear();
+                            self.ai_current_response.clear();
                         }
 
-                        self.grpc_streaming = false;
-                        self.grpc_streaming_message = None;
+                        self.ai_streaming = false;
+                        self.ai_streaming_message = None;
                     }
                 }
             }

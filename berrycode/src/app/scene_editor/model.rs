@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! In-memory scene data model for the Unity-like scene editor.
 //!
 //! The scene model is the editor-side source of truth for the entities the user
@@ -40,7 +41,7 @@ pub struct Keyframe {
 }
 
 // ---------------------------------------------------------------------------
-// v2 Phase 8: Easing curves + multi-property animation tracks
+// v2 Easing curves + multi-property animation tracks
 // ---------------------------------------------------------------------------
 
 /// Easing function applied between two keyframes.
@@ -543,7 +544,7 @@ pub enum ComponentData {
         #[serde(default = "default_ui_tint")]
         tint: [f32; 4],
     },
-    /// Editor-authored particle emitter (Phase M). All parameters are
+    /// Editor-authored particle emitter. All parameters are
     /// authoring-time settings; the editor renders a live 2D dot preview in
     /// the Scene View. Runtime games can wire these into their own particle
     /// library (e.g. `bevy_hanabi` or a custom system).
@@ -569,7 +570,7 @@ pub enum ComponentData {
         #[serde(default = "default_particle_gravity")]
         gravity: f32,
     },
-    /// Editor-authored keyframe animation (Phase K / Phase 8 v2).
+    /// Editor-authored keyframe animation.
     /// Multi-track: each track drives one transform property (position,
     /// rotation, scale) with per-keyframe easing curves.
     Animation {
@@ -580,7 +581,7 @@ pub enum ComponentData {
         #[serde(default = "default_animation_loop")]
         looped: bool,
     },
-    /// Editor-authored custom script attachment (Phase L). Stores a
+    /// Editor-authored custom script attachment. Stores a
     /// user-provided Rust type name plus a list of key/value fields. The
     /// editor renders a generic inspector (name + typed value) and makes NO
     /// static-typing guarantees: the runtime game is expected to match on
@@ -599,20 +600,20 @@ pub enum ComponentData {
         #[serde(default)]
         path: String,
     },
-    /// Editor-authored animator controller reference (Phase 13). Points to
+    /// Editor-authored animator controller reference. Points to
     /// a `.banimator` file on disk that defines the animation state machine.
     Animator {
         #[serde(default)]
         controller_path: String,
     },
-    /// Editor-authored LOD (Level of Detail) group (Phase 61). Contains
+    /// Editor-authored LOD (Level of Detail) group. Contains
     /// multiple mesh levels that the runtime switches between based on
     /// screen-space coverage.
     LodGroup {
         #[serde(default)]
         levels: Vec<LodLevel>,
     },
-    /// Editor-authored spline / path (Phase 59). A sequence of cubic Bezier
+    /// Editor-authored spline / path. A sequence of cubic Bezier
     /// control points that can define camera rails, AI paths, or any
     /// curve-based data.
     Spline {
@@ -621,7 +622,7 @@ pub enum ComponentData {
         #[serde(default)]
         closed: bool,
     },
-    /// Editor-authored terrain heightmap (Phase 65). Grid-based height data
+    /// Editor-authored terrain heightmap. Grid-based height data
     /// with configurable resolution and world size.
     Terrain {
         #[serde(default = "default_terrain_resolution")]
@@ -633,7 +634,7 @@ pub enum ComponentData {
         #[serde(default = "default_terrain_base_color")]
         base_color: [f32; 3],
     },
-    /// Editor-authored skinned mesh / skeletal animation (Phase 68). References
+    /// Editor-authored skinned mesh / skeletal animation. References
     /// a .glb/.gltf file and stores extracted bone hierarchy data.
     SkinnedMesh {
         #[serde(default)]
@@ -641,13 +642,13 @@ pub enum ComponentData {
         #[serde(default)]
         bones: Vec<super::skeleton::BoneData>,
     },
-    /// Editor-authored visual script reference (Phase 71). Points to a
+    /// Editor-authored visual script reference. Points to a
     /// `.bvscript` file on disk that defines the node-based logic graph.
     VisualScript {
         #[serde(default)]
         path: String,
     },
-    /// Editor-authored navigation mesh (Phase 70). Stores a baked grid for
+    /// Editor-authored navigation mesh. Stores a baked grid for
     /// A* pathfinding.
     NavMesh {
         #[serde(default = "default_navmesh_cell_size")]

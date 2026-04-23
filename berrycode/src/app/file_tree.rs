@@ -35,7 +35,7 @@ fn reveal_in_file_manager(path: &str) {
 }
 
 /// Returns true if the given file name is a 3D asset that can be dragged from
-/// the file tree onto the Scene View to spawn an entity (Phase H).
+/// the file tree onto the Scene View to spawn an entity.
 fn is_droppable_asset(filename: &str) -> bool {
     let lower = filename.to_lowercase();
     matches!(
@@ -421,7 +421,7 @@ impl BerryCodeApp {
         tracing::info!("📄 Opening file: {}", file_path);
 
         // Prefab files (.bprefab) are instantiated into the current scene at
-        // the origin and the Scene Editor is brought to focus (Phase I).
+        // the origin and the Scene Editor is brought to focus.
         if file_path.ends_with(".bprefab") {
             match crate::app::scene_editor::prefab::load_prefab(file_path) {
                 Ok(prefab) => {

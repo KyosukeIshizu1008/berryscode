@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Animator Controller: a finite state machine for animation playback.
 //!
 //! Each state references an animation clip (by name or index). Transitions

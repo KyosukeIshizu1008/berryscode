@@ -10,7 +10,7 @@ impl BerryCodeApp {
         ui.heading("Hierarchy");
         ui.separator();
 
-        // Play mode banner (Phase 15).
+        // Play mode banner.
         if self.play_mode.is_active() {
             ui.colored_label(
                 egui::Color32::from_rgb(255, 200, 80),
@@ -19,7 +19,7 @@ impl BerryCodeApp {
             ui.separator();
         }
 
-        // --- Scene tabs (Phase 8) ---
+        // --- Scene tabs ---
         let tab_count = self.scene_tabs.len();
         let mut switch_to: Option<usize> = None;
         if tab_count > 0 {

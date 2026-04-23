@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Live collaboration: real-time co-editing with remote cursors
 //!
 //! Architecture:

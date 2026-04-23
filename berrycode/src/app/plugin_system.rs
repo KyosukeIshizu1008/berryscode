@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Plugin system: load, manage, and execute plugins
 //!
 //! Plugins are loaded from ~/.berrycode/plugins/<name>/

@@ -1,5 +1,5 @@
 //! REST client for berry-core-api
-//! Replaces gRPC client with HTTP REST calls to berry-core-api
+//! Replaces REST client with HTTP REST calls to berry-core-api
 
 use anyhow::{Context, Result};
 

@@ -131,7 +131,7 @@ fn translate_ja(en: &'static str) -> &'static str {
         "Commit changes" => "変更をコミットして",
         "Security check" => "セキュリティチェック",
         "Images can be attached via drag & drop" => "画像はドラッグ&ドロップで添付できます",
-        "gRPC · berry-api-server" => "gRPC · berry-api-server",
+        "REST · berry-core-api" => "REST · berry-core-api",
         "thinking..." => "考え中...",
         "AI Chat - Use right panel instead." => "AI チャット - 右パネルを使用してください。",
 
