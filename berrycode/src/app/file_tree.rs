@@ -921,54 +921,76 @@ impl BerryCodeApp {
 
     /// Get file icon with color based on file extension
     pub(crate) fn get_file_icon_with_color(filename: &str) -> (&'static str, egui::Color32) {
-        // Use named color constants from file_icon_colors module
-        if filename.ends_with(".rs") {
-            ("\u{eb8b}", file_icon_colors::RUST_ORANGE)
+        // VS Code Codicon icons with matching colors
+        // Specific filenames first
+        if filename == "Cargo.toml" {
+            ("\u{ea7b}", file_icon_colors::RUST_ORANGE) // file — orange for Rust config
+        } else if filename == "Cargo.lock" {
+            ("\u{ea7f}", file_icon_colors::CONFIG_GRAY) // lock icon
+        } else if filename == "package.json" {
+            ("\u{ea7b}", file_icon_colors::JSON_YELLOW) // file
+        } else if filename == "README.md" || filename == "README" {
+            ("\u{ea7b}", file_icon_colors::MARKDOWN_BLUE) // file
+        } else if filename == "LICENSE" || filename == "LICENSE.md" {
+            ("\u{ea7b}", egui::Color32::from_rgb(200, 200, 200)) // file
+                                                                 // Git files
+        } else if filename.starts_with(".git") {
+            ("\u{ea64}", file_icon_colors::GIT_ORANGE) // source-control
+                                                       // Extensions
+        } else if filename.ends_with(".rs") {
+            ("\u{ea7b}", file_icon_colors::RUST_ORANGE) // file — Rust orange
         } else if filename.ends_with(".toml") {
-            ("\u{ea7e}", file_icon_colors::CONFIG_GRAY)
+            ("\u{ea7b}", file_icon_colors::CONFIG_GRAY) // file — gray for config
         } else if filename.ends_with(".md") {
-            ("\u{ea82}", file_icon_colors::MARKDOWN_BLUE)
+            ("\u{ea7b}", file_icon_colors::MARKDOWN_BLUE) // file
         } else if filename.ends_with(".json") {
-            ("\u{ead1}", file_icon_colors::JSON_YELLOW)
+            ("\u{ea7b}", file_icon_colors::JSON_YELLOW) // file
         } else if filename.ends_with(".yaml") || filename.ends_with(".yml") {
-            ("\u{ea7e}", file_icon_colors::CONFIG_GRAY)
-        } else if filename.ends_with(".js") {
-            ("\u{ea7a}", file_icon_colors::JAVASCRIPT_YELLOW)
-        } else if filename.ends_with(".ts") {
-            ("\u{ea7a}", file_icon_colors::TYPESCRIPT_BLUE)
-        } else if filename.ends_with(".html") {
-            ("\u{eb7e}", file_icon_colors::HTML_ORANGE)
-        } else if filename.ends_with(".css") {
-            ("\u{eb7e}", file_icon_colors::CSS_BLUE)
+            ("\u{ea7b}", file_icon_colors::CONFIG_GRAY) // file
+        } else if filename.ends_with(".js") || filename.ends_with(".mjs") {
+            ("\u{ea7b}", file_icon_colors::JAVASCRIPT_YELLOW) // file
+        } else if filename.ends_with(".ts") || filename.ends_with(".tsx") {
+            ("\u{ea7b}", file_icon_colors::TYPESCRIPT_BLUE) // file
+        } else if filename.ends_with(".html") || filename.ends_with(".htm") {
+            ("\u{ea7b}", file_icon_colors::HTML_ORANGE) // file
+        } else if filename.ends_with(".css") || filename.ends_with(".scss") {
+            ("\u{ea7b}", file_icon_colors::CSS_BLUE) // file
         } else if filename.ends_with(".py") {
-            ("\u{eb8b}", file_icon_colors::PYTHON_GREEN)
-        } else if filename.ends_with(".sh") {
-            ("\u{ea85}", file_icon_colors::SHELL_GREEN)
-        } else if filename.ends_with(".txt") {
-            ("\u{ea7b}", ui_colors::TEXT_DEFAULT)
+            ("\u{ea7b}", file_icon_colors::PYTHON_GREEN) // file
+        } else if filename.ends_with(".sh")
+            || filename.ends_with(".bash")
+            || filename.ends_with(".zsh")
+        {
+            ("\u{ea85}", file_icon_colors::SHELL_GREEN) // terminal
+        } else if filename.ends_with(".txt") || filename.ends_with(".log") {
+            ("\u{ea7b}", ui_colors::TEXT_DEFAULT) // file
         } else if filename.ends_with(".lock") {
-            ("\u{ea7f}", file_icon_colors::CONFIG_GRAY)
-        } else if filename.ends_with(".proto") {
-            ("\u{eb8b}", file_icon_colors::PROTO_PURPLE)
+            ("\u{ea7f}", file_icon_colors::CONFIG_GRAY) // lock
         } else if filename.ends_with(".xml") {
-            ("\u{eb7e}", file_icon_colors::HTML_ORANGE)
+            ("\u{ea7b}", file_icon_colors::HTML_ORANGE) // file
         } else if filename.ends_with(".svg") {
-            ("\u{eaf0}", file_icon_colors::SVG_AMBER)
+            ("\u{ea7b}", file_icon_colors::SVG_AMBER) // file
         } else if filename.ends_with(".png")
             || filename.ends_with(".jpg")
             || filename.ends_with(".jpeg")
+            || filename.ends_with(".gif")
+            || filename.ends_with(".webp")
+            || filename.ends_with(".bmp")
         {
-            ("\u{eaf0}", file_icon_colors::IMAGE_PURPLE)
-        } else if filename.ends_with(".gitignore") || filename.ends_with(".gitattributes") {
-            ("\u{ea84}", file_icon_colors::GIT_ORANGE)
-        } else if filename == "Cargo.toml" || filename == "Cargo.lock" {
-            ("\u{ea7e}", file_icon_colors::RUST_ORANGE)
-        } else if filename == "package.json" {
-            ("\u{ead1}", file_icon_colors::JSON_YELLOW)
-        } else if filename == "README.md" {
-            ("\u{ea82}", file_icon_colors::MARKDOWN_BLUE)
+            ("\u{ea7b}", file_icon_colors::IMAGE_PURPLE) // file
+        } else if filename.ends_with(".glb")
+            || filename.ends_with(".gltf")
+            || filename.ends_with(".obj")
+            || filename.ends_with(".stl")
+            || filename.ends_with(".ply")
+        {
+            ("\u{ea7b}", egui::Color32::from_rgb(78, 201, 176)) // file — teal for 3D
+        } else if filename.ends_with(".wasm") {
+            ("\u{ea7b}", egui::Color32::from_rgb(101, 79, 240)) // file — purple
+        } else if filename.ends_with(".ron") || filename.ends_with(".scn.ron") {
+            ("\u{ea7b}", file_icon_colors::RUST_ORANGE) // file — Bevy scene
         } else {
-            ("\u{ea7b}", ui_colors::TEXT_DEFAULT)
+            ("\u{ea7b}", ui_colors::TEXT_DEFAULT) // file — default
         }
     }
 }
