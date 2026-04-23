@@ -5,6 +5,7 @@
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/KyosukeIshizu1008)](https://github.com/sponsors/KyosukeIshizu1008)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi)](https://ko-fi.com/berrycode)
 [![crates.io](https://img.shields.io/crates/v/berrycode)](https://crates.io/crates/berrycode)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/tBYX3EZW)
 
 [English](#english) | [日本語](#japanese)
 
@@ -128,6 +129,10 @@ cargo build --release --bin berrycode
 ```
 
 **Prerequisites**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
+
+### Community
+
+Join us on [Discord](https://discord.gg/tBYX3EZW) for questions, feedback, and discussion.
 
 ### Architecture
 
@@ -271,6 +276,10 @@ cargo build --release --bin berrycode
 ```
 
 **前提条件**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
+
+### コミュニティ
+
+[Discord](https://discord.gg/tBYX3EZW) で質問・フィードバック・議論ができます。
 
 ### アーキテクチャ
 
