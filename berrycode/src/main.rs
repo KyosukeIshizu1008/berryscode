@@ -7,8 +7,7 @@ use bevy::winit::WinitWindows;
 
 fn main() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        tracing_subscriber::EnvFilter::new("warn")
-            .add_directive("berrycode=info".parse().unwrap())
+        tracing_subscriber::EnvFilter::new("warn").add_directive("berrycode=info".parse().unwrap())
     });
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
@@ -16,15 +15,20 @@ fn main() {
     tracing::info!("Starting BerryCode - Bevy IDE");
 
     App::new()
-        .add_plugins(DefaultPlugins.build().disable::<LogPlugin>().set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "BerryCode - Bevy IDE".into(),
-                resolution: (1400.0, 900.0).into(),
-                ..default()
-            }),
-            exit_condition: bevy::window::ExitCondition::DontExit,
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .build()
+                .disable::<LogPlugin>()
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "BerryCode - Bevy IDE".into(),
+                        resolution: (1400.0, 900.0).into(),
+                        ..default()
+                    }),
+                    exit_condition: bevy::window::ExitCondition::DontExit,
+                    ..default()
+                }),
+        )
         .add_plugins(BerryCodePlugin)
         .add_systems(Startup, set_window_icon)
         .run();

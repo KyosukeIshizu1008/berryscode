@@ -514,9 +514,8 @@ impl BerryCodeApp {
                             if let Some(cr) = output.cursor_range {
                                 let cursor_pos = cr.primary.ccursor.index;
                                 if cursor_pos > 0 {
-                                    let last_char = text.char_indices()
-                                        .nth(cursor_pos - 1)
-                                        .map(|(_, c)| c);
+                                    let last_char =
+                                        text.char_indices().nth(cursor_pos - 1).map(|(_, c)| c);
                                     let should_trigger = last_char.map_or(false, |c| {
                                         c.is_alphanumeric()
                                             || c == '_'
@@ -1309,7 +1308,10 @@ impl BerryCodeApp {
                                     fold_rect.center(),
                                     egui::Align2::CENTER_CENTER,
                                     icon,
-                                    egui::FontId::new(10.0, egui::FontFamily::Name("codicon".into())),
+                                    egui::FontId::new(
+                                        10.0,
+                                        egui::FontFamily::Name("codicon".into()),
+                                    ),
                                     fold_color,
                                 );
                             }

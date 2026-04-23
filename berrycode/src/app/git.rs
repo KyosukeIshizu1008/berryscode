@@ -126,10 +126,20 @@ impl BerryCodeApp {
                     ui.label(self.tr("No changes"));
                 } else {
                     // Group files by staged/unstaged (index-based to avoid borrow conflict with self)
-                    let staged_indices: Vec<usize> = self.git_status.iter().enumerate()
-                        .filter(|(_, s)| s.is_staged).map(|(i, _)| i).collect();
-                    let unstaged_indices: Vec<usize> = self.git_status.iter().enumerate()
-                        .filter(|(_, s)| !s.is_staged).map(|(i, _)| i).collect();
+                    let staged_indices: Vec<usize> = self
+                        .git_status
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, s)| s.is_staged)
+                        .map(|(i, _)| i)
+                        .collect();
+                    let unstaged_indices: Vec<usize> = self
+                        .git_status
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, s)| !s.is_staged)
+                        .map(|(i, _)| i)
+                        .collect();
 
                     // Staged changes
                     if !staged_indices.is_empty() {
@@ -186,7 +196,8 @@ impl BerryCodeApp {
         if ui.is_rect_visible(rect) {
             // Hover background
             if response.hovered() {
-                ui.painter().rect_filled(rect, 2.0, egui::Color32::from_rgb(45, 47, 50));
+                ui.painter()
+                    .rect_filled(rect, 2.0, egui::Color32::from_rgb(45, 47, 50));
             }
 
             let painter = ui.painter();
@@ -356,12 +367,24 @@ impl BerryCodeApp {
         for idx in 0..node_count {
             // Extract display data before mutable closure
             let node = &self.git_history_state.graph_nodes[idx];
-            let graph_lines: Vec<_> = node.graph_lines.iter().map(|l| (l.from_column, l.to_column, l.color_index, l.line_type.clone())).collect();
+            let graph_lines: Vec<_> = node
+                .graph_lines
+                .iter()
+                .map(|l| {
+                    (
+                        l.from_column,
+                        l.to_column,
+                        l.color_index,
+                        l.line_type.clone(),
+                    )
+                })
+                .collect();
             let graph_column = node.graph_column;
             let commit_id = node.commit.id.clone();
             let commit_message = node.commit.message.clone();
             let commit_author = node.commit.author.clone();
-            let is_selected = self.git_history_state.selected_commit_id.as_ref() == Some(&commit_id);
+            let is_selected =
+                self.git_history_state.selected_commit_id.as_ref() == Some(&commit_id);
 
             ui.horizontal(|ui| {
                 // Graph column (left side)
@@ -427,19 +450,16 @@ impl BerryCodeApp {
                 };
 
                 if ui
-                    .add(
-                        egui::Button::new(&commit_message).fill(if is_selected {
-                            egui::Color32::from_rgb(60, 60, 80)
-                        } else {
-                            egui::Color32::TRANSPARENT
-                        }),
-                    )
+                    .add(egui::Button::new(&commit_message).fill(if is_selected {
+                        egui::Color32::from_rgb(60, 60, 80)
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    }))
                     .clicked()
                 {
                     self.git_history_state.selected_commit_id = Some(commit_id.clone());
                     // Load commit details
-                    if let Ok(detail) =
-                        native::git::get_commit_detail(&self.root_path, &commit_id)
+                    if let Ok(detail) = native::git::get_commit_detail(&self.root_path, &commit_id)
                     {
                         self.git_history_state.commit_details = Some(detail);
                     }

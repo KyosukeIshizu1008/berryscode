@@ -1013,22 +1013,27 @@ impl BerryCodeApp {
                                                 .size(11.0)
                                                 .color(egui::Color32::from_gray(120)),
                                         );
-                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                            if ui
-                                                .add(
-                                                    egui::Button::new(
-                                                        egui::RichText::new("\u{ea76}")
-                                                            .size(12.0)
-                                                            .color(egui::Color32::from_gray(120)),
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                if ui
+                                                    .add(
+                                                        egui::Button::new(
+                                                            egui::RichText::new("\u{ea76}")
+                                                                .size(12.0)
+                                                                .color(egui::Color32::from_gray(
+                                                                    120,
+                                                                )),
+                                                        )
+                                                        .frame(false),
                                                     )
-                                                    .frame(false),
-                                                )
-                                                .on_hover_text("Remove from list")
-                                                .clicked()
-                                            {
-                                                removed = Some(project.clone());
-                                            }
-                                        });
+                                                    .on_hover_text("Remove from list")
+                                                    .clicked()
+                                                {
+                                                    removed = Some(project.clone());
+                                                }
+                                            },
+                                        );
                                     });
                                 }
                                 if let Some(path) = removed {
@@ -1079,7 +1084,11 @@ impl BerryCodeApp {
             match native::watcher::FileWatcher::new() {
                 Ok(mut watcher) => {
                     if let Err(e) = watcher.watch(&root_path) {
-                        tracing::warn!("⚠️  Failed to start file watching for {}: {}", root_path, e);
+                        tracing::warn!(
+                            "⚠️  Failed to start file watching for {}: {}",
+                            root_path,
+                            e
+                        );
                         None
                     } else {
                         tracing::info!("👁  File watcher started for: {}", root_path);
@@ -2378,8 +2387,7 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         ui.label("  •");
                         ui.label(
-                            egui::RichText::new(name)
-                                .color(egui::Color32::from_rgb(255, 198, 109)),
+                            egui::RichText::new(name).color(egui::Color32::from_rgb(255, 198, 109)),
                         );
                     });
                 }
@@ -2404,7 +2412,6 @@ impl BerryCodeApp {
             });
     }
 }
-
 
 impl Drop for BerryCodeApp {
     fn drop(&mut self) {
