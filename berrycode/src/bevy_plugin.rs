@@ -4,7 +4,8 @@
 //! using bevy_egui for immediate mode UI rendering.
 
 use crate::app::preview_3d::{
-    manage_preview_scene, setup_preview_render_target, ModelPreviewScene,
+    manage_preview_scene, propagate_preview_render_layers, setup_preview_render_target,
+    ModelPreviewScene,
 };
 use crate::app::scene_editor::bevy_render::{
     setup_scene_editor_render, update_scene_editor_camera, SceneEditorRender,
@@ -46,6 +47,10 @@ impl Plugin for BerryCodePlugin {
             .add_systems(Update, berry_ui_system)
             .add_systems(Update, demo_capture_system.after(berry_ui_system))
             .add_systems(Update, manage_preview_scene.after(berry_ui_system))
+            .add_systems(
+                Update,
+                propagate_preview_render_layers.after(manage_preview_scene),
+            )
             .add_systems(Update, update_scene_editor_camera.after(berry_ui_system))
             .add_systems(Update, sync_scene_to_bevy.after(berry_ui_system))
             .add_systems(Update, update_material_preview.after(berry_ui_system));

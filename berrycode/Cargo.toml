@@ -21,7 +21,8 @@ path = "src/bin/berrycode-egui.rs"
 # ===== Bevy + bevy_egui (Native Game Engine + Immediate Mode UI) =====
 bevy = { version = "0.15", default-features = false, features = [
     "bevy_winit", "bevy_render", "bevy_core_pipeline", "bevy_pbr",
-    "bevy_asset", "bevy_scene", "bevy_remote", "bevy_text",
+    "bevy_asset", "bevy_scene", "bevy_gltf", "bevy_remote", "bevy_text",
+    "png",
     "default_font", "tonemapping_luts", "x11", "wayland",
     "bevy_audio", "vorbis", "wav"
 ] }

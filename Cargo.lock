@@ -839,6 +839,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_gltf"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c38b79c0e43c6387699d6a332d12f98ed895bcf69dd70c462d5e49ad76d44d1f"
+dependencies = [
+ "base64 0.22.1",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_color",
+ "bevy_core",
+ "bevy_core_pipeline",
+ "bevy_ecs",
+ "bevy_hierarchy",
+ "bevy_image",
+ "bevy_math",
+ "bevy_pbr",
+ "bevy_reflect",
+ "bevy_render",
+ "bevy_scene",
+ "bevy_tasks",
+ "bevy_transform",
+ "bevy_utils",
+ "derive_more",
+ "gltf",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "smallvec",
+]
+
+[[package]]
 name = "bevy_hierarchy"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,6 +939,7 @@ dependencies = [
  "bevy_diagnostic",
  "bevy_ecs",
  "bevy_gizmos",
+ "bevy_gltf",
  "bevy_hierarchy",
  "bevy_image",
  "bevy_input",

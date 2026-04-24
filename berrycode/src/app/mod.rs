@@ -2196,11 +2196,15 @@ pub fn berry_ui_system(
                 app.editor_tabs[idx].gpu_preview_texture_id = Some(texture_id);
             }
         } else {
-            if preview_scene.loaded_model_path.is_some() {
+            // Only unload if there are no model tabs open at all
+            let any_model_tab = app.editor_tabs.iter().any(|t| {
+                t.is_model && {
+                    let e = t.file_path.rsplit('.').next().unwrap_or("").to_lowercase();
+                    e == "glb" || e == "gltf"
+                }
+            });
+            if !any_model_tab && preview_scene.loaded_model_path.is_some() {
                 preview_scene.requested_model_path = None;
-            }
-            if !app.editor_tabs.is_empty() && idx < app.editor_tabs.len() {
-                app.editor_tabs[idx].gpu_preview_texture_id = None;
             }
         }
     }

@@ -62,21 +62,27 @@ pub fn setup_preview_render_target(
     let image_handle = images.add(image);
 
     // Spawn preview camera targeting the render texture
+    // Matches Scene Editor pattern (bevy_render.rs) which is known to work.
     commands.spawn((
         Camera3d::default(),
         Camera {
             target: bevy::render::camera::RenderTarget::Image(image_handle.clone()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0)),
-            order: -1, // render before main camera
+            order: -2,
             ..default()
         },
-        Transform::from_xyz(0.0, 1.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
-        RenderLayers::layer(1), // only render preview layer
+        Projection::Perspective(PerspectiveProjection {
+            fov: std::f32::consts::FRAC_PI_4,
+            aspect_ratio: width as f32 / height as f32,
+            near: 0.1,
+            far: 1000.0,
+        }),
+        Transform::from_xyz(0.0, 50.0, 150.0).looking_at(Vec3::ZERO, Vec3::Y),
+        RenderLayers::layer(1),
         PreviewCamera,
-        PreviewSceneEntity,
     ));
 
-    // Add a directional light for the preview scene
+    // Add a directional light for the preview scene (no PreviewSceneEntity — must persist)
     commands.spawn((
         DirectionalLight {
             illuminance: 10000.0,
@@ -85,7 +91,6 @@ pub fn setup_preview_render_target(
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
         RenderLayers::layer(1),
-        PreviewSceneEntity,
     ));
 
     // Ambient light
@@ -99,7 +104,7 @@ pub fn setup_preview_render_target(
     preview.preview_height = height;
     preview.orbit_yaw = std::f32::consts::FRAC_PI_4;
     preview.orbit_pitch = 0.3;
-    preview.orbit_distance = 3.0;
+    preview.orbit_distance = 150.0;
 }
 
 /// System: Load/unload models based on requested_model_path
@@ -140,14 +145,44 @@ pub fn manage_preview_scene(
     }
 
     if let Some(path) = preview.requested_model_path.clone() {
-        // For absolute paths, use the file:// scheme so Bevy's asset server can load them
-        let asset_path = if path.starts_with('/') || path.contains(":\\") {
-            format!("file://{}", path)
-        } else {
-            path.clone()
-        };
+        // Bevy's AssetServer uses a fixed assets/ folder determined at startup.
+        // We find it by checking the Cargo manifest directory (set during `cargo run`).
+        let file_path = std::path::Path::new(&path);
+        let file_name = file_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
 
-        let scene_handle: Handle<Scene> = asset_server.load(format!("{}#Scene0", asset_path));
+        // Bevy uses CARGO_MANIFEST_DIR/assets/ during `cargo run`
+        let bevy_assets_dir = option_env!("CARGO_MANIFEST_DIR")
+            .map(|d| std::path::PathBuf::from(d).join("assets"))
+            .unwrap_or_else(|| {
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|p| p.join("assets")))
+                    .unwrap_or_else(|| std::path::PathBuf::from("assets"))
+            });
+
+        let preview_dir = bevy_assets_dir.join("_preview");
+        let _ = std::fs::create_dir_all(&preview_dir);
+        let dest = preview_dir.join(&file_name);
+
+        // Copy file if needed
+        let src_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        let dst_size = std::fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
+        if src_size != dst_size {
+            let _ = std::fs::copy(&path, &dest);
+        }
+
+        let asset_path = format!("_preview/{}", file_name);
+        tracing::info!(
+            "3D Preview: loading '{}' from {:?}",
+            asset_path,
+            bevy_assets_dir
+        );
+        let label = bevy::gltf::GltfAssetLabel::Scene(0).from_asset(asset_path);
+        let scene_handle: Handle<Scene> = asset_server.load(label);
 
         commands.spawn((
             SceneRoot(scene_handle),
@@ -163,4 +198,34 @@ pub fn manage_preview_scene(
     }
 
     preview.requested_model_path = preview.loaded_model_path.clone();
+}
+
+/// Propagate RenderLayers::layer(1) to newly added children of PreviewSceneEntity.
+/// GLTF scenes spawn children asynchronously, so we detect them via `Added<Parent>`.
+pub fn propagate_preview_render_layers(
+    new_children: Query<(Entity, &Parent), Added<Parent>>,
+    preview_markers: Query<&PreviewSceneEntity>,
+    ancestors: Query<&Parent>,
+    mut commands: Commands,
+) {
+    let target = RenderLayers::layer(1);
+    for (entity, _parent) in new_children.iter() {
+        // Walk up the ancestor chain to see if this entity is under a PreviewSceneEntity
+        let mut current = entity;
+        let mut is_preview = false;
+        for _ in 0..50 {
+            // depth limit
+            if preview_markers.get(current).is_ok() {
+                is_preview = true;
+                break;
+            }
+            match ancestors.get(current) {
+                Ok(p) => current = p.get(),
+                Err(_) => break,
+            }
+        }
+        if is_preview {
+            commands.entity(entity).insert(target.clone());
+        }
+    }
 }
