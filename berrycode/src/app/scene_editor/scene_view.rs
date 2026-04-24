@@ -78,25 +78,57 @@ impl QuadCameraState {
 impl BerryCodeApp {
     /// Render the Scene View (3D viewport).
     pub(crate) fn render_scene_view(&mut self, ui: &mut egui::Ui) {
-        // Toolbar: gizmo mode buttons (W/E/R also work as keyboard shortcuts).
-        ui.horizontal(|ui| {
-            ui.heading("Scene View");
-            ui.separator();
+        // --- VS Code-style panel header ---
+        let header_rect = ui.available_rect_before_wrap();
+        let header_rect =
+            egui::Rect::from_min_size(header_rect.min, egui::vec2(header_rect.width(), 28.0));
+        ui.painter().rect_filled(
+            header_rect,
+            0.0,
+            egui::Color32::from_rgb(37, 37, 38), // VS Code panel header bg
+        );
+        // Bottom border
+        ui.painter().line_segment(
+            [header_rect.left_bottom(), header_rect.right_bottom()],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59)),
+        );
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(header_rect), |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new("SCENE VIEW")
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(187, 187, 187)),
+                );
+            });
+        });
+        ui.advance_cursor_after_rect(header_rect);
+        ui.add_space(2.0);
+
+        // --- Compact toolbar row ---
+        let toolbar_text = egui::TextStyle::Small;
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            ui.style_mut().override_text_style = Some(toolbar_text.clone());
+
             let mode = self.gizmo_mode;
             if ui
-                .selectable_label(mode == GizmoMode::Move, "Move (W)")
+                .selectable_label(mode == GizmoMode::Move, "Move")
+                .on_hover_text("W")
                 .clicked()
             {
                 self.gizmo_mode = GizmoMode::Move;
             }
             if ui
-                .selectable_label(mode == GizmoMode::Rotate, "Rotate (E)")
+                .selectable_label(mode == GizmoMode::Rotate, "Rotate")
+                .on_hover_text("E")
                 .clicked()
             {
                 self.gizmo_mode = GizmoMode::Rotate;
             }
             if ui
-                .selectable_label(mode == GizmoMode::Scale, "Scale (R)")
+                .selectable_label(mode == GizmoMode::Scale, "Scale")
+                .on_hover_text("R")
                 .clicked()
             {
                 self.gizmo_mode = GizmoMode::Scale;
@@ -113,7 +145,6 @@ impl BerryCodeApp {
                 );
             }
 
-            // Perspective / Orthographic toggle.
             ui.separator();
             if ui.selectable_label(!self.scene_ortho, "Persp").clicked() {
                 self.scene_ortho = false;
@@ -124,17 +155,12 @@ impl BerryCodeApp {
 
             ui.separator();
             ui.checkbox(&mut self.scene_shadows_enabled, "Shadows");
-
-            ui.separator();
             ui.checkbox(&mut self.scene_bloom_enabled, "Bloom");
             if self.scene_bloom_enabled {
-                ui.add(
-                    egui::Slider::new(&mut self.scene_bloom_intensity, 0.0..=1.0).text("intensity"),
-                );
+                ui.add(egui::Slider::new(&mut self.scene_bloom_intensity, 0.0..=1.0).text("int"));
             }
 
             ui.separator();
-            ui.label("ToneMap:");
             egui::ComboBox::from_id_salt("tonemapping_combo")
                 .selected_text(match self.scene_tonemapping {
                     0 => "None",
@@ -144,6 +170,7 @@ impl BerryCodeApp {
                     4 => "AgX",
                     _ => "ACES",
                 })
+                .width(70.0)
                 .show_ui(ui, |ui| {
                     for (idx, name) in [
                         (0u8, "None"),
@@ -161,7 +188,6 @@ impl BerryCodeApp {
                     }
                 });
 
-            // --- Advanced Rendering ---
             ui.separator();
             ui.checkbox(&mut self.scene_ssao_enabled, "SSAO");
             ui.checkbox(&mut self.scene_taa_enabled, "TAA");
@@ -169,28 +195,24 @@ impl BerryCodeApp {
             ui.separator();
             ui.checkbox(&mut self.scene_fog_enabled, "Fog");
             if self.scene_fog_enabled {
-                ui.horizontal(|ui| {
-                    ui.label("Color:");
-                    ui.color_edit_button_rgb(&mut self.scene_fog_color);
-                });
+                ui.color_edit_button_rgb(&mut self.scene_fog_color);
                 ui.add(
                     egui::DragValue::new(&mut self.scene_fog_start)
-                        .prefix("start: ")
+                        .prefix("s:")
                         .speed(1.0),
                 );
                 ui.add(
                     egui::DragValue::new(&mut self.scene_fog_end)
-                        .prefix("end: ")
+                        .prefix("e:")
                         .speed(1.0),
                 );
             }
 
-            ui.separator();
             ui.checkbox(&mut self.scene_dof_enabled, "DoF");
             if self.scene_dof_enabled {
                 ui.add(
                     egui::DragValue::new(&mut self.scene_dof_focus_distance)
-                        .prefix("focus: ")
+                        .prefix("f:")
                         .speed(0.5)
                         .range(0.1..=1000.0),
                 );
@@ -202,7 +224,6 @@ impl BerryCodeApp {
                 );
             }
 
-            // Preset view buttons (switch to ortho and set orbit angles).
             ui.separator();
             if ui.small_button("Front").clicked() {
                 self.scene_orbit_yaw = 0.0;
@@ -311,7 +332,7 @@ impl BerryCodeApp {
                 );
             }
         });
-        ui.separator();
+        ui.add_space(2.0);
 
         // Mark the scene dirty so the Bevy sync system runs (the hash check
         // there will short-circuit if nothing actually changed).

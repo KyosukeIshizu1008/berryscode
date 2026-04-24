@@ -47,7 +47,8 @@ These tools understand Bevy's architecture — they're not generic wrappers.
 
 #### Scene Editor (Unity-class)
 - 3D viewport with translate/rotate/scale gizmos (`W`/`E`/`R`)
-- Entity hierarchy with drag & drop reparenting
+- VS Code-style panel headers and compact toolbar layout
+- Entity hierarchy with file-tree-style rendering (Codicon icons, full-row selection, indent guides)
 - Inspector with type-aware component editors (Vec3, Color, Handle, etc.)
 - Prefab system — create, instantiate, override
 - Multi-scene tabs with independent undo/redo
@@ -198,7 +199,8 @@ Bevy のアーキテクチャを理解した専用ツール群。
 
 #### シーンエディタ (Unity クラス)
 - 移動/回転/スケールギズモ付き3Dビューポート (`W`/`E`/`R`)
-- ドラッグ&ドロップによる親子関係変更が可能なエンティティヒエラルキー
+- VS Code 風パネルヘッダーとコンパクトなツールバーレイアウト
+- ファイルツリー風のエンティティヒエラルキー (Codicon アイコン、フル幅選択、インデントガイド)
 - 型対応コンポーネントエディタ付きインスペクター (Vec3, Color, Handle 等)
 - プレハブシステム — 作成、インスタンス化、オーバーライド
 - 独立した Undo/Redo 付きマルチシーンタブ

@@ -8,8 +8,8 @@ impl BerryCodeApp {
     /// Render Sidebar (file tree, chat, terminal, etc.)
     pub(crate) fn render_sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("sidebar")
-            .default_width(200.0)
-            .width_range(150.0..=500.0)
+            .default_width(170.0)
+            .width_range(120.0..=400.0)
             .resizable(true)
             .show_separator_line(false)
             .frame(

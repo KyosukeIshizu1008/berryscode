@@ -1972,8 +1972,8 @@ pub fn berry_ui_system(
             //   Center = Scene View (CentralPanel)
             app.render_sidebar(ctx);
             egui::SidePanel::right("scene_inspector")
-                .default_width(300.0)
-                .width_range(240.0..=500.0)
+                .default_width(220.0)
+                .width_range(160.0..=400.0)
                 .resizable(true)
                 .frame(
                     egui::Frame::none()
@@ -1996,8 +1996,8 @@ pub fn berry_ui_system(
             // 3-column layout: Left=Entity list, Center=3D view, Right=Properties
             app.render_sidebar(ctx);
             egui::SidePanel::right("ecs_properties_panel")
-                .default_width(280.0)
-                .width_range(200.0..=500.0)
+                .default_width(220.0)
+                .width_range(160.0..=400.0)
                 .resizable(true)
                 .frame(
                     egui::Frame::none()

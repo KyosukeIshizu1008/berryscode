@@ -7,8 +7,28 @@ use crate::app::BerryCodeApp;
 impl BerryCodeApp {
     /// Render the Hierarchy panel showing scene entities.
     pub(crate) fn render_scene_hierarchy(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Hierarchy");
-        ui.separator();
+        // VS Code-style panel header
+        let header_rect = ui.available_rect_before_wrap();
+        let header_rect =
+            egui::Rect::from_min_size(header_rect.min, egui::vec2(header_rect.width(), 28.0));
+        ui.painter()
+            .rect_filled(header_rect, 0.0, egui::Color32::from_rgb(37, 37, 38));
+        ui.painter().line_segment(
+            [header_rect.left_bottom(), header_rect.right_bottom()],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59)),
+        );
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(header_rect), |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new("HIERARCHY")
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(187, 187, 187)),
+                );
+            });
+        });
+        ui.advance_cursor_after_rect(header_rect);
+        ui.add_space(4.0);
 
         // Play mode banner.
         if self.play_mode.is_active() {
@@ -596,160 +616,210 @@ impl BerryCodeApp {
         let mut cancel_rename = false;
         let mut request_toggle_enabled = false;
 
-        let row_response = ui
-            .horizontal(|ui| {
-                ui.add_space((depth as f32) * 16.0);
+        // --- File-tree-style row rendering ---
+        let indent = depth as f32 * 16.0;
+        let row_height = 22.0;
+        let text_color = egui::Color32::from_rgb(229, 229, 229);
+        let hover_bg = egui::Color32::from_rgb(42, 45, 46); // #2A2D2E
+        let selected_bg = egui::Color32::from_rgb(4, 57, 94); // #04395E
 
-                // Visibility toggle (eye icon).
-                let eye_label = if entity_enabled { "V" } else { "-" };
-                let eye_color = if entity_enabled {
-                    egui::Color32::from_gray(200)
-                } else {
-                    egui::Color32::from_gray(80)
-                };
-                if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new(eye_label).size(10.0).color(eye_color),
-                        )
-                        .frame(false)
-                        .min_size(egui::vec2(14.0, 14.0)),
-                    )
-                    .clicked()
-                {
-                    request_toggle_enabled = true;
-                }
-
-                let prefix = if children.is_empty() { "• " } else { "▸ " };
-
-                if is_renaming {
-                    let edit = ui.add(
-                        egui::TextEdit::singleline(&mut self.rename_buffer).desired_width(160.0),
-                    );
-                    edit.request_focus();
-                    if edit.lost_focus() {
-                        if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            commit_rename = true;
-                        } else {
-                            cancel_rename = true;
-                        }
-                    }
-                    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if is_renaming {
+            // Inline rename: use a horizontal layout with text edit
+            ui.horizontal(|ui| {
+                ui.add_space(indent + 20.0);
+                let edit = ui
+                    .add(egui::TextEdit::singleline(&mut self.rename_buffer).desired_width(160.0));
+                edit.request_focus();
+                if edit.lost_focus() {
+                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        commit_rename = true;
+                    } else {
                         cancel_rename = true;
                     }
-                    // Build a placeholder response so we still get drag/context
-                    // semantics on the row label area.
-                    ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover())
-                } else {
-                    let label = format!("{}{}", prefix, name);
-                    let label_color = if !entity_enabled {
-                        egui::Color32::from_gray(90)
-                    } else if selected {
-                        egui::Color32::from_rgb(255, 255, 255)
-                    } else {
-                        egui::Color32::from_rgb(212, 212, 212)
-                    };
-                    let resp = ui.add(
-                        egui::Label::new(egui::RichText::new(label).color(label_color))
-                            .sense(egui::Sense::click_and_drag()),
-                    );
+                }
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    cancel_rename = true;
+                }
+            });
+        } else {
+            let (rect, response) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), row_height),
+                egui::Sense::click_and_drag(),
+            );
 
-                    // Selection background highlight.
-                    if selected {
-                        ui.painter().rect_filled(
-                            resp.rect.expand(2.0),
-                            2.0,
-                            egui::Color32::from_rgba_premultiplied(80, 130, 255, 50),
+            // Selection / hover highlight (full row width, VS Code style)
+            if selected {
+                ui.painter().rect_filled(rect, 0.0, selected_bg);
+            } else if response.hovered() {
+                ui.painter().rect_filled(rect, 0.0, hover_bg);
+            }
+
+            // Indent guide lines
+            for d in 1..depth {
+                let line_x = rect.left() + d as f32 * 16.0 + 8.0;
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(line_x, rect.top()),
+                        egui::pos2(line_x, rect.bottom()),
+                    ],
+                    egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 55, 55)),
+                );
+            }
+
+            let text_left = rect.left() + indent;
+
+            // Visibility icon (eye)
+            let eye_icon = if entity_enabled {
+                "\u{eb63}" // codicon eye
+            } else {
+                "\u{eb64}" // codicon eye-closed
+            };
+            let eye_color = if entity_enabled {
+                egui::Color32::from_gray(160)
+            } else {
+                egui::Color32::from_gray(70)
+            };
+            let eye_rect = egui::Rect::from_center_size(
+                egui::pos2(text_left + 6.0, rect.center().y),
+                egui::vec2(14.0, row_height),
+            );
+            ui.painter().text(
+                eye_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                eye_icon,
+                egui::FontId::new(12.0, egui::FontFamily::Name("codicon".into())),
+                eye_color,
+            );
+            // Check click on eye area
+            if response.clicked() {
+                if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                    if eye_rect.contains(pos) {
+                        request_toggle_enabled = true;
+                    }
+                }
+            }
+
+            // Chevron (for entities with children)
+            if !children.is_empty() {
+                let chevron = "\u{eab4}"; // chevron-down
+                ui.painter().text(
+                    egui::pos2(text_left + 16.0, rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    chevron,
+                    egui::FontId::new(10.0, egui::FontFamily::Name("codicon".into())),
+                    egui::Color32::from_rgb(150, 150, 150),
+                );
+            }
+
+            // Entity icon
+            let entity_icon = "\u{eb5f}"; // codicon symbol-misc
+            let icon_color = if !entity_enabled {
+                egui::Color32::from_gray(70)
+            } else {
+                egui::Color32::from_rgb(120, 180, 240)
+            };
+            ui.painter().text(
+                egui::pos2(text_left + 30.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                entity_icon,
+                egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into())),
+                icon_color,
+            );
+
+            // Entity name
+            let name_color = if !entity_enabled {
+                egui::Color32::from_gray(90)
+            } else if selected {
+                egui::Color32::WHITE
+            } else {
+                text_color
+            };
+            ui.painter().text(
+                egui::pos2(text_left + 48.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                &name,
+                egui::FontId::proportional(13.0),
+                name_color,
+            );
+
+            // Drop target highlight
+            if self.hierarchy_dragged.is_some()
+                && self.hierarchy_dragged != Some(id)
+                && ui.input(|i| i.pointer.any_down())
+            {
+                if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+                    if rect.contains(pos) {
+                        self.hierarchy_drop_target = Some(Some(id));
+                        ui.painter().rect_stroke(
+                            rect,
+                            0.0,
+                            egui::Stroke::new(1.5, egui::Color32::from_rgb(80, 200, 255)),
                         );
                     }
-
-                    if resp.clicked() {
-                        let modifiers = ui.input(|i| i.modifiers);
-                        if modifiers.shift {
-                            // Shift+Click: add to selection.
-                            self.scene_model.select_add(id);
-                        } else if modifiers.command {
-                            // Cmd/Ctrl+Click: toggle in selection.
-                            self.scene_model.select_toggle(id);
-                        } else {
-                            // Plain click: replace selection.
-                            self.scene_model.select_only(id);
-                        }
-                        self.primary_selected_id = Some(id);
-                    }
-                    if resp.double_clicked() {
-                        request_rename = true;
-                    }
-
-                    // Drag-and-drop source.
-                    if resp.drag_started() {
-                        self.hierarchy_dragged = Some(id);
-                        self.scene_model.select_only(id);
-                        self.primary_selected_id = Some(id);
-                    }
-
-                    // Drop target detection: if a drag is in progress and the
-                    // pointer is hovering this row's rect, mark this entity as
-                    // the drop target.
-                    if self.hierarchy_dragged.is_some()
-                        && self.hierarchy_dragged != Some(id)
-                        && ui.input(|i| i.pointer.any_down())
-                    {
-                        if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
-                            if resp.rect.contains(pos) {
-                                self.hierarchy_drop_target = Some(Some(id));
-                                ui.painter().rect_stroke(
-                                    resp.rect,
-                                    2.0,
-                                    egui::Stroke::new(1.5, egui::Color32::from_rgb(80, 200, 255)),
-                                );
-                            }
-                        }
-                    }
-
-                    resp.context_menu(|ui| {
-                        if ui.button("Rename").clicked() {
-                            request_rename = true;
-                            ui.close_menu();
-                        }
-                        if ui.button("Duplicate").clicked() {
-                            request_duplicate = true;
-                            ui.close_menu();
-                        }
-                        if ui.button("Delete").clicked() {
-                            request_delete = true;
-                            ui.close_menu();
-                        }
-                        ui.separator();
-                        if ui.button("Copy").clicked() {
-                            request_copy = true;
-                            ui.close_menu();
-                        }
-                        if ui
-                            .button("Paste")
-                            .on_disabled_hover_text("Nothing in clipboard")
-                            .clicked()
-                        {
-                            request_paste = true;
-                            ui.close_menu();
-                        }
-                        ui.separator();
-                        if ui.button("Add Child (Empty)").clicked() {
-                            request_add_child = true;
-                            ui.close_menu();
-                        }
-                        ui.separator();
-                        if ui.button("Save as Prefab...").clicked() {
-                            request_save_prefab = true;
-                            ui.close_menu();
-                        }
-                    });
-
-                    resp
                 }
-            })
-            .inner;
-        let _ = row_response;
+            }
+
+            // Interactions
+            if response.clicked() && !request_toggle_enabled {
+                let modifiers = ui.input(|i| i.modifiers);
+                if modifiers.shift {
+                    self.scene_model.select_add(id);
+                } else if modifiers.command {
+                    self.scene_model.select_toggle(id);
+                } else {
+                    self.scene_model.select_only(id);
+                }
+                self.primary_selected_id = Some(id);
+            }
+            if response.double_clicked() {
+                request_rename = true;
+            }
+
+            // Drag-and-drop source
+            if response.drag_started() {
+                self.hierarchy_dragged = Some(id);
+                self.scene_model.select_only(id);
+                self.primary_selected_id = Some(id);
+            }
+
+            response.context_menu(|ui| {
+                if ui.button("Rename").clicked() {
+                    request_rename = true;
+                    ui.close_menu();
+                }
+                if ui.button("Duplicate").clicked() {
+                    request_duplicate = true;
+                    ui.close_menu();
+                }
+                if ui.button("Delete").clicked() {
+                    request_delete = true;
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("Copy").clicked() {
+                    request_copy = true;
+                    ui.close_menu();
+                }
+                if ui
+                    .button("Paste")
+                    .on_disabled_hover_text("Nothing in clipboard")
+                    .clicked()
+                {
+                    request_paste = true;
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("Add Child (Empty)").clicked() {
+                    request_add_child = true;
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button("Save as Prefab...").clicked() {
+                    request_save_prefab = true;
+                    ui.close_menu();
+                }
+            });
+        }
 
         // Apply per-row requests.
         if request_rename {

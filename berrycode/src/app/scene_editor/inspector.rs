@@ -124,8 +124,28 @@ impl BerryCodeApp {
 
     /// Render the Inspector panel for the currently selected entity.
     pub(crate) fn render_scene_inspector(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Inspector");
-        ui.separator();
+        // VS Code-style panel header
+        let header_rect = ui.available_rect_before_wrap();
+        let header_rect =
+            egui::Rect::from_min_size(header_rect.min, egui::vec2(header_rect.width(), 28.0));
+        ui.painter()
+            .rect_filled(header_rect, 0.0, egui::Color32::from_rgb(37, 37, 38));
+        ui.painter().line_segment(
+            [header_rect.left_bottom(), header_rect.right_bottom()],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59)),
+        );
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(header_rect), |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new("INSPECTOR")
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(187, 187, 187)),
+                );
+            });
+        });
+        ui.advance_cursor_after_rect(header_rect);
+        ui.add_space(4.0);
 
         let selected_id = match self.primary_selected_id {
             Some(id) if self.scene_model.is_selected(id) => id,
