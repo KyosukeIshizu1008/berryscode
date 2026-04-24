@@ -32,7 +32,7 @@ impl BerryCodeApp {
                         self.render_settings_panel(ui);
                     }
                     ActivePanel::EcsInspector => {
-                        self.render_ecs_inspector_panel(ui);
+                        self.render_ecs_inspector_panel(ctx, ui);
                     }
                     ActivePanel::BevyTemplates => {
                         self.render_bevy_templates_panel(ui);

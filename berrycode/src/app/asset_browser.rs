@@ -103,7 +103,8 @@ impl BerryCodeApp {
                 let response = ui.horizontal(|ui| {
                     // Show thumbnail for image assets, fallback to text icon
                     if asset.asset_type == AssetType::Image {
-                        if let Some(tex) = self.thumbnail_cache.get_or_create(ctx, &asset_path_str) {
+                        if let Some(tex) = self.thumbnail_cache.get_or_create(ctx, &asset_path_str)
+                        {
                             let size = egui::vec2(16.0, 16.0);
                             ui.image((tex.id(), size));
                         } else {
@@ -134,7 +135,29 @@ impl BerryCodeApp {
 
             if filtered_assets.is_empty() {
                 if self.asset_browser.assets.is_empty() {
-                    ui.label(t(self.ui_language, "No assets directory found. Create an 'assets/' folder in your project root."));
+                    let assets_dir = std::path::Path::new(&self.root_path).join("assets");
+                    if !assets_dir.exists() {
+                        ui.add_space(20.0);
+                        ui.vertical_centered(|ui| {
+                            ui.label(
+                                egui::RichText::new("No 'assets/' folder found")
+                                    .color(egui::Color32::from_rgb(180, 180, 180))
+                                    .size(13.0),
+                            );
+                            ui.add_space(8.0);
+                            if ui.button("Create assets/ folder").clicked() {
+                                if let Err(e) = std::fs::create_dir_all(&assets_dir) {
+                                    tracing::warn!("Failed to create assets dir: {}", e);
+                                } else {
+                                    self.asset_browser.scan_pending = true;
+                                    self.file_tree_cache.clear();
+                                    self.file_tree_load_pending = true;
+                                }
+                            }
+                        });
+                    } else {
+                        ui.label(t(self.ui_language, "No assets found in assets/ folder."));
+                    }
                 } else {
                     ui.label(t(self.ui_language, "No assets match the current filter."));
                 }

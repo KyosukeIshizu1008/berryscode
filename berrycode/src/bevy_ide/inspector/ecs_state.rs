@@ -16,6 +16,15 @@ pub struct EcsInspectorState {
     pub filter_query: String,
     pub error_message: Option<String>,
     pub auto_refresh: bool,
+    /// 3D view camera state
+    pub view_yaw: f32,
+    pub view_pitch: f32,
+    pub view_zoom: f32,
+    /// Pending async results
+    pub pending_connect: Option<std::sync::mpsc::Receiver<bool>>,
+    pub pending_entities: Option<std::sync::mpsc::Receiver<anyhow::Result<Vec<EntityInfo>>>>,
+    pub pending_components:
+        Option<std::sync::mpsc::Receiver<anyhow::Result<Vec<(String, serde_json::Value)>>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +55,12 @@ impl Default for EcsInspectorState {
             filter_query: String::new(),
             error_message: None,
             auto_refresh: true,
+            view_yaw: std::f32::consts::PI * 0.25,
+            view_pitch: std::f32::consts::PI * 0.15,
+            view_zoom: 1.0,
+            pending_connect: None,
+            pending_entities: None,
+            pending_components: None,
         }
     }
 }

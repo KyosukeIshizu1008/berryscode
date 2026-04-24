@@ -1924,6 +1924,9 @@ pub fn berry_ui_system(
         // Poll run process output (non-blocking)
         app.poll_run_output();
 
+        // Poll ECS Inspector async results (non-blocking)
+        app.poll_ecs_inspector();
+
         // Keep repainting while a game process is running
         if app.run_process.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -1989,6 +1992,43 @@ pub fn berry_ui_system(
                 .show(ctx, |ui| {
                     app.render_scene_view(ui);
                 });
+        } else if app.active_panel == ActivePanel::EcsInspector {
+            // 3-column layout: Left=Entity list, Center=3D view, Right=Properties
+            app.render_sidebar(ctx);
+            egui::SidePanel::right("ecs_properties_panel")
+                .default_width(280.0)
+                .width_range(200.0..=500.0)
+                .resizable(true)
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::SIDEBAR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |ui| {
+                    app.render_ecs_properties_only(ui);
+                });
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |ui| {
+                    app.render_ecs_3d_view(ui);
+                });
+        } else if app.active_panel == ActivePanel::AssetBrowser
+            || app.active_panel == ActivePanel::BevyTemplates
+            || app.active_panel == ActivePanel::Settings
+        {
+            // Sidebar-only panels: no editor in center
+            app.render_sidebar(ctx);
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |_ui| {});
         } else {
             app.render_sidebar(ctx);
             app.render_ai_chat_panel(ctx);
