@@ -4,7 +4,7 @@
 //! and ensure all icon references match actual Codicon CSS definitions.
 //!
 //! ## Usage
-//! ```rust
+//! ```rust,ignore
 //! use crate::common::icons::ICON_FILES;
 //! let icon_class = format!("codicon codicon-{}", ICON_FILES);
 //! ```

@@ -36,9 +36,7 @@ impl BerryCodeApp {
                 if i.key_pressed(egui::Key::Num8) {
                     self.active_panel = ActivePanel::SceneEditor;
                 }
-                if i.key_pressed(egui::Key::Num9) {
-                    self.active_panel = ActivePanel::GameView;
-                }
+
             }
         });
 

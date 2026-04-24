@@ -112,7 +112,6 @@ pub enum ActivePanel {
     BevyTemplates,
     AssetBrowser,
     SceneEditor,
-    GameView,
 }
 
 /// Settings Tab Categories (RustRover Style)

@@ -66,15 +66,6 @@ Unity-style scene hierarchy panel. See [Scene Editor](Scene-Editor) for the full
 - Toolbar: New / Save / Tools dropdown
 - Play Mode banner (editing disabled during playback)
 
-### 10. Game View
-
-Captures running Bevy game window inside the editor. **Play your game without leaving the IDE.**
-
-- PID-based window detection
-- 100ms capture throttling
-- Auto-hide external window (moved off-screen)
-- Cross-platform (macOS: AppleScript, Linux: xdotool, Windows: PowerShell)
-
 ---
 
 ### General IDE Panels
@@ -199,15 +190,6 @@ Unity スタイルのシーン階層パネル。3Dビューポートの詳細は
 - ツールバー: New / Save / Tools ドロップダウン
 - Play Mode バナー（再生中は編集無効）
 
-### 10. Game View
-
-実行中の Bevy ゲームウィンドウをエディタ内にキャプチャ表示。**IDEを離れずにゲームをプレイ。**
-
-- PID マッチングによるウィンドウ検出
-- 100ms 間隔のキャプチャスロットリング
-- 外部ウィンドウの自動非表示（オフスクリーン移動）
-- クロスプラットフォーム対応（macOS: AppleScript, Linux: xdotool, Windows: PowerShell）
-
 ---
 
 ### 汎用 IDE パネル
@@ -322,11 +304,3 @@ Unity スタイルのシーン階層パネル。
 - ツールバー: New / Save / Tools ドロップダウン
 - Play Mode バナー（再生中は編集無効）
 
-### 10. Game View
-
-実行中の Bevy ゲームウィンドウをエディタ内にキャプチャ表示。
-
-- PID マッチングによるウィンドウ検出
-- 100ms 間隔のキャプチャスロットリング
-- 外部ウィンドウの自動非表示（オフスクリーン移動）
-- クロスプラットフォーム対応（macOS: AppleScript, Linux: xdotool, Windows: PowerShell）

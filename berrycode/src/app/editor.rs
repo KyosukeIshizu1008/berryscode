@@ -19,12 +19,6 @@ impl BerryCodeApp {
                 // Save the full panel rect before any layout happens
                 let _full_panel_rect = ui.max_rect();
 
-                // If game is running with game view, show Game View in central area
-                if self.game_view_open && self.run_process.is_some() {
-                    self.render_game_view_central(ui);
-                    return;
-                }
-
                 if self.editor_tabs.is_empty() {
                     // No file open - show placeholder
                     ui.vertical_centered(|ui| {
@@ -335,7 +329,9 @@ impl BerryCodeApp {
                 // Also override the faint_bg_color used for scroll bar track
                 ui.style_mut().visuals.faint_bg_color = ui_colors::SIDEBAR_BG;
 
-                let scroll_area = egui::ScrollArea::vertical().auto_shrink([false; 2]);
+                let scroll_area = egui::ScrollArea::vertical()
+                    .auto_shrink([false; 2])
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
 
                 let scroll_output = scroll_area.show(ui, |ui| {
                     ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
@@ -536,6 +532,13 @@ impl BerryCodeApp {
                     let galley = &output.galley;
                     // text_draw_pos is the screen position where galley starts drawing
                     let text_origin = output.galley_pos;
+
+                    // Get actual line height from galley (used by indent guides, gutter click, etc.)
+                    let actual_line_height = {
+                        let c0 = galley.from_ccursor(egui::text::CCursor::new(0));
+                        let r0 = galley.pos_from_cursor(&c0);
+                        (r0.max.y - r0.min.y).max(1.0)
+                    };
 
                     // Sync cursor_line from egui cursor position
                     if let Some(cr) = output.cursor_range {
@@ -1155,20 +1158,15 @@ impl BerryCodeApp {
                             (r1.min.x - r0.min.x).max(1.0)
                         };
 
-                        // Get actual line height from galley
-                        let line_height = {
-                            let c0 = galley.from_ccursor(egui::text::CCursor::new(0));
-                            let r0 = galley.pos_from_cursor(&c0);
-                            (r0.max.y - r0.min.y).max(1.0)
-                        };
-
                         // Determine visible lines
                         let scroll_offset_y = ui.clip_rect().min.y - editor_rect.min.y;
                         let visible_height = ui.clip_rect().height();
                         let first_visible =
-                            (scroll_offset_y / line_height).floor().max(0.0) as usize;
+                            (scroll_offset_y / actual_line_height).floor().max(0.0) as usize;
                         let last_visible =
-                            ((scroll_offset_y + visible_height) / line_height).ceil() as usize + 5;
+                            ((scroll_offset_y + visible_height) / actual_line_height).ceil()
+                                as usize
+                                + 5;
 
                         for (line_idx, line_text) in text.lines().enumerate() {
                             if line_idx < first_visible {
@@ -1183,8 +1181,8 @@ impl BerryCodeApp {
 
                             for level in 1..=indent_levels {
                                 let x_offset = (level * tab_size) as f32 * char_width;
-                                let y_start = line_idx as f32 * line_height;
-                                let y_end = (line_idx + 1) as f32 * line_height;
+                                let y_start = line_idx as f32 * actual_line_height;
+                                let y_end = (line_idx + 1) as f32 * actual_line_height;
 
                                 ui.painter().line_segment(
                                     [
@@ -1366,6 +1364,7 @@ impl BerryCodeApp {
                         fold_toggle_line,
                         bp_toggle_line,
                         gutter_info,
+                        actual_line_height,
                     )
                 });
 
@@ -1390,6 +1389,7 @@ impl BerryCodeApp {
                 // Gutter click handling (outside ScrollArea to avoid TextEdit consuming events)
                 {
                     let (gutter_left, _fold_cx, _bp_cx, ed_rect) = scroll_output.inner.5;
+                    let actual_line_height = scroll_output.inner.6;
                     let clicked = ctx.input(|i| i.pointer.any_pressed());
                     let click_pos = ctx.input(|i| i.pointer.interact_pos());
 
@@ -1404,9 +1404,8 @@ impl BerryCodeApp {
                                 // Calculate line from Y position
                                 let relative_y =
                                     pos.y - ed_rect.min.y + scroll_output.state.offset.y;
-                                // Use approximate line height (galley coords)
-                                let line_height = 15.0_f32; // from galley pos_rect
-                                let clicked_line = (relative_y / line_height).floor() as usize;
+                                let clicked_line =
+                                    (relative_y / actual_line_height).floor() as usize;
                                 let tab = &self.editor_tabs[self.active_tab_idx];
                                 let total_lines = tab.text_cache.lines().count();
 

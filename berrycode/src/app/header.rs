@@ -131,10 +131,8 @@ impl BerryCodeApp {
                         {
                             if is_running {
                                 self.stop_run();
-                                self.game_view_open = false;
                             } else {
                                 self.start_run();
-                                self.open_game_view();
                                 self.tool_panel_open = true;
                             }
                         }

@@ -106,9 +106,6 @@ rfd = "0.15"
 # ===== Platform Info =====
 whoami = "1.5"
 
-# ===== Window Capture (Play in Editor) =====
-xcap = "0.9"
-
 # ===== Native LSP Client =====
 lsp-types = "0.95"
 

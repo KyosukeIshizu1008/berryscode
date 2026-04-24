@@ -24,7 +24,7 @@ mod editor;
 mod events;
 mod file_tree;
 mod folding;
-mod game_view;
+
 mod git;
 mod header;
 pub(crate) mod i18n;
@@ -418,12 +418,6 @@ pub struct BerryCodeApp {
     pub(crate) console_show_warning: bool,
     pub(crate) console_show_error: bool,
     pub(crate) console_auto_scroll: bool,
-
-    // === Play in Editor (Game View) State ===
-    pub(crate) game_view_open: bool,
-    pub(crate) game_view_texture: Option<egui::TextureHandle>,
-    pub(crate) game_view_last_capture: Option<std::time::Instant>,
-    pub(crate) game_view_window_hidden: bool,
 
     // === Scene Editor (Unity-like) ===
     pub(crate) scene_model: scene_editor::model::SceneModel,
@@ -1341,11 +1335,6 @@ impl BerryCodeApp {
             console_show_error: true,
             console_auto_scroll: true,
 
-            game_view_open: false,
-            game_view_texture: None,
-            game_view_last_capture: None,
-            game_view_window_hidden: false,
-
             scene_model: {
                 // Auto-import entities from main.rs if project has one
                 let main_path = format!("{}/src/main.rs", root_path_ref);
@@ -1768,12 +1757,14 @@ pub fn berry_ui_system(
     >,
 ) {
     // Handle window close — check for unsaved files
+    let mut exiting = false;
     for _event in close_events.read() {
         let has_unsaved = app.editor_tabs.iter().any(|tab| tab.is_dirty);
         if has_unsaved {
             app.show_close_confirm = true;
         } else {
             app_exit.send(bevy::app::AppExit::Success);
+            exiting = true;
         }
     }
 
@@ -1793,10 +1784,12 @@ pub fn berry_ui_system(
                 }
                 app.show_close_confirm = false;
                 app_exit.send(bevy::app::AppExit::Success);
+                exiting = true;
             }
             CloseAction::Discard => {
                 app.show_close_confirm = false;
                 app_exit.send(bevy::app::AppExit::Success);
+                exiting = true;
             }
         }
     }
@@ -1845,6 +1838,11 @@ pub fn berry_ui_system(
         }
     }
 
+    // After sending AppExit, skip UI rendering to avoid accessing destroyed context
+    if exiting {
+        return;
+    }
+
     {
         let ctx = egui_ctx.ctx_mut();
 
@@ -1876,9 +1874,7 @@ pub fn berry_ui_system(
                 if i.key_pressed(egui::Key::Num8) {
                     app.active_panel = types::ActivePanel::SceneEditor;
                 }
-                if i.key_pressed(egui::Key::Num9) {
-                    app.active_panel = types::ActivePanel::GameView;
-                }
+
             }
         });
 
@@ -1940,15 +1936,6 @@ pub fn berry_ui_system(
         // Poll test mode commands (non-blocking)
         app.poll_test_commands();
 
-        // Update game view texture (captures running game window)
-        if app.run_process.is_some() {
-            eprintln!(
-                "[DEBUG] run_process alive, game_view_open={}",
-                app.game_view_open
-            );
-        }
-        app.update_game_view(ctx);
-
         // Handle keyboard shortcuts
         app.handle_editor_shortcuts(ctx);
         app.handle_goto_definition_shortcut(ctx);
@@ -1973,18 +1960,6 @@ pub fn berry_ui_system(
         } else if app.active_panel == ActivePanel::Git {
             app.render_sidebar(ctx);
             app.render_git_diff_viewer(ctx);
-        } else if app.active_panel == ActivePanel::GameView {
-            // Game View: sidebar (file tree) + central game view
-            app.render_sidebar(ctx);
-            egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::none()
-                        .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
-                )
-                .show(ctx, |ui| {
-                    app.render_game_view_central(ui);
-                });
         } else if app.active_panel == ActivePanel::SceneEditor {
             // Unity-style 3-column layout:
             //   Left   = Hierarchy  (handled by render_sidebar)
@@ -2029,9 +2004,6 @@ pub fn berry_ui_system(
         if !app.tool_panel_open {
             app.render_run_panel(ctx);
         }
-
-        // Game view capture (no floating window — rendered in central editor area)
-        app.update_game_view(ctx);
 
         // Render diagnostics panel
         if !app.lsp_diagnostics.is_empty() {
@@ -2415,6 +2387,18 @@ impl BerryCodeApp {
 
 impl Drop for BerryCodeApp {
     fn drop(&mut self) {
+        // Kill any running child process
+        if let Some(mut child) = self.run_process.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        // Shutdown LSP client
+        if let Some(client) = self.lsp_native_client.take() {
+            let rt = self.lsp_runtime.clone();
+            let _ = rt.block_on(client.shutdown_all());
+        }
+        // Shutdown file watcher
+        self.file_watcher = None;
         tracing::info!("BerryCode shutdown complete");
     }
 }

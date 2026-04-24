@@ -4,6 +4,8 @@ use berrycode::bevy_plugin::BerryCodePlugin;
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::winit::WinitWindows;
+use std::fs;
+use std::io::Write;
 
 fn main() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
@@ -11,6 +13,33 @@ fn main() {
     });
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
+
+    // Single instance check
+    let lock_path = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join("berrycode.lock");
+
+    if let Ok(content) = fs::read_to_string(&lock_path) {
+        if let Ok(pid) = content.trim().parse::<u32>() {
+            // Check if the process is still alive using kill -0
+            let alive = std::process::Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if alive {
+                eprintln!("BerryCode is already running (pid {})", pid);
+                std::process::exit(0);
+            }
+        }
+    }
+
+    // Write our PID to lock file
+    if let Ok(mut f) = fs::File::create(&lock_path) {
+        let _ = write!(f, "{}", std::process::id());
+    }
 
     tracing::info!("Starting BerryCode - Bevy IDE");
 
@@ -32,6 +61,9 @@ fn main() {
         .add_plugins(BerryCodePlugin)
         .add_systems(Startup, set_window_icon)
         .run();
+
+    // Clean up lock file on exit
+    let _ = fs::remove_file(&lock_path);
 }
 
 fn set_window_icon(windows: NonSend<WinitWindows>) {

@@ -261,7 +261,7 @@ impl BerryCodeApp {
                 "panel:templates" => self.active_panel = super::types::ActivePanel::BevyTemplates,
                 "panel:assets" => self.active_panel = super::types::ActivePanel::AssetBrowser,
                 "panel:scene-editor" => self.active_panel = super::types::ActivePanel::SceneEditor,
-                "panel:game-view" => self.active_panel = super::types::ActivePanel::GameView,
+
                 "quit" => std::process::exit(0),
                 // Add all component types as entities for testing
                 "test:add-all-components" => {

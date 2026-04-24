@@ -43,9 +43,6 @@ impl BerryCodeApp {
                     ActivePanel::SceneEditor => {
                         self.render_scene_hierarchy(ui);
                     }
-                    ActivePanel::GameView => {
-                        self.render_file_tree(ui);
-                    }
                 }
             });
     }

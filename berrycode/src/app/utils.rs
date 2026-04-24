@@ -156,3 +156,80 @@ pub(crate) fn calculate_line_column(text: &str, pos: usize) -> (usize, usize) {
 
     (line, col)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_filename() {
+        assert_eq!(get_filename("/path/to/file.rs"), "file.rs");
+        assert_eq!(get_filename("file.rs"), "file.rs");
+        assert_eq!(get_filename("/a/b/c/main.rs"), "main.rs");
+        assert_eq!(get_filename(""), "");
+    }
+
+    #[test]
+    fn test_get_extension() {
+        assert_eq!(get_extension("file.rs"), "rs");
+        assert_eq!(get_extension("file.RS"), "rs");
+        assert_eq!(get_extension("file.tar.gz"), "gz");
+        assert_eq!(get_extension("noext"), "noext");
+        assert_eq!(get_extension(""), "");
+    }
+
+    #[test]
+    fn test_strip_thinking_blocks() {
+        assert_eq!(
+            strip_thinking_blocks("before <thinking>hidden</thinking> after"),
+            "before  after"
+        );
+        assert_eq!(
+            strip_thinking_blocks("before <think>hidden</think> after"),
+            "before  after"
+        );
+        assert_eq!(strip_thinking_blocks("no blocks here"), "no blocks here");
+        assert_eq!(
+            strip_thinking_blocks("<thinking>all hidden</thinking>"),
+            ""
+        );
+        // Unclosed tag
+        assert_eq!(
+            strip_thinking_blocks("before <thinking>no close"),
+            "before"
+        );
+    }
+
+    #[test]
+    fn test_utf16_offset_to_utf8() {
+        // ASCII only
+        assert_eq!(utf16_offset_to_utf8("hello", 3), 3);
+        // Japanese (each char is 1 UTF-16 code unit)
+        assert_eq!(utf16_offset_to_utf8("日本語", 2), 2);
+        // Emoji (surrogate pair = 2 UTF-16 code units)
+        assert_eq!(utf16_offset_to_utf8("a😀b", 1), 1); // 'a'
+        assert_eq!(utf16_offset_to_utf8("a😀b", 3), 2); // after emoji
+    }
+
+    #[test]
+    fn test_utf8_offset_to_utf16() {
+        assert_eq!(utf8_offset_to_utf16("hello", 3), 3);
+        assert_eq!(utf8_offset_to_utf16("日本語", 2), 2);
+        assert_eq!(utf8_offset_to_utf16("a😀b", 1), 1); // 'a'
+        assert_eq!(utf8_offset_to_utf16("a😀b", 2), 3); // after emoji (2 UTF-16 units)
+    }
+
+    #[test]
+    fn test_calculate_line_column() {
+        let text = "first\nsecond\nthird";
+        assert_eq!(calculate_line_column(text, 0), (0, 0));
+        assert_eq!(calculate_line_column(text, 3), (0, 3));
+        assert_eq!(calculate_line_column(text, 6), (1, 0)); // start of "second"
+        assert_eq!(calculate_line_column(text, 13), (2, 0)); // start of "third"
+    }
+
+    #[test]
+    fn test_calculate_line_column_empty() {
+        assert_eq!(calculate_line_column("", 0), (0, 0));
+    }
+}

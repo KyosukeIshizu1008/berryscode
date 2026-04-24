@@ -43,7 +43,6 @@ impl BerryCodeApp {
         self.run_output
             .push("─── Starting cargo run ───".to_string());
         self.run_panel_open = true;
-        self.game_view_open = true;
 
         let project_path = self.root_path.clone();
 
@@ -58,9 +57,6 @@ impl BerryCodeApp {
         if self.run_release_mode {
             cmd.arg("--release");
         }
-        // Note: Game View captures the external window via xcap.
-        // On macOS, granting Accessibility permission in System Settings
-        // allows BerryCode to auto-hide the game window.
         let mut child = match cmd
             .current_dir(&project_path)
             .stdout(Stdio::piped())
@@ -118,7 +114,6 @@ impl BerryCodeApp {
                 .push("─── Process terminated ───".to_string());
         }
         self.run_output_rx = None;
-        self.game_view_window_hidden = false;
     }
 
     /// Poll output from the running process

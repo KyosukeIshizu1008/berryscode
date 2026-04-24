@@ -26,21 +26,9 @@ pub struct BerryCodePlugin;
 impl Plugin for BerryCodePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EguiPlugin)
-            // Reactive rendering optimized for a code editor:
-            // - On user input: render immediately at up to 60fps for 1 second
-            // - When idle: drop to 2fps (just enough for cursor blink, status updates)
-            // This gives snappy interaction while keeping idle CPU near zero.
-            .insert_resource(if std::env::var("BERRYCODE_DEMO").is_ok() {
-                // Demo mode: render continuously for smooth video capture
-                WinitSettings {
-                    focused_mode: UpdateMode::reactive_low_power(Duration::from_millis(33)), // ~30fps
-                    unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(33)), // ~30fps even unfocused
-                }
-            } else {
-                WinitSettings {
-                    focused_mode: UpdateMode::reactive_low_power(Duration::from_millis(16)), // ~60fps while interacting
-                    unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(200)), // 5fps when unfocused (needed for Game View capture)
-                }
+            .insert_resource(WinitSettings {
+                focused_mode: UpdateMode::Continuous,
+                unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(100)),
             })
             .insert_non_send_resource(BerryCodeApp::new())
             .init_resource::<ModelPreviewScene>()
