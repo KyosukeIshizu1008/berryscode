@@ -28,12 +28,6 @@ BerryCode is not a general-purpose editor with Bevy plugins bolted on — it's a
   <img src="docs/demo/demo.gif" width="80%" alt="BerryCode Demo">
 </p>
 
-### Screenshots
-
-<p align="center">
-  <img src="docs/demo/check_01.png" width="80%" alt="BerryCode — Bevy IDE with 3D rendering">
-</p>
-
 ### What Makes BerryCode Different
 
 | Feature | VS Code + Extensions | BerryCode |
@@ -183,12 +177,6 @@ BerryCode は汎用エディタに Bevy プラグインを後付けしたもの�
 
 <p align="center">
   <img src="docs/demo/demo.gif" width="80%" alt="BerryCode デモ">
-</p>
-
-### スクリーンショット
-
-<p align="center">
-  <img src="docs/demo/check_01.png" width="80%" alt="BerryCode — Bevy IDE + 3Dレンダリング">
 </p>
 
 ### BerryCode が他と違う点
