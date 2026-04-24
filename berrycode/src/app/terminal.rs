@@ -403,7 +403,10 @@ impl BerryCodeApp {
         let padding_y = 4.0;
 
         let grid_cols = ((available.width() - padding_x * 2.0) / cell_w).max(10.0) as usize;
-        let grid_rows = ((available.height() - padding_y * 2.0) / cell_h).max(4.0) as usize;
+        // Subtract 1 row to ensure the last line is fully visible (not clipped by status bar etc.)
+        let grid_rows = (((available.height() - padding_y * 2.0) / cell_h).floor() as usize)
+            .saturating_sub(1)
+            .max(4);
 
         // Resize PTY if dimensions changed
         if let Some(tab) = self.terminal.active_tab_mut() {
@@ -430,13 +433,9 @@ impl BerryCodeApp {
                 let origin = rect.left_top() + egui::vec2(padding_x, padding_y);
                 let font_id = egui::FontId::monospace(font_size);
 
-                for row in 0..grid.rows.min(grid_rows) {
-                    if row >= grid.cells.len() {
-                        break;
-                    }
-
+                let visible = grid.visible_lines(grid_rows);
+                for (row, line) in visible.iter().enumerate() {
                     let y = origin.y + row as f32 * cell_h;
-                    let line = &grid.cells[row];
 
                     // Paint by style runs (batched for performance)
                     let mut run_start_col = 0;
@@ -556,8 +555,11 @@ impl BerryCodeApp {
                     }
                 }
 
-                // ─── Cursor ─────────────────────────────────────
-                if grid.cursor_visible && self.terminal.cursor_visible_blink {
+                // ─── Cursor (only when not scrolled back) ──────
+                if grid.cursor_visible
+                    && self.terminal.cursor_visible_blink
+                    && grid.scroll_offset == 0
+                {
                     let cx = origin.x + grid.cursor_col as f32 * cell_w;
                     let cy = origin.y + grid.cursor_row as f32 * cell_h;
                     let cursor_rect =
@@ -588,14 +590,15 @@ impl BerryCodeApp {
                 }
 
                 // ─── Scrollbar ──────────────────────────────────
-                let total_lines = grid.scrollback.len() + grid.rows;
-                if total_lines > grid.rows {
+                let sb_len = grid.scrollback.len();
+                let total_lines = sb_len + grid.rows;
+                if sb_len > 0 {
                     let scrollbar_x = rect.right() - 8.0;
                     let scrollbar_h = rect.height();
                     let thumb_h = (grid.rows as f32 / total_lines as f32 * scrollbar_h).max(20.0);
-                    let scroll_frac =
-                        1.0 - (grid.scroll_offset as f32 / grid.scrollback.len().max(1) as f32);
-                    let thumb_y = rect.top() + scroll_frac * (scrollbar_h - thumb_h);
+                    // scroll_offset=0 → thumb at bottom; scroll_offset=sb_len → thumb at top
+                    let scroll_frac = grid.scroll_offset as f32 / sb_len as f32;
+                    let thumb_y = rect.top() + (1.0 - scroll_frac) * (scrollbar_h - thumb_h);
 
                     let thumb_rect = egui::Rect::from_min_size(
                         egui::pos2(scrollbar_x, thumb_y),
@@ -863,18 +866,21 @@ impl BerryCodeApp {
         let origin = rect.left_top() + egui::vec2(padding_x, padding_y);
 
         // Mouse scroll → scrollback
-        let scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+        // Try both scroll sources — egui may deliver via either depending on platform
+        let smooth = ui.input(|i| i.smooth_scroll_delta.y);
+        let raw = ui.input(|i| i.raw_scroll_delta.y);
+        let scroll_delta = if smooth != 0.0 { smooth } else { raw };
         if scroll_delta != 0.0 {
             if let Some(tab) = self.terminal.active_tab() {
                 if let Ok(mut grid) = tab.grid.lock() {
-                    let lines = (scroll_delta / cell_h).round() as i32;
+                    let lines = (scroll_delta.abs() / cell_h).ceil().max(1.0) as usize;
                     let max_scroll = grid.scrollback.len();
-                    if lines > 0 {
+                    if scroll_delta > 0.0 {
                         // Scroll up (into scrollback)
-                        grid.scroll_offset = (grid.scroll_offset + lines as usize).min(max_scroll);
+                        grid.scroll_offset = (grid.scroll_offset + lines).min(max_scroll);
                     } else {
                         // Scroll down (toward current)
-                        grid.scroll_offset = grid.scroll_offset.saturating_sub((-lines) as usize);
+                        grid.scroll_offset = grid.scroll_offset.saturating_sub(lines);
                     }
                 }
             }

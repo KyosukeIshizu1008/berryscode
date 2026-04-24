@@ -36,7 +36,6 @@ impl BerryCodeApp {
                 if i.key_pressed(egui::Key::Num8) {
                     self.active_panel = ActivePanel::SceneEditor;
                 }
-
             }
         });
 

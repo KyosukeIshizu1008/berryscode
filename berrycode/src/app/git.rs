@@ -618,13 +618,21 @@ impl BerryCodeApp {
         // Add new remote
         ui.horizontal(|ui| {
             ui.label("Name:");
-            ui.text_edit_singleline(&mut self.git_remote_state.new_remote_name);
-            ui.label("URL:");
-            ui.text_edit_singleline(&mut self.git_remote_state.new_remote_url);
-            if ui.button("➕ Add").clicked() && !self.git_remote_state.new_remote_name.is_empty() {
-                self.perform_add_remote();
-            }
+            ui.add(
+                egui::TextEdit::singleline(&mut self.git_remote_state.new_remote_name)
+                    .desired_width(ui.available_width() - 40.0),
+            );
         });
+        ui.horizontal(|ui| {
+            ui.label("URL:");
+            ui.add(
+                egui::TextEdit::singleline(&mut self.git_remote_state.new_remote_url)
+                    .desired_width(ui.available_width() - 40.0),
+            );
+        });
+        if ui.button("➕ Add").clicked() && !self.git_remote_state.new_remote_name.is_empty() {
+            self.perform_add_remote();
+        }
 
         ui.separator();
 

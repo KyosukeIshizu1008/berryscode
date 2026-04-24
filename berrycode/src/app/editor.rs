@@ -1163,10 +1163,9 @@ impl BerryCodeApp {
                         let visible_height = ui.clip_rect().height();
                         let first_visible =
                             (scroll_offset_y / actual_line_height).floor().max(0.0) as usize;
-                        let last_visible =
-                            ((scroll_offset_y + visible_height) / actual_line_height).ceil()
-                                as usize
-                                + 5;
+                        let last_visible = ((scroll_offset_y + visible_height) / actual_line_height)
+                            .ceil() as usize
+                            + 5;
 
                         for (line_idx, line_text) in text.lines().enumerate() {
                             if line_idx < first_visible {

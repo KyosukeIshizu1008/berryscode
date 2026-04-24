@@ -189,15 +189,9 @@ mod tests {
             "before  after"
         );
         assert_eq!(strip_thinking_blocks("no blocks here"), "no blocks here");
-        assert_eq!(
-            strip_thinking_blocks("<thinking>all hidden</thinking>"),
-            ""
-        );
+        assert_eq!(strip_thinking_blocks("<thinking>all hidden</thinking>"), "");
         // Unclosed tag
-        assert_eq!(
-            strip_thinking_blocks("before <thinking>no close"),
-            "before"
-        );
+        assert_eq!(strip_thinking_blocks("before <thinking>no close"), "before");
     }
 
     #[test]

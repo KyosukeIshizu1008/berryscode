@@ -1874,7 +1874,6 @@ pub fn berry_ui_system(
                 if i.key_pressed(egui::Key::Num8) {
                     app.active_panel = types::ActivePanel::SceneEditor;
                 }
-
             }
         });
 
@@ -1951,6 +1950,9 @@ pub fn berry_ui_system(
         // Render UI panels
         app.render_activity_bar(ctx);
 
+        // Render status bar (must be before CentralPanel to reserve space)
+        app.render_status_bar(ctx);
+
         // Render dockable tool panel (bottom, must reserve space before CentralPanel)
         app.render_tool_panel(ctx);
 
@@ -2009,8 +2011,6 @@ pub fn berry_ui_system(
         if !app.lsp_diagnostics.is_empty() {
             app.render_diagnostics_panel(ctx);
         }
-
-        app.render_status_bar(ctx);
 
         // Render search dialog if open
         if app.search_dialog_open {

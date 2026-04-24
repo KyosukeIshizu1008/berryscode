@@ -518,23 +518,36 @@ impl TerminalGrid {
     }
 
     /// Get all visible lines (scrollback + active) for the current scroll position
+    ///
+    /// scroll_offset = 0: show current grid (latest output)
+    /// scroll_offset = N: show N lines into scrollback history
+    /// scroll_offset = scrollback.len(): show the very beginning
     pub fn visible_lines(&self, viewport_rows: usize) -> Vec<&[Cell]> {
         let mut lines = Vec::with_capacity(viewport_rows);
-        let total_scrollback = self.scrollback.len();
+        let sb_len = self.scrollback.len();
 
-        if self.scroll_offset > 0 {
-            // Viewing scrollback
-            let start = total_scrollback.saturating_sub(self.scroll_offset);
-            for i in start..(start + viewport_rows).min(total_scrollback) {
-                lines.push(self.scrollback[i].as_slice());
-            }
-            let remaining = viewport_rows.saturating_sub(lines.len());
-            for i in 0..remaining.min(self.rows) {
+        if self.scroll_offset == 0 {
+            // No scrollback — show current grid
+            for i in 0..viewport_rows.min(self.rows).min(self.cells.len()) {
                 lines.push(self.cells[i].as_slice());
             }
         } else {
-            for i in 0..viewport_rows.min(self.rows) {
-                lines.push(self.cells[i].as_slice());
+            // Combined view: scrollback + current grid as one continuous buffer
+            // Total virtual lines = sb_len + self.rows
+            // We want to show viewport_rows lines ending at (total - scroll_offset)
+            let total = sb_len + self.rows;
+            let view_end = total.saturating_sub(self.scroll_offset);
+            let view_start = view_end.saturating_sub(viewport_rows);
+
+            for vline in view_start..view_end {
+                if vline < sb_len {
+                    lines.push(self.scrollback[vline].as_slice());
+                } else {
+                    let grid_row = vline - sb_len;
+                    if grid_row < self.cells.len() {
+                        lines.push(self.cells[grid_row].as_slice());
+                    }
+                }
             }
         }
 
