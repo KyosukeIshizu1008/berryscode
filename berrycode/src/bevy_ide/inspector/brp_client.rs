@@ -136,11 +136,13 @@ impl BrpClient {
                     {
                         Ok(val) => val
                             .get("components")
-                            .or(Some(&val))
                             .and_then(|c| c.get("bevy_ecs::name::Name"))
-                            .and_then(|n| n.get("name").or(n.get("hash")).and_then(|_| n.get("name")))
-                            .and_then(|n| n.as_str())
-                            .map(String::from),
+                            .and_then(|n| {
+                                // Bevy 0.18: Name is serialized as a plain string
+                                n.as_str().map(String::from)
+                                    // Fallback: older format {"name": "..."}
+                                    .or_else(|| n.get("name").and_then(|s| s.as_str()).map(String::from))
+                            }),
                         Err(_) => None,
                     }
                 } else {

@@ -26,7 +26,8 @@ bevy = { version = "0.18", default-features = false, features = [
     "default_font", "tonemapping_luts", "x11", "wayland",
     "bevy_audio", "vorbis", "wav",
     "bevy_log",
-    "bevy_anti_alias", "bevy_post_process"
+    "bevy_anti_alias", "bevy_post_process",
+    "serialize", "reflect_auto_register"
 ] }
 bevy_egui = "0.39"
 egui = "0.33"

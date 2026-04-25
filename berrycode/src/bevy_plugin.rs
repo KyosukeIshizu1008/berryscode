@@ -26,7 +26,8 @@ pub struct BerryCodePlugin;
 
 impl Plugin for BerryCodePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(bevy::remote::RemotePlugin::default())
+        app.register_type::<bevy::prelude::Name>()
+            .add_plugins(bevy::remote::RemotePlugin::default())
             .add_plugins(bevy::remote::http::RemoteHttpPlugin::default())
             .add_plugins(EguiPlugin::default())
             .insert_resource(WinitSettings {
