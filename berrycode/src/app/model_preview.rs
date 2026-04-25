@@ -14,6 +14,44 @@ pub struct GaussianSplat {
     pub rotation: [f32; 4], // Quaternion (w, x, y, z)
 }
 
+/// A triangle face with vertex indices and a base color.
+#[derive(Clone)]
+pub struct TriFace {
+    pub idx: [usize; 3],
+    pub color: [u8; 4], // RGBA
+}
+
+/// Skinning data per vertex (up to 4 joints).
+#[derive(Clone, Default)]
+pub struct SkinVertex {
+    pub joints: [u16; 4],
+    pub weights: [f32; 4],
+}
+
+/// One animation clip with per-channel keyframes.
+#[derive(Clone)]
+pub struct AnimClip {
+    pub name: String,
+    pub duration: f32,
+    pub channels: Vec<AnimChannel>,
+}
+
+/// A channel targets one node with one property (translation/rotation/scale).
+#[derive(Clone)]
+pub struct AnimChannel {
+    pub node_index: usize,
+    pub property: AnimProperty,
+    pub times: Vec<f32>,
+    pub values: Vec<[f32; 4]>, // xyz(w=0) for translation/scale, xyzw for rotation quat
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum AnimProperty {
+    Translation,
+    Rotation,
+    Scale,
+}
+
 /// Parsed 3D model data for preview
 #[derive(Clone)]
 pub struct ModelPreviewData {
@@ -23,9 +61,17 @@ pub struct ModelPreviewData {
     pub nodes_count: usize,
     pub vertices: Vec<[f32; 3]>,
     pub edges: Vec<(usize, usize)>,
+    pub triangles: Vec<TriFace>,
     pub bounds_min: [f32; 3],
     pub bounds_max: [f32; 3],
     pub splats: Vec<GaussianSplat>,
+    // Skeletal animation data
+    pub skin_vertices: Vec<SkinVertex>,
+    pub joint_node_indices: Vec<usize>,
+    pub inverse_bind_matrices: Vec<[[f32; 4]; 4]>,
+    pub node_parents: Vec<Option<usize>>,
+    pub node_transforms: Vec<[[f32; 4]; 4]>,
+    pub anim_clips: Vec<AnimClip>,
 }
 
 #[derive(Clone)]
@@ -166,10 +212,34 @@ impl BerryCodeApp {
 
     /// Load and parse a GLTF/GLB file
     fn load_gltf(file_path: &str) -> Option<ModelPreviewData> {
-        let (document, buffers, _images) = gltf::import(file_path).ok()?;
+        let (document, buffers, images) = gltf::import(file_path).ok()?;
+
+        // Pre-decode texture images for sampling
+        let decoded_images: Vec<Option<(Vec<[u8; 4]>, u32, u32)>> = images
+            .iter()
+            .map(|img| {
+                let w = img.width;
+                let h = img.height;
+                let pixels: Vec<[u8; 4]> = match img.format {
+                    gltf::image::Format::R8G8B8A8 => img
+                        .pixels
+                        .chunks(4)
+                        .map(|c| [c[0], c[1], c[2], c[3]])
+                        .collect(),
+                    gltf::image::Format::R8G8B8 => img
+                        .pixels
+                        .chunks(3)
+                        .map(|c| [c[0], c[1], c[2], 255])
+                        .collect(),
+                    _ => return None,
+                };
+                Some((pixels, w, h))
+            })
+            .collect();
 
         let mut all_vertices: Vec<[f32; 3]> = Vec::new();
         let mut all_edges: Vec<(usize, usize)> = Vec::new();
+        let mut all_triangles: Vec<TriFace> = Vec::new();
         let mut meshes_info: Vec<MeshInfo> = Vec::new();
         let mut bounds_min = [f32::MAX; 3];
         let mut bounds_max = [f32::MIN; 3];
@@ -182,12 +252,35 @@ impl BerryCodeApp {
             for primitive in mesh.primitives() {
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
+                // Extract material base color + texture
+                let mat = primitive.material();
+                let pbr = mat.pbr_metallic_roughness();
+                let base = pbr.base_color_factor();
+                let mat_color = [
+                    (base[0] * 255.0) as u8,
+                    (base[1] * 255.0) as u8,
+                    (base[2] * 255.0) as u8,
+                    (base[3] * 255.0) as u8,
+                ];
+
+                // Get texture image if available
+                let tex_image: Option<&(Vec<[u8; 4]>, u32, u32)> =
+                    pbr.base_color_texture().and_then(|t| {
+                        let idx = t.texture().source().index();
+                        decoded_images.get(idx).and_then(|o| o.as_ref())
+                    });
+
+                // Read UVs
+                let uvs: Vec<[f32; 2]> = reader
+                    .read_tex_coords(0)
+                    .map(|tc| tc.into_f32().collect())
+                    .unwrap_or_default();
+
                 if let Some(positions) = reader.read_positions() {
                     let base_idx = all_vertices.len();
                     let verts: Vec<[f32; 3]> = positions.collect();
                     mesh_vertex_count += verts.len();
 
-                    // Update bounds
                     for v in &verts {
                         for i in 0..3 {
                             bounds_min[i] = bounds_min[i].min(v[i]);
@@ -197,21 +290,62 @@ impl BerryCodeApp {
 
                     all_vertices.extend_from_slice(&verts);
 
-                    // Extract edges from indices (triangles -> wireframe edges)
-                    if let Some(indices) = reader.read_indices() {
+                    // Build triangle indices
+                    let tri_indices: Vec<[usize; 3]> = if let Some(indices) = reader.read_indices()
+                    {
                         let indices: Vec<u32> = indices.into_u32().collect();
                         mesh_triangle_count += indices.len() / 3;
+                        indices
+                            .chunks(3)
+                            .filter(|t| t.len() == 3)
+                            .map(|t| {
+                                [
+                                    base_idx + t[0] as usize,
+                                    base_idx + t[1] as usize,
+                                    base_idx + t[2] as usize,
+                                ]
+                            })
+                            .collect()
+                    } else {
+                        let tri_count = verts.len() / 3;
+                        mesh_triangle_count += tri_count;
+                        (0..tri_count)
+                            .map(|t| [base_idx + t * 3, base_idx + t * 3 + 1, base_idx + t * 3 + 2])
+                            .collect()
+                    };
 
-                        for tri in indices.chunks(3) {
-                            if tri.len() == 3 {
-                                let i0 = base_idx + tri[0] as usize;
-                                let i1 = base_idx + tri[1] as usize;
-                                let i2 = base_idx + tri[2] as usize;
-                                all_edges.push((i0, i1));
-                                all_edges.push((i1, i2));
-                                all_edges.push((i2, i0));
+                    for idx in &tri_indices {
+                        // Sample texture at triangle centroid UV
+                        let color = if let Some((pixels, w, h)) = tex_image {
+                            let uv_avg = |vi: usize| -> [f32; 2] {
+                                let local_idx = vi.checked_sub(base_idx).unwrap_or(0);
+                                if local_idx < uvs.len() {
+                                    uvs[local_idx]
+                                } else {
+                                    [0.5, 0.5]
+                                }
+                            };
+                            let uv0 = uv_avg(idx[0]);
+                            let uv1 = uv_avg(idx[1]);
+                            let uv2 = uv_avg(idx[2]);
+                            let u = ((uv0[0] + uv1[0] + uv2[0]) / 3.0).fract().abs();
+                            let v = ((uv0[1] + uv1[1] + uv2[1]) / 3.0).fract().abs();
+                            let px = (u * (*w as f32 - 1.0)) as usize;
+                            let py = (v * (*h as f32 - 1.0)) as usize;
+                            let pi = py * *w as usize + px;
+                            if pi < pixels.len() {
+                                pixels[pi]
+                            } else {
+                                mat_color
                             }
-                        }
+                        } else {
+                            mat_color
+                        };
+
+                        all_edges.push((idx[0], idx[1]));
+                        all_edges.push((idx[1], idx[2]));
+                        all_edges.push((idx[2], idx[0]));
+                        all_triangles.push(TriFace { idx: *idx, color });
                     }
                 }
             }
@@ -223,6 +357,128 @@ impl BerryCodeApp {
             });
         }
 
+        // Extract skeleton data
+        let mut skin_vertices: Vec<SkinVertex> = vec![SkinVertex::default(); all_vertices.len()];
+        let mut joint_node_indices: Vec<usize> = Vec::new();
+        let mut inverse_bind_matrices: Vec<[[f32; 4]; 4]> = Vec::new();
+
+        // Re-read skinning attributes (joints + weights per vertex)
+        for mesh in document.meshes() {
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                // We need base_idx for this primitive - recompute from positions
+                // Since vertices were added in order, count up
+                if let Some(joints) = reader.read_joints(0) {
+                    let weights: Vec<[f32; 4]> = reader
+                        .read_weights(0)
+                        .map(|w| w.into_f32().collect())
+                        .unwrap_or_default();
+                    for (i, j) in joints.into_u16().enumerate() {
+                        if i < skin_vertices.len() {
+                            skin_vertices[i].joints = j;
+                            if i < weights.len() {
+                                skin_vertices[i].weights = weights[i];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Extract skin joint indices and inverse bind matrices
+        if let Some(skin) = document.skins().next() {
+            joint_node_indices = skin.joints().map(|j| j.index()).collect();
+            if let Some(accessor) = skin.inverse_bind_matrices() {
+                let reader_ibm =
+                    gltf::accessor::util::Iter::<[[f32; 4]; 4]>::new(accessor, |buffer| {
+                        Some(&buffers[buffer.index()])
+                    });
+                if let Some(reader_ibm) = reader_ibm {
+                    inverse_bind_matrices = reader_ibm.collect();
+                }
+            }
+        }
+
+        // Build node hierarchy
+        let node_count = document.nodes().count();
+        let mut node_parents: Vec<Option<usize>> = vec![None; node_count];
+        let mut node_transforms: Vec<[[f32; 4]; 4]> = Vec::with_capacity(node_count);
+        for node in document.nodes() {
+            let mat = node.transform().matrix();
+            node_transforms.push(mat);
+            for child in node.children() {
+                if child.index() < node_count {
+                    node_parents[child.index()] = Some(node.index());
+                }
+            }
+        }
+
+        // Extract animation clips
+        let mut anim_clips: Vec<AnimClip> = Vec::new();
+        for anim in document.animations() {
+            let name = anim.name().unwrap_or("unnamed").to_string();
+            let mut duration: f32 = 0.0;
+            let mut channels: Vec<AnimChannel> = Vec::new();
+
+            for channel in anim.channels() {
+                let target = channel.target();
+                let node_index = target.node().index();
+                let property = match target.property() {
+                    gltf::animation::Property::Translation => AnimProperty::Translation,
+                    gltf::animation::Property::Rotation => AnimProperty::Rotation,
+                    gltf::animation::Property::Scale => AnimProperty::Scale,
+                    _ => continue,
+                };
+
+                let sampler = channel.sampler();
+                let input_accessor = sampler.input();
+                let output_accessor = sampler.output();
+
+                // Read keyframe times
+                let times: Vec<f32> =
+                    gltf::accessor::util::Iter::<f32>::new(input_accessor, |buffer| {
+                        Some(&buffers[buffer.index()])
+                    })
+                    .map(|iter| iter.collect())
+                    .unwrap_or_default();
+
+                if let Some(&last) = times.last() {
+                    duration = duration.max(last);
+                }
+
+                // Read keyframe values
+                let values: Vec<[f32; 4]> = match property {
+                    AnimProperty::Translation | AnimProperty::Scale => {
+                        gltf::accessor::util::Iter::<[f32; 3]>::new(output_accessor, |buffer| {
+                            Some(&buffers[buffer.index()])
+                        })
+                        .map(|iter| iter.map(|v| [v[0], v[1], v[2], 0.0]).collect())
+                        .unwrap_or_default()
+                    }
+                    AnimProperty::Rotation => {
+                        gltf::accessor::util::Iter::<[f32; 4]>::new(output_accessor, |buffer| {
+                            Some(&buffers[buffer.index()])
+                        })
+                        .map(|iter| iter.collect())
+                        .unwrap_or_default()
+                    }
+                };
+
+                channels.push(AnimChannel {
+                    node_index,
+                    property,
+                    times,
+                    values,
+                });
+            }
+
+            anim_clips.push(AnimClip {
+                name,
+                duration,
+                channels,
+            });
+        }
+
         Some(ModelPreviewData {
             meshes: meshes_info,
             materials_count: document.materials().count(),
@@ -230,9 +486,16 @@ impl BerryCodeApp {
             nodes_count: document.nodes().count(),
             vertices: all_vertices,
             edges: all_edges,
+            triangles: all_triangles,
             bounds_min,
             bounds_max,
             splats: Vec::new(),
+            skin_vertices,
+            joint_node_indices,
+            inverse_bind_matrices,
+            node_parents,
+            node_transforms,
+            anim_clips,
         })
     }
 
@@ -292,9 +555,16 @@ impl BerryCodeApp {
             nodes_count: models.len(),
             vertices: all_vertices,
             edges: all_edges,
+            triangles: vec![],
             bounds_min,
             bounds_max,
             splats: Vec::new(),
+            skin_vertices: vec![],
+            joint_node_indices: vec![],
+            inverse_bind_matrices: vec![],
+            node_parents: vec![],
+            node_transforms: vec![],
+            anim_clips: vec![],
         })
     }
 
@@ -387,9 +657,16 @@ impl BerryCodeApp {
             nodes_count: 1,
             vertices: all_vertices,
             edges: all_edges,
+            triangles: vec![],
             bounds_min,
             bounds_max,
             splats: Vec::new(),
+            skin_vertices: vec![],
+            joint_node_indices: vec![],
+            inverse_bind_matrices: vec![],
+            node_parents: vec![],
+            node_transforms: vec![],
+            anim_clips: vec![],
         })
     }
 
@@ -695,9 +972,16 @@ impl BerryCodeApp {
                 nodes_count: 1,
                 vertices: all_vertices,
                 edges: Vec::new(),
+                triangles: vec![],
                 bounds_min,
                 bounds_max,
                 splats,
+                skin_vertices: vec![],
+                joint_node_indices: vec![],
+                inverse_bind_matrices: vec![],
+                node_parents: vec![],
+                node_transforms: vec![],
+                anim_clips: vec![],
             })
         } else {
             // Standard PLY (non-Gaussian Splatting)
@@ -793,9 +1077,16 @@ impl BerryCodeApp {
                 nodes_count: 1,
                 vertices: all_vertices,
                 edges: all_edges,
+                triangles: vec![],
                 bounds_min,
                 bounds_max,
                 splats: Vec::new(),
+                skin_vertices: vec![],
+                joint_node_indices: vec![],
+                inverse_bind_matrices: vec![],
+                node_parents: vec![],
+                node_transforms: vec![],
+                anim_clips: vec![],
             })
         }
     }

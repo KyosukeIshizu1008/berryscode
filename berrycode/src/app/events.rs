@@ -1238,12 +1238,16 @@ impl BerryCodeApp {
                         speed: 1.5,
                         looped: true,
                         position: [200.0, 200.0],
+                        motion: crate::app::scene_editor::animator::Motion::default(),
+                        kind: crate::app::scene_editor::animator::StateKind::Normal,
                     });
                     ctrl.transitions.push(AnimTransition {
                         from_state: 0,
                         to_state: 1,
                         condition: TransitionCondition::OnComplete,
                         blend_duration: 0.3,
+                        has_exit_time: false,
+                        exit_time: 1.0,
                     });
                     ctrl.parameters.push(AnimParam::Float {
                         name: "speed".into(),
@@ -1670,6 +1674,7 @@ impl BerryCodeApp {
                                     name: "value".into(),
                                     field_type: "f32".into(),
                                 }],
+                                source_path: None,
                             },
                             ScannedComponent {
                                 name: "Speed".into(),
@@ -1683,6 +1688,7 @@ impl BerryCodeApp {
                                         field_type: "f32".into(),
                                     },
                                 ],
+                                source_path: None,
                             },
                         ];
                         let code = generate_reflect_code(&comps);

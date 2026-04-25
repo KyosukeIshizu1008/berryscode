@@ -186,6 +186,7 @@ impl BerryCodeApp {
         let mut open_animator_editor = false;
         let mut animator_path_for_editor = String::new();
         let mut bake_navmesh_requested: Option<f32> = None;
+        let mut open_script_path: Option<String> = None;
 
         // Pre-compute the world transform (and whether a parent exists) before
         // entering the mutable borrow on `entities`, so we can display a
@@ -1198,7 +1199,7 @@ impl BerryCodeApp {
                                 });
                             });
                         }
-                        ComponentData::CustomScript { type_name, fields } => {
+                        ComponentData::CustomScript { type_name, script_path, fields } => {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.label("Type:");
@@ -1211,6 +1212,36 @@ impl BerryCodeApp {
                                         .changed()
                                     {
                                         mutated = true;
+                                    }
+                                });
+                                // Script path + Open Script button
+                                ui.horizontal(|ui| {
+                                    ui.label("Script:");
+                                    if script_path.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new("(none)")
+                                                .color(egui::Color32::from_gray(100))
+                                                .italics(),
+                                        );
+                                    } else {
+                                        let display_name = std::path::Path::new(script_path.as_str())
+                                            .file_name()
+                                            .map(|s| s.to_string_lossy().to_string())
+                                            .unwrap_or_else(|| script_path.clone());
+                                        if ui
+                                            .add(
+                                                egui::Label::new(
+                                                    egui::RichText::new(&display_name)
+                                                        .color(egui::Color32::from_rgb(100, 180, 255))
+                                                        .underline(),
+                                                )
+                                                .sense(egui::Sense::click()),
+                                            )
+                                            .on_hover_text(script_path.as_str())
+                                            .clicked()
+                                        {
+                                            open_script_path = Some(script_path.clone());
+                                        }
                                     }
                                 });
                                 ui.separator();
@@ -1852,10 +1883,25 @@ impl BerryCodeApp {
                                         .collect();
                                     add_component = Some(ComponentData::CustomScript {
                                         type_name: comp.name.clone(),
+                                        script_path: comp.source_path.clone().unwrap_or_default(),
                                         fields,
                                     });
                                 }
                             }
+                        }
+
+                        // "Create New Script" option
+                        ui.separator();
+                        if ui
+                            .selectable_label(
+                                false,
+                                egui::RichText::new("+ Create New Script...")
+                                    .color(egui::Color32::from_rgb(120, 220, 120)),
+                            )
+                            .clicked()
+                        {
+                            self.new_script_dialog_open = true;
+                            self.new_script_name = "MyComponent".to_string();
                         }
                     });
                 if !add_label.is_empty() {
@@ -1868,6 +1914,95 @@ impl BerryCodeApp {
                     self.add_component_popup_open = false;
                     self.add_component_filter.clear();
                 }
+            }
+
+            // "Create New Script" inline dialog
+            if self.new_script_dialog_open {
+                ui.separator();
+                egui::Frame::none()
+                    .fill(egui::Color32::from_rgb(30, 32, 34))
+                    .inner_margin(egui::Margin::same(8.0))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 63, 65)))
+                    .rounding(4.0)
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("Create New Script")
+                                .size(13.0)
+                                .color(egui::Color32::from_rgb(220, 220, 220)),
+                        );
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.label("Name:");
+                            ui.text_edit_singleline(&mut self.new_script_name);
+                        });
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            let name_valid = !self.new_script_name.trim().is_empty()
+                                && self
+                                    .new_script_name
+                                    .chars()
+                                    .all(|c| c.is_alphanumeric() || c == '_');
+                            if ui
+                                .add_enabled(name_valid, egui::Button::new("Create & Attach"))
+                                .clicked()
+                            {
+                                let comp_name = self.new_script_name.trim().to_string();
+                                // Generate snake_case file name
+                                let snake_name: String = comp_name
+                                    .chars()
+                                    .enumerate()
+                                    .flat_map(|(i, c)| {
+                                        if c.is_uppercase() && i > 0 {
+                                            vec!['_', c.to_lowercase().next().unwrap_or(c)]
+                                        } else {
+                                            vec![c.to_lowercase().next().unwrap_or(c)]
+                                        }
+                                    })
+                                    .collect();
+
+                                let src_dir = format!("{}/src", self.root_path);
+                                let _ = std::fs::create_dir_all(&src_dir);
+                                let file_path = format!("{}/{}.rs", src_dir, snake_name);
+
+                                // Generate boilerplate
+                                let code = format!(
+                                    "use bevy::prelude::*;\n\n\
+                                     #[derive(Component, Debug, Clone)]\n\
+                                     pub struct {} {{\n\
+                                     }}\n\n\
+                                     impl {} {{\n    \
+                                     pub fn new() -> Self {{\n        \
+                                     Self {{\n        \
+                                     }}\n    \
+                                     }}\n\
+                                     }}\n",
+                                    comp_name, comp_name,
+                                );
+
+                                if std::fs::write(&file_path, &code).is_ok() {
+                                    // Attach as CustomScript component
+                                    add_component = Some(ComponentData::CustomScript {
+                                        type_name: comp_name,
+                                        script_path: file_path.clone(),
+                                        fields: vec![],
+                                    });
+                                    // Open in editor
+                                    open_script_path = Some(file_path);
+                                    // Re-scan user components
+                                    self.scanned_user_components =
+                                        crate::app::scene_editor::script_scan::scan_components_with_fields(
+                                            &self.root_path,
+                                        );
+                                }
+                                self.new_script_dialog_open = false;
+                                self.add_component_popup_open = false;
+                                self.add_component_filter.clear();
+                            }
+                            if ui.button("Cancel").clicked() {
+                                self.new_script_dialog_open = false;
+                            }
+                        });
+                    });
             }
 
             // Paste Component button (enabled when clipboard has data)
@@ -2056,6 +2191,14 @@ impl BerryCodeApp {
             stop_audio_preview();
             self.audio_preview_playing = false;
             self.audio_preview_path.clear();
+        }
+
+        // Handle Open Script request — open the file in the code editor.
+        if let Some(path) = open_script_path {
+            if !path.is_empty() {
+                self.open_file_from_path(&path);
+                self.active_panel = crate::app::types::ActivePanel::Explorer;
+            }
         }
 
         // Handle Animator editor open request.

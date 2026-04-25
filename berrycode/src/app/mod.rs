@@ -432,6 +432,10 @@ pub struct BerryCodeApp {
     pub(crate) add_component_filter: String,
     /// Whether the Add Component search popup is open.
     pub(crate) add_component_popup_open: bool,
+    /// Whether the "Create New Script" dialog is open.
+    pub(crate) new_script_dialog_open: bool,
+    /// Name for the new script being created.
+    pub(crate) new_script_name: String,
     pub(crate) scene_orbit_yaw: f32,
     pub(crate) scene_orbit_pitch: f32,
     pub(crate) scene_orbit_distance: f32,
@@ -479,6 +483,19 @@ pub struct BerryCodeApp {
     /// Path of the asset currently being dragged from the file tree.
     /// Set when the user starts dragging a droppable file; cleared on drop or release.
     pub(crate) dragged_asset_path: Option<String>,
+    /// Cached 3D model preview data for Asset Browser.
+    pub(crate) asset_preview_data: Option<crate::app::model_preview::ModelPreviewData>,
+    /// Path of the asset currently previewed (to detect changes).
+    pub(crate) asset_preview_path: String,
+    /// Orbit rotation for asset preview.
+    pub(crate) asset_preview_rot_x: f32,
+    pub(crate) asset_preview_rot_y: f32,
+    pub(crate) asset_preview_zoom: f32,
+    /// Animation playback state for asset preview.
+    pub(crate) asset_preview_anim_time: f32,
+    pub(crate) asset_preview_anim_playing: bool,
+    pub(crate) asset_preview_anim_idx: usize,
+    pub(crate) asset_preview_last_instant: Option<std::time::Instant>,
 
     // === Scene Editor: Profiler panel ===
     pub(crate) profiler: scene_editor::profiler::ProfilerState,
@@ -508,6 +525,18 @@ pub struct BerryCodeApp {
     pub(crate) animator_dragging_state: Option<usize>,
     /// Source state index for a pending "Add Transition From Here" action.
     pub(crate) pending_transition_from: Option<usize>,
+    /// Currently selected state in the animator editor.
+    pub(crate) animator_selected_state: Option<usize>,
+    /// Currently selected transition in the animator editor.
+    pub(crate) animator_selected_transition: Option<usize>,
+    /// Whether the Blend Tree Editor window is currently visible.
+    pub(crate) blend_tree_editor_open: bool,
+    /// The blend tree being edited (if any).
+    pub(crate) editing_blend_tree: Option<scene_editor::animator::BlendTree>,
+    /// Whether the Humanoid Avatar Editor window is currently visible.
+    pub(crate) avatar_editor_open: bool,
+    /// The humanoid avatar being edited (if any).
+    pub(crate) editing_avatar: Option<scene_editor::humanoid_avatar::HumanoidAvatar>,
     /// Clipboard for entity copy/paste in the scene hierarchy.
     pub(crate) entity_clipboard: Option<scene_editor::prefab::PrefabFile>,
     /// Whether the quad-view mode is active in the Scene View.
@@ -1359,6 +1388,8 @@ impl BerryCodeApp {
             component_clipboard: None,
             add_component_filter: String::new(),
             add_component_popup_open: false,
+            new_script_dialog_open: false,
+            new_script_name: String::new(),
             scene_orbit_yaw: std::f32::consts::FRAC_PI_4,
             scene_orbit_pitch: 0.5,
             scene_orbit_distance: 8.0,
@@ -1396,6 +1427,15 @@ impl BerryCodeApp {
             snap_value: 0.5,
 
             dragged_asset_path: None,
+            asset_preview_data: None,
+            asset_preview_path: String::new(),
+            asset_preview_rot_x: 0.3,
+            asset_preview_rot_y: std::f32::consts::FRAC_PI_4,
+            asset_preview_zoom: 1.0,
+            asset_preview_anim_time: 0.0,
+            asset_preview_anim_playing: true,
+            asset_preview_anim_idx: 0,
+            asset_preview_last_instant: None,
 
             profiler: {
                 let mut p = scene_editor::profiler::ProfilerState::default();
@@ -1422,6 +1462,8 @@ impl BerryCodeApp {
                     speed: 1.0,
                     looped: true,
                     position: [300.0, 100.0],
+                    motion: crate::app::scene_editor::animator::Motion::default(),
+                    kind: crate::app::scene_editor::animator::StateKind::Normal,
                 });
                 c.states.push(scene_editor::animator::AnimState {
                     name: "Run".into(),
@@ -1429,6 +1471,8 @@ impl BerryCodeApp {
                     speed: 1.5,
                     looped: true,
                     position: [300.0, 250.0],
+                    motion: crate::app::scene_editor::animator::Motion::default(),
+                    kind: crate::app::scene_editor::animator::StateKind::Normal,
                 });
                 c.transitions.push(scene_editor::animator::AnimTransition {
                     from_state: 0,
@@ -1438,6 +1482,8 @@ impl BerryCodeApp {
                         value: true,
                     },
                     blend_duration: 0.2,
+                    has_exit_time: false,
+                    exit_time: 1.0,
                 });
                 c.transitions.push(scene_editor::animator::AnimTransition {
                     from_state: 1,
@@ -1447,6 +1493,8 @@ impl BerryCodeApp {
                         value: false,
                     },
                     blend_duration: 0.3,
+                    has_exit_time: false,
+                    exit_time: 1.0,
                 });
                 c.parameters.push(scene_editor::animator::AnimParam::Bool {
                     name: "is_running".into(),
@@ -1460,6 +1508,12 @@ impl BerryCodeApp {
             }),
             editing_animator_path: String::new(),
             animator_dragging_state: None,
+            animator_selected_state: None,
+            animator_selected_transition: None,
+            blend_tree_editor_open: false,
+            editing_blend_tree: None,
+            avatar_editor_open: false,
+            editing_avatar: None,
             pending_transition_from: None,
             entity_clipboard: None,
             quad_view_enabled: false,
@@ -2016,8 +2070,18 @@ pub fn berry_ui_system(
                 .show(ctx, |ui| {
                     app.render_ecs_3d_view(ui);
                 });
-        } else if app.active_panel == ActivePanel::AssetBrowser
-            || app.active_panel == ActivePanel::BevyTemplates
+        } else if app.active_panel == ActivePanel::AssetBrowser {
+            app.render_sidebar(ctx);
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::none()
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8.0)),
+                )
+                .show(ctx, |ui| {
+                    app.render_asset_preview(ui);
+                });
+        } else if app.active_panel == ActivePanel::BevyTemplates
             || app.active_panel == ActivePanel::Settings
         {
             // Sidebar-only panels: no editor in center

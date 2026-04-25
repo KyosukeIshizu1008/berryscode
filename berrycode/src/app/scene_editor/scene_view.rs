@@ -105,233 +105,374 @@ impl BerryCodeApp {
         ui.advance_cursor_after_rect(header_rect);
         ui.add_space(2.0);
 
-        // --- Compact toolbar row ---
-        let toolbar_text = egui::TextStyle::Small;
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing.x = 3.0;
-            ui.style_mut().override_text_style = Some(toolbar_text.clone());
+        // --- VS Code-style flat toolbar ---
+        // Style overrides for the toolbar area
+        let toolbar_bg = egui::Color32::from_rgb(37, 37, 38);
+        let hover_bg = egui::Color32::from_rgb(50, 50, 52);
+        let active_bg = egui::Color32::from_rgb(60, 60, 64);
+        let text_normal = egui::Color32::from_rgb(204, 204, 204);
+        let text_dim = egui::Color32::from_rgb(130, 130, 130);
+        let text_active = egui::Color32::WHITE;
+        let sep_color = egui::Color32::from_rgb(54, 57, 59);
+        let font = egui::FontId::proportional(11.5);
+        let row_h = 24.0;
 
-            let mode = self.gizmo_mode;
-            if ui
-                .selectable_label(mode == GizmoMode::Move, "Move")
-                .on_hover_text("W")
-                .clicked()
-            {
-                self.gizmo_mode = GizmoMode::Move;
+        // Helper: flat toolbar button (returns true if clicked)
+        let flat_btn = |ui: &mut egui::Ui, label: &str, selected: bool, enabled: bool| -> bool {
+            let text = if !enabled {
+                egui::RichText::new(label)
+                    .font(font.clone())
+                    .color(text_dim)
+            } else if selected {
+                egui::RichText::new(label)
+                    .font(font.clone())
+                    .color(text_active)
+            } else {
+                egui::RichText::new(label)
+                    .font(font.clone())
+                    .color(text_normal)
+            };
+            let galley = ui
+                .painter()
+                .layout_no_wrap(label.to_string(), font.clone(), text_normal);
+            let btn_w = galley.size().x + 12.0;
+            let (rect, resp) =
+                ui.allocate_exact_size(egui::vec2(btn_w, row_h), egui::Sense::click());
+            if selected {
+                ui.painter().rect_filled(rect, 2.0, active_bg);
+            } else if resp.hovered() && enabled {
+                ui.painter().rect_filled(rect, 2.0, hover_bg);
             }
-            if ui
-                .selectable_label(mode == GizmoMode::Rotate, "Rotate")
-                .on_hover_text("E")
-                .clicked()
-            {
-                self.gizmo_mode = GizmoMode::Rotate;
-            }
-            if ui
-                .selectable_label(mode == GizmoMode::Scale, "Scale")
-                .on_hover_text("R")
-                .clicked()
-            {
-                self.gizmo_mode = GizmoMode::Scale;
-            }
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                label,
+                font.clone(),
+                if !enabled {
+                    text_dim
+                } else if selected {
+                    text_active
+                } else {
+                    text_normal
+                },
+            );
+            resp.clicked() && enabled
+        };
 
-            ui.separator();
-            ui.checkbox(&mut self.snap_enabled, "Snap");
-            if self.snap_enabled {
-                ui.add(
-                    egui::DragValue::new(&mut self.snap_value)
-                        .speed(0.1)
-                        .range(0.1..=10.0)
-                        .prefix("step: "),
-                );
-            }
+        // Helper: thin vertical separator
+        let thin_sep = |ui: &mut egui::Ui| {
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(1.0, row_h), egui::Sense::hover());
+            ui.painter().rect_filled(rect, 0.0, sep_color);
+            ui.add_space(2.0);
+        };
 
-            ui.separator();
-            if ui.selectable_label(!self.scene_ortho, "Persp").clicked() {
-                self.scene_ortho = false;
+        // Helper: flat toggle (checkbox-like, but flat text)
+        let flat_toggle = |ui: &mut egui::Ui, val: &mut bool, label: &str| -> bool {
+            let prefix = if *val { "\u{eab4} " } else { "\u{eab6} " }; // chevron-down / right
+            let display = format!("{}{}", prefix, label);
+            let galley = ui
+                .painter()
+                .layout_no_wrap(display.clone(), font.clone(), text_normal);
+            let btn_w = galley.size().x + 12.0;
+            let (rect, resp) =
+                ui.allocate_exact_size(egui::vec2(btn_w, row_h), egui::Sense::click());
+            if *val {
+                ui.painter().rect_filled(rect, 2.0, active_bg);
+            } else if resp.hovered() {
+                ui.painter().rect_filled(rect, 2.0, hover_bg);
             }
-            if ui.selectable_label(self.scene_ortho, "Ortho").clicked() {
-                self.scene_ortho = true;
+            // icon
+            ui.painter().text(
+                egui::pos2(rect.left() + 6.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                if *val { "\u{eab4}" } else { "\u{eab6}" },
+                egui::FontId::new(9.0, egui::FontFamily::Name("codicon".into())),
+                if *val { text_active } else { text_dim },
+            );
+            // label text
+            ui.painter().text(
+                egui::pos2(rect.left() + 18.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                label,
+                font.clone(),
+                if *val { text_active } else { text_normal },
+            );
+            if resp.clicked() {
+                *val = !*val;
+                true
+            } else {
+                false
             }
+        };
 
-            ui.separator();
-            ui.checkbox(&mut self.scene_shadows_enabled, "Shadows");
-            ui.checkbox(&mut self.scene_bloom_enabled, "Bloom");
-            if self.scene_bloom_enabled {
-                ui.add(egui::Slider::new(&mut self.scene_bloom_intensity, 0.0..=1.0).text("int"));
-            }
+        // --- Toolbar row 1: Transform + View ---
+        let tb_rect = ui.available_rect_before_wrap();
+        let tb_rect = egui::Rect::from_min_size(tb_rect.min, egui::vec2(tb_rect.width(), row_h));
+        ui.painter().rect_filled(tb_rect, 0.0, toolbar_bg);
+        ui.painter().line_segment(
+            [tb_rect.left_bottom(), tb_rect.right_bottom()],
+            egui::Stroke::new(1.0, sep_color),
+        );
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(tb_rect), |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.add_space(4.0);
+                ui.spacing_mut().item_spacing.x = 1.0;
 
-            ui.separator();
-            egui::ComboBox::from_id_salt("tonemapping_combo")
-                .selected_text(match self.scene_tonemapping {
-                    0 => "None",
-                    1 => "Reinhard",
-                    2 => "ReinhardLum",
-                    3 => "ACES",
-                    4 => "AgX",
-                    _ => "ACES",
-                })
-                .width(70.0)
-                .show_ui(ui, |ui| {
-                    for (idx, name) in [
-                        (0u8, "None"),
-                        (1, "Reinhard"),
-                        (2, "ReinhardLum"),
-                        (3, "ACES"),
-                        (4, "AgX"),
-                    ] {
-                        if ui
-                            .selectable_label(self.scene_tonemapping == idx, name)
-                            .clicked()
-                        {
-                            self.scene_tonemapping = idx;
+                let mode = self.gizmo_mode;
+                if flat_btn(ui, "Move", mode == GizmoMode::Move, true) {
+                    self.gizmo_mode = GizmoMode::Move;
+                }
+                if flat_btn(ui, "Rotate", mode == GizmoMode::Rotate, true) {
+                    self.gizmo_mode = GizmoMode::Rotate;
+                }
+                if flat_btn(ui, "Scale", mode == GizmoMode::Scale, true) {
+                    self.gizmo_mode = GizmoMode::Scale;
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                flat_toggle(ui, &mut self.snap_enabled, "Snap");
+                if self.snap_enabled {
+                    ui.add(
+                        egui::DragValue::new(&mut self.snap_value)
+                            .speed(0.1)
+                            .range(0.1..=10.0)
+                            .prefix("step:")
+                            .custom_formatter(|v, _| format!("{:.1}", v)),
+                    );
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                if flat_btn(ui, "Persp", !self.scene_ortho, true) {
+                    self.scene_ortho = false;
+                }
+                if flat_btn(ui, "Ortho", self.scene_ortho, true) {
+                    self.scene_ortho = true;
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                flat_toggle(ui, &mut self.scene_shadows_enabled, "Shadows");
+                flat_toggle(ui, &mut self.scene_bloom_enabled, "Bloom");
+                if self.scene_bloom_enabled {
+                    ui.add(
+                        egui::DragValue::new(&mut self.scene_bloom_intensity)
+                            .speed(0.01)
+                            .range(0.0..=1.0)
+                            .custom_formatter(|v, _| format!("{:.2}", v)),
+                    );
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                egui::ComboBox::from_id_salt("tonemapping_combo")
+                    .selected_text(match self.scene_tonemapping {
+                        0 => "None",
+                        1 => "Reinhard",
+                        2 => "ReinhardLum",
+                        3 => "ACES",
+                        4 => "AgX",
+                        _ => "ACES",
+                    })
+                    .width(65.0)
+                    .show_ui(ui, |ui| {
+                        for (idx, name) in [
+                            (0u8, "None"),
+                            (1, "Reinhard"),
+                            (2, "ReinhardLum"),
+                            (3, "ACES"),
+                            (4, "AgX"),
+                        ] {
+                            if ui
+                                .selectable_label(self.scene_tonemapping == idx, name)
+                                .clicked()
+                            {
+                                self.scene_tonemapping = idx;
+                            }
+                        }
+                    });
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                flat_toggle(ui, &mut self.scene_ssao_enabled, "SSAO");
+                flat_toggle(ui, &mut self.scene_taa_enabled, "TAA");
+                flat_toggle(ui, &mut self.scene_fog_enabled, "Fog");
+                flat_toggle(ui, &mut self.scene_dof_enabled, "DoF");
+            });
+        });
+        ui.advance_cursor_after_rect(tb_rect);
+
+        // --- Toolbar row 2: Views + Play + Undo/Redo + Brush ---
+        let tb2_rect = ui.available_rect_before_wrap();
+        let tb2_rect = egui::Rect::from_min_size(tb2_rect.min, egui::vec2(tb2_rect.width(), row_h));
+        ui.painter().rect_filled(tb2_rect, 0.0, toolbar_bg);
+        ui.painter().line_segment(
+            [tb2_rect.left_bottom(), tb2_rect.right_bottom()],
+            egui::Stroke::new(1.0, sep_color),
+        );
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(tb2_rect), |ui| {
+            ui.horizontal_centered(|ui| {
+                ui.add_space(4.0);
+                ui.spacing_mut().item_spacing.x = 1.0;
+
+                if flat_btn(ui, "Front", false, true) {
+                    self.scene_orbit_yaw = 0.0;
+                    self.scene_orbit_pitch = 0.0;
+                    self.scene_ortho = true;
+                }
+                if flat_btn(ui, "Right", false, true) {
+                    self.scene_orbit_yaw = std::f32::consts::FRAC_PI_2;
+                    self.scene_orbit_pitch = 0.0;
+                    self.scene_ortho = true;
+                }
+                if flat_btn(ui, "Top", false, true) {
+                    self.scene_orbit_yaw = 0.0;
+                    self.scene_orbit_pitch = std::f32::consts::FRAC_PI_2 - 0.001;
+                    self.scene_ortho = true;
+                }
+                if flat_btn(ui, "Quad", self.quad_view_enabled, true) {
+                    self.quad_view_enabled = !self.quad_view_enabled;
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                // Play mode controls
+                match self.play_mode {
+                    super::play_mode::PlayModeState::Stopped => {
+                        if flat_btn(ui, "\u{eb2c} Play", false, true) {
+                            self.play_mode_start();
                         }
                     }
-                });
-
-            ui.separator();
-            ui.checkbox(&mut self.scene_ssao_enabled, "SSAO");
-            ui.checkbox(&mut self.scene_taa_enabled, "TAA");
-
-            ui.separator();
-            ui.checkbox(&mut self.scene_fog_enabled, "Fog");
-            if self.scene_fog_enabled {
-                ui.color_edit_button_rgb(&mut self.scene_fog_color);
-                ui.add(
-                    egui::DragValue::new(&mut self.scene_fog_start)
-                        .prefix("s:")
-                        .speed(1.0),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut self.scene_fog_end)
-                        .prefix("e:")
-                        .speed(1.0),
-                );
-            }
-
-            ui.checkbox(&mut self.scene_dof_enabled, "DoF");
-            if self.scene_dof_enabled {
-                ui.add(
-                    egui::DragValue::new(&mut self.scene_dof_focus_distance)
-                        .prefix("f:")
-                        .speed(0.5)
-                        .range(0.1..=1000.0),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut self.scene_dof_aperture)
-                        .prefix("f/")
-                        .speed(0.01)
-                        .range(0.001..=64.0),
-                );
-            }
-
-            ui.separator();
-            if ui.small_button("Front").clicked() {
-                self.scene_orbit_yaw = 0.0;
-                self.scene_orbit_pitch = 0.0;
-                self.scene_ortho = true;
-            }
-            if ui.small_button("Right").clicked() {
-                self.scene_orbit_yaw = std::f32::consts::FRAC_PI_2;
-                self.scene_orbit_pitch = 0.0;
-                self.scene_ortho = true;
-            }
-            if ui.small_button("Top").clicked() {
-                self.scene_orbit_yaw = 0.0;
-                self.scene_orbit_pitch = std::f32::consts::FRAC_PI_2 - 0.001;
-                self.scene_ortho = true;
-            }
-
-            ui.separator();
-            if ui
-                .selectable_label(self.quad_view_enabled, "Quad")
-                .clicked()
-            {
-                self.quad_view_enabled = !self.quad_view_enabled;
-            }
-
-            // Play mode controls.
-            ui.separator();
-            match self.play_mode {
-                super::play_mode::PlayModeState::Stopped => {
-                    if ui.button("Play").clicked() {
-                        self.play_mode_start();
+                    super::play_mode::PlayModeState::Playing => {
+                        if flat_btn(ui, "\u{eb2d} Pause", false, true) {
+                            self.play_mode_pause();
+                        }
+                        if flat_btn(ui, "\u{eb2e} Stop", false, true) {
+                            self.play_mode_stop();
+                        }
+                        ui.painter().text(
+                            egui::pos2(
+                                ui.available_rect_before_wrap().left() + 4.0,
+                                tb2_rect.center().y,
+                            ),
+                            egui::Align2::LEFT_CENTER,
+                            "Playing",
+                            font.clone(),
+                            egui::Color32::from_rgb(80, 200, 80),
+                        );
+                        ui.add_space(50.0);
+                    }
+                    super::play_mode::PlayModeState::Paused => {
+                        if flat_btn(ui, "\u{eb2c} Resume", false, true) {
+                            self.play_mode_resume();
+                        }
+                        if flat_btn(ui, "Step", false, true) {
+                            self.play_mode_step();
+                        }
+                        if flat_btn(ui, "\u{eb2e} Stop", false, true) {
+                            self.play_mode_stop();
+                        }
+                        ui.painter().text(
+                            egui::pos2(
+                                ui.available_rect_before_wrap().left() + 4.0,
+                                tb2_rect.center().y,
+                            ),
+                            egui::Align2::LEFT_CENTER,
+                            "Paused",
+                            font.clone(),
+                            egui::Color32::from_rgb(255, 200, 80),
+                        );
+                        ui.add_space(50.0);
                     }
                 }
-                super::play_mode::PlayModeState::Playing => {
-                    if ui.button("Pause").clicked() {
-                        self.play_mode_pause();
-                    }
-                    if ui.button("Stop").clicked() {
-                        self.play_mode_stop();
-                    }
-                    ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "Playing");
-                }
-                super::play_mode::PlayModeState::Paused => {
-                    if ui.button("Resume").clicked() {
-                        self.play_mode_resume();
-                    }
-                    if ui.button("Step").clicked() {
-                        self.play_mode_step();
-                    }
-                    if ui.button("Stop").clicked() {
-                        self.play_mode_stop();
-                    }
-                    ui.colored_label(egui::Color32::from_rgb(255, 200, 80), "Paused");
-                }
-            }
 
-            ui.separator();
-            let undo_tip = self
-                .command_history
-                .undo_description()
-                .map(|d| format!("Undo: {}", d))
-                .unwrap_or_else(|| "Undo".into());
-            ui.add_enabled_ui(self.command_history.can_undo(), |ui| {
-                if ui.button("Undo").on_hover_text(&undo_tip).clicked() {
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                let can_undo = self.command_history.can_undo();
+                if flat_btn(ui, "Undo", false, can_undo) {
                     if let Some(prev) = self.command_history.undo(&self.scene_model) {
                         self.scene_model = prev;
                         self.scene_needs_sync = true;
                     }
                 }
-            });
-            let redo_tip = self
-                .command_history
-                .redo_description()
-                .map(|d| format!("Redo: {}", d))
-                .unwrap_or_else(|| "Redo".into());
-            ui.add_enabled_ui(self.command_history.can_redo(), |ui| {
-                if ui.button("Redo").on_hover_text(&redo_tip).clicked() {
+                let can_redo = self.command_history.can_redo();
+                if flat_btn(ui, "Redo", false, can_redo) {
                     if let Some(next) = self.command_history.redo(&self.scene_model) {
                         self.scene_model = next;
                         self.scene_needs_sync = true;
                     }
                 }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
+                flat_toggle(ui, &mut self.terrain_brush.active, "Brush");
+                if self.terrain_brush.active {
+                    egui::ComboBox::from_id_salt("terrain_brush_mode")
+                        .selected_text(self.terrain_brush.mode.label())
+                        .width(60.0)
+                        .show_ui(ui, |ui| {
+                            for &m in super::terrain::BrushMode::ALL {
+                                ui.selectable_value(&mut self.terrain_brush.mode, m, m.label());
+                            }
+                        });
+                    ui.add(
+                        egui::DragValue::new(&mut self.terrain_brush.radius)
+                            .prefix("R:")
+                            .speed(0.5)
+                            .range(0.5..=50.0),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.terrain_brush.strength)
+                            .prefix("S:")
+                            .speed(0.1)
+                            .range(0.1..=10.0),
+                    );
+                }
+
+                // Fog/DoF detail controls (shown inline when expanded)
+                if self.scene_fog_enabled {
+                    ui.add_space(2.0);
+                    thin_sep(ui);
+                    ui.color_edit_button_rgb(&mut self.scene_fog_color);
+                    ui.add(
+                        egui::DragValue::new(&mut self.scene_fog_start)
+                            .prefix("s:")
+                            .speed(1.0),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.scene_fog_end)
+                            .prefix("e:")
+                            .speed(1.0),
+                    );
+                }
+                if self.scene_dof_enabled {
+                    ui.add_space(2.0);
+                    thin_sep(ui);
+                    ui.add(
+                        egui::DragValue::new(&mut self.scene_dof_focus_distance)
+                            .prefix("f:")
+                            .speed(0.5)
+                            .range(0.1..=1000.0),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.scene_dof_aperture)
+                            .prefix("f/")
+                            .speed(0.01)
+                            .range(0.001..=64.0),
+                    );
+                }
             });
-            // Terrain Brush controls.
-            ui.separator();
-            ui.checkbox(&mut self.terrain_brush.active, "Brush");
-            if self.terrain_brush.active {
-                egui::ComboBox::from_id_salt("terrain_brush_mode")
-                    .selected_text(self.terrain_brush.mode.label())
-                    .show_ui(ui, |ui| {
-                        for &m in super::terrain::BrushMode::ALL {
-                            ui.selectable_value(&mut self.terrain_brush.mode, m, m.label());
-                        }
-                    });
-                ui.add(
-                    egui::DragValue::new(&mut self.terrain_brush.radius)
-                        .prefix("R: ")
-                        .speed(0.5)
-                        .range(0.5..=50.0),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut self.terrain_brush.strength)
-                        .prefix("S: ")
-                        .speed(0.1)
-                        .range(0.1..=10.0),
-                );
-            }
         });
+        ui.advance_cursor_after_rect(tb2_rect);
         ui.add_space(2.0);
 
         // Mark the scene dirty so the Bevy sync system runs (the hash check

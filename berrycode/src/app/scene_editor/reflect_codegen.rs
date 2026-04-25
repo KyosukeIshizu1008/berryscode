@@ -94,6 +94,7 @@ mod tests {
         let comps = vec![ScannedComponent {
             name: "Marker".into(),
             fields: vec![],
+            source_path: None,
         }];
         let code = generate_reflect_code(&comps);
         assert!(code.contains("Marker"));
@@ -114,6 +115,7 @@ mod tests {
                     field_type: "f32".into(),
                 },
             ],
+            source_path: None,
         }];
         let code = generate_reflect_code(&comps);
         assert!(code.contains("Health"));
@@ -128,6 +130,7 @@ mod tests {
             ScannedComponent {
                 name: "Alpha".into(),
                 fields: vec![],
+                source_path: None,
             },
             ScannedComponent {
                 name: "Beta".into(),
@@ -135,6 +138,7 @@ mod tests {
                     name: "speed".into(),
                     field_type: "f32".into(),
                 }],
+                source_path: None,
             },
         ];
         let code = generate_reflect_code(&comps);

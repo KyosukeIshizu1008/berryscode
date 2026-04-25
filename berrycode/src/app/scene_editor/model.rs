@@ -590,6 +590,9 @@ pub enum ComponentData {
     CustomScript {
         #[serde(default)]
         type_name: String,
+        /// Path to the Rust source file that defines this component.
+        #[serde(default)]
+        script_path: String,
         #[serde(default)]
         fields: Vec<ScriptField>,
     },
@@ -810,6 +813,7 @@ impl ComponentData {
                 "Custom Script",
                 ComponentData::CustomScript {
                     type_name: String::new(),
+                    script_path: String::new(),
                     fields: vec![],
                 },
             ),
@@ -1543,5 +1547,78 @@ mod tests {
             world_before.translation[2],
             world_after.translation[2]
         );
+    }
+
+    #[test]
+    fn custom_script_with_script_path() {
+        let comp = ComponentData::CustomScript {
+            type_name: "PlayerController".into(),
+            script_path: "/project/src/player_controller.rs".into(),
+            fields: vec![
+                ScriptField {
+                    name: "speed".into(),
+                    value: ScriptValue::Float(5.0),
+                },
+                ScriptField {
+                    name: "name".into(),
+                    value: ScriptValue::String("Player1".into()),
+                },
+            ],
+        };
+        assert_eq!(comp.label(), "Custom Script");
+
+        // Roundtrip serialize/deserialize
+        let json = serde_json::to_string(&comp).unwrap();
+        let restored: ComponentData = serde_json::from_str(&json).unwrap();
+        if let ComponentData::CustomScript {
+            type_name,
+            script_path,
+            fields,
+        } = &restored
+        {
+            assert_eq!(type_name, "PlayerController");
+            assert_eq!(script_path, "/project/src/player_controller.rs");
+            assert_eq!(fields.len(), 2);
+            assert_eq!(fields[0].name, "speed");
+            assert_eq!(fields[1].name, "name");
+        } else {
+            panic!("Expected CustomScript variant");
+        }
+    }
+
+    #[test]
+    fn custom_script_default_script_path_is_empty() {
+        // Deserialize old format without script_path (backwards compat)
+        let json = r#"{"CustomScript":{"type_name":"Foo","fields":[]}}"#;
+        let comp: ComponentData = serde_json::from_str(json).unwrap();
+        if let ComponentData::CustomScript { script_path, .. } = &comp {
+            assert_eq!(script_path, "");
+        } else {
+            panic!("Expected CustomScript variant");
+        }
+    }
+
+    #[test]
+    fn add_entity_with_mesh_from_file() {
+        let mut scene = SceneModel::new();
+        let id = scene.add_entity(
+            "MyModel".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/assets/model.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        assert!(scene.entities.contains_key(&id));
+        let entity = scene.entities.get(&id).unwrap();
+        assert_eq!(entity.name, "MyModel");
+        assert_eq!(entity.components.len(), 1);
+        if let ComponentData::MeshFromFile { path, .. } = &entity.components[0] {
+            assert_eq!(path, "/assets/model.glb");
+        } else {
+            panic!("Expected MeshFromFile");
+        }
+        assert!(scene.root_entities.contains(&id));
+        assert!(scene.modified);
     }
 }

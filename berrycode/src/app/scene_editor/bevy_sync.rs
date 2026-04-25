@@ -729,7 +729,9 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     }
                     looped.hash(&mut hasher);
                 }
-                ComponentData::CustomScript { type_name, fields } => {
+                ComponentData::CustomScript {
+                    type_name, fields, ..
+                } => {
                     type_name.hash(&mut hasher);
                     fields.len().hash(&mut hasher);
                     for f in fields {

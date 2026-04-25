@@ -337,7 +337,11 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                 fields.push(ScriptField { name: fname, value });
             }
             if !fields.is_empty() {
-                components.push(ComponentData::CustomScript { type_name, fields });
+                components.push(ComponentData::CustomScript {
+                    type_name,
+                    fields,
+                    script_path: String::new(),
+                });
             }
         }
 
@@ -507,6 +511,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                     components.push(ComponentData::CustomScript {
                         type_name: cs_type_name,
                         fields,
+                        script_path: String::new(),
                     });
                 }
                 "Skybox" => {
@@ -802,6 +807,7 @@ mod tests {
             "Player".into(),
             vec![ComponentData::CustomScript {
                 type_name: "PlayerStats".into(),
+                script_path: String::new(),
                 fields: vec![
                     ScriptField {
                         name: "health".into(),

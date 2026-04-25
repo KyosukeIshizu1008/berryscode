@@ -16,6 +16,8 @@ use std::path::Path;
 pub struct ScannedComponent {
     pub name: String,
     pub fields: Vec<ScannedField>,
+    /// Path to the source file where this component was found.
+    pub source_path: Option<String>,
 }
 
 /// A single field extracted from a scanned component struct.
@@ -57,7 +59,8 @@ pub fn scan_components_with_fields(root: &str) -> Vec<ScannedComponent> {
     let mut out: Vec<ScannedComponent> = Vec::new();
     for path in &rs_files {
         if let Ok(content) = std::fs::read_to_string(path) {
-            scan_text_with_fields(&content, &mut out);
+            let path_str = path.to_string_lossy().to_string();
+            scan_text_with_fields(&content, &path_str, &mut out);
         }
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -126,7 +129,7 @@ fn scan_text(text: &str, out: &mut Vec<String>) {
 
 /// Walk `text` line-by-line; when a `#[derive(... Component ...)]` attribute is
 /// seen, capture the struct name and parse any `pub` fields from the body block.
-fn scan_text_with_fields(text: &str, out: &mut Vec<ScannedComponent>) {
+fn scan_text_with_fields(text: &str, file_path: &str, out: &mut Vec<ScannedComponent>) {
     let lines: Vec<&str> = text.lines().collect();
     let mut i = 0;
     while i < lines.len() {
@@ -179,7 +182,11 @@ fn scan_text_with_fields(text: &str, out: &mut Vec<ScannedComponent>) {
                         }
                     }
 
-                    out.push(ScannedComponent { name, fields });
+                    out.push(ScannedComponent {
+                        name,
+                        fields,
+                        source_path: Some(file_path.to_string()),
+                    });
                     break;
                 }
                 // Tolerate intervening attribute lines.
@@ -244,7 +251,7 @@ pub struct PlayerStats {
 }
 "#;
         let mut out = Vec::new();
-        scan_text_with_fields(text, &mut out);
+        scan_text_with_fields(text, "", &mut out);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].name, "PlayerStats");
         assert_eq!(out[0].fields.len(), 3);
@@ -263,7 +270,7 @@ pub struct PlayerStats {
 pub struct Marker;
 "#;
         let mut out = Vec::new();
-        scan_text_with_fields(text, &mut out);
+        scan_text_with_fields(text, "", &mut out);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].name, "Marker");
         assert!(out[0].fields.is_empty());
@@ -287,7 +294,7 @@ pub struct Velocity {
 }
 "#;
         let mut out = Vec::new();
-        scan_text_with_fields(text, &mut out);
+        scan_text_with_fields(text, "", &mut out);
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].name, "Health");
         assert_eq!(out[0].fields.len(), 1);
@@ -307,12 +314,38 @@ pub struct Config {
 }
 "#;
         let mut out = Vec::new();
-        scan_text_with_fields(text, &mut out);
+        scan_text_with_fields(text, "", &mut out);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].fields.len(), 4);
         assert_eq!(out[0].fields[0].field_type, "bool");
         assert_eq!(out[0].fields[1].field_type, "i32");
         assert_eq!(out[0].fields[2].field_type, "String");
         assert_eq!(out[0].fields[3].field_type, "f64");
+    }
+
+    #[test]
+    fn scan_with_fields_preserves_source_path() {
+        let text = r#"
+#[derive(Component)]
+pub struct Enemy {
+    pub hp: f32,
+}
+"#;
+        let mut out = Vec::new();
+        scan_text_with_fields(text, "/project/src/enemy.rs", &mut out);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "Enemy");
+        assert_eq!(out[0].source_path.as_deref(), Some("/project/src/enemy.rs"));
+    }
+
+    #[test]
+    fn scan_with_fields_empty_path_gives_some_empty() {
+        let text = r#"
+#[derive(Component)]
+pub struct Marker;
+"#;
+        let mut out = Vec::new();
+        scan_text_with_fields(text, "", &mut out);
+        assert_eq!(out[0].source_path.as_deref(), Some(""));
     }
 }

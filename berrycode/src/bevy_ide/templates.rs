@@ -31,6 +31,10 @@ pub enum BevyTemplate {
         name: String,
         variants: Vec<String>,
     },
+    /// Scene transition boilerplate: States enum + per-scene setup/cleanup systems.
+    SceneTransition {
+        scenes: Vec<String>,
+    },
 }
 
 impl BevyTemplate {
@@ -95,6 +99,57 @@ impl BevyTemplate {
                 code.push_str("}\n");
                 code
             }
+            BevyTemplate::SceneTransition { scenes } => {
+                let mut code = String::from("use bevy::prelude::*;\n\n");
+
+                // States enum
+                code.push_str("#[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]\npub enum GameScene {\n");
+                for (i, scene) in scenes.iter().enumerate() {
+                    if i == 0 {
+                        code.push_str(&format!("    #[default]\n    {},\n", scene));
+                    } else {
+                        code.push_str(&format!("    {},\n", scene));
+                    }
+                }
+                code.push_str("}\n\n");
+
+                // Plugin
+                code.push_str("pub struct ScenePlugin;\n\nimpl Plugin for ScenePlugin {\n    fn build(&self, app: &mut App) {\n");
+                code.push_str("        app.init_state::<GameScene>()\n");
+                for scene in scenes {
+                    let snake = to_snake_case(scene);
+                    code.push_str(&format!(
+                        "            .add_systems(OnEnter(GameScene::{}), setup_{})\n",
+                        scene, snake
+                    ));
+                    code.push_str(&format!(
+                        "            .add_systems(OnExit(GameScene::{}), cleanup_{})\n",
+                        scene, snake
+                    ));
+                }
+                code.push_str("            ;\n    }\n}\n\n");
+
+                // Per-scene setup/cleanup functions
+                for scene in scenes {
+                    let snake = to_snake_case(scene);
+                    code.push_str(&format!(
+                        "fn setup_{}(mut commands: Commands) {{\n    // TODO: spawn entities for {} scene\n}}\n\n",
+                        snake, scene
+                    ));
+                    code.push_str(&format!(
+                        "fn cleanup_{}(mut commands: Commands, query: Query<Entity>) {{\n    for entity in &query {{\n        commands.entity(entity).despawn_recursive();\n    }}\n}}\n\n",
+                        snake
+                    ));
+                }
+
+                // Helper: transition function
+                code.push_str("/// Call this to transition to a different scene.\n");
+                code.push_str("fn transition_to(next: GameScene, mut next_state: ResMut<NextState<GameScene>>) {\n");
+                code.push_str("    next_state.set(next);\n");
+                code.push_str("}\n");
+
+                code
+            }
         }
     }
 
@@ -108,8 +163,21 @@ impl BevyTemplate {
             BevyTemplate::StartupSystem { .. } => "Startup System",
             BevyTemplate::Event { .. } => "Event",
             BevyTemplate::State { .. } => "State",
+            BevyTemplate::SceneTransition { .. } => "Scene Transition",
         }
     }
+}
+
+/// Convert PascalCase to snake_case.
+fn to_snake_case(s: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            out.push('_');
+        }
+        out.push(c.to_lowercase().next().unwrap_or(c));
+    }
+    out
 }
 
 #[cfg(test)]

@@ -295,7 +295,9 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         tracks.len()
                     ));
                 }
-                ComponentData::CustomScript { type_name, fields } => {
+                ComponentData::CustomScript {
+                    type_name, fields, ..
+                } => {
                     code.push_str(&format!(
                         "        // [BerryCode:CustomScript] type_name={} fields={}\n",
                         type_name,
@@ -445,6 +447,7 @@ mod tests {
             "Player".into(),
             vec![ComponentData::CustomScript {
                 type_name: "PlayerStats".into(),
+                script_path: String::new(),
                 fields: vec![
                     ScriptField {
                         name: "health".into(),
@@ -497,6 +500,7 @@ mod tests {
             "VecEntity".into(),
             vec![ComponentData::CustomScript {
                 type_name: "Inventory".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "items".into(),
                     value: ScriptValue::Vec(vec![ScriptValue::Float(1.0), ScriptValue::Float(2.5)]),
@@ -514,6 +518,7 @@ mod tests {
             "OptEntity".into(),
             vec![ComponentData::CustomScript {
                 type_name: "Config".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "maybe".into(),
                     value: ScriptValue::Option(Some(Box::new(ScriptValue::Int(42)))),
@@ -531,6 +536,7 @@ mod tests {
             "NoneEntity".into(),
             vec![ComponentData::CustomScript {
                 type_name: "Config".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "maybe".into(),
                     value: ScriptValue::Option(None),
@@ -548,6 +554,7 @@ mod tests {
             "MapEntity".into(),
             vec![ComponentData::CustomScript {
                 type_name: "Stats".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "values".into(),
                     value: ScriptValue::Map(vec![
@@ -939,6 +946,7 @@ mod extended_tests {
             "Player".into(),
             vec![ComponentData::CustomScript {
                 type_name: "PlayerStats".into(),
+                script_path: String::new(),
                 fields: vec![
                     ScriptField {
                         name: "health".into(),
@@ -974,6 +982,7 @@ mod extended_tests {
             "Data".into(),
             vec![ComponentData::CustomScript {
                 type_name: "GameData".into(),
+                script_path: String::new(),
                 fields: vec![
                     ScriptField {
                         name: "scores".into(),
@@ -1251,6 +1260,7 @@ mod extended_tests {
                 },
                 ComponentData::CustomScript {
                     type_name: "Health".into(),
+                    script_path: String::new(),
                     fields: vec![ScriptField {
                         name: "hp".into(),
                         value: ScriptValue::Float(100.0),
@@ -1444,6 +1454,7 @@ mod extended_tests {
             "E18".into(),
             vec![ComponentData::CustomScript {
                 type_name: "T".into(),
+                script_path: String::new(),
                 fields: vec![],
             }],
         );
@@ -1519,6 +1530,7 @@ mod extended_tests {
             "EmptyScript".into(),
             vec![ComponentData::CustomScript {
                 type_name: "".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "x".into(),
                     value: ScriptValue::Float(1.0),
@@ -1541,6 +1553,7 @@ mod extended_tests {
             "MapTest".into(),
             vec![ComponentData::CustomScript {
                 type_name: "Config".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "settings".into(),
                     value: ScriptValue::Map(vec![
@@ -1562,6 +1575,7 @@ mod extended_tests {
             "Nested".into(),
             vec![ComponentData::CustomScript {
                 type_name: "Matrix".into(),
+                script_path: String::new(),
                 fields: vec![ScriptField {
                     name: "rows".into(),
                     value: ScriptValue::Vec(vec![
@@ -1612,6 +1626,7 @@ mod extended_tests {
                 },
                 ComponentData::CustomScript {
                     type_name: "MyComp".into(),
+                    script_path: String::new(),
                     fields: vec![ScriptField {
                         name: "val".into(),
                         value: ScriptValue::Float(42.0),
@@ -1880,6 +1895,7 @@ bevy = "0.15"
         compile_custom_script,
         ComponentData::CustomScript {
             type_name: "MyComp".into(),
+            script_path: String::new(),
             fields: vec![ScriptField {
                 name: "val".into(),
                 value: ScriptValue::Float(42.0),

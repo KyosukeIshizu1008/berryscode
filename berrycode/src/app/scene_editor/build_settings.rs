@@ -9,6 +9,18 @@ pub struct BuildSettings {
     pub resolution: [u32; 2],
     pub fullscreen: bool,
     pub quality: QualityLevel,
+    /// Ordered list of scenes included in the build. Index 0 is the startup scene.
+    #[serde(default)]
+    pub scenes_in_build: Vec<SceneEntry>,
+}
+
+/// A scene entry in the build order.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SceneEntry {
+    /// Path to the .bscene file (relative to project root).
+    pub path: String,
+    /// Whether this scene is enabled in the build.
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -68,6 +80,41 @@ impl Default for BuildSettings {
             resolution: [1280, 720],
             fullscreen: false,
             quality: QualityLevel::High,
+            scenes_in_build: Vec::new(),
+        }
+    }
+}
+
+/// Scan project directory for all .bscene files.
+pub fn scan_scene_files(root: &str) -> Vec<String> {
+    let mut scenes = Vec::new();
+    scan_bscene_recursive(std::path::Path::new(root), root, &mut scenes);
+    scenes.sort();
+    scenes
+}
+
+fn scan_bscene_recursive(dir: &std::path::Path, root: &str, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let name = path
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if name == "target" || name.starts_with('.') {
+                continue;
+            }
+            scan_bscene_recursive(&path, root, out);
+        } else if path.extension().and_then(|s| s.to_str()) == Some("bscene") {
+            let rel = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .to_string();
+            out.push(rel);
         }
     }
 }
@@ -277,6 +324,112 @@ impl BerryCodeApp {
                         });
                 });
 
+                // --- Scenes In Build ---
+                ui.separator();
+                ui.heading("Scenes In Build");
+                ui.separator();
+
+                // Scan for available scenes
+                if ui.small_button("Refresh Scene List").clicked() {
+                    let available = scan_scene_files(&self.root_path);
+                    // Add new scenes not already in list
+                    for scene_path in &available {
+                        if !self
+                            .build_settings
+                            .scenes_in_build
+                            .iter()
+                            .any(|s| s.path == *scene_path)
+                        {
+                            self.build_settings.scenes_in_build.push(SceneEntry {
+                                path: scene_path.clone(),
+                                enabled: true,
+                            });
+                        }
+                    }
+                    // Remove entries for deleted files
+                    self.build_settings
+                        .scenes_in_build
+                        .retain(|s| available.contains(&s.path));
+                }
+
+                if self.build_settings.scenes_in_build.is_empty() {
+                    ui.label(
+                        egui::RichText::new(
+                            "No scenes added. Save a scene first, then click Refresh.",
+                        )
+                        .color(egui::Color32::from_gray(120))
+                        .italics(),
+                    );
+                } else {
+                    // Scene list with reorder buttons
+                    let mut swap: Option<(usize, usize)> = None;
+                    let mut remove_idx: Option<usize> = None;
+                    let mut load_path: Option<String> = None;
+                    let scene_count = self.build_settings.scenes_in_build.len();
+                    for i in 0..scene_count {
+                        ui.horizontal(|ui| {
+                            // Index label (0 = startup scene)
+                            let idx_label = if i == 0 {
+                                egui::RichText::new(format!("{} (Start)", i))
+                                    .color(egui::Color32::from_rgb(120, 220, 120))
+                            } else {
+                                egui::RichText::new(format!("{}", i))
+                                    .color(egui::Color32::from_gray(150))
+                            };
+                            ui.label(idx_label);
+
+                            // Enable checkbox
+                            ui.checkbox(&mut self.build_settings.scenes_in_build[i].enabled, "");
+
+                            // Scene path as clickable label
+                            let path = self.build_settings.scenes_in_build[i].path.clone();
+                            if ui
+                                .add(
+                                    egui::Label::new(egui::RichText::new(&path).color(
+                                        if self.build_settings.scenes_in_build[i].enabled {
+                                            egui::Color32::from_rgb(212, 212, 212)
+                                        } else {
+                                            egui::Color32::from_gray(90)
+                                        },
+                                    ))
+                                    .sense(egui::Sense::click()),
+                                )
+                                .on_hover_text("Click to load")
+                                .clicked()
+                            {
+                                load_path = Some(path);
+                            }
+
+                            // Reorder buttons
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.small_button("x").clicked() {
+                                        remove_idx = Some(i);
+                                    }
+                                    if i + 1 < scene_count && ui.small_button("\u{25bc}").clicked()
+                                    {
+                                        swap = Some((i, i + 1));
+                                    }
+                                    if i > 0 && ui.small_button("\u{25b2}").clicked() {
+                                        swap = Some((i, i - 1));
+                                    }
+                                },
+                            );
+                        });
+                    }
+                    if let Some((a, b)) = swap {
+                        self.build_settings.scenes_in_build.swap(a, b);
+                    }
+                    if let Some(idx) = remove_idx {
+                        self.build_settings.scenes_in_build.remove(idx);
+                    }
+                    if let Some(path) = load_path {
+                        let full_path = format!("{}/{}", self.root_path, path);
+                        self.load_scene(&full_path);
+                    }
+                }
+
                 ui.separator();
                 ui.heading("Player Settings");
                 ui.separator();
@@ -482,6 +635,7 @@ mod tests {
             resolution: [1920, 1080],
             fullscreen: true,
             quality: QualityLevel::Ultra,
+            scenes_in_build: vec![],
         };
         let s = ron::ser::to_string(&bs).unwrap();
         let loaded: BuildSettings = ron::from_str(&s).unwrap();

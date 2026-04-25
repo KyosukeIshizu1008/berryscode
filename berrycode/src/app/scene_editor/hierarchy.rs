@@ -39,32 +39,88 @@ impl BerryCodeApp {
             ui.separator();
         }
 
-        // --- Scene tabs ---
+        // --- Scene tabs + project scenes dropdown ---
         let tab_count = self.scene_tabs.len();
         let mut switch_to: Option<usize> = None;
-        if tab_count > 0 {
-            ui.horizontal_wrapped(|ui| {
-                for i in 0..tab_count {
-                    let selected = i == self.active_scene_tab;
-                    let label = if self.scene_tabs[i].model.modified {
-                        format!("{}*", self.scene_tabs[i].label)
-                    } else {
-                        self.scene_tabs[i].label.clone()
-                    };
-                    if ui.selectable_label(selected, &label).clicked() && i != self.active_scene_tab
-                    {
-                        switch_to = Some(i);
+        let mut load_scene_path: Option<String> = None;
+
+        ui.horizontal_wrapped(|ui| {
+            // Existing scene tabs
+            for i in 0..tab_count {
+                let selected = i == self.active_scene_tab;
+                let label = if self.scene_tabs[i].model.modified {
+                    format!("{}*", self.scene_tabs[i].label)
+                } else {
+                    self.scene_tabs[i].label.clone()
+                };
+                if ui.selectable_label(selected, &label).clicked() && i != self.active_scene_tab {
+                    switch_to = Some(i);
+                }
+            }
+
+            // "Open Scene" dropdown - lists all .bscene files in project
+            ui.menu_button("Open Scene...", |ui| {
+                let scenes =
+                    crate::app::scene_editor::build_settings::scan_scene_files(&self.root_path);
+                if scenes.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No .bscene files found")
+                            .color(egui::Color32::from_gray(120))
+                            .italics(),
+                    );
+                    ui.label(
+                        egui::RichText::new("Save a scene first")
+                            .color(egui::Color32::from_gray(100))
+                            .size(10.0),
+                    );
+                } else {
+                    for scene_rel in &scenes {
+                        let file_name = std::path::Path::new(scene_rel)
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_else(|| scene_rel.clone());
+                        // Check if already open in a tab
+                        let full_path = format!("{}/{}", self.root_path, scene_rel);
+                        let already_open = self.scene_tabs.iter().enumerate().find(|(_, t)| {
+                            t.model.file_path.as_deref() == Some(full_path.as_str())
+                        });
+                        if let Some((idx, _)) = already_open {
+                            if ui
+                                .add(
+                                    egui::Label::new(
+                                        egui::RichText::new(format!("{} (open)", file_name))
+                                            .color(egui::Color32::from_gray(150)),
+                                    )
+                                    .sense(egui::Sense::click()),
+                                )
+                                .clicked()
+                            {
+                                switch_to = Some(idx);
+                                ui.close_menu();
+                            }
+                        } else if ui.button(&file_name).clicked() {
+                            load_scene_path = Some(full_path);
+                            ui.close_menu();
+                        }
                     }
                 }
             });
+        });
+        if tab_count > 0 || load_scene_path.is_some() {
             ui.separator();
         }
+
         if let Some(new_idx) = switch_to {
-            self.scene_tabs[self.active_scene_tab].model = self.scene_model.clone();
-            self.active_scene_tab = new_idx;
-            self.scene_model = self.scene_tabs[new_idx].model.clone();
-            self.scene_needs_sync = true;
-            self.primary_selected_id = None;
+            if new_idx < self.scene_tabs.len() {
+                self.scene_tabs[self.active_scene_tab].model = self.scene_model.clone();
+                self.active_scene_tab = new_idx;
+                self.scene_model = self.scene_tabs[new_idx].model.clone();
+                self.scene_needs_sync = true;
+                self.primary_selected_id = None;
+            }
+        }
+        if let Some(path) = load_scene_path {
+            self.load_scene(&path);
         }
 
         // Compact toolbar: essential buttons + dropdown menus
@@ -360,6 +416,7 @@ impl BerryCodeApp {
                     vec![ComponentData::CustomScript {
                         type_name: String::new(),
                         fields: vec![],
+                        script_path: String::new(),
                     }],
                 );
             }
@@ -429,6 +486,85 @@ impl BerryCodeApp {
                     }],
                 );
             }
+
+            // --- From Asset (3D models & prefabs in project) ---
+            ui.separator();
+            ui.menu_button("From Asset...", |ui| {
+                let assets_dir = std::path::Path::new(&self.root_path).join("assets");
+                let mut model_files: Vec<std::path::PathBuf> = Vec::new();
+                Self::collect_model_assets(&assets_dir, &mut model_files);
+                // Also check root for .bprefab files
+                let mut prefab_files: Vec<std::path::PathBuf> = Vec::new();
+                Self::collect_prefab_assets(
+                    std::path::Path::new(&self.root_path),
+                    &mut prefab_files,
+                );
+
+                if model_files.is_empty() && prefab_files.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No 3D assets found")
+                            .color(egui::Color32::from_gray(120))
+                            .italics(),
+                    );
+                } else {
+                    if !model_files.is_empty() {
+                        ui.label(
+                            egui::RichText::new("3D Models")
+                                .size(11.0)
+                                .color(egui::Color32::from_gray(150)),
+                        );
+                        for path in &model_files {
+                            let file_name = path
+                                .file_name()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            let display = format!("\u{ea7b} {}", file_name); // codicon symbol-file
+                            if ui.button(&display).clicked() {
+                                let path_str = path.to_string_lossy().to_string();
+                                let entity_name = path
+                                    .file_stem()
+                                    .map(|s| s.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| "Model".to_string());
+                                self.scene_snapshot();
+                                let new_id = self.scene_model.add_entity(
+                                    entity_name,
+                                    vec![ComponentData::MeshFromFile {
+                                        path: path_str,
+                                        texture_path: None,
+                                        normal_map_path: None,
+                                    }],
+                                );
+                                self.scene_model.select_only(new_id);
+                                self.primary_selected_id = Some(new_id);
+                                self.scene_needs_sync = true;
+                                ui.close_menu();
+                            }
+                        }
+                    }
+                    if !prefab_files.is_empty() {
+                        ui.separator();
+                        ui.label(
+                            egui::RichText::new("Prefabs")
+                                .size(11.0)
+                                .color(egui::Color32::from_gray(150)),
+                        );
+                        for path in &prefab_files {
+                            let file_name = path
+                                .file_name()
+                                .map(|s| s.to_string_lossy().to_string())
+                                .unwrap_or_default();
+                            let display = format!("\u{eb61} {}", file_name); // codicon symbol-class
+                            if ui.button(&display).clicked() {
+                                let path_str = path.to_string_lossy().to_string();
+                                self.scene_snapshot();
+                                self.instantiate_prefab_from_path(&path_str);
+                                self.scene_needs_sync = true;
+                                ui.close_menu();
+                            }
+                        }
+                    }
+                }
+            });
         });
 
         ui.separator();
@@ -1006,5 +1142,170 @@ impl BerryCodeApp {
         for child_id in children {
             self.render_entity_tree_node(ui, child_id, depth + 1, visible);
         }
+    }
+
+    /// Recursively collect 3D model files (.glb, .gltf, .obj, .stl, .ply) under `dir`.
+    fn collect_model_assets(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if name == "target" || name.starts_with('.') {
+                    continue;
+                }
+                Self::collect_model_assets(&path, out);
+            } else if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                match ext.to_lowercase().as_str() {
+                    "glb" | "gltf" | "obj" | "stl" | "ply" => out.push(path),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Recursively collect .bprefab files under `dir`.
+    fn collect_prefab_assets(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let name = path
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if name == "target" || name.starts_with('.') {
+                    continue;
+                }
+                Self::collect_prefab_assets(&path, out);
+            } else if path.extension().and_then(|s| s.to_str()) == Some("bprefab") {
+                out.push(path);
+            }
+        }
+    }
+
+    /// Instantiate a prefab from a .bprefab file path into the scene.
+    pub(crate) fn instantiate_prefab_from_path(&mut self, path: &str) {
+        match std::fs::read_to_string(path) {
+            Ok(content) => {
+                if let Ok(prefab) =
+                    serde_json::from_str::<crate::app::scene_editor::prefab::PrefabFile>(&content)
+                {
+                    let new_root = crate::app::scene_editor::prefab::instantiate_prefab(
+                        &mut self.scene_model,
+                        &prefab,
+                    );
+                    self.scene_model.select_only(new_root);
+                    self.primary_selected_id = Some(new_root);
+                } else {
+                    tracing::warn!("Failed to parse prefab: {}", path);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to read prefab {}: {}", path, e);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn collect_model_assets_finds_glb_and_obj() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+
+        // Create some model files
+        fs::write(dir.join("hero.glb"), b"").unwrap();
+        fs::write(dir.join("world.gltf"), b"").unwrap();
+        fs::write(dir.join("rock.obj"), b"").unwrap();
+        fs::write(dir.join("notes.txt"), b"").unwrap();
+        fs::write(dir.join("icon.png"), b"").unwrap();
+
+        let mut out = Vec::new();
+        BerryCodeApp::collect_model_assets(dir, &mut out);
+
+        let names: Vec<String> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+            .collect();
+        assert!(names.contains(&"hero.glb".to_string()));
+        assert!(names.contains(&"world.gltf".to_string()));
+        assert!(names.contains(&"rock.obj".to_string()));
+        assert!(!names.contains(&"notes.txt".to_string()));
+        assert!(!names.contains(&"icon.png".to_string()));
+        assert_eq!(out.len(), 3);
+    }
+
+    #[test]
+    fn collect_model_assets_recurses_subdirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let sub = tmp.path().join("models");
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(sub.join("tank.glb"), b"").unwrap();
+        fs::write(tmp.path().join("base.stl"), b"").unwrap();
+
+        let mut out = Vec::new();
+        BerryCodeApp::collect_model_assets(tmp.path(), &mut out);
+        assert_eq!(out.len(), 2);
+    }
+
+    #[test]
+    fn collect_model_assets_skips_target_and_hidden() {
+        let tmp = tempfile::tempdir().unwrap();
+        let target = tmp.path().join("target");
+        let hidden = tmp.path().join(".cache");
+        fs::create_dir_all(&target).unwrap();
+        fs::create_dir_all(&hidden).unwrap();
+        fs::write(target.join("build.glb"), b"").unwrap();
+        fs::write(hidden.join("tmp.obj"), b"").unwrap();
+        fs::write(tmp.path().join("valid.ply"), b"").unwrap();
+
+        let mut out = Vec::new();
+        BerryCodeApp::collect_model_assets(tmp.path(), &mut out);
+        assert_eq!(out.len(), 1);
+        assert!(out[0]
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains("valid"));
+    }
+
+    #[test]
+    fn collect_prefab_assets_finds_bprefab() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join("enemy.bprefab"), b"{}").unwrap();
+        fs::write(tmp.path().join("scene.bscene"), b"").unwrap();
+        fs::write(tmp.path().join("tree.bprefab"), b"{}").unwrap();
+
+        let mut out = Vec::new();
+        BerryCodeApp::collect_prefab_assets(tmp.path(), &mut out);
+        assert_eq!(out.len(), 2);
+    }
+
+    #[test]
+    fn collect_model_assets_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let mut out = Vec::new();
+        BerryCodeApp::collect_model_assets(tmp.path(), &mut out);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn collect_model_assets_nonexistent_dir() {
+        let mut out = Vec::new();
+        BerryCodeApp::collect_model_assets(std::path::Path::new("/nonexistent/path"), &mut out);
+        assert!(out.is_empty());
     }
 }
