@@ -11,9 +11,9 @@ impl BerryCodeApp {
         egui::TopBottomPanel::top("top_header")
             .exact_height(32.0)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(50, 51, 54)) // Dark gray background #323336
-                    .inner_margin(egui::Margin::symmetric(8.0, 4.0)),
+                    .inner_margin(egui::Margin::symmetric(8, 4)),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -204,9 +204,9 @@ impl BerryCodeApp {
             .exact_width(48.0)
             .resizable(false)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG) // #191A1C
-                    .inner_margin(egui::Margin::same(4.0)),
+                    .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {

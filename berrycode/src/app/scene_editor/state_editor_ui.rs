@@ -90,6 +90,7 @@ impl BerryCodeApp {
                         box_rect,
                         4.0,
                         egui::Stroke::new(1.0, egui::Color32::from_gray(100)),
+                        egui::StrokeKind::Middle,
                     );
                     ui.painter().text(
                         box_rect.center(),

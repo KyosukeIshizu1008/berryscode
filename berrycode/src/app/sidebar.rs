@@ -13,9 +13,9 @@ impl BerryCodeApp {
             .resizable(true)
             .show_separator_line(false)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(8.0))
+                    .inner_margin(egui::Margin::same(8))
                     .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(40, 40, 40))),
             )
             .show(ctx, |ui| {

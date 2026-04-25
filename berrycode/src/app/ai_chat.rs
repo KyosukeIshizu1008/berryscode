@@ -37,7 +37,7 @@ impl BerryCodeApp {
             .width_range(200.0..=600.0)
             .resizable(true)
             .show_separator_line(true)
-            .frame(egui::Frame::none().fill(PANEL_BG).inner_margin(0.0))
+            .frame(egui::Frame::NONE.fill(PANEL_BG).inner_margin(0))
             .show(ctx, |ui| {
                 // ── Header ────────────────────
                 ui.horizontal(|ui| {
@@ -71,13 +71,13 @@ impl BerryCodeApp {
                 // ── Layout: input pinned to bottom, scroll fills rest ──
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     // ── Input area ────────────────────────────────────
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(PANEL_BG)
                         .inner_margin(egui::Margin {
-                            left: 12.0,
-                            right: 12.0,
-                            top: 8.0,
-                            bottom: 12.0,
+                            left: 12,
+                            right: 12,
+                            top: 8,
+                            bottom: 12,
                         })
                         .show(ui, |ui| {
                             let input_id = egui::Id::new("chat_input");
@@ -88,15 +88,15 @@ impl BerryCodeApp {
                                 egui::Color32::from_rgb(48, 50, 62)
                             };
 
-                            egui::Frame::none()
+                            egui::Frame::NONE
                                 .fill(INPUT_BG)
                                 .inner_margin(egui::Margin {
-                                    left: 14.0,
-                                    right: 10.0,
-                                    top: 10.0,
-                                    bottom: 8.0,
+                                    left: 14,
+                                    right: 10,
+                                    top: 10,
+                                    bottom: 8,
                                 })
-                                .rounding(12.0)
+                                .corner_radius(12)
                                 .stroke(egui::Stroke::new(1.5, border_color))
                                 .show(ui, |ui| {
                                     // Attachment preview
@@ -105,10 +105,10 @@ impl BerryCodeApp {
                                             .file_name()
                                             .and_then(|n| n.to_str())
                                             .unwrap_or(path);
-                                        egui::Frame::none()
+                                        egui::Frame::NONE
                                             .fill(egui::Color32::from_rgb(30, 35, 50))
-                                            .rounding(6.0)
-                                            .inner_margin(egui::Margin::symmetric(8.0, 4.0))
+                                            .corner_radius(6)
+                                            .inner_margin(egui::Margin::symmetric(8, 4))
                                             .show(ui, |ui| {
                                                 ui.horizontal(|ui| {
                                                     ui.label(
@@ -174,7 +174,7 @@ impl BerryCodeApp {
                                                     } else {
                                                         egui::Color32::from_rgb(40, 42, 52)
                                                     })
-                                                    .rounding(8.0)
+                                                    .corner_radius(8)
                                                     .min_size(egui::vec2(28.0, 28.0));
 
                                                     if ui
@@ -254,7 +254,7 @@ impl BerryCodeApp {
                                                 1.0,
                                                 egui::Color32::from_rgb(55, 57, 63),
                                             ))
-                                            .rounding(6.0)
+                                            .corner_radius(6)
                                             .min_size(egui::vec2(200.0, 28.0));
                                             if ui.add(btn).clicked() {
                                                 self.ai_input = text.to_string();
@@ -281,19 +281,19 @@ impl BerryCodeApp {
                                                     (avail - bubble_max - right_pad - 28.0)
                                                         .max(0.0);
                                                 ui.add_space(spacer);
-                                                egui::Frame::none()
+                                                egui::Frame::NONE
                                                     .fill(USER_BG)
                                                     .inner_margin(egui::Margin {
-                                                        left: 14.0,
-                                                        right: 14.0,
-                                                        top: 10.0,
-                                                        bottom: 10.0,
+                                                        left: 14,
+                                                        right: 14,
+                                                        top: 10,
+                                                        bottom: 10,
                                                     })
-                                                    .rounding(egui::Rounding {
-                                                        nw: 16.0,
-                                                        ne: 4.0,
-                                                        sw: 16.0,
-                                                        se: 16.0,
+                                                    .corner_radius(egui::CornerRadius {
+                                                        nw: 16,
+                                                        ne: 4,
+                                                        sw: 16,
+                                                        se: 16,
                                                     })
                                                     .show(ui, |ui| {
                                                         ui.set_max_width(bubble_max);
@@ -381,10 +381,10 @@ impl BerryCodeApp {
                 if in_code_block {
                     // End code block - render it
                     let code_text = code_lines.join("\n");
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(egui::Color32::from_rgb(35, 35, 35))
-                        .inner_margin(8.0)
-                        .rounding(4.0)
+                        .inner_margin(8)
+                        .corner_radius(4)
                         .show(ui, |ui| {
                             ui.add(
                                 egui::Label::new(
@@ -475,10 +475,10 @@ impl BerryCodeApp {
         // Handle unclosed code block
         if in_code_block && !code_lines.is_empty() {
             let code_text = code_lines.join("\n");
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(egui::Color32::from_rgb(35, 35, 35))
-                .inner_margin(8.0)
-                .rounding(4.0)
+                .inner_margin(8)
+                .corner_radius(4)
                 .show(ui, |ui| {
                     ui.add(
                         egui::Label::new(

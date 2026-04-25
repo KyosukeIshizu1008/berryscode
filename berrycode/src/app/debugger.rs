@@ -78,9 +78,9 @@ impl BerryCodeApp {
             .default_height(250.0)
             .resizable(true)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(30, 30, 30))
-                    .inner_margin(egui::Margin::same(4.0)),
+                    .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
                 // ─── Debug Toolbar ────────────────────────────

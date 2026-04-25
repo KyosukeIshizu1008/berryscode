@@ -47,9 +47,9 @@ impl BerryCodeApp {
             .default_height(250.0)
             .min_height(100.0)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(30, 31, 34))
-                    .inner_margin(egui::Margin::same(4.0)),
+                    .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
                 // Tab bar (VS Code style)

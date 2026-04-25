@@ -9,9 +9,9 @@ impl BerryCodeApp {
         egui::TopBottomPanel::bottom("status_bar")
             .exact_height(22.0)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::symmetric(8.0, 2.0)),
+                    .inner_margin(egui::Margin::symmetric(8, 2)),
             )
             .show(ctx, |ui| {
                 let small = egui::TextStyle::Small;

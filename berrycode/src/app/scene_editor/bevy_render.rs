@@ -160,7 +160,7 @@ pub fn setup_scene_editor_render(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::render::camera::RenderTarget::Image(image_handle.clone()),
+            target: bevy::render::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.137, 0.149, 0.176, 1.0)),
             order: -2,
             ..default()
@@ -268,7 +268,7 @@ pub fn update_scene_editor_camera(
                 target: state
                     .render_target
                     .as_ref()
-                    .map(|h| bevy::render::camera::RenderTarget::Image(h.clone()))
+                    .map(|h| bevy::render::camera::RenderTarget::Image(h.clone().into()))
                     .unwrap_or(bevy::render::camera::RenderTarget::default()),
                 clear_color,
                 order: -2,
@@ -277,6 +277,7 @@ pub fn update_scene_editor_camera(
             commands.insert_resource(AmbientLight {
                 color: Color::WHITE,
                 brightness: 500.0,
+                affects_lightmapped_meshes: false,
             });
         } else {
             // No skybox: clean up cached state and revert to default background.
@@ -289,7 +290,7 @@ pub fn update_scene_editor_camera(
                 target: state
                     .render_target
                     .as_ref()
-                    .map(|h| bevy::render::camera::RenderTarget::Image(h.clone()))
+                    .map(|h| bevy::render::camera::RenderTarget::Image(h.clone().into()))
                     .unwrap_or(bevy::render::camera::RenderTarget::default()),
                 clear_color,
                 order: -2,
@@ -298,6 +299,7 @@ pub fn update_scene_editor_camera(
             commands.insert_resource(AmbientLight {
                 color: Color::WHITE,
                 brightness: 300.0,
+                affects_lightmapped_meshes: false,
             });
         }
     }

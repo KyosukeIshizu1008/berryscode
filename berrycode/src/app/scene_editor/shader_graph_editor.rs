@@ -156,6 +156,7 @@ impl BerryCodeApp {
                         node_rect,
                         4.0,
                         egui::Stroke::new(1.0, egui::Color32::WHITE),
+                        egui::StrokeKind::Middle,
                     );
                     painter.text(
                         node_rect.center(),

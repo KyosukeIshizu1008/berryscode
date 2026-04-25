@@ -505,9 +505,9 @@ impl BerryCodeApp {
             // Loading placeholder.
             let entity_count = self.scene_model.entities.len();
             let root_count = self.scene_model.root_entities.len();
-            egui::Frame::none()
+            egui::Frame::NONE
                 .fill(egui::Color32::from_rgb(18, 19, 21))
-                .inner_margin(egui::Margin::same(16.0))
+                .inner_margin(egui::Margin::same(16))
                 .show(ui, |ui| {
                     ui.vertical_centered(|ui| {
                         ui.add_space(24.0);
@@ -618,7 +618,7 @@ impl BerryCodeApp {
                 };
                 let border_width = if is_active { 2.0 } else { 1.0 };
                 ui.painter()
-                    .rect_stroke(*qr, 0.0, egui::Stroke::new(border_width, border_color));
+                    .rect_stroke(*qr, 0.0, egui::Stroke::new(border_width, border_color), egui::StrokeKind::Middle);
             }
 
             // Click in a quadrant to switch the camera to that quadrant's
@@ -1109,6 +1109,7 @@ impl BerryCodeApp {
                         box_rect,
                         0.0,
                         egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 150, 255)),
+                        egui::StrokeKind::Middle,
                     );
                 }
             }

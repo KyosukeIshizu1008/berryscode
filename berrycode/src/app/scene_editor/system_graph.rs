@@ -189,7 +189,7 @@ impl BerryCodeApp {
                     );
                     let color = stage_color(&sys.stage);
                     painter.rect_filled(node_rect, 4.0, color.linear_multiply(0.3));
-                    painter.rect_stroke(node_rect, 4.0, egui::Stroke::new(1.0, color));
+                    painter.rect_stroke(node_rect, 4.0, egui::Stroke::new(1.0, color), egui::StrokeKind::Middle);
 
                     let label = format!("{}\n({})", sys.name, sys.stage);
                     painter.text(

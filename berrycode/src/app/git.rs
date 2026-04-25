@@ -97,7 +97,7 @@ impl BerryCodeApp {
                     .color(egui::Color32::WHITE),
             )
             .fill(accent)
-            .rounding(3.0)
+            .corner_radius(3)
             .min_size(egui::vec2(70.0, 22.0));
             if ui.add(commit_btn).clicked() {
                 self.perform_git_commit();
@@ -109,7 +109,7 @@ impl BerryCodeApp {
                     .color(btn_text),
             )
             .fill(btn_bg)
-            .rounding(3.0)
+            .corner_radius(3)
             .min_size(egui::vec2(70.0, 22.0));
             if ui.add(stage_btn).clicked() {
                 self.perform_git_stage_all();
@@ -818,9 +818,9 @@ impl BerryCodeApp {
             .default_height(250.0)
             .resizable(true)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(8.0)),
+                    .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
                 ui.heading("📊 Commit Graph");
@@ -837,9 +837,9 @@ impl BerryCodeApp {
         // Bottom panel: Diff viewer
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(8.0)),
+                    .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
                 if let Some(diff) = &self.git_diff_state.diff {
@@ -925,9 +925,9 @@ impl BerryCodeApp {
                                         line.content.trim_end()
                                     );
 
-                                    egui::Frame::none()
+                                    egui::Frame::NONE
                                         .fill(bg_color)
-                                        .inner_margin(egui::Margin::symmetric(4.0, 2.0))
+                                        .inner_margin(egui::Margin::symmetric(4, 2))
                                         .show(ui, |ui| {
                                             ui.label(
                                                 egui::RichText::new(text)

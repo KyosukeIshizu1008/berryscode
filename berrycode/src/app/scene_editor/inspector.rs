@@ -2020,11 +2020,11 @@ impl BerryCodeApp {
             // "Create New Script" inline dialog
             if self.new_script_dialog_open {
                 ui.separator();
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(egui::Color32::from_rgb(30, 32, 34))
-                    .inner_margin(egui::Margin::same(8.0))
+                    .inner_margin(egui::Margin::same(8))
                     .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 63, 65)))
-                    .rounding(4.0)
+                    .corner_radius(4)
                     .show(ui, |ui| {
                         ui.label(
                             egui::RichText::new("Create New Script")

@@ -256,10 +256,10 @@ impl BerryCodeApp {
                 .order(egui::Order::Foreground)
                 .fixed_pos(popup_pos)
                 .show(ctx, |ui| {
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(bg)
                         .stroke(egui::Stroke::new(1.0, border))
-                        .inner_margin(egui::Margin::same(0.0))
+                        .inner_margin(egui::Margin::same(0))
                         .show(ui, |ui| {
                             ui.set_width(400.0);
 

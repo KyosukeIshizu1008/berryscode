@@ -890,6 +890,7 @@ impl BerryCodeApp {
                             rect,
                             0.0,
                             egui::Stroke::new(1.5, egui::Color32::from_rgb(80, 200, 255)),
+                            egui::StrokeKind::Middle,
                         );
                     }
                 }

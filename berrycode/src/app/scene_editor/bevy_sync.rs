@@ -58,7 +58,7 @@ pub fn sync_scene_to_bevy(
     }
     let entities_to_despawn: Vec<Entity> = state.spawned_entities.values().copied().collect();
     for e in entities_to_despawn {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
     state.spawned_entities.clear();
 
@@ -391,10 +391,10 @@ fn spawn_scene_entity(
                     };
                     let handle = asset_server.load::<bevy::audio::AudioSource>(&asset_path);
                     let mut settings = bevy::audio::PlaybackSettings::ONCE
-                        .with_volume(bevy::audio::Volume::new(*volume));
+                        .with_volume(bevy::audio::Volume::Linear(*volume));
                     if *looped {
                         settings = bevy::audio::PlaybackSettings::LOOP
-                            .with_volume(bevy::audio::Volume::new(*volume));
+                            .with_volume(bevy::audio::Volume::Linear(*volume));
                     }
                     entity.insert((bevy::audio::AudioPlayer(handle), settings));
                 }

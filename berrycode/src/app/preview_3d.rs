@@ -66,7 +66,7 @@ pub fn setup_preview_render_target(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::render::camera::RenderTarget::Image(image_handle.clone()),
+            target: bevy::render::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0)),
             order: -2,
             ..default()
@@ -97,6 +97,7 @@ pub fn setup_preview_render_target(
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
         brightness: 300.0,
+        affects_lightmapped_meshes: false,
     });
 
     preview.render_target = Some(image_handle);
@@ -141,7 +142,7 @@ pub fn manage_preview_scene(
 
     // Despawn old model entities (not camera or light -- those are excluded by the query filter)
     for entity in preview_entities.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 
     if let Some(path) = preview.requested_model_path.clone() {
@@ -201,11 +202,11 @@ pub fn manage_preview_scene(
 }
 
 /// Propagate RenderLayers::layer(1) to newly added children of PreviewSceneEntity.
-/// GLTF scenes spawn children asynchronously, so we detect them via `Added<Parent>`.
+/// GLTF scenes spawn children asynchronously, so we detect them via `Added<ChildOf>`.
 pub fn propagate_preview_render_layers(
-    new_children: Query<(Entity, &Parent), Added<Parent>>,
+    new_children: Query<(Entity, &ChildOf), Added<ChildOf>>,
     preview_markers: Query<&PreviewSceneEntity>,
-    ancestors: Query<&Parent>,
+    ancestors: Query<&ChildOf>,
     mut commands: Commands,
 ) {
     let target = RenderLayers::layer(1);
@@ -220,7 +221,7 @@ pub fn propagate_preview_render_layers(
                 break;
             }
             match ancestors.get(current) {
-                Ok(p) => current = p.get(),
+                Ok(p) => current = p.parent(),
                 Err(_) => break,
             }
         }

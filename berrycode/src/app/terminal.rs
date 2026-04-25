@@ -139,7 +139,7 @@ impl BerryCodeApp {
         ctx.request_repaint();
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(TERM_BG).inner_margin(0.0))
+            .frame(egui::Frame::NONE.fill(TERM_BG).inner_margin(0))
             .show(ctx, |ui| {
                 // ─── Tab bar ────────────────────────────────────
                 self.render_tab_bar(ui);
@@ -197,11 +197,11 @@ impl BerryCodeApp {
                     );
 
                     // Tab background
-                    let rounding = egui::Rounding {
-                        nw: 6.0,
-                        ne: 6.0,
-                        sw: 0.0,
-                        se: 0.0,
+                    let rounding = egui::CornerRadius {
+                        nw: 6,
+                        ne: 6,
+                        sw: 0,
+                        se: 0,
                     };
                     ui.painter().rect_filled(rect, rounding, tab_bg);
 

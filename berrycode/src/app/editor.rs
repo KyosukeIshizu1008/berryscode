@@ -11,9 +11,9 @@ impl BerryCodeApp {
     pub(crate) fn render_editor_area(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG) // #191A1C - Match sidebar background
-                    .inner_margin(egui::Margin::same(8.0)),
+                    .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
                 // Save the full panel rect before any layout happens
@@ -84,9 +84,9 @@ impl BerryCodeApp {
                             tab_text_inactive
                         };
 
-                        let tab_frame = egui::Frame::none()
+                        let tab_frame = egui::Frame::NONE
                             .fill(bg)
-                            .inner_margin(egui::Margin::symmetric(12.0, 0.0))
+                            .inner_margin(egui::Margin::symmetric(12, 0))
                             .stroke(egui::Stroke::new(1.0, tab_border));
 
                         let resp = tab_frame.show(ui, |ui| {
@@ -348,13 +348,14 @@ impl BerryCodeApp {
                         .desired_width(f32::INFINITY)
                         .lock_focus(true)
                         .margin(egui::Margin {
-                            left: gutter_width,
-                            right: 4.0,
-                            top: 0.0,
-                            bottom: 0.0,
+                            left: gutter_width as i8,
+                            right: 4,
+                            top: 0,
+                            bottom: 0,
                         })
                         .interactive(!is_readonly)
                         .layouter(&mut |ui, text, _wrap_width| {
+                            let text = text.as_str();
                             let job = if text.len() > 200_000 {
                                 let mut job = egui::text::LayoutJob::single_section(
                                     text.to_string(),
@@ -387,7 +388,7 @@ impl BerryCodeApp {
                     // Auto-close brackets: if a bracket was just typed, insert closing pair
                     if !is_readonly && output.response.changed() {
                         if let Some(cr) = output.cursor_range {
-                            let cursor_pos = cr.primary.ccursor.index;
+                            let cursor_pos = cr.primary.index;
                             if cursor_pos > 0 {
                                 let chars: Vec<char> = text.chars().collect();
                                 let just_typed = chars.get(cursor_pos - 1).copied();
@@ -432,7 +433,7 @@ impl BerryCodeApp {
                     // Auto-indent: when a newline was just inserted, copy indentation from previous line
                     if !is_readonly && output.response.changed() {
                         if let Some(cr) = output.cursor_range {
-                            let cursor_pos = cr.primary.ccursor.index;
+                            let cursor_pos = cr.primary.index;
                             if cursor_pos > 0 {
                                 let chars: Vec<char> = text.chars().collect();
                                 if chars.get(cursor_pos - 1) == Some(&'\n') {
@@ -508,7 +509,7 @@ impl BerryCodeApp {
                             .input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Text(_))));
                         if had_key_input {
                             if let Some(cr) = output.cursor_range {
-                                let cursor_pos = cr.primary.ccursor.index;
+                                let cursor_pos = cr.primary.index;
                                 if cursor_pos > 0 {
                                     let last_char =
                                         text.char_indices().nth(cursor_pos - 1).map(|(_, c)| c);
@@ -535,14 +536,13 @@ impl BerryCodeApp {
 
                     // Get actual line height from galley (used by indent guides, gutter click, etc.)
                     let actual_line_height = {
-                        let c0 = galley.from_ccursor(egui::text::CCursor::new(0));
-                        let r0 = galley.pos_from_cursor(&c0);
+                        let r0 = galley.pos_from_cursor(egui::text::CCursor::new(0));
                         (r0.max.y - r0.min.y).max(1.0)
                     };
 
                     // Sync cursor_line from egui cursor position
                     if let Some(cr) = output.cursor_range {
-                        let idx = cr.primary.ccursor.index;
+                        let idx = cr.primary.index;
                         let mut line = 0;
                         let mut count = 0;
                         for ch in text.chars() {
@@ -590,8 +590,7 @@ impl BerryCodeApp {
                         for line_idx in 0..total_lines {
                             let char_offset = line_char_offsets.get(line_idx).copied().unwrap_or(0);
                             let cc = egui::text::CCursor::new(char_offset);
-                            let cursor_obj = galley.from_ccursor(cc);
-                            let pos_rect = galley.pos_from_cursor(&cursor_obj);
+                            let pos_rect = galley.pos_from_cursor(cc);
                             let y = text_origin.y + pos_rect.min.y;
                             let lh = (pos_rect.max.y - pos_rect.min.y).max(1.0);
                             let center_y = y + lh / 2.0;
@@ -770,8 +769,7 @@ impl BerryCodeApp {
                                         .map(|o| o.saturating_sub(1))
                                         .unwrap_or(text.len());
                                     let cc_end = egui::text::CCursor::new(line_end.min(text.len()));
-                                    let cursor_end = galley.from_ccursor(cc_end);
-                                    let end_pos = galley.pos_from_cursor(&cursor_end);
+                                    let end_pos = galley.pos_from_cursor(cc_end);
                                     let mut hint_x = text_origin.x + end_pos.max.x + 16.0;
 
                                     for h in &hints {
@@ -814,7 +812,7 @@ impl BerryCodeApp {
 
                     // Bracket matching - highlight matching bracket pair
                     if let Some(cr) = output.cursor_range {
-                        let cursor_idx = cr.primary.ccursor.index;
+                        let cursor_idx = cr.primary.index;
                         let chars: Vec<char> = text.chars().collect();
 
                         if cursor_idx < chars.len() {
@@ -895,11 +893,9 @@ impl BerryCodeApp {
                                 for idx in [cursor_idx, match_idx] {
                                     if idx < chars.len() {
                                         let c = egui::text::CCursor::new(idx);
-                                        let cursor_obj = galley.from_ccursor(c);
-                                        let rect = galley.pos_from_cursor(&cursor_obj);
+                                        let rect = galley.pos_from_cursor(c);
                                         let c_next = egui::text::CCursor::new(idx + 1);
-                                        let cursor_next = galley.from_ccursor(c_next);
-                                        let rect_next = galley.pos_from_cursor(&cursor_next);
+                                        let rect_next = galley.pos_from_cursor(c_next);
 
                                         let highlight_rect = egui::Rect::from_min_max(
                                             egui::pos2(
@@ -954,10 +950,8 @@ impl BerryCodeApp {
 
                                 let start_c = egui::text::CCursor::new(char_offset);
                                 let end_c = egui::text::CCursor::new(end);
-                                let start_cursor = galley.from_ccursor(start_c);
-                                let end_cursor = galley.from_ccursor(end_c);
-                                let start_rect = galley.pos_from_cursor(&start_cursor);
-                                let end_rect = galley.pos_from_cursor(&end_cursor);
+                                let start_rect = galley.pos_from_cursor(start_c);
+                                let end_rect = galley.pos_from_cursor(end_c);
 
                                 let color = match diag.severity {
                                     super::types::DiagnosticSeverity::Error => {
@@ -1010,7 +1004,7 @@ impl BerryCodeApp {
                                 // Convert screen position to galley-local position
                                 let local_pos = pos - editor_rect.min;
                                 let cursor = galley.cursor_from_pos(local_pos);
-                                let char_idx = cursor.ccursor.index;
+                                let char_idx = cursor.index;
 
                                 // Extract the word at this position
                                 let chars: Vec<char> = text.chars().collect();
@@ -1033,20 +1027,8 @@ impl BerryCodeApp {
                                         // Get the pixel positions of the word start and end
                                         let start_cursor = egui::text::CCursor::new(start);
                                         let end_cursor = egui::text::CCursor::new(end);
-                                        let start_rect = galley.pos_from_cursor(
-                                            &egui::epaint::text::cursor::Cursor {
-                                                ccursor: start_cursor,
-                                                rcursor: galley.from_ccursor(start_cursor).rcursor,
-                                                pcursor: galley.from_ccursor(start_cursor).pcursor,
-                                            },
-                                        );
-                                        let end_rect = galley.pos_from_cursor(
-                                            &egui::epaint::text::cursor::Cursor {
-                                                ccursor: end_cursor,
-                                                rcursor: galley.from_ccursor(end_cursor).rcursor,
-                                                pcursor: galley.from_ccursor(end_cursor).pcursor,
-                                            },
-                                        );
+                                        let start_rect = galley.pos_from_cursor(start_cursor);
+                                        let end_rect = galley.pos_from_cursor(end_cursor);
 
                                         // Draw underline
                                         let link_color = egui::Color32::from_rgb(86, 156, 214); // VS Code link blue
@@ -1151,10 +1133,8 @@ impl BerryCodeApp {
 
                         // Get actual character width from galley by measuring position of char 0 vs char 1
                         let char_width = {
-                            let c0 = galley.from_ccursor(egui::text::CCursor::new(0));
-                            let c1 = galley.from_ccursor(egui::text::CCursor::new(1));
-                            let r0 = galley.pos_from_cursor(&c0);
-                            let r1 = galley.pos_from_cursor(&c1);
+                            let r0 = galley.pos_from_cursor(egui::text::CCursor::new(0));
+                            let r1 = galley.pos_from_cursor(egui::text::CCursor::new(1));
                             (r1.min.x - r0.min.x).max(1.0)
                         };
 
@@ -1211,8 +1191,7 @@ impl BerryCodeApp {
                             }
                             let char_offset = line_char_offsets[change.line];
                             let cc = egui::text::CCursor::new(char_offset);
-                            let cursor_obj = galley.from_ccursor(cc);
-                            let pos_rect = galley.pos_from_cursor(&cursor_obj);
+                            let pos_rect = galley.pos_from_cursor(cc);
                             let y = text_origin.y + pos_rect.min.y;
                             let lh = (pos_rect.max.y - pos_rect.min.y).max(1.0);
 
@@ -1264,8 +1243,7 @@ impl BerryCodeApp {
                                 let char_offset =
                                     line_char_offsets.get(line_idx).copied().unwrap_or(0);
                                 let cc = egui::text::CCursor::new(char_offset);
-                                let cursor_obj = galley.from_ccursor(cc);
-                                let pos_rect = galley.pos_from_cursor(&cursor_obj);
+                                let pos_rect = galley.pos_from_cursor(cc);
                                 let y = text_origin.y + pos_rect.min.y;
                                 let lh = (pos_rect.max.y - pos_rect.min.y).max(1.0);
 
@@ -1320,8 +1298,7 @@ impl BerryCodeApp {
                         for &cursor_pos in &self.multi_cursors {
                             if cursor_pos <= text.len() {
                                 let c = egui::text::CCursor::new(cursor_pos);
-                                let cursor_obj = galley.from_ccursor(c);
-                                let rect = galley.pos_from_cursor(&cursor_obj);
+                                let rect = galley.pos_from_cursor(c);
                                 let x = text_origin.x + rect.min.x;
                                 let y_start = text_origin.y + rect.min.y;
                                 let y_end = text_origin.y + rect.max.y;
@@ -1342,7 +1319,7 @@ impl BerryCodeApp {
 
                     // === Compute cursor line for inline blame ===
                     let cursor_line_for_blame: Option<usize> = output.cursor_range.map(|cr| {
-                        let idx = cr.primary.ccursor.index;
+                        let idx = cr.primary.index;
                         text[..idx.min(text.len())].matches('\n').count()
                     });
 

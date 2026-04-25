@@ -100,6 +100,7 @@ impl ThumbnailCache {
         egui::ColorImage {
             size: [size, size],
             pixels,
+            source_size: egui::Vec2::new(size as f32, size as f32),
         }
     }
 

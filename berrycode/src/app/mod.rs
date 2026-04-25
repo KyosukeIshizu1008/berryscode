@@ -715,13 +715,13 @@ impl BerryCodeApp {
         // Window
         visuals.window_stroke = egui::Stroke::new(1.0, border);
         visuals.window_shadow = egui::epaint::Shadow {
-            offset: egui::vec2(0.0, 4.0),
-            blur: 12.0,
-            spread: 0.0,
+            offset: [0, 4],
+            blur: 12,
+            spread: 0,
             color: egui::Color32::from_black_alpha(80),
         };
-        visuals.window_rounding = egui::Rounding::same(8.0);
-        visuals.menu_rounding = egui::Rounding::same(6.0);
+        visuals.window_corner_radius = egui::CornerRadius::same(8);
+        visuals.menu_corner_radius = egui::CornerRadius::same(6);
 
         // Selection
         visuals.selection.bg_fill = bg_selected;
@@ -738,14 +738,14 @@ impl BerryCodeApp {
         visuals.widgets.noninteractive.bg_stroke =
             egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
         visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
-        visuals.widgets.noninteractive.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(6);
 
         // Inactive (buttons, checkboxes at rest)
         visuals.widgets.inactive.bg_fill = bg_panel;
         visuals.widgets.inactive.weak_bg_fill = bg_panel;
         visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, border);
         visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text);
-        visuals.widgets.inactive.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
         visuals.widgets.inactive.expansion = 0.0;
 
         // Hovered
@@ -753,7 +753,7 @@ impl BerryCodeApp {
         visuals.widgets.hovered.weak_bg_fill = bg_hover;
         visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, border_focus);
         visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-        visuals.widgets.hovered.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
         visuals.widgets.hovered.expansion = 1.0;
 
         // Active (pressed)
@@ -761,7 +761,7 @@ impl BerryCodeApp {
         visuals.widgets.active.weak_bg_fill = bg_active;
         visuals.widgets.active.bg_stroke = egui::Stroke::new(1.5, border_focus);
         visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-        visuals.widgets.active.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
         visuals.widgets.active.expansion = 0.0;
 
         // Open (combo boxes, menus open state)
@@ -769,13 +769,13 @@ impl BerryCodeApp {
         visuals.widgets.open.weak_bg_fill = bg_active;
         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, border_focus);
         visuals.widgets.open.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-        visuals.widgets.open.rounding = egui::Rounding::same(6.0);
+        visuals.widgets.open.corner_radius = egui::CornerRadius::same(6);
 
         // Popup shadow
         visuals.popup_shadow = egui::epaint::Shadow {
-            offset: egui::vec2(0.0, 6.0),
-            blur: 16.0,
-            spread: 2.0,
+            offset: [0, 6],
+            blur: 16,
+            spread: 2,
             color: egui::Color32::from_black_alpha(100),
         };
 
@@ -791,8 +791,8 @@ impl BerryCodeApp {
         // === Spacing ===
         style.spacing.item_spacing = egui::vec2(8.0, 6.0); // more breathing room
         style.spacing.button_padding = egui::vec2(14.0, 6.0); // wider, taller buttons
-        style.spacing.window_margin = egui::Margin::same(12.0); // window inner padding
-        style.spacing.menu_margin = egui::Margin::same(8.0);
+        style.spacing.window_margin = egui::Margin::same(12); // window inner padding
+        style.spacing.menu_margin = egui::Margin::same(8);
         style.spacing.indent = 18.0; // tree indent
         style.spacing.interact_size = egui::vec2(40.0, 24.0); // minimum interactive element size
         style.spacing.slider_width = 160.0;
@@ -964,7 +964,7 @@ impl BerryCodeApp {
     /// Render the project picker screen (shown when no project is loaded)
     pub(crate) fn render_project_picker(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(25, 27, 31)))
+            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(25, 27, 31)))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
@@ -1727,7 +1727,7 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
 
 /// Bevy startup system: configure egui fonts and style
 pub fn setup_egui_fonts_and_style(mut egui_ctx: bevy_egui::EguiContexts) {
-    let ctx = egui_ctx.ctx_mut();
+    let ctx = egui_ctx.ctx_mut().unwrap();
 
     // Setup fonts with Japanese support
     let mut fonts = egui::FontDefinitions::default();
@@ -1851,7 +1851,7 @@ pub fn berry_ui_system(
         if has_unsaved {
             app.show_close_confirm = true;
         } else {
-            app_exit.send(bevy::app::AppExit::Success);
+            app_exit.write(bevy::app::AppExit::Success);
             exiting = true;
         }
     }
@@ -1871,12 +1871,12 @@ pub fn berry_ui_system(
                     }
                 }
                 app.show_close_confirm = false;
-                app_exit.send(bevy::app::AppExit::Success);
+                app_exit.write(bevy::app::AppExit::Success);
                 exiting = true;
             }
             CloseAction::Discard => {
                 app.show_close_confirm = false;
-                app_exit.send(bevy::app::AppExit::Success);
+                app_exit.write(bevy::app::AppExit::Success);
                 exiting = true;
             }
         }
@@ -1932,7 +1932,7 @@ pub fn berry_ui_system(
     }
 
     {
-        let ctx = egui_ctx.ctx_mut();
+        let ctx = egui_ctx.ctx_mut().unwrap();
 
         // Global panel switching: Ctrl+1..9 — processed BEFORE any panel rendering
         // so it works regardless of which widget has focus
@@ -2064,18 +2064,18 @@ pub fn berry_ui_system(
                 .width_range(160.0..=400.0)
                 .resizable(true)
                 .frame(
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui_colors::SIDEBAR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
+                        .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
                     app.render_scene_inspector(ui);
                 });
             egui::CentralPanel::default()
                 .frame(
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
+                        .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
                     app.render_scene_view(ui);
@@ -2088,18 +2088,18 @@ pub fn berry_ui_system(
                 .width_range(160.0..=400.0)
                 .resizable(true)
                 .frame(
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui_colors::SIDEBAR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
+                        .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
                     app.render_ecs_properties_only(ui);
                 });
             egui::CentralPanel::default()
                 .frame(
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
+                        .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
                     app.render_ecs_3d_view(ui);
@@ -2108,9 +2108,9 @@ pub fn berry_ui_system(
             app.render_sidebar(ctx);
             egui::CentralPanel::default()
                 .frame(
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
+                        .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
                     app.render_asset_preview(ui);
@@ -2122,9 +2122,9 @@ pub fn berry_ui_system(
             app.render_sidebar(ctx);
             egui::CentralPanel::default()
                 .frame(
-                    egui::Frame::none()
+                    egui::Frame::NONE
                         .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8.0)),
+                        .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |_ui| {});
         } else {
@@ -2392,7 +2392,9 @@ pub fn demo_capture_system(
                     let w = img.width();
                     let h = img.height();
                     if let Ok(mut enc) = encoder.lock() {
-                        enc.feed(&img.data, w, h);
+                        if let Some(ref data) = img.data {
+                            enc.feed(data, w, h);
+                        }
                     }
                 },
             );
@@ -2434,7 +2436,9 @@ pub fn demo_capture_system(
                     let w = img.width();
                     let h = img.height();
                     if let Ok(mut enc) = encoder.lock() {
-                        enc.feed(&img.data, w, h);
+                        if let Some(ref data) = img.data {
+                            enc.feed(data, w, h);
+                        }
                     }
                 },
             );
@@ -2460,7 +2464,9 @@ pub fn demo_capture_system(
                     let w = img.width();
                     let h = img.height();
                     if let Ok(mut enc) = encoder.lock() {
-                        enc.feed(&img.data, w, h);
+                        if let Some(ref data) = img.data {
+                            enc.feed(data, w, h);
+                        }
                     }
                     tracing::info!("📸 Saved: docs/demo/{}", name_clone);
                 },

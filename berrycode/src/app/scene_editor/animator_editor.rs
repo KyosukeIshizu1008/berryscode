@@ -349,6 +349,7 @@ impl BerryCodeApp {
                                     if is_selected { 2.0 } else { 1.0 },
                                     border_color,
                                 ),
+                                egui::StrokeKind::Middle,
                             );
 
                             // State name

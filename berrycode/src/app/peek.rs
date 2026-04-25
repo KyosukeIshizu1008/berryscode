@@ -36,17 +36,18 @@ pub(crate) fn render_peek_standalone(
         peek_rect,
         4.0,
         egui::Stroke::new(1.0, egui::Color32::from_rgb(75, 78, 82)),
+        egui::StrokeKind::Middle,
     );
 
     // Header with file path
     let header_rect = egui::Rect::from_min_size(peek_rect.min, egui::vec2(peek_width, 22.0));
     ui.painter().rect_filled(
         header_rect,
-        egui::Rounding {
-            nw: 4.0,
-            ne: 4.0,
-            sw: 0.0,
-            se: 0.0,
+        egui::CornerRadius {
+            nw: 4,
+            ne: 4,
+            sw: 0,
+            se: 0,
         },
         egui::Color32::from_rgb(45, 46, 50),
     );

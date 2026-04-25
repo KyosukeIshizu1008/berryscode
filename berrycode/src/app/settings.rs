@@ -239,10 +239,10 @@ impl BerryCodeApp {
 
     /// Live preview of syntax colors
     pub(crate) fn render_color_preview(&self, ui: &mut egui::Ui) {
-        let frame = egui::Frame::none()
+        let frame = egui::Frame::NONE
             .fill(ui_colors::SIDEBAR_BG)
-            .inner_margin(12.0)
-            .rounding(4.0);
+            .inner_margin(12)
+            .corner_radius(4);
 
         let font = egui::FontId::monospace(13.0);
         let def = egui::Color32::from_rgb(212, 212, 212);
