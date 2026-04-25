@@ -39,5 +39,8 @@ node_modules/
 # Berry API
 berry_api/target/
 
+# Strategy (internal)
+strategy/
+
 # Deprecated
 src-tauri/

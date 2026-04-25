@@ -26,7 +26,8 @@ pub struct BerryCodePlugin;
 
 impl Plugin for BerryCodePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(EguiPlugin::default())
+        app.add_plugins(bevy::remote::RemotePlugin::default())
+            .add_plugins(EguiPlugin::default())
             .insert_resource(WinitSettings {
                 focused_mode: UpdateMode::Continuous,
                 unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(100)),
