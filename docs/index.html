@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BerryCode — The IDE Built for Bevy</title>
+  <meta name="description" content="A fast, lightweight IDE purpose-built for the Bevy game engine. No Electron. Built with Bevy + WGPU.">
+  <link rel="stylesheet" href="https://unpkg.com/@vscode/codicons@0.0.36/dist/codicon.css">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-card: #161b22;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --green: #3fb950;
+      --border: #30363d;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(13, 17, 23, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      padding: 0 2rem;
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 2rem; align-items: center; }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      padding: 10rem 2rem 4rem;
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      color: var(--accent);
+      padding: 0.3rem 1rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 650px;
+      margin: 0 auto 2.5rem;
+    }
+    .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0d1117;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--text-muted); }
+
+    /* Demo */
+    .demo {
+      max-width: 1000px;
+      margin: 3rem auto;
+      padding: 0 2rem;
+    }
+    .demo img, .demo video {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Why section */
+    .why {
+      max-width: 900px;
+      margin: 6rem auto;
+      padding: 0 2rem;
+      text-align: center;
+    }
+    .why h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .why > p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 3rem;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      text-align: left;
+    }
+    .compare-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+    }
+    .compare-card.highlight {
+      border-color: var(--accent);
+      box-shadow: 0 0 24px rgba(88, 166, 255, 0.1);
+    }
+    .compare-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+    }
+    .compare-card.highlight h3 { color: var(--accent); }
+    .compare-card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .compare-card ul li {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .compare-card ul li::before {
+      content: "✕ ";
+      color: #f85149;
+    }
+    .compare-card.highlight ul li { color: var(--text); }
+    .compare-card.highlight ul li::before {
+      content: "✓ ";
+      color: var(--green);
+    }
+
+    /* Features */
+    .features {
+      max-width: 1100px;
+      margin: 6rem auto;
+      padding: 0 2rem;
+    }
+    .features h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem;
+      transition: border-color 0.2s;
+    }
+    .feature-card:hover { border-color: var(--text-muted); }
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+      color: var(--accent);
+    }
+    .feature-card h3 {
+      font-size: 1.05rem;
+      margin-bottom: 0.5rem;
+    }
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Screenshots */
+    .screenshots {
+      max-width: 1100px;
+      margin: 6rem auto;
+      padding: 0 2rem;
+    }
+    .screenshots h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    .screenshot-item img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .screenshot-item img:hover { transform: scale(1.02); }
+    .screenshot-item p {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    /* Tech Stack */
+    .stack {
+      max-width: 800px;
+      margin: 6rem auto;
+      padding: 0 2rem;
+      text-align: center;
+    }
+    .stack h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .stack > p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 2.5rem;
+    }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+    .stack-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .stack-item strong {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.95rem;
+    }
+    .stack-item span {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Install */
+    .install {
+      max-width: 700px;
+      margin: 6rem auto;
+      padding: 0 2rem;
+      text-align: center;
+    }
+    .install h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .install > p {
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+    }
+    .install-code {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+      text-align: left;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.95rem;
+      color: var(--green);
+      margin-bottom: 2rem;
+      overflow-x: auto;
+    }
+    .install-code .comment { color: var(--text-muted); }
+
+    /* CTA */
+    .cta {
+      text-align: center;
+      padding: 6rem 2rem;
+      border-top: 1px solid var(--border);
+      margin-top: 4rem;
+    }
+    .cta h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .cta p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.25rem; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .comparison { grid-template-columns: 1fr; }
+      .screenshot-grid { grid-template-columns: 1fr; }
+      .stack-grid { grid-template-columns: repeat(2, 1fr); }
+      .nav-links { gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">BerryCode</a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/KyosukeIshizu1008/berryscode">GitHub</a>
+        <a href="https://discord.gg/tBYX3EZW">Discord</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">v0.3.1 — Open Source / MIT License</div>
+    <h1>The <span>lightweight IDE</span> built for Bevy</h1>
+    <p>No Electron. No bloat. Built with Bevy + WGPU — the same stack as your game. Scene editor, ECS inspector, and system graph included from day one.</p>
+    <div class="hero-buttons">
+      <a href="https://github.com/KyosukeIshizu1008/berryscode" class="btn btn-primary">Star on GitHub</a>
+      <a href="#install" class="btn btn-secondary">Get Started</a>
+    </div>
+  </section>
+
+  <!-- Demo -->
+  <section class="demo">
+    <img src="demo/demo.gif" alt="BerryCode Demo">
+  </section>
+
+  <!-- Why -->
+  <section class="why">
+    <h2>Why BerryCode?</h2>
+    <p>Bevy deserves its own IDE — not a general-purpose editor with plugins bolted on.</p>
+    <div class="comparison">
+      <div class="compare-card">
+        <h3>Unity / VS Code</h3>
+        <ul>
+          <li>Heavy runtime, slow to launch</li>
+          <li>Electron-based (VS Code) or bloated UI (Unity)</li>
+          <li>No native Bevy ECS support</li>
+          <li>Scene editing via text files only</li>
+          <li>Requires extensions for basic Bevy workflow</li>
+        </ul>
+      </div>
+      <div class="compare-card highlight">
+        <h3>BerryCode</h3>
+        <ul>
+          <li>Native WGPU rendering — instant startup</li>
+          <li>No Electron, no extra runtime overhead</li>
+          <li>Bevy ECS inspector built in</li>
+          <li>Visual 3D scene editor with gizmos</li>
+          <li>Everything you need, zero extensions</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <h2>Bevy-Native Tools</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-device-camera-video"></i></div>
+        <h3>Scene Editor</h3>
+        <p>Unity-class 3D viewport with translate, rotate, and scale gizmos. Entity hierarchy, component inspector, prefab system, and multi-scene tabs.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-inspect"></i></div>
+        <h3>ECS Inspector</h3>
+        <p>Connect to a running Bevy app via BRP. Browse entities, components, and resources in real-time with auto-refresh.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-graph"></i></div>
+        <h3>System Graph</h3>
+        <p>Visualize system execution order and dependencies. Identify bottlenecks and understand schedule topology at a glance.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-pulse"></i></div>
+        <h3>Event Monitor</h3>
+        <p>Real-time log of all Bevy events. Filter by event type and inspect event payloads as they happen.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-symbol-snippet"></i></div>
+        <h3>Bevy Templates</h3>
+        <p>One-click generation of Component, Resource, System, Plugin, Event, and State boilerplate. Insert directly at cursor.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-extensions"></i></div>
+        <h3>Plugin Browser</h3>
+        <p>Search crates.io for Bevy-compatible plugins. View metadata and add to Cargo.toml with one click.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Also a full IDE -->
+  <section class="features">
+    <h2>Also a Full-Featured Code Editor</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-symbol-keyword"></i></div>
+        <h3>LSP Support</h3>
+        <p>Completions, hover, go-to-definition, references, diagnostics, format, rename, code actions, inlay hints, macro expansion.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-terminal"></i></div>
+        <h3>Terminal</h3>
+        <p>iTerm2-class PTY emulator with VT100/xterm, ANSI 256 colors, 10K scrollback, and multi-tab support.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon"><i class="codicon codicon-edit"></i></div>
+        <h3>Vim Mode</h3>
+        <p>Full modal editing — Normal, Insert, Visual, Command, Replace — with operators, text objects, registers, marks, and dot repeat.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔀</div>
+        <h3>Git Integration</h3>
+        <p>6-tab panel with Status, History, Branches, Remotes, Tags, and Stash. Commit graph and diff viewer included.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🐛</div>
+        <h3>Debugger</h3>
+        <p>Variables, call stack, watch expressions, and breakpoints via DAP protocol.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Chat</h3>
+        <p>Integrated LLM assistant via gRPC. Get help without leaving the editor.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section class="screenshots" id="screenshots">
+    <h2>See It in Action</h2>
+    <div class="screenshot-grid">
+      <div class="screenshot-item">
+        <img src="screenshots/v_scene_full.png" alt="Scene Editor">
+        <p>3D Scene Editor with gizmos</p>
+      </div>
+      <div class="screenshot-item">
+        <img src="screenshots/v03_move_gizmo.png" alt="Move Gizmo">
+        <p>Translate, rotate, scale gizmos</p>
+      </div>
+      <div class="screenshot-item">
+        <img src="screenshots/v06_playmode_physics.png" alt="Play Mode">
+        <p>Play mode with physics simulation</p>
+      </div>
+      <div class="screenshot-item">
+        <img src="screenshots/demo_all_features.png" alt="All Features">
+        <p>Shader graph, timeline, animator</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack -->
+  <section class="stack">
+    <h2>Built on the Same Stack as Your Game</h2>
+    <p>No foreign runtimes. BerryCode runs on the technology you already use.</p>
+    <div class="stack-grid">
+      <div class="stack-item">
+        <strong>Bevy 0.15</strong>
+        <span>Engine</span>
+      </div>
+      <div class="stack-item">
+        <strong>WGPU</strong>
+        <span>Metal / Vulkan / DX12</span>
+      </div>
+      <div class="stack-item">
+        <strong>bevy_egui</strong>
+        <span>UI Framework</span>
+      </div>
+      <div class="stack-item">
+        <strong>Tree-sitter</strong>
+        <span>Syntax Parsing</span>
+      </div>
+      <div class="stack-item">
+        <strong>Ropey</strong>
+        <span>Text Buffer</span>
+      </div>
+      <div class="stack-item">
+        <strong>libgit2</strong>
+        <span>Git Integration</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section class="install" id="install">
+    <h2>Get Started</h2>
+    <p>Prerequisites: Rust 1.75+</p>
+    <div class="install-code">
+      <span class="comment"># Install from crates.io</span><br>
+      cargo install berrycode<br><br>
+      <span class="comment"># Or clone and build</span><br>
+      git clone https://github.com/KyosukeIshizu1008/berryscode.git<br>
+      cd berryscode<br>
+      cargo run --release --bin berrycode
+    </div>
+    <p>macOS (Metal) · Linux (Vulkan / OpenGL) · Windows (DirectX 12)</p>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <h2>Ready to try a better Bevy workflow?</h2>
+    <p>BerryCode is free, open-source, and MIT licensed.</p>
+    <div class="hero-buttons">
+      <a href="https://github.com/KyosukeIshizu1008/berryscode" class="btn btn-primary">Star on GitHub</a>
+      <a href="https://discord.gg/tBYX3EZW" class="btn btn-secondary">Join Discord</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>BerryCode &copy; 2025 <a href="https://github.com/KyosukeIshizu1008">KyosukeIshizu1008</a> · MIT License · Made with Bevy + WGPU</p>
+  </footer>
+
+</body>
+</html>

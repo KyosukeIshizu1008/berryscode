@@ -418,6 +418,7 @@ pub struct BerryCodeApp {
     pub(crate) console_show_warning: bool,
     pub(crate) console_show_error: bool,
     pub(crate) console_auto_scroll: bool,
+    pub(crate) console_log_level_filter: run_panel::LogLevelFilter,
 
     // === Scene Editor (Unity-like) ===
     pub(crate) scene_model: scene_editor::model::SceneModel,
@@ -1363,6 +1364,7 @@ impl BerryCodeApp {
             console_show_warning: true,
             console_show_error: true,
             console_auto_scroll: true,
+            console_log_level_filter: run_panel::LogLevelFilter::Trace,
 
             scene_model: {
                 // Auto-import entities from main.rs if project has one

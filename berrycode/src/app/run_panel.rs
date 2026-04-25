@@ -1,14 +1,84 @@
 //! Run Bevy project subprocess and display output
 
 use super::BerryCodeApp;
+use regex::Regex;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Severity {
     Info,
     Warning,
     Error,
+}
+
+/// Minimum log level filter for the tracing log dropdown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LogLevelFilter {
+    Trace = 0,
+    Debug = 1,
+    Info = 2,
+    Warn = 3,
+    Error = 4,
+}
+
+impl LogLevelFilter {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Trace => "TRACE",
+            Self::Debug => "DEBUG",
+            Self::Info => "INFO",
+            Self::Warn => "WARN",
+            Self::Error => "ERROR",
+        }
+    }
+    fn all() -> &'static [LogLevelFilter] {
+        &[
+            Self::Trace,
+            Self::Debug,
+            Self::Info,
+            Self::Warn,
+            Self::Error,
+        ]
+    }
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "TRACE" => Some(Self::Trace),
+            "DEBUG" => Some(Self::Debug),
+            "INFO" => Some(Self::Info),
+            "WARN" => Some(Self::Warn),
+            "ERROR" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
+/// A parsed tracing-format log line.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructuredLogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub target: String,
+    pub message: String,
+    pub raw: String,
+}
+
+static TRACING_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\s+(TRACE|DEBUG|INFO|WARN|ERROR)\s+(\S+):\s+(.*)$")
+        .unwrap()
+});
+
+/// Parse a single line of tracing-style log output.
+pub fn parse_tracing_line(line: &str) -> Option<StructuredLogEntry> {
+    let caps = TRACING_RE.captures(line)?;
+    Some(StructuredLogEntry {
+        timestamp: caps[1].to_string(),
+        level: caps[2].to_string(),
+        target: caps[3].to_string(),
+        message: caps[4].to_string(),
+        raw: line.to_string(),
+    })
 }
 
 fn classify_severity(line: &str) -> Severity {
@@ -152,9 +222,18 @@ impl BerryCodeApp {
     pub(crate) fn render_console_content(&mut self, ui: &mut egui::Ui) {
         // Pre-compute filtered lines.
         let filter = self.console_filter_text.trim().to_lowercase();
+        let log_level = self.console_log_level_filter;
         let total = self.run_output.len();
         let mut visible_indices: Vec<usize> = Vec::with_capacity(total);
         for (i, line) in self.run_output.iter().enumerate() {
+            // Log level filter for tracing lines
+            if let Some(entry) = parse_tracing_line(line) {
+                if let Some(lvl) = LogLevelFilter::from_str(&entry.level) {
+                    if lvl < log_level {
+                        continue;
+                    }
+                }
+            }
             let sev = classify_severity(line);
             let sev_visible = match sev {
                 Severity::Info => self.console_show_info,
@@ -196,12 +275,22 @@ impl BerryCodeApp {
             }
         });
 
-        // Header row 2: severity filter chips + auto-scroll + count.
+        // Header row 2: severity filter chips + log level + auto-scroll + count.
         ui.horizontal(|ui| {
             ui.label("Show:");
             ui.checkbox(&mut self.console_show_info, "Info");
             ui.checkbox(&mut self.console_show_warning, "Warn");
             ui.checkbox(&mut self.console_show_error, "Error");
+            ui.separator();
+            ui.label("Level:");
+            egui::ComboBox::from_id_salt("log_level_filter_content")
+                .selected_text(self.console_log_level_filter.label())
+                .width(70.0)
+                .show_ui(ui, |ui| {
+                    for &lvl in LogLevelFilter::all() {
+                        ui.selectable_value(&mut self.console_log_level_filter, lvl, lvl.label());
+                    }
+                });
             ui.separator();
             ui.checkbox(&mut self.console_auto_scroll, "Auto-scroll");
             ui.separator();
@@ -231,58 +320,190 @@ impl BerryCodeApp {
         } else {
             scroll
         };
-        // Build all log text for selectable display
+        // Build all log text for selectable display — structured tracing lines get colors
         let mut log_text = String::new();
-        let mut line_colors: Vec<egui::Color32> = Vec::new();
+        // Each line can have multiple colored segments: Vec<(text, color)>
+        let mut line_segments: Vec<Vec<(&str, egui::Color32)>> = Vec::new();
         for &i in &visible_indices {
             let line = &self.run_output[i];
-            let color = match classify_severity(line) {
-                Severity::Error => egui::Color32::from_rgb(255, 110, 110),
-                Severity::Warning => egui::Color32::from_rgb(230, 180, 60),
-                Severity::Info => {
-                    if line.starts_with("───") {
-                        egui::Color32::from_rgb(100, 180, 255)
-                    } else {
-                        egui::Color32::from_rgb(204, 204, 204)
+            if let Some(entry) = parse_tracing_line(line) {
+                let level_color = match entry.level.as_str() {
+                    "TRACE" => egui::Color32::from_rgb(128, 128, 128),
+                    "DEBUG" => egui::Color32::from_rgb(80, 140, 255),
+                    "INFO" => egui::Color32::from_rgb(80, 200, 80),
+                    "WARN" => egui::Color32::from_rgb(230, 180, 60),
+                    "ERROR" => egui::Color32::from_rgb(255, 110, 110),
+                    _ => egui::Color32::from_rgb(204, 204, 204),
+                };
+                // We'll store segments referencing the original line
+                // but since we need owned refs, we push into log_text and track offsets
+                let ts_start = log_text.len();
+                log_text.push_str(&entry.timestamp);
+                let ts_end = log_text.len();
+                log_text.push(' ');
+                let lvl_start = log_text.len();
+                log_text.push_str(&entry.level);
+                let lvl_end = log_text.len();
+                log_text.push(' ');
+                let tgt_start = log_text.len();
+                log_text.push_str(&entry.target);
+                log_text.push(':');
+                let tgt_end = log_text.len();
+                log_text.push(' ');
+                let msg_start = log_text.len();
+                log_text.push_str(&entry.message);
+                let msg_end = log_text.len();
+                log_text.push('\n');
+                // Store segment byte ranges + colors
+                line_segments.push(vec![
+                    ("ts", egui::Color32::from_rgb(100, 100, 100)), // dim gray
+                    ("lvl", level_color),
+                    ("tgt", egui::Color32::from_rgb(100, 100, 100)), // dim
+                    ("msg", egui::Color32::from_rgb(220, 220, 220)), // white
+                ]);
+                // Store actual byte ranges in a separate structure below
+                let _ = (
+                    ts_start, ts_end, lvl_start, lvl_end, tgt_start, tgt_end, msg_start, msg_end,
+                );
+            } else {
+                let color = match classify_severity(line) {
+                    Severity::Error => egui::Color32::from_rgb(255, 110, 110),
+                    Severity::Warning => egui::Color32::from_rgb(230, 180, 60),
+                    Severity::Info => {
+                        if line.starts_with("───") {
+                            egui::Color32::from_rgb(100, 180, 255)
+                        } else {
+                            egui::Color32::from_rgb(204, 204, 204)
+                        }
                     }
-                }
-            };
-            // Strip ANSI codes for display
-            let clean: String = line
-                .chars()
-                .fold((String::new(), false), |(mut s, in_esc), c| {
-                    if c == '\x1b' {
-                        (s, true)
-                    } else if in_esc {
-                        (s, c != 'm')
-                    } else {
-                        s.push(c);
-                        (s, false)
-                    }
-                })
-                .0;
-            log_text.push_str(&clean);
-            log_text.push('\n');
-            line_colors.push(color);
+                };
+                // Strip ANSI codes for display
+                let clean: String = line
+                    .chars()
+                    .fold((String::new(), false), |(mut s, in_esc), c| {
+                        if c == '\x1b' {
+                            (s, true)
+                        } else if in_esc {
+                            (s, c != 'm')
+                        } else {
+                            s.push(c);
+                            (s, false)
+                        }
+                    })
+                    .0;
+                log_text.push_str(&clean);
+                log_text.push('\n');
+                line_segments.push(vec![("plain", color)]);
+            }
         }
 
+        // Re-build using a LayoutJob approach that respects structured coloring
         scroll.show(ui, |ui| {
-            // Build a colored LayoutJob
             let mut job = egui::text::LayoutJob::default();
             let font = egui::FontId::monospace(12.0);
-            for (idx, line) in log_text.lines().enumerate() {
-                let color = line_colors.get(idx).copied().unwrap_or(egui::Color32::GRAY);
-
-                // Check for file:line:col pattern for clickable links
-                job.append(
-                    line,
-                    0.0,
-                    egui::TextFormat {
-                        font_id: font.clone(),
-                        color,
-                        ..Default::default()
-                    },
-                );
+            // Re-parse lines from log_text with their segment info
+            let mut line_iter = log_text.lines();
+            for (seg_idx, segments) in line_segments.iter().enumerate() {
+                let Some(full_line) = line_iter.next() else {
+                    break;
+                };
+                if segments.len() == 1 {
+                    // Plain line
+                    let color = segments[0].1;
+                    job.append(
+                        full_line,
+                        0.0,
+                        egui::TextFormat {
+                            font_id: font.clone(),
+                            color,
+                            ..Default::default()
+                        },
+                    );
+                } else {
+                    // Structured tracing line: timestamp level target: message
+                    // Split into parts by space
+                    let parts: Vec<&str> = full_line.splitn(4, ' ').collect();
+                    if parts.len() == 4 {
+                        // timestamp
+                        job.append(
+                            parts[0],
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: segments[0].1,
+                                ..Default::default()
+                            },
+                        );
+                        job.append(
+                            " ",
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: egui::Color32::TRANSPARENT,
+                                ..Default::default()
+                            },
+                        );
+                        // level
+                        job.append(
+                            parts[1],
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: segments[1].1,
+                                ..Default::default()
+                            },
+                        );
+                        job.append(
+                            " ",
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: egui::Color32::TRANSPARENT,
+                                ..Default::default()
+                            },
+                        );
+                        // target
+                        job.append(
+                            parts[2],
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: segments[2].1,
+                                ..Default::default()
+                            },
+                        );
+                        job.append(
+                            " ",
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: egui::Color32::TRANSPARENT,
+                                ..Default::default()
+                            },
+                        );
+                        // message
+                        job.append(
+                            parts[3],
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: segments[3].1,
+                                ..Default::default()
+                            },
+                        );
+                    } else {
+                        // Fallback
+                        job.append(
+                            full_line,
+                            0.0,
+                            egui::TextFormat {
+                                font_id: font.clone(),
+                                color: egui::Color32::from_rgb(204, 204, 204),
+                                ..Default::default()
+                            },
+                        );
+                    }
+                }
                 job.append(
                     "\n",
                     0.0,
@@ -347,9 +568,18 @@ impl BerryCodeApp {
 
         // Pre-compute filtered lines so we can show "N lines, M filtered".
         let filter = self.console_filter_text.trim().to_lowercase();
+        let log_level = self.console_log_level_filter;
         let total = self.run_output.len();
         let mut visible_indices: Vec<usize> = Vec::with_capacity(total);
         for (i, line) in self.run_output.iter().enumerate() {
+            // Log level filter for tracing lines
+            if let Some(entry) = parse_tracing_line(line) {
+                if let Some(lvl) = LogLevelFilter::from_str(&entry.level) {
+                    if lvl < log_level {
+                        continue;
+                    }
+                }
+            }
             let sev = classify_severity(line);
             let sev_visible = match sev {
                 Severity::Info => self.console_show_info,
@@ -422,12 +652,26 @@ impl BerryCodeApp {
                     }
                 });
 
-                // Header row 2: severity filter chips + auto-scroll + count.
+                // Header row 2: severity filter chips + log level + auto-scroll + count.
                 ui.horizontal(|ui| {
                     ui.label("Show:");
                     ui.checkbox(&mut self.console_show_info, "Info");
                     ui.checkbox(&mut self.console_show_warning, "Warn");
                     ui.checkbox(&mut self.console_show_error, "Error");
+                    ui.separator();
+                    ui.label("Level:");
+                    egui::ComboBox::from_id_salt("log_level_filter_panel")
+                        .selected_text(self.console_log_level_filter.label())
+                        .width(70.0)
+                        .show_ui(ui, |ui| {
+                            for &lvl in LogLevelFilter::all() {
+                                ui.selectable_value(
+                                    &mut self.console_log_level_filter,
+                                    lvl,
+                                    lvl.label(),
+                                );
+                            }
+                        });
                     ui.separator();
                     ui.checkbox(&mut self.console_auto_scroll, "Auto-scroll");
                     ui.separator();
@@ -450,7 +694,7 @@ impl BerryCodeApp {
 
                 ui.separator();
 
-                // Output area.
+                // Output area with structured tracing rendering.
                 let scroll = egui::ScrollArea::vertical().auto_shrink([false; 2]);
                 let scroll = if self.console_auto_scroll {
                     scroll.stick_to_bottom(true)
@@ -458,24 +702,176 @@ impl BerryCodeApp {
                     scroll
                 };
                 scroll.show(ui, |ui| {
+                    let font = egui::FontId::monospace(12.0);
                     for &i in &visible_indices {
                         let line = &self.run_output[i];
-                        let color = match classify_severity(line) {
-                            Severity::Error => egui::Color32::from_rgb(255, 110, 110),
-                            Severity::Warning => egui::Color32::from_rgb(230, 180, 60),
-                            Severity::Info => {
-                                if line.starts_with("───") {
-                                    egui::Color32::from_rgb(100, 180, 255)
-                                } else {
-                                    egui::Color32::from_rgb(204, 204, 204)
+                        if let Some(entry) = parse_tracing_line(line) {
+                            let level_color = match entry.level.as_str() {
+                                "TRACE" => egui::Color32::from_rgb(128, 128, 128),
+                                "DEBUG" => egui::Color32::from_rgb(80, 140, 255),
+                                "INFO" => egui::Color32::from_rgb(80, 200, 80),
+                                "WARN" => egui::Color32::from_rgb(230, 180, 60),
+                                "ERROR" => egui::Color32::from_rgb(255, 110, 110),
+                                _ => egui::Color32::from_rgb(204, 204, 204),
+                            };
+                            let dim = egui::Color32::from_rgb(100, 100, 100);
+                            let white = egui::Color32::from_rgb(220, 220, 220);
+                            let mut job = egui::text::LayoutJob::default();
+                            job.append(
+                                &entry.timestamp,
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: dim,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                " ",
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: egui::Color32::TRANSPARENT,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                &entry.level,
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: level_color,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                " ",
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: egui::Color32::TRANSPARENT,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                &format!("{}:", entry.target),
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: dim,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                " ",
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: egui::Color32::TRANSPARENT,
+                                    ..Default::default()
+                                },
+                            );
+                            job.append(
+                                &entry.message,
+                                0.0,
+                                egui::TextFormat {
+                                    font_id: font.clone(),
+                                    color: white,
+                                    ..Default::default()
+                                },
+                            );
+                            job.wrap.max_width = f32::INFINITY;
+                            ui.add(egui::Label::new(job).selectable(true));
+                        } else {
+                            let color = match classify_severity(line) {
+                                Severity::Error => egui::Color32::from_rgb(255, 110, 110),
+                                Severity::Warning => egui::Color32::from_rgb(230, 180, 60),
+                                Severity::Info => {
+                                    if line.starts_with("───") {
+                                        egui::Color32::from_rgb(100, 180, 255)
+                                    } else {
+                                        egui::Color32::from_rgb(204, 204, 204)
+                                    }
                                 }
-                            }
-                        };
-                        ui.horizontal(|ui| {
-                            super::ansi::render_ansi_text(ui, line, color, 12.0);
-                        });
+                            };
+                            ui.horizontal(|ui| {
+                                super::ansi::render_ansi_text(ui, line, color, 12.0);
+                            });
+                        }
                     }
                 });
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_tracing_line_full() {
+        let line = "2024-03-15T10:30:45.123Z INFO bevy_render::renderer: Initializing wgpu backend";
+        let entry = parse_tracing_line(line).expect("should parse");
+        assert_eq!(entry.timestamp, "2024-03-15T10:30:45.123Z");
+        assert_eq!(entry.level, "INFO");
+        assert_eq!(entry.target, "bevy_render::renderer");
+        assert_eq!(entry.message, "Initializing wgpu backend");
+        assert_eq!(entry.raw, line);
+    }
+
+    #[test]
+    fn test_parse_tracing_line_no_z_suffix() {
+        let line = "2024-03-15T10:30:45.123 DEBUG my_app::systems: tick 42";
+        let entry = parse_tracing_line(line).expect("should parse without Z");
+        assert_eq!(entry.timestamp, "2024-03-15T10:30:45.123");
+        assert_eq!(entry.level, "DEBUG");
+        assert_eq!(entry.target, "my_app::systems");
+        assert_eq!(entry.message, "tick 42");
+    }
+
+    #[test]
+    fn test_parse_tracing_line_all_levels() {
+        for level in &["TRACE", "DEBUG", "INFO", "WARN", "ERROR"] {
+            let line = format!("2024-01-01T00:00:00Z {} target: msg", level);
+            let entry = parse_tracing_line(&line).expect("should parse");
+            assert_eq!(entry.level, *level);
+        }
+    }
+
+    #[test]
+    fn test_parse_tracing_line_not_tracing() {
+        assert!(parse_tracing_line("Compiling my_app v0.1.0").is_none());
+        assert!(parse_tracing_line("error[E0308]: mismatched types").is_none());
+        assert!(parse_tracing_line("").is_none());
+        assert!(parse_tracing_line("just some random text").is_none());
+    }
+
+    #[test]
+    fn test_parse_tracing_line_message_with_colons() {
+        let line = "2024-03-15T10:30:45Z WARN bevy_ecs::world: query error: entity not found: 42";
+        let entry = parse_tracing_line(line).expect("should parse");
+        assert_eq!(entry.target, "bevy_ecs::world");
+        assert_eq!(entry.message, "query error: entity not found: 42");
+    }
+
+    #[test]
+    fn test_log_level_filter_ordering() {
+        assert!(LogLevelFilter::Trace < LogLevelFilter::Debug);
+        assert!(LogLevelFilter::Debug < LogLevelFilter::Info);
+        assert!(LogLevelFilter::Info < LogLevelFilter::Warn);
+        assert!(LogLevelFilter::Warn < LogLevelFilter::Error);
+    }
+
+    #[test]
+    fn test_log_level_filter_from_str() {
+        assert_eq!(
+            LogLevelFilter::from_str("TRACE"),
+            Some(LogLevelFilter::Trace)
+        );
+        assert_eq!(
+            LogLevelFilter::from_str("ERROR"),
+            Some(LogLevelFilter::Error)
+        );
+        assert_eq!(LogLevelFilter::from_str("invalid"), None);
     }
 }

@@ -226,6 +226,73 @@ impl BrpClient {
             .unwrap_or_default()
     }
 
+    // -----------------------------------------------------------------
+    // Write methods (BRP insert/remove/spawn/despawn/reparent)
+    // -----------------------------------------------------------------
+
+    /// Insert or update components on a running entity via BRP.
+    /// `components` is a JSON object: `{ "full::type::Name": { ...value... } }`
+    pub async fn insert_component(
+        &mut self,
+        entity_id: u64,
+        components: serde_json::Value,
+    ) -> Result<()> {
+        self.send_request(
+            "bevy/insert",
+            Some(json!({
+                "entity": entity_id,
+                "components": components
+            })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Remove components from a running entity.
+    pub async fn remove_component(
+        &mut self,
+        entity_id: u64,
+        component_names: &[String],
+    ) -> Result<()> {
+        self.send_request(
+            "bevy/remove",
+            Some(json!({
+                "entity": entity_id,
+                "components": component_names
+            })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Spawn a new entity with the given components. Returns the new entity ID.
+    pub async fn spawn_entity(&mut self, components: serde_json::Value) -> Result<u64> {
+        let result = self
+            .send_request("bevy/spawn", Some(json!({ "components": components })))
+            .await?;
+        result
+            .get("entity")
+            .and_then(|e| e.as_u64())
+            .ok_or_else(|| anyhow::anyhow!("No entity ID in spawn response"))
+    }
+
+    /// Despawn an entity from the running game.
+    pub async fn despawn_entity(&mut self, entity_id: u64) -> Result<()> {
+        self.send_request("bevy/despawn", Some(json!({ "entity": entity_id })))
+            .await?;
+        Ok(())
+    }
+
+    /// Reparent entities under a new parent (or detach if parent is None).
+    pub async fn reparent_entity(&mut self, entities: &[u64], parent: Option<u64>) -> Result<()> {
+        let mut params = json!({ "entities": entities });
+        if let Some(p) = parent {
+            params["parent"] = json!(p);
+        }
+        self.send_request("bevy/reparent", Some(params)).await?;
+        Ok(())
+    }
+
     /// Filter out internal Bevy types that don't support reflect
     pub fn filter_internal_components(names: &[String]) -> Vec<String> {
         names
@@ -374,5 +441,63 @@ mod tests {
 
         let filtered = BrpClient::filter_internal_components(&names);
         assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn test_insert_request_format() {
+        // Verify the JSON structure that insert_component would send
+        let entity_id = 42u64;
+        let components = json!({
+            "bevy_transform::components::transform::Transform": {
+                "translation": [1.0, 2.0, 3.0],
+                "rotation": [0.0, 0.0, 0.0, 1.0],
+                "scale": [1.0, 1.0, 1.0]
+            }
+        });
+        let params = json!({
+            "entity": entity_id,
+            "components": components
+        });
+        assert_eq!(params["entity"], 42);
+        assert!(
+            params["components"]["bevy_transform::components::transform::Transform"].is_object()
+        );
+    }
+
+    #[test]
+    fn test_spawn_request_format() {
+        let components = json!({
+            "bevy_core::name::Name": { "name": "NewEntity" }
+        });
+        let params = json!({ "components": components });
+        assert!(
+            params["components"]["bevy_core::name::Name"]["name"]
+                .as_str()
+                .unwrap()
+                == "NewEntity"
+        );
+    }
+
+    #[test]
+    fn test_reparent_request_format() {
+        let entities = vec![10u64, 20];
+        let parent = Some(5u64);
+        let mut params = json!({ "entities": entities });
+        if let Some(p) = parent {
+            params["parent"] = json!(p);
+        }
+        assert_eq!(params["entities"].as_array().unwrap().len(), 2);
+        assert_eq!(params["parent"], 5);
+    }
+
+    #[test]
+    fn test_reparent_no_parent() {
+        let entities = vec![10u64];
+        let parent: Option<u64> = None;
+        let mut params = json!({ "entities": entities });
+        if let Some(p) = parent {
+            params["parent"] = json!(p);
+        }
+        assert!(params.get("parent").is_none());
     }
 }

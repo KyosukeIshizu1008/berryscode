@@ -133,6 +133,57 @@ impl BerryCodeApp {
             );
         }
 
+        // ── Performance stats (compact) ──
+        if self.ecs_inspector.connected {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                let entity_count = self.ecs_inspector.perf_entity_count;
+                let latency = self.ecs_inspector.perf_poll_latency_ms;
+                ui.label(
+                    egui::RichText::new(format!("{} entities | {:.0}ms", entity_count, latency))
+                        .font(small.clone())
+                        .color(LABEL_DIM),
+                );
+
+                // Sparkline of latency history
+                let history = &self.ecs_inspector.perf_latency_history;
+                if !history.is_empty() {
+                    let sparkline_w = 60.0_f32;
+                    let sparkline_h = 16.0_f32;
+                    let (spark_rect, _) = ui.allocate_exact_size(
+                        egui::vec2(sparkline_w, sparkline_h),
+                        egui::Sense::hover(),
+                    );
+
+                    // Background
+                    ui.painter()
+                        .rect_filled(spark_rect, 2.0, egui::Color32::from_rgb(30, 30, 35));
+
+                    let max_val = history.iter().cloned().fold(1.0_f64, f64::max);
+                    let n = history.len();
+                    if n >= 2 {
+                        let points: Vec<egui::Pos2> = history
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &v)| {
+                                let x = spark_rect.min.x
+                                    + (i as f32 / (n - 1).max(1) as f32) * sparkline_w;
+                                let y = spark_rect.max.y
+                                    - ((v / max_val) as f32 * (sparkline_h - 2.0) + 1.0);
+                                egui::pos2(x, y)
+                            })
+                            .collect();
+                        for pair in points.windows(2) {
+                            ui.painter().line_segment(
+                                [pair[0], pair[1]],
+                                egui::Stroke::new(1.0, ACCENT_BLUE),
+                            );
+                        }
+                    }
+                }
+            });
+        }
+
         ui.add_space(2.0);
 
         if !self.ecs_inspector.connected {
@@ -654,44 +705,252 @@ impl BerryCodeApp {
                             );
                         })
                         .body(|ui| {
-                            self.render_json_properties(ui, value, 0);
+                            // Extract value, render editable, reinsert
+                            let key = (entity_id, comp_name.clone());
+                            if let Some(mut val) = self.ecs_inspector.component_values.remove(&key)
+                            {
+                                let did_change = Self::render_editable_properties(ui, &mut val, 0);
+                                if did_change && self.ecs_inspector.connected {
+                                    // Schedule BRP write-back with debouncing
+                                    self.ecs_inspector.pending_write =
+                                        Some((entity_id, comp_name.clone(), val.clone()));
+                                    self.ecs_inspector.write_debounce_timer =
+                                        Some(std::time::Instant::now());
+                                }
+                                self.ecs_inspector.component_values.insert(key, val);
+                            }
                         });
                     }
                 }
             });
     }
 
-    /// Render JSON value as VS Code-style property grid
+    /// Render JSON value as editable property grid. Returns true if any value changed.
+    fn render_editable_properties(
+        ui: &mut egui::Ui,
+        value: &mut serde_json::Value,
+        depth: usize,
+    ) -> bool {
+        let small = egui::FontId::proportional(11.0);
+        let indent = depth as f32 * 12.0;
+        let mut changed = false;
+
+        match value {
+            serde_json::Value::Object(map) => {
+                let keys: Vec<String> = map.keys().cloned().collect();
+                for key in keys {
+                    let val = map.get_mut(&key).unwrap();
+
+                    // Special handling for Vec3-like arrays (translation, scale, etc.)
+                    if matches!(&key as &str, "translation" | "scale")
+                        && val.is_array()
+                        && val.as_array().map_or(false, |a| a.len() == 3)
+                    {
+                        ui.horizontal(|ui| {
+                            ui.add_space(indent + 8.0);
+                            ui.label(
+                                egui::RichText::new(&key)
+                                    .font(small.clone())
+                                    .color(PROP_KEY),
+                            );
+                            if let Some(arr) = val.as_array_mut() {
+                                for (i, label) in ["x:", "y:", "z:"].iter().enumerate() {
+                                    if let Some(num) = arr[i].as_f64() {
+                                        let mut v = num as f32;
+                                        if ui
+                                            .add(
+                                                egui::DragValue::new(&mut v)
+                                                    .speed(0.05)
+                                                    .prefix(*label),
+                                            )
+                                            .changed()
+                                        {
+                                            arr[i] = serde_json::Value::from(v as f64);
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        continue;
+                    }
+
+                    // Special: rotation (quaternion, 4 values)
+                    if key == "rotation"
+                        && val.is_array()
+                        && val.as_array().map_or(false, |a| a.len() == 4)
+                    {
+                        ui.horizontal(|ui| {
+                            ui.add_space(indent + 8.0);
+                            ui.label(
+                                egui::RichText::new(&key)
+                                    .font(small.clone())
+                                    .color(PROP_KEY),
+                            );
+                            if let Some(arr) = val.as_array_mut() {
+                                for (i, label) in ["x:", "y:", "z:", "w:"].iter().enumerate() {
+                                    if let Some(num) = arr[i].as_f64() {
+                                        let mut v = num as f32;
+                                        if ui
+                                            .add(
+                                                egui::DragValue::new(&mut v)
+                                                    .speed(0.01)
+                                                    .prefix(*label),
+                                            )
+                                            .changed()
+                                        {
+                                            arr[i] = serde_json::Value::from(v as f64);
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        continue;
+                    }
+
+                    // Nested object or array → recurse
+                    if val.is_object() || val.is_array() {
+                        ui.horizontal(|ui| {
+                            ui.add_space(indent + 8.0);
+                            ui.label(
+                                egui::RichText::new(&key)
+                                    .font(small.clone())
+                                    .color(PROP_KEY),
+                            );
+                        });
+                        if Self::render_editable_properties(ui, val, depth + 1) {
+                            changed = true;
+                        }
+                        continue;
+                    }
+
+                    // Scalar values with editable widgets
+                    ui.horizontal(|ui| {
+                        ui.add_space(indent + 8.0);
+                        ui.label(
+                            egui::RichText::new(&key)
+                                .font(small.clone())
+                                .color(PROP_KEY),
+                        );
+
+                        match val {
+                            serde_json::Value::Number(n) => {
+                                if let Some(f) = n.as_f64() {
+                                    let mut v = f as f32;
+                                    if ui.add(egui::DragValue::new(&mut v).speed(0.05)).changed() {
+                                        *val = serde_json::Value::from(v as f64);
+                                        changed = true;
+                                    }
+                                } else if let Some(i) = n.as_i64() {
+                                    let mut v = i;
+                                    if ui.add(egui::DragValue::new(&mut v).speed(1.0)).changed() {
+                                        *val = serde_json::Value::from(v);
+                                        changed = true;
+                                    }
+                                }
+                            }
+                            serde_json::Value::Bool(b) => {
+                                if ui.checkbox(b, "").changed() {
+                                    changed = true;
+                                }
+                            }
+                            serde_json::Value::String(s) => {
+                                if ui
+                                    .add(egui::TextEdit::singleline(s).desired_width(120.0))
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                            }
+                            serde_json::Value::Null => {
+                                ui.label(
+                                    egui::RichText::new("null")
+                                        .font(small.clone())
+                                        .color(LABEL_DIM),
+                                );
+                            }
+                            _ => {}
+                        }
+                    });
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for (i, val) in arr.iter_mut().enumerate() {
+                    if val.is_number() {
+                        ui.horizontal(|ui| {
+                            ui.add_space(indent + 8.0);
+                            ui.label(
+                                egui::RichText::new(format!("[{}]", i))
+                                    .font(small.clone())
+                                    .color(LABEL_DIM),
+                            );
+                            if let Some(f) = val.as_f64() {
+                                let mut v = f as f32;
+                                if ui.add(egui::DragValue::new(&mut v).speed(0.05)).changed() {
+                                    *val = serde_json::Value::from(v as f64);
+                                    changed = true;
+                                }
+                            }
+                        });
+                    } else {
+                        if Self::render_editable_properties(ui, val, depth + 1) {
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            _ => {
+                ui.horizontal(|ui| {
+                    ui.add_space(indent + 8.0);
+                    match value {
+                        serde_json::Value::Number(n) => {
+                            if let Some(f) = n.as_f64() {
+                                let mut v = f as f32;
+                                if ui.add(egui::DragValue::new(&mut v).speed(0.05)).changed() {
+                                    *value = serde_json::Value::from(v as f64);
+                                    changed = true;
+                                }
+                            }
+                        }
+                        serde_json::Value::Bool(b) => {
+                            if ui.checkbox(b, "").changed() {
+                                changed = true;
+                            }
+                        }
+                        _ => {
+                            let text = value.to_string();
+                            ui.label(
+                                egui::RichText::new(text)
+                                    .font(small.clone())
+                                    .color(LABEL_BRIGHT),
+                            );
+                        }
+                    }
+                });
+            }
+        }
+
+        changed
+    }
+
+    /// Legacy read-only render for backward compat
     fn render_json_properties(&self, ui: &mut egui::Ui, value: &serde_json::Value, depth: usize) {
         let small = egui::FontId::proportional(11.0);
         let indent = depth as f32 * 12.0;
-
         match value {
             serde_json::Value::Object(map) => {
                 for (key, val) in map {
                     ui.horizontal(|ui| {
                         ui.add_space(indent + 8.0);
                         ui.label(egui::RichText::new(key).font(small.clone()).color(PROP_KEY));
-                        ui.label(
-                            egui::RichText::new(":")
-                                .font(small.clone())
-                                .color(LABEL_DIM),
-                        );
-                        match val {
-                            serde_json::Value::Object(_) | serde_json::Value::Array(_) => {}
-                            _ => {
-                                let (text, color) = self.format_json_value(val);
-                                ui.label(
-                                    egui::RichText::new(text).font(small.clone()).color(color),
-                                );
-                            }
+                        if !val.is_object() && !val.is_array() {
+                            let (text, color) = self.format_json_value(val);
+                            ui.label(egui::RichText::new(text).font(small.clone()).color(color));
                         }
                     });
-                    match val {
-                        serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
-                            self.render_json_properties(ui, val, depth + 1);
-                        }
-                        _ => {}
+                    if val.is_object() || val.is_array() {
+                        self.render_json_properties(ui, val, depth + 1);
                     }
                 }
             }
@@ -851,6 +1110,7 @@ impl BerryCodeApp {
         });
 
         self.ecs_inspector.pending_entities = Some(rx);
+        self.ecs_inspector.poll_start = Some(std::time::Instant::now());
     }
 
     fn load_entity_components(&mut self, entity_id: u64) {
@@ -911,6 +1171,16 @@ impl BerryCodeApp {
         if let Some(rx) = &self.ecs_inspector.pending_entities {
             match rx.try_recv() {
                 Ok(Ok(entities)) => {
+                    // Measure poll latency
+                    if let Some(start) = self.ecs_inspector.poll_start.take() {
+                        let latency = start.elapsed().as_secs_f64() * 1000.0;
+                        self.ecs_inspector.perf_poll_latency_ms = latency;
+                        self.ecs_inspector.perf_latency_history.push_back(latency);
+                        if self.ecs_inspector.perf_latency_history.len() > 60 {
+                            self.ecs_inspector.perf_latency_history.pop_front();
+                        }
+                    }
+                    self.ecs_inspector.perf_entity_count = entities.len();
                     self.ecs_inspector.entities = entities;
                     self.ecs_inspector.error_message = None;
                     self.ecs_inspector.last_poll = Some(std::time::Instant::now());
@@ -960,6 +1230,53 @@ impl BerryCodeApp {
             });
             if should_refresh {
                 self.refresh_ecs_data();
+            }
+        }
+
+        // Poll write-back result
+        if let Some(rx) = &self.ecs_inspector.pending_write_result {
+            match rx.try_recv() {
+                Ok(Ok(())) => {
+                    self.ecs_inspector.write_error = None;
+                    self.ecs_inspector.pending_write_result = None;
+                }
+                Ok(Err(e)) => {
+                    self.ecs_inspector.write_error = Some(format!("Write failed: {}", e));
+                    self.ecs_inspector.pending_write_result = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.ecs_inspector.pending_write_result = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+
+        // Debounced write-back: send BRP insert after 100ms of no changes
+        if let Some(timer) = self.ecs_inspector.write_debounce_timer {
+            if timer.elapsed().as_millis() >= 100
+                && self.ecs_inspector.pending_write_result.is_none()
+            {
+                if let Some((entity_id, comp_name, value)) = self.ecs_inspector.pending_write.take()
+                {
+                    self.ecs_inspector.write_debounce_timer = None;
+                    let endpoint = self.ecs_inspector.endpoint.clone();
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    {
+                        let rt_handle = std::sync::Arc::clone(&self.lsp_runtime);
+                        std::thread::spawn(move || {
+                            rt_handle.block_on(async {
+                                let mut client =
+                                    crate::bevy_ide::inspector::brp_client::BrpClient::new(
+                                        &endpoint,
+                                    );
+                                let components = serde_json::json!({ comp_name: value });
+                                let result = client.insert_component(entity_id, components).await;
+                                let _ = tx.send(result);
+                            });
+                        });
+                        self.ecs_inspector.pending_write_result = Some(rx);
+                    }
+                }
             }
         }
     }
