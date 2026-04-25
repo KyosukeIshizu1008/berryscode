@@ -2541,4 +2541,144 @@ bevy = "0.15"
         assert!(mod_rs.contains("pub mod game_scene;"));
         assert!(mod_rs.contains("ScenesPlugin"));
     }
+
+    // ===== Bevy 0.18 migration regression tests =====
+
+    #[test]
+    fn camera_entity_skipped_in_scene_plugin_codegen() {
+        let mut scene = SceneModel::new();
+        scene.add_entity("MainCamera".into(), vec![ComponentData::Camera]);
+        scene.add_entity(
+            "MyCube".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 0.0, 0.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "test");
+        // Camera entity should NOT appear in codegen (template already has one)
+        assert!(
+            !code.contains("Camera3d"),
+            "Camera entity should be skipped in scene plugin codegen"
+        );
+        // Cube should still be generated
+        assert!(
+            code.contains("MyCube"),
+            "Non-camera entities should still be generated"
+        );
+        assert!(code.contains("Cuboid"));
+    }
+
+    #[test]
+    fn camera_entity_skipped_in_scene_plugin_code() {
+        let mut scene = SceneModel::new();
+        scene.add_entity("PlayerCam".into(), vec![ComponentData::Camera]);
+        scene.add_entity(
+            "Floor".into(),
+            vec![ComponentData::MeshPlane {
+                size: 10.0,
+                color: [0.3, 0.3, 0.3],
+                metallic: 0.0,
+                roughness: 0.9,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "test");
+        assert!(
+            !code.contains("Camera3d"),
+            "Camera should be skipped in generate_scene_plugin_code"
+        );
+        assert!(code.contains("Floor"));
+        assert!(code.contains("Plane3d"));
+    }
+
+    #[test]
+    fn glb_codegen_includes_scale_and_rotation() {
+        let mut scene = SceneModel::new();
+        let id = scene.add_entity(
+            "MyModel".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/fake/path/assets/model.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        // Set non-default transform
+        if let Some(entity) = scene.entities.get_mut(&id) {
+            entity.transform.scale = [0.5, 0.5, 0.5];
+            entity.transform.rotation_euler = [0.0, 1.57, 0.0];
+        }
+        let code = generate_scene_plugin_code(&scene, "test");
+        // Should contain SceneRoot with scale and rotation
+        assert!(
+            code.contains("with_scale"),
+            "GLB codegen must include scale: {}",
+            code
+        );
+        assert!(
+            code.contains("with_rotation"),
+            "GLB codegen must include rotation: {}",
+            code
+        );
+        assert!(code.contains("SceneRoot"));
+        assert!(code.contains("model.glb#Scene0"));
+    }
+
+    #[test]
+    fn multiple_cameras_not_generated() {
+        let mut scene = SceneModel::new();
+        scene.add_entity("Cam1".into(), vec![ComponentData::Camera]);
+        scene.add_entity("Cam2".into(), vec![ComponentData::Camera]);
+        scene.add_entity(
+            "Light".into(),
+            vec![ComponentData::DirectionalLight {
+                intensity: 10000.0,
+                color: [1.0, 1.0, 1.0],
+                shadows: true,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "test");
+        // No cameras should be in the output
+        assert!(
+            !code.contains("Camera3d"),
+            "Multiple cameras must all be skipped"
+        );
+        // But light should be present
+        assert!(code.contains("DirectionalLight"));
+    }
+
+    #[test]
+    fn bevy_018_api_in_generated_code() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Box".into(),
+            vec![ComponentData::MeshCube {
+                size: 2.0,
+                color: [1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "test");
+        // Verify Bevy 0.18 API usage
+        assert!(
+            code.contains("Mesh3d("),
+            "Should use Bevy 0.18 Mesh3d component"
+        );
+        assert!(
+            code.contains("MeshMaterial3d("),
+            "Should use Bevy 0.18 MeshMaterial3d component"
+        );
+        assert!(code.contains("use bevy::prelude::*;"));
+    }
 }
