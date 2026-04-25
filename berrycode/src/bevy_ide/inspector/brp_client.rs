@@ -112,7 +112,11 @@ impl BrpClient {
 
                 let comp_list: Vec<String> = comps
                     .as_array()
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 // Skip BerryCode internal entities and Bevy internals
@@ -143,9 +147,12 @@ impl BrpClient {
                             .and_then(|c| c.get("bevy_ecs::name::Name"))
                             .and_then(|n| {
                                 // Bevy 0.18: Name is serialized as a plain string
-                                n.as_str().map(String::from)
+                                n.as_str()
+                                    .map(String::from)
                                     // Fallback: older format {"name": "..."}
-                                    .or_else(|| n.get("name").and_then(|s| s.as_str()).map(String::from))
+                                    .or_else(|| {
+                                        n.get("name").and_then(|s| s.as_str()).map(String::from)
+                                    })
                             }),
                         Err(_) => None,
                     }
@@ -160,7 +167,10 @@ impl BrpClient {
                         ("SceneEditorCamera", "[Internal: Scene Editor Camera]"),
                         ("SceneEditorLight", "[Internal: Scene Editor Light]"),
                         ("SceneEditorObject", "[Internal: Scene Object]"),
-                        ("MaterialPreviewCamera", "[Internal: Material Preview Camera]"),
+                        (
+                            "MaterialPreviewCamera",
+                            "[Internal: Material Preview Camera]",
+                        ),
                         ("PrimaryEguiContext", "[Internal: UI Camera]"),
                     ];
                     for comp in &comp_list {
@@ -171,7 +181,9 @@ impl BrpClient {
                                 break;
                             }
                         }
-                        if inferred.is_some() { break; }
+                        if inferred.is_some() {
+                            break;
+                        }
                     }
 
                     // Fallback: infer from Bevy component types
@@ -198,7 +210,9 @@ impl BrpClient {
                                     break;
                                 }
                             }
-                            if inferred.is_some() { break; }
+                            if inferred.is_some() {
+                                break;
+                            }
                         }
                     }
 
@@ -288,7 +302,9 @@ impl BrpClient {
 
     /// Check if connection is alive
     pub async fn ping(&mut self) -> bool {
-        self.send_request("world.list_resources", None).await.is_ok()
+        self.send_request("world.list_resources", None)
+            .await
+            .is_ok()
     }
 
     /// Parse query response into EntityInfo list (public for testing)
@@ -380,7 +396,10 @@ impl BrpClient {
     /// Spawn a new entity with the given components. Returns the new entity ID.
     pub async fn spawn_entity(&mut self, components: serde_json::Value) -> Result<u64> {
         let result = self
-            .send_request("world.spawn_entity", Some(json!({ "components": components })))
+            .send_request(
+                "world.spawn_entity",
+                Some(json!({ "components": components })),
+            )
             .await?;
         result
             .get("entity")
@@ -401,7 +420,8 @@ impl BrpClient {
         if let Some(p) = parent {
             params["parent"] = json!(p);
         }
-        self.send_request("world.reparent_entities", Some(params)).await?;
+        self.send_request("world.reparent_entities", Some(params))
+            .await?;
         Ok(())
     }
 

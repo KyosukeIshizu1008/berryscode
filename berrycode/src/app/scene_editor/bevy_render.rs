@@ -6,10 +6,11 @@
 //! [`super::bevy_sync`] mirrors the `SceneModel` into real Bevy entities on that
 //! render layer.
 
-use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
-use bevy::image::{TextureFormatPixelInfo as _, ImageSampler}; use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::camera::visibility::RenderLayers;
+use bevy::image::{ImageSampler, TextureFormatPixelInfo as _};
+use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use std::collections::HashMap;
 
 /// Resource holding the scene editor's render state.
@@ -300,11 +301,15 @@ pub fn update_scene_editor_camera(
                         .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
                         .unwrap_or(bevy::camera::RenderTarget::default()),
                 ));
-                state.ambient_light_entity = Some(commands.spawn(AmbientLight {
-                    color: Color::WHITE,
-                    brightness: 500.0,
-                    affects_lightmapped_meshes: false,
-                }).id());
+                state.ambient_light_entity = Some(
+                    commands
+                        .spawn(AmbientLight {
+                            color: Color::WHITE,
+                            brightness: 500.0,
+                            affects_lightmapped_meshes: false,
+                        })
+                        .id(),
+                );
             } else {
                 let clear_color = ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0));
                 commands.entity(cam_entity).insert((
@@ -319,11 +324,15 @@ pub fn update_scene_editor_camera(
                         .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
                         .unwrap_or(bevy::camera::RenderTarget::default()),
                 ));
-                state.ambient_light_entity = Some(commands.spawn(AmbientLight {
-                    color: Color::WHITE,
-                    brightness: 300.0,
-                    affects_lightmapped_meshes: false,
-                }).id());
+                state.ambient_light_entity = Some(
+                    commands
+                        .spawn(AmbientLight {
+                            color: Color::WHITE,
+                            brightness: 300.0,
+                            affects_lightmapped_meshes: false,
+                        })
+                        .id(),
+                );
             }
         }
     }

@@ -31,7 +31,9 @@ fn main() {
 }
 
 fn set_window_icon(windows: Option<NonSend<WinitWindows>>) {
-    let Some(windows) = windows else { return; };
+    let Some(windows) = windows else {
+        return;
+    };
     let icon_bytes = include_bytes!("../../assets/icon_256.png");
     let img = match image::load_from_memory(icon_bytes) {
         Ok(img) => img.into_rgba8(),

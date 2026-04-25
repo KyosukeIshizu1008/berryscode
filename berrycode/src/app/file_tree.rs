@@ -230,13 +230,18 @@ impl BerryCodeApp {
                                 let src_path = std::path::Path::new(&source);
                                 let file_name = src_path.file_name().unwrap_or_default();
                                 let dest = std::path::Path::new(&dest_dir).join(file_name);
-                                if source != dest.to_string_lossy() && src_path.exists() && !dest.exists() {
+                                if source != dest.to_string_lossy()
+                                    && src_path.exists()
+                                    && !dest.exists()
+                                {
                                     if let Err(e) = std::fs::rename(&source, &dest) {
                                         tracing::error!("Failed to move file: {}", e);
                                     } else {
                                         tracing::info!("Moved {} → {}", source, dest.display());
                                         // Reload root file tree
-                                        if let Ok(entries) = native::fs::read_dir(&self.root_path, Some(1)) {
+                                        if let Ok(entries) =
+                                            native::fs::read_dir(&self.root_path, Some(1))
+                                        {
                                             self.file_tree_cache = entries;
                                         }
                                     }
@@ -285,7 +290,8 @@ impl BerryCodeApp {
 
             // Hover highlight (blue tint if drop target)
             if is_drop_target {
-                ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgb(38, 79, 120));
+                ui.painter()
+                    .rect_filled(rect, 0.0, egui::Color32::from_rgb(38, 79, 120));
             } else if response.hovered() {
                 ui.painter().rect_filled(rect, 0.0, hover_bg);
             }
@@ -376,8 +382,10 @@ impl BerryCodeApp {
             let is_selected = selected_file == Some(node.path.as_str());
             let droppable = is_droppable_asset(&node.name);
 
-            let (rect, response) =
-                ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), egui::Sense::click_and_drag());
+            let (rect, response) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), row_height),
+                egui::Sense::click_and_drag(),
+            );
 
             // Selection / hover highlight (full row width, VS Code style)
             if is_selected {

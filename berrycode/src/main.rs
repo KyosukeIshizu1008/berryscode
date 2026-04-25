@@ -59,7 +59,10 @@ fn main() {
                 }),
         )
         .add_plugins(BerryCodePlugin)
-        .add_systems(PreStartup, setup_camera.before(bevy_egui::EguiStartupSet::InitContexts))
+        .add_systems(
+            PreStartup,
+            setup_camera.before(bevy_egui::EguiStartupSet::InitContexts),
+        )
         .add_systems(Startup, set_window_icon)
         .run();
 
@@ -67,10 +70,7 @@ fn main() {
     let _ = fs::remove_file(&lock_path);
 }
 
-fn setup_camera(
-    mut commands: Commands,
-    mut egui_settings: ResMut<bevy_egui::EguiGlobalSettings>,
-) {
+fn setup_camera(mut commands: Commands, mut egui_settings: ResMut<bevy_egui::EguiGlobalSettings>) {
     egui_settings.auto_create_primary_context = false;
     // Egui camera - renders UI only
     commands.spawn((
@@ -86,7 +86,9 @@ fn setup_camera(
 }
 
 fn set_window_icon(windows: Option<NonSend<WinitWindows>>) {
-    let Some(windows) = windows else { return; };
+    let Some(windows) = windows else {
+        return;
+    };
     let icon_bytes = include_bytes!("../assets/icon_256.png");
     let img = match image::load_from_memory(icon_bytes) {
         Ok(img) => img.into_rgba8(),

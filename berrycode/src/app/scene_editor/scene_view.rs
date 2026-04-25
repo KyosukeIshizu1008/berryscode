@@ -617,8 +617,12 @@ impl BerryCodeApp {
                     egui::Color32::from_gray(60)
                 };
                 let border_width = if is_active { 2.0 } else { 1.0 };
-                ui.painter()
-                    .rect_stroke(*qr, 0.0, egui::Stroke::new(border_width, border_color), egui::StrokeKind::Middle);
+                ui.painter().rect_stroke(
+                    *qr,
+                    0.0,
+                    egui::Stroke::new(border_width, border_color),
+                    egui::StrokeKind::Middle,
+                );
             }
 
             // Click in a quadrant to switch the camera to that quadrant's

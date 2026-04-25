@@ -47,10 +47,13 @@ impl Plugin for BerryCodePlugin {
                     setup_material_preview,
                 ),
             )
-            .add_systems(bevy_egui::EguiPrimaryContextPass, (
-                setup_egui_fonts_and_style,
-                berry_ui_system.after(setup_egui_fonts_and_style),
-            ))
+            .add_systems(
+                bevy_egui::EguiPrimaryContextPass,
+                (
+                    setup_egui_fonts_and_style,
+                    berry_ui_system.after(setup_egui_fonts_and_style),
+                ),
+            )
             .add_systems(Update, demo_capture_system)
             .add_systems(Update, manage_preview_scene)
             .add_systems(

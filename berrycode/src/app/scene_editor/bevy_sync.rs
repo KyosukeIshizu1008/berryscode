@@ -13,8 +13,8 @@
 use super::bevy_render::*;
 use crate::app::scene_editor::model::*;
 use crate::app::BerryCodeApp;
-use bevy::prelude::*;
 use bevy::camera::visibility::RenderLayers;
+use bevy::prelude::*;
 
 /// Sync the editor `SceneModel` to Bevy entities (spawn / update / despawn).
 pub fn sync_scene_to_bevy(
@@ -639,8 +639,7 @@ fn load_gltf_mesh_for_bevy(
 
     let mut bevy_mesh = Mesh::new(
         bevy::mesh::PrimitiveTopology::TriangleList,
-        bevy::asset::RenderAssetUsages::MAIN_WORLD
-            | bevy::asset::RenderAssetUsages::RENDER_WORLD,
+        bevy::asset::RenderAssetUsages::MAIN_WORLD | bevy::asset::RenderAssetUsages::RENDER_WORLD,
     );
     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, scaled_positions);
     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals);

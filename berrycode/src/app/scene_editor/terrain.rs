@@ -58,8 +58,8 @@ pub fn generate_terrain_mesh(
     resolution: u32,
     world_size: [f32; 2],
 ) -> bevy::prelude::Mesh {
-    use bevy::prelude::Mesh;
     use bevy::mesh::{Indices, PrimitiveTopology};
+    use bevy::prelude::Mesh;
 
     let res = resolution as usize;
     let vertex_count = res * res;

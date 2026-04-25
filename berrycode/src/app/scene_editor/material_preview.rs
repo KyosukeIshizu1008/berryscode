@@ -4,10 +4,11 @@
 //! sphere on `RenderLayers::layer(3)`. The original CPU approximation is
 //! kept as a fallback (used when the GPU preview texture is not yet ready).
 
-use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
-use bevy::image::{TextureFormatPixelInfo as _, ImageSampler}; use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 use bevy::camera::visibility::RenderLayers;
+use bevy::image::{ImageSampler, TextureFormatPixelInfo as _};
+use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
 
 // ---------------------------------------------------------------------------
 // Bevy Resource: GPU material preview state

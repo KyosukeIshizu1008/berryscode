@@ -16,8 +16,14 @@ const BEVY_DOCS: &[(&str, &str)] = &[
     ("Bundle", "bevy/ecs/bundle/trait.Bundle.html"),
     ("Event", "bevy/ecs/event/trait.Event.html"),
     ("Message", "bevy/ecs/message/trait.Message.html"),
-    ("MessageReader", "bevy/ecs/message/struct.MessageReader.html"),
-    ("MessageWriter", "bevy/ecs/message/struct.MessageWriter.html"),
+    (
+        "MessageReader",
+        "bevy/ecs/message/struct.MessageReader.html",
+    ),
+    (
+        "MessageWriter",
+        "bevy/ecs/message/struct.MessageWriter.html",
+    ),
     ("App", "bevy/app/struct.App.html"),
     (
         "Transform",
