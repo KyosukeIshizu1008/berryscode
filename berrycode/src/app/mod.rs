@@ -485,6 +485,8 @@ pub struct BerryCodeApp {
     /// Path of the asset currently being dragged from the file tree.
     /// Set when the user starts dragging a droppable file; cleared on drop or release.
     pub(crate) dragged_asset_path: Option<String>,
+    /// Path of the file/folder currently being dragged for move operation.
+    pub(crate) dragged_file_path: Option<String>,
     /// Cached 3D model preview data for Asset Browser.
     pub(crate) asset_preview_data: Option<crate::app::model_preview::ModelPreviewData>,
     /// Path of the asset currently previewed (to detect changes).
@@ -1451,6 +1453,7 @@ impl BerryCodeApp {
             snap_value: 0.5,
 
             dragged_asset_path: None,
+            dragged_file_path: None,
             asset_preview_data: None,
             asset_preview_path: String::new(),
             asset_preview_rot_x: 0.3,

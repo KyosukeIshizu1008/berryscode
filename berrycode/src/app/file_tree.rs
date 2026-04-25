@@ -221,6 +221,28 @@ impl BerryCodeApp {
                             self.dragged_asset_path = Some(path);
                             tracing::info!("Drag started for asset: {:?}", self.dragged_asset_path);
                         }
+                        Some(FileTreeEvent::StartFileDrag(path)) => {
+                            self.dragged_file_path = Some(path.clone());
+                            tracing::info!("File drag started: {}", path);
+                        }
+                        Some(FileTreeEvent::MoveFile(_, dest_dir)) => {
+                            if let Some(source) = self.dragged_file_path.take() {
+                                let src_path = std::path::Path::new(&source);
+                                let file_name = src_path.file_name().unwrap_or_default();
+                                let dest = std::path::Path::new(&dest_dir).join(file_name);
+                                if source != dest.to_string_lossy() && src_path.exists() && !dest.exists() {
+                                    if let Err(e) = std::fs::rename(&source, &dest) {
+                                        tracing::error!("Failed to move file: {}", e);
+                                    } else {
+                                        tracing::info!("Moved {} → {}", source, dest.display());
+                                        // Reload root file tree
+                                        if let Ok(entries) = native::fs::read_dir(&self.root_path, Some(1)) {
+                                            self.file_tree_cache = entries;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         None => {}
                     }
                 }
@@ -250,11 +272,21 @@ impl BerryCodeApp {
 
             let (rect, response) = ui.allocate_exact_size(
                 egui::vec2(ui.available_width(), row_height),
-                egui::Sense::click(),
+                egui::Sense::click_and_drag(),
             );
 
-            // Hover highlight
-            if response.hovered() {
+            // Drag start for folder
+            if response.drag_started() {
+                event = Some(FileTreeEvent::StartFileDrag(node.path.clone()));
+            }
+
+            // Drop target: highlight when a file is being dragged over this folder
+            let is_drop_target = response.hovered() && ui.input(|i| i.pointer.any_released());
+
+            // Hover highlight (blue tint if drop target)
+            if is_drop_target {
+                ui.painter().rect_filled(rect, 0.0, egui::Color32::from_rgb(38, 79, 120));
+            } else if response.hovered() {
                 ui.painter().rect_filled(rect, 0.0, hover_bg);
             }
 
@@ -311,6 +343,11 @@ impl BerryCodeApp {
                 event = Some(FileTreeEvent::ContextMenu(node.path.clone(), true));
             }
 
+            // Accept file drop onto this folder
+            if is_drop_target {
+                event = Some(FileTreeEvent::MoveFile(String::new(), node.path.clone()));
+            }
+
             if is_expanded {
                 if let Some(children) = &node.children {
                     for child in children {
@@ -339,14 +376,8 @@ impl BerryCodeApp {
             let is_selected = selected_file == Some(node.path.as_str());
             let droppable = is_droppable_asset(&node.name);
 
-            let sense = if droppable {
-                egui::Sense::click_and_drag()
-            } else {
-                egui::Sense::click()
-            };
-
             let (rect, response) =
-                ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), sense);
+                ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), egui::Sense::click_and_drag());
 
             // Selection / hover highlight (full row width, VS Code style)
             if is_selected {
@@ -400,8 +431,11 @@ impl BerryCodeApp {
                 event = Some(FileTreeEvent::ContextMenu(node.path.clone(), false));
             }
 
-            if droppable && response.drag_started() {
-                event = Some(FileTreeEvent::StartAssetDrag(node.path.clone()));
+            if response.drag_started() {
+                event = Some(FileTreeEvent::StartFileDrag(node.path.clone()));
+                if droppable {
+                    event = Some(FileTreeEvent::StartAssetDrag(node.path.clone()));
+                }
             }
         }
 
