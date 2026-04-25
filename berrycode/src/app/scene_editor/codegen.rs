@@ -398,6 +398,189 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
     code
 }
 
+/// Patch an existing main.rs: find the setup_world function body and replace
+/// it with the current scene entities. Adds `asset_server` parameter if needed.
+/// Returns the modified source code (unchanged if no setup function found).
+pub fn patch_main_rs_setup(main_code: &str, scene: &SceneModel) -> String {
+    // Find setup_world or setup_scene function
+    let setup_fn_re = regex::Regex::new(
+        r"(?s)(fn\s+(setup_world|setup_scene|setup)\s*\([^)]*\)\s*\{)(.*?)(\n\})",
+    )
+    .unwrap();
+
+    let Some(cap) = setup_fn_re.captures(main_code) else {
+        return main_code.to_string();
+    };
+
+    let fn_sig_start = cap.get(1).unwrap().start();
+    let fn_body_end = cap.get(4).unwrap().end();
+    let fn_name = cap[2].to_string();
+    let original_sig = &cap[1];
+
+    // Build new function signature with asset_server if not already present
+    let new_sig = if !original_sig.contains("asset_server") && !original_sig.contains("AssetServer")
+    {
+        let sig = original_sig.trim_end_matches('{').trim();
+        // Insert asset_server before the closing paren
+        if let Some(close_paren) = sig.rfind(')') {
+            let before = &sig[..close_paren];
+            let needs_comma = before.trim_end().ends_with(',') || before.contains("ResMut<Assets");
+            let comma = if needs_comma { "" } else { "," };
+            format!(
+                "{}{}\n    asset_server: Res<AssetServer>,\n) {{",
+                before, comma
+            )
+        } else {
+            format!("{} {{", sig)
+        }
+    } else {
+        original_sig.to_string()
+    };
+
+    // Generate the function body from scene entities
+    let mut body = String::new();
+    for entity in scene.entities.values() {
+        if !entity.enabled {
+            continue;
+        }
+        body.push_str(&format!("    // Entity: {}\n", entity.name));
+        let t = &entity.transform;
+        body.push_str(&format!(
+            "    commands.spawn((\n        Transform::from_xyz({:.6}, {:.6}, {:.6})",
+            t.translation[0], t.translation[1], t.translation[2]
+        ));
+        if t.rotation_euler.iter().any(|&v| v.abs() > 0.001) {
+            body.push_str(&format!(
+                "\n            .with_rotation(Quat::from_euler(EulerRot::XYZ, {:.6}, {:.6}, {:.6}))",
+                t.rotation_euler[0], t.rotation_euler[1], t.rotation_euler[2]
+            ));
+        }
+        if t.scale.iter().any(|&v| (v - 1.0).abs() > 0.001) {
+            body.push_str(&format!(
+                "\n            .with_scale(Vec3::new({:.6}, {:.6}, {:.6}))",
+                t.scale[0], t.scale[1], t.scale[2]
+            ));
+        }
+        body.push_str(",\n");
+
+        for component in &entity.components {
+            match component {
+                ComponentData::MeshCube {
+                    size,
+                    color,
+                    metallic,
+                    roughness,
+                    ..
+                } => {
+                    body.push_str(&format!(
+                        "        Mesh3d(meshes.add(Cuboid::new({:.6}, {:.6}, {:.6}))),\n",
+                        size, size, size
+                    ));
+                    body.push_str(&format!(
+                        "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
+                         \x20           base_color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
+                         \x20           metallic: {:.6},\n\
+                         \x20           perceptual_roughness: {:.6},\n\
+                         \x20           ..default()\n\
+                         \x20       }})),\n",
+                        color[0], color[1], color[2], metallic, roughness
+                    ));
+                }
+                ComponentData::MeshSphere {
+                    radius,
+                    color,
+                    metallic,
+                    roughness,
+                    ..
+                } => {
+                    body.push_str(&format!(
+                        "        Mesh3d(meshes.add(Sphere::new({:.6}).mesh().uv(32, 16))),\n",
+                        radius
+                    ));
+                    body.push_str(&format!(
+                        "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
+                         \x20           base_color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
+                         \x20           metallic: {:.6},\n\
+                         \x20           perceptual_roughness: {:.6},\n\
+                         \x20           ..default()\n\
+                         \x20       }})),\n",
+                        color[0], color[1], color[2], metallic, roughness
+                    ));
+                }
+                ComponentData::MeshPlane { size, color, .. } => {
+                    body.push_str(&format!(
+                        "        Mesh3d(meshes.add(Plane3d::default().mesh().size({:.6}, {:.6}))),\n",
+                        size, size
+                    ));
+                    body.push_str(&format!(
+                        "        MeshMaterial3d(materials.add(Color::srgb({:.6}, {:.6}, {:.6}))),\n",
+                        color[0], color[1], color[2]
+                    ));
+                }
+                ComponentData::Light { intensity, color } => {
+                    body.push_str(&format!(
+                        "        PointLight {{\n\
+                         \x20           intensity: {:.6},\n\
+                         \x20           color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
+                         \x20           ..default()\n\
+                         \x20       }},\n",
+                        intensity, color[0], color[1], color[2]
+                    ));
+                }
+                ComponentData::DirectionalLight {
+                    intensity,
+                    color,
+                    shadows,
+                } => {
+                    body.push_str(&format!(
+                        "        DirectionalLight {{\n\
+                         \x20           illuminance: {:.6},\n\
+                         \x20           color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
+                         \x20           shadows_enabled: {},\n\
+                         \x20           ..default()\n\
+                         \x20       }},\n",
+                        intensity, color[0], color[1], color[2], shadows
+                    ));
+                }
+                ComponentData::Camera => {
+                    body.push_str("        Camera3d::default(),\n");
+                }
+                ComponentData::MeshFromFile { path, .. } => {
+                    if !path.is_empty() {
+                        let asset_rel = path
+                            .replace('\\', "/")
+                            .split("/assets/")
+                            .nth(1)
+                            .unwrap_or(path)
+                            .to_string();
+                        body.push_str(&format!(
+                            "        SceneRoot(asset_server.load(\"{}#Scene0\")),\n",
+                            asset_rel
+                        ));
+                    }
+                }
+                _ => {
+                    // Other components: add as comment
+                    body.push_str(&format!("        // [BerryCode:{}]\n", component.label()));
+                }
+            }
+        }
+
+        body.push_str(&format!("        Name::new(\"{}\"),\n", entity.name));
+        body.push_str("    ));\n\n");
+    }
+
+    // Reconstruct the file
+    let mut result = String::new();
+    result.push_str(&main_code[..fn_sig_start]);
+    result.push_str(&new_sig);
+    result.push('\n');
+    result.push_str(&body);
+    result.push('}');
+    result.push_str(&main_code[fn_body_end..]);
+    result
+}
+
 /// Save generated code alongside a scene file.
 /// For "scenes/level1.bscene", generates "scenes/level1_scene.rs"
 pub fn save_scene_code(scene: &SceneModel, scene_path: &str) -> Result<String, String> {
