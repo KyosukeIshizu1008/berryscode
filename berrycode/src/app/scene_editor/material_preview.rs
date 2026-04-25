@@ -95,11 +95,11 @@ pub fn setup_material_preview(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.12, 0.13, 0.14, 1.0)),
             order: -3,
             ..default()
         },
+        bevy::camera::RenderTarget::Image(image_handle.clone().into()),
         Transform::from_xyz(0.0, 0.0, 2.5).looking_at(Vec3::ZERO, Vec3::Y),
         RenderLayers::layer(3),
         MaterialPreviewCamera,

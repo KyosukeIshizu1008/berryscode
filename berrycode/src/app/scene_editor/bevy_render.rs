@@ -160,16 +160,17 @@ pub fn setup_scene_editor_render(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.137, 0.149, 0.176, 1.0)),
             order: -2,
             ..default()
         },
+        bevy::camera::RenderTarget::Image(image_handle.clone().into()),
         Projection::Perspective(PerspectiveProjection {
             fov: std::f32::consts::FRAC_PI_4, // 45 degrees vertical FOV
             aspect_ratio: width as f32 / height as f32,
             near: 0.1,
             far: 1000.0,
+            ..default()
         }),
         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         RenderLayers::layer(2),
@@ -236,6 +237,7 @@ pub fn update_scene_editor_camera(
                 aspect_ratio: state.width as f32 / state.height.max(1) as f32,
                 near: 0.1,
                 far: 1000.0,
+                ..default()
             });
         }
     }
@@ -264,17 +266,19 @@ pub fn update_scene_editor_camera(
             }
             // Sky-tinted background and elevated ambient light for IBL feel.
             let clear_color = ClearColorConfig::Custom(Color::srgb(0.05, 0.1, 0.2));
-            commands.entity(cam_entity).insert(Camera {
-                target: state
+            commands.entity(cam_entity).insert((
+                Camera {
+                    clear_color,
+                    order: -2,
+                    ..default()
+                },
+                state
                     .render_target
                     .as_ref()
                     .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
                     .unwrap_or(bevy::camera::RenderTarget::default()),
-                clear_color,
-                order: -2,
-                ..default()
-            });
-            commands.insert_resource(AmbientLight {
+            ));
+            commands.spawn(AmbientLight {
                 color: Color::WHITE,
                 brightness: 500.0,
                 affects_lightmapped_meshes: false,
@@ -286,17 +290,19 @@ pub fn update_scene_editor_camera(
                 state.skybox_path_loaded = None;
             }
             let clear_color = ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0));
-            commands.entity(cam_entity).insert(Camera {
-                target: state
+            commands.entity(cam_entity).insert((
+                Camera {
+                    clear_color,
+                    order: -2,
+                    ..default()
+                },
+                state
                     .render_target
                     .as_ref()
                     .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
                     .unwrap_or(bevy::camera::RenderTarget::default()),
-                clear_color,
-                order: -2,
-                ..default()
-            });
-            commands.insert_resource(AmbientLight {
+            ));
+            commands.spawn(AmbientLight {
                 color: Color::WHITE,
                 brightness: 300.0,
                 affects_lightmapped_meshes: false,

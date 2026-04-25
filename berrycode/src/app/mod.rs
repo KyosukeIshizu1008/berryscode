@@ -1835,9 +1835,9 @@ pub fn setup_egui_fonts_and_style(mut egui_ctx: bevy_egui::EguiContexts) {
 pub fn berry_ui_system(
     mut app: bevy::ecs::system::NonSendMut<BerryCodeApp>,
     mut egui_ctx: bevy_egui::EguiContexts,
-    mut drop_events: bevy::ecs::event::EventReader<bevy::window::FileDragAndDrop>,
-    mut close_events: bevy::ecs::event::EventReader<bevy::window::WindowCloseRequested>,
-    mut app_exit: bevy::ecs::event::EventWriter<bevy::app::AppExit>,
+    mut drop_events: bevy::ecs::message::MessageReader<bevy::window::FileDragAndDrop>,
+    mut close_events: bevy::ecs::message::MessageReader<bevy::window::WindowCloseRequested>,
+    mut app_exit: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     mut preview_scene: bevy::ecs::system::ResMut<preview_3d::ModelPreviewScene>,
     mut scene_render: bevy::ecs::system::ResMut<scene_editor::bevy_render::SceneEditorRender>,
     mut mat_preview: bevy::ecs::system::ResMut<
@@ -2385,7 +2385,7 @@ pub fn demo_capture_system(
             // Capture a frame for video only
             let encoder = app.demo_capture.encoder.clone();
             commands.spawn(Screenshot::primary_window()).observe(
-                move |trigger: bevy::prelude::Trigger<
+                move |trigger: bevy::ecs::observer::On<
                     bevy::render::view::screenshot::ScreenshotCaptured,
                 >| {
                     let img = trigger.event();
@@ -2429,7 +2429,7 @@ pub fn demo_capture_system(
             // Also capture a video frame during setup
             let encoder = app.demo_capture.encoder.clone();
             commands.spawn(Screenshot::primary_window()).observe(
-                move |trigger: bevy::prelude::Trigger<
+                move |trigger: bevy::ecs::observer::On<
                     bevy::render::view::screenshot::ScreenshotCaptured,
                 >| {
                     let img = trigger.event();
@@ -2457,7 +2457,7 @@ pub fn demo_capture_system(
 
             // Also feed to video encoder
             commands.spawn(Screenshot::primary_window()).observe(
-                move |trigger: bevy::prelude::Trigger<
+                move |trigger: bevy::ecs::observer::On<
                     bevy::render::view::screenshot::ScreenshotCaptured,
                 >| {
                     let img = trigger.event();

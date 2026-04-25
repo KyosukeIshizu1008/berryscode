@@ -66,16 +66,17 @@ pub fn setup_preview_render_target(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0)),
             order: -2,
             ..default()
         },
+        bevy::camera::RenderTarget::Image(image_handle.clone().into()),
         Projection::Perspective(PerspectiveProjection {
             fov: std::f32::consts::FRAC_PI_4,
             aspect_ratio: width as f32 / height as f32,
             near: 0.1,
             far: 1000.0,
+            ..default()
         }),
         Transform::from_xyz(0.0, 50.0, 150.0).looking_at(Vec3::ZERO, Vec3::Y),
         RenderLayers::layer(1),
@@ -94,7 +95,7 @@ pub fn setup_preview_render_target(
     ));
 
     // Ambient light
-    commands.insert_resource(AmbientLight {
+    commands.spawn(AmbientLight {
         color: Color::WHITE,
         brightness: 300.0,
         affects_lightmapped_meshes: false,
