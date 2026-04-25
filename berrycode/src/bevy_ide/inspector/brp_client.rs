@@ -90,10 +90,10 @@ impl BrpClient {
     pub async fn list_entities(&mut self) -> Result<Vec<EntityInfo>> {
         let result = self
             .send_request(
-                "bevy/query",
+                "world.query",
                 Some(json!({
                     "data": {
-                        "components": ["bevy_core::name::Name"]
+                        "components": ["bevy_ecs::name::Name"]
                     }
                 })),
             )
@@ -112,7 +112,7 @@ impl BrpClient {
         // If no component names provided, first discover them via bevy/list
         let names: Vec<String> = if component_names.is_empty() {
             let list = self
-                .send_request("bevy/list", Some(json!({"entity": entity_id})))
+                .send_request("world.list_components", Some(json!({"entity": entity_id})))
                 .await?;
             list.as_array()
                 .map(|arr| {
@@ -146,7 +146,7 @@ impl BrpClient {
 
         let result = self
             .send_request(
-                "bevy/get",
+                "world.get_components",
                 Some(json!({
                     "entity": entity_id,
                     "components": filtered
@@ -176,7 +176,7 @@ impl BrpClient {
 
     /// Check if connection is alive
     pub async fn ping(&mut self) -> bool {
-        self.send_request("bevy/list", None).await.is_ok()
+        self.send_request("world.list_resources", None).await.is_ok()
     }
 
     /// Parse query response into EntityInfo list (public for testing)
@@ -187,7 +187,7 @@ impl BrpClient {
                 let id = row.get("entity").and_then(|e| e.as_u64()).unwrap_or(0);
                 let name = row
                     .get("components")
-                    .and_then(|c| c.get("bevy_core::name::Name"))
+                    .and_then(|c| c.get("bevy_ecs::name::Name"))
                     .and_then(|n| n.get("name"))
                     .and_then(|n| n.as_str())
                     .map(String::from);
@@ -238,7 +238,7 @@ impl BrpClient {
         components: serde_json::Value,
     ) -> Result<()> {
         self.send_request(
-            "bevy/insert",
+            "world.insert_components",
             Some(json!({
                 "entity": entity_id,
                 "components": components
@@ -255,7 +255,7 @@ impl BrpClient {
         component_names: &[String],
     ) -> Result<()> {
         self.send_request(
-            "bevy/remove",
+            "world.remove_components",
             Some(json!({
                 "entity": entity_id,
                 "components": component_names
@@ -268,7 +268,7 @@ impl BrpClient {
     /// Spawn a new entity with the given components. Returns the new entity ID.
     pub async fn spawn_entity(&mut self, components: serde_json::Value) -> Result<u64> {
         let result = self
-            .send_request("bevy/spawn", Some(json!({ "components": components })))
+            .send_request("world.spawn_entity", Some(json!({ "components": components })))
             .await?;
         result
             .get("entity")
@@ -278,7 +278,7 @@ impl BrpClient {
 
     /// Despawn an entity from the running game.
     pub async fn despawn_entity(&mut self, entity_id: u64) -> Result<()> {
-        self.send_request("bevy/despawn", Some(json!({ "entity": entity_id })))
+        self.send_request("world.despawn_entity", Some(json!({ "entity": entity_id })))
             .await?;
         Ok(())
     }
@@ -289,7 +289,7 @@ impl BrpClient {
         if let Some(p) = parent {
             params["parent"] = json!(p);
         }
-        self.send_request("bevy/reparent", Some(params)).await?;
+        self.send_request("world.reparent_entities", Some(params)).await?;
         Ok(())
     }
 
@@ -318,13 +318,13 @@ mod tests {
         let response = json!([
             {
                 "components": {
-                    "bevy_core::name::Name": {"hash": 123, "name": "Box 1"}
+                    "bevy_ecs::name::Name": {"hash": 123, "name": "Box 1"}
                 },
                 "entity": 100
             },
             {
                 "components": {
-                    "bevy_core::name::Name": {"hash": 456, "name": "Player"}
+                    "bevy_ecs::name::Name": {"hash": 456, "name": "Player"}
                 },
                 "entity": 200
             }
@@ -349,7 +349,7 @@ mod tests {
     fn test_parse_get_response() {
         let response = json!({
             "components": {
-                "bevy_core::name::Name": {"hash": 123, "name": "Box 1"},
+                "bevy_ecs::name::Name": {"hash": 123, "name": "Box 1"},
                 "bevy_transform::components::transform::Transform": {
                     "translation": [4.0, 0.75, 0.0],
                     "rotation": [0.0, 0.0, 0.0, 1.0],
@@ -362,7 +362,7 @@ mod tests {
         let components = BrpClient::parse_get_response(&response);
         assert_eq!(components.len(), 2);
         let names: Vec<&str> = components.iter().map(|(n, _)| n.as_str()).collect();
-        assert!(names.contains(&"bevy_core::name::Name"));
+        assert!(names.contains(&"bevy_ecs::name::Name"));
         assert!(names.contains(&"bevy_transform::components::transform::Transform"));
     }
 
@@ -370,7 +370,7 @@ mod tests {
     fn test_parse_get_response_with_errors() {
         let response = json!({
             "components": {
-                "bevy_core::name::Name": {"hash": 123, "name": "Test"}
+                "bevy_ecs::name::Name": {"hash": 123, "name": "Test"}
             },
             "errors": {
                 "bevy_ecs::observer::runner::Observer": {
@@ -382,7 +382,7 @@ mod tests {
 
         let components = BrpClient::parse_get_response(&response);
         assert_eq!(components.len(), 1);
-        assert_eq!(components[0].0, "bevy_core::name::Name");
+        assert_eq!(components[0].0, "bevy_ecs::name::Name");
     }
 
     #[test]
@@ -399,14 +399,14 @@ mod tests {
     #[test]
     fn test_parse_list_response() {
         let response = json!([
-            "bevy_core::name::Name",
+            "bevy_ecs::name::Name",
             "bevy_transform::components::transform::Transform",
             "bevy_render::mesh::components::Mesh3d"
         ]);
 
         let names = BrpClient::parse_list_response(&response);
         assert_eq!(names.len(), 3);
-        assert_eq!(names[0], "bevy_core::name::Name");
+        assert_eq!(names[0], "bevy_ecs::name::Name");
     }
 
     #[test]
@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn test_filter_internal_components() {
         let names = vec![
-            "bevy_core::name::Name".to_string(),
+            "bevy_ecs::name::Name".to_string(),
             "bevy_transform::components::transform::Transform".to_string(),
             "bevy_ecs::observer::runner::Observer".to_string(),
             "bevy_ecs::observer::runner::ObserverState".to_string(),
@@ -435,7 +435,7 @@ mod tests {
     #[test]
     fn test_filter_keeps_all_normal_components() {
         let names = vec![
-            "bevy_core::name::Name".to_string(),
+            "bevy_ecs::name::Name".to_string(),
             "bevy_transform::components::transform::Transform".to_string(),
         ];
 
@@ -467,11 +467,11 @@ mod tests {
     #[test]
     fn test_spawn_request_format() {
         let components = json!({
-            "bevy_core::name::Name": { "name": "NewEntity" }
+            "bevy_ecs::name::Name": { "name": "NewEntity" }
         });
         let params = json!({ "components": components });
         assert!(
-            params["components"]["bevy_core::name::Name"]["name"]
+            params["components"]["bevy_ecs::name::Name"]["name"]
                 .as_str()
                 .unwrap()
                 == "NewEntity"
