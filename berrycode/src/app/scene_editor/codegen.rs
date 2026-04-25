@@ -73,14 +73,14 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
         // Generate transform
         let t = &entity.transform;
         code.push_str(&format!(
-            "    commands.spawn((\n        Transform::from_xyz({:.6}, {:.6}, {:.6})",
+            "    commands.spawn((\n        Transform::from_xyz({:.3}, {:.3}, {:.3})",
             t.translation[0], t.translation[1], t.translation[2]
         ));
 
         // Add rotation if non-zero
         if t.rotation_euler.iter().any(|&v| v.abs() > 0.001) {
             code.push_str(&format!(
-                "\n            .with_rotation(Quat::from_euler(EulerRot::XYZ, {:.6}, {:.6}, {:.6}))",
+                "\n            .with_rotation(Quat::from_euler(EulerRot::XYZ, {:.3}, {:.3}, {:.3}))",
                 t.rotation_euler[0], t.rotation_euler[1], t.rotation_euler[2]
             ));
         }
@@ -88,7 +88,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
         // Add scale if non-uniform
         if t.scale.iter().any(|&v| (v - 1.0).abs() > 0.001) {
             code.push_str(&format!(
-                "\n            .with_scale(Vec3::new({:.6}, {:.6}, {:.6}))",
+                "\n            .with_scale(Vec3::new({:.3}, {:.3}, {:.3}))",
                 t.scale[0], t.scale[1], t.scale[2]
             ));
         }
@@ -105,14 +105,14 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     ..
                 } => {
                     code.push_str(&format!(
-                        "        Mesh3d(meshes.add(Cuboid::new({:.6}, {:.6}, {:.6}))),\n",
+                        "        Mesh3d(meshes.add(Cuboid::new({:.3}, {:.3}, {:.3}))),\n",
                         size, size, size
                     ));
                     code.push_str(&format!(
                         "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
-                         \x20           base_color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
-                         \x20           metallic: {:.6},\n\
-                         \x20           perceptual_roughness: {:.6},\n\
+                         \x20           base_color: Color::srgb({:.3}, {:.3}, {:.3}),\n\
+                         \x20           metallic: {:.3},\n\
+                         \x20           perceptual_roughness: {:.3},\n\
                          \x20           ..default()\n\
                          \x20       }})),\n",
                         color[0], color[1], color[2], metallic, roughness
@@ -126,14 +126,14 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     ..
                 } => {
                     code.push_str(&format!(
-                        "        Mesh3d(meshes.add(Sphere::new({:.6}).mesh().uv(32, 16))),\n",
+                        "        Mesh3d(meshes.add(Sphere::new({:.3}).mesh().uv(32, 16))),\n",
                         radius
                     ));
                     code.push_str(&format!(
                         "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
-                         \x20           base_color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
-                         \x20           metallic: {:.6},\n\
-                         \x20           perceptual_roughness: {:.6},\n\
+                         \x20           base_color: Color::srgb({:.3}, {:.3}, {:.3}),\n\
+                         \x20           metallic: {:.3},\n\
+                         \x20           perceptual_roughness: {:.3},\n\
                          \x20           ..default()\n\
                          \x20       }})),\n",
                         color[0], color[1], color[2], metallic, roughness
@@ -141,19 +141,19 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 }
                 ComponentData::MeshPlane { size, color, .. } => {
                     code.push_str(&format!(
-                        "        Mesh3d(meshes.add(Plane3d::default().mesh().size({:.6}, {:.6}))),\n",
+                        "        Mesh3d(meshes.add(Plane3d::default().mesh().size({:.3}, {:.3}))),\n",
                         size, size
                     ));
                     code.push_str(&format!(
-                        "        MeshMaterial3d(materials.add(Color::srgb({:.6}, {:.6}, {:.6}))),\n",
+                        "        MeshMaterial3d(materials.add(Color::srgb({:.3}, {:.3}, {:.3}))),\n",
                         color[0], color[1], color[2]
                     ));
                 }
                 ComponentData::Light { intensity, color } => {
                     code.push_str(&format!(
                         "        PointLight {{\n\
-                         \x20           intensity: {:.6},\n\
-                         \x20           color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
+                         \x20           intensity: {:.3},\n\
+                         \x20           color: Color::srgb({:.3}, {:.3}, {:.3}),\n\
                          \x20           ..default()\n\
                          \x20       }},\n",
                         intensity, color[0], color[1], color[2]
@@ -166,8 +166,8 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 } => {
                     code.push_str(&format!(
                         "        DirectionalLight {{\n\
-                         \x20           illuminance: {:.6},\n\
-                         \x20           color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
+                         \x20           illuminance: {:.3},\n\
+                         \x20           color: Color::srgb({:.3}, {:.3}, {:.3}),\n\
                          \x20           shadows_enabled: {},\n\
                          \x20           ..default()\n\
                          \x20       }},\n",
@@ -185,7 +185,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     outer_angle,
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:SpotLight] intensity={:.6} color_r={:.6} color_g={:.6} color_b={:.6} range={:.6} inner_angle={:.6} outer_angle={:.6}\n",
+                        "        // [BerryCode:SpotLight] intensity={:.3} color_r={:.3} color_g={:.3} color_b={:.3} range={:.3} inner_angle={:.3} outer_angle={:.3}\n",
                         intensity, color[0], color[1], color[2], range, inner_angle, outer_angle
                     ));
                 }
@@ -210,7 +210,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     autoplay,
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:AudioSource] path={} volume={:.6} looped={} autoplay={}\n",
+                        "        // [BerryCode:AudioSource] path={} volume={:.3} looped={} autoplay={}\n",
                         path, volume, looped, autoplay
                     ));
                 }
@@ -219,7 +219,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 }
                 ComponentData::RigidBody { body_type, mass } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:RigidBody] body_type={} mass={:.6}\n",
+                        "        // [BerryCode:RigidBody] body_type={} mass={:.3}\n",
                         body_type.label(),
                         mass
                     ));
@@ -231,22 +231,22 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                 } => {
                     let shape_str = match shape {
                         ColliderShape::Box { half_extents } => format!(
-                            "shape=Box half_x={:.6} half_y={:.6} half_z={:.6}",
+                            "shape=Box half_x={:.3} half_y={:.3} half_z={:.3}",
                             half_extents[0], half_extents[1], half_extents[2]
                         ),
                         ColliderShape::Sphere { radius } => {
-                            format!("shape=Sphere radius={:.6}", radius)
+                            format!("shape=Sphere radius={:.3}", radius)
                         }
                         ColliderShape::Capsule {
                             half_height,
                             radius,
                         } => format!(
-                            "shape=Capsule half_height={:.6} radius={:.6}",
+                            "shape=Capsule half_height={:.3} radius={:.3}",
                             half_height, radius
                         ),
                     };
                     code.push_str(&format!(
-                        "        // [BerryCode:Collider] {} friction={:.6} restitution={:.6}\n",
+                        "        // [BerryCode:Collider] {} friction={:.3} restitution={:.3}\n",
                         shape_str, friction, restitution
                     ));
                 }
@@ -256,19 +256,19 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     color,
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:UiText] text={} font_size={:.6} color_r={:.6} color_g={:.6} color_b={:.6} color_a={:.6}\n",
+                        "        // [BerryCode:UiText] text={} font_size={:.3} color_r={:.3} color_g={:.3} color_b={:.3} color_a={:.3}\n",
                         text, font_size, color[0], color[1], color[2], color[3]
                     ));
                 }
                 ComponentData::UiButton { label, background } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:UiButton] label={} bg_r={:.6} bg_g={:.6} bg_b={:.6} bg_a={:.6}\n",
+                        "        // [BerryCode:UiButton] label={} bg_r={:.3} bg_g={:.3} bg_b={:.3} bg_a={:.3}\n",
                         label, background[0], background[1], background[2], background[3]
                     ));
                 }
                 ComponentData::UiImage { path, tint } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:UiImage] path={} tint_r={:.6} tint_g={:.6} tint_b={:.6} tint_a={:.6}\n",
+                        "        // [BerryCode:UiImage] path={} tint_r={:.3} tint_g={:.3} tint_b={:.3} tint_a={:.3}\n",
                         path, tint[0], tint[1], tint[2], tint[3]
                     ));
                 }
@@ -285,7 +285,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     gravity,
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:ParticleEmitter] rate={:.6} lifetime={:.6} speed={:.6} spread={:.6} start_size={:.6} end_size={:.6} sc_r={:.6} sc_g={:.6} sc_b={:.6} sc_a={:.6} ec_r={:.6} ec_g={:.6} ec_b={:.6} ec_a={:.6} max_particles={} gravity={:.6}\n",
+                        "        // [BerryCode:ParticleEmitter] rate={:.3} lifetime={:.3} speed={:.3} spread={:.3} start_size={:.3} end_size={:.3} sc_r={:.3} sc_g={:.3} sc_b={:.3} sc_a={:.3} ec_r={:.3} ec_g={:.3} ec_b={:.3} ec_a={:.3} max_particles={} gravity={:.3}\n",
                         rate, lifetime, speed, spread, start_size, end_size,
                         start_color[0], start_color[1], start_color[2], start_color[3],
                         end_color[0], end_color[1], end_color[2], end_color[3],
@@ -298,7 +298,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     looped,
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:Animation] duration={:.6} looped={} tracks={}\n",
+                        "        // [BerryCode:Animation] duration={:.3} looped={} tracks={}\n",
                         duration,
                         looped,
                         tracks.len()
@@ -349,7 +349,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     ..
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:Terrain] resolution={} world_w={:.6} world_h={:.6} base_r={:.6} base_g={:.6} base_b={:.6}\n",
+                        "        // [BerryCode:Terrain] resolution={} world_w={:.3} world_h={:.3} base_r={:.3} base_g={:.3} base_b={:.3}\n",
                         resolution, world_size[0], world_size[1],
                         base_color[0], base_color[1], base_color[2]
                     ));
@@ -373,7 +373,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     ..
                 } => {
                     code.push_str(&format!(
-                        "        // [BerryCode:NavMesh] cell_size={:.6} width={} height={}\n",
+                        "        // [BerryCode:NavMesh] cell_size={:.3} width={} height={}\n",
                         cell_size, width, height
                     ));
                 }
@@ -398,186 +398,130 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
     code
 }
 
-/// Patch an existing main.rs: find the setup_world function body and replace
-/// it with the current scene entities. Adds `asset_server` parameter if needed.
-/// Returns the modified source code (unchanged if no setup function found).
+/// Patch main.rs: add `asset_server` parameter to setup function if needed,
+/// and append/update only MeshFromFile (GLB) spawn code. Does NOT replace
+/// existing entities — only manages a marked `[BerryCode:GLB-start/end]` block.
 pub fn patch_main_rs_setup(main_code: &str, scene: &SceneModel) -> String {
-    // Find setup_world or setup_scene function
-    let setup_fn_re = regex::Regex::new(
-        r"(?s)(fn\s+(setup_world|setup_scene|setup)\s*\([^)]*\)\s*\{)(.*?)(\n\})",
-    )
-    .unwrap();
+    // Collect only GLB entities from scene
+    let glb_entities: Vec<&SceneEntity> = scene
+        .entities
+        .values()
+        .filter(|e| {
+            e.enabled
+                && e.components.iter().any(
+                    |c| matches!(c, ComponentData::MeshFromFile { path, .. } if !path.is_empty()),
+                )
+        })
+        .collect();
 
-    let Some(cap) = setup_fn_re.captures(main_code) else {
+    if glb_entities.is_empty() {
         return main_code.to_string();
-    };
+    }
 
-    let fn_sig_start = cap.get(1).unwrap().start();
-    let fn_body_end = cap.get(4).unwrap().end();
-    let fn_name = cap[2].to_string();
-    let original_sig = &cap[1];
+    let mut result = main_code.to_string();
 
-    // Build new function signature with asset_server if not already present
-    let new_sig = if !original_sig.contains("asset_server") && !original_sig.contains("AssetServer")
-    {
-        let sig = original_sig.trim_end_matches('{').trim();
-        // Insert asset_server before the closing paren
-        if let Some(close_paren) = sig.rfind(')') {
-            let before = &sig[..close_paren];
-            let needs_comma = before.trim_end().ends_with(',') || before.contains("ResMut<Assets");
-            let comma = if needs_comma { "" } else { "," };
-            format!(
-                "{}{}\n    asset_server: Res<AssetServer>,\n) {{",
-                before, comma
-            )
-        } else {
-            format!("{} {{", sig)
-        }
-    } else {
-        original_sig.to_string()
-    };
+    // Add asset_server parameter to setup function if missing
+    let setup_fn_re =
+        regex::Regex::new(r"(fn\s+(setup_world|setup_scene|setup)\s*\()([^)]*)\)").unwrap();
 
-    // Generate the function body from scene entities
-    let mut body = String::new();
-    for entity in scene.entities.values() {
-        if !entity.enabled {
-            continue;
+    if let Some(cap) = setup_fn_re.captures(&result.clone()) {
+        let params = &cap[3];
+        if !params.contains("asset_server") && !params.contains("AssetServer") {
+            let full_match = cap.get(0).unwrap();
+            let before_paren = &cap[1];
+            let params_trimmed = params.trim_end();
+            let comma = if params_trimmed.ends_with(',') {
+                ""
+            } else {
+                ","
+            };
+            let new_sig = format!(
+                "{}{}{}\n    asset_server: Res<AssetServer>,\n)",
+                before_paren, params_trimmed, comma
+            );
+            result = format!(
+                "{}{}{}",
+                &result[..full_match.start()],
+                new_sig,
+                &result[full_match.end()..]
+            );
         }
-        body.push_str(&format!("    // Entity: {}\n", entity.name));
-        let t = &entity.transform;
-        body.push_str(&format!(
-            "    commands.spawn((\n        Transform::from_xyz({:.6}, {:.6}, {:.6})",
-            t.translation[0], t.translation[1], t.translation[2]
-        ));
-        if t.rotation_euler.iter().any(|&v| v.abs() > 0.001) {
-            body.push_str(&format!(
-                "\n            .with_rotation(Quat::from_euler(EulerRot::XYZ, {:.6}, {:.6}, {:.6}))",
-                t.rotation_euler[0], t.rotation_euler[1], t.rotation_euler[2]
-            ));
-        }
-        if t.scale.iter().any(|&v| (v - 1.0).abs() > 0.001) {
-            body.push_str(&format!(
-                "\n            .with_scale(Vec3::new({:.6}, {:.6}, {:.6}))",
-                t.scale[0], t.scale[1], t.scale[2]
-            ));
-        }
-        body.push_str(",\n");
+    }
 
-        for component in &entity.components {
-            match component {
-                ComponentData::MeshCube {
-                    size,
-                    color,
-                    metallic,
-                    roughness,
-                    ..
-                } => {
-                    body.push_str(&format!(
-                        "        Mesh3d(meshes.add(Cuboid::new({:.6}, {:.6}, {:.6}))),\n",
-                        size, size, size
-                    ));
-                    body.push_str(&format!(
-                        "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
-                         \x20           base_color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
-                         \x20           metallic: {:.6},\n\
-                         \x20           perceptual_roughness: {:.6},\n\
-                         \x20           ..default()\n\
-                         \x20       }})),\n",
-                        color[0], color[1], color[2], metallic, roughness
-                    ));
-                }
-                ComponentData::MeshSphere {
-                    radius,
-                    color,
-                    metallic,
-                    roughness,
-                    ..
-                } => {
-                    body.push_str(&format!(
-                        "        Mesh3d(meshes.add(Sphere::new({:.6}).mesh().uv(32, 16))),\n",
-                        radius
-                    ));
-                    body.push_str(&format!(
-                        "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
-                         \x20           base_color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
-                         \x20           metallic: {:.6},\n\
-                         \x20           perceptual_roughness: {:.6},\n\
-                         \x20           ..default()\n\
-                         \x20       }})),\n",
-                        color[0], color[1], color[2], metallic, roughness
-                    ));
-                }
-                ComponentData::MeshPlane { size, color, .. } => {
-                    body.push_str(&format!(
-                        "        Mesh3d(meshes.add(Plane3d::default().mesh().size({:.6}, {:.6}))),\n",
-                        size, size
-                    ));
-                    body.push_str(&format!(
-                        "        MeshMaterial3d(materials.add(Color::srgb({:.6}, {:.6}, {:.6}))),\n",
-                        color[0], color[1], color[2]
-                    ));
-                }
-                ComponentData::Light { intensity, color } => {
-                    body.push_str(&format!(
-                        "        PointLight {{\n\
-                         \x20           intensity: {:.6},\n\
-                         \x20           color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
-                         \x20           ..default()\n\
-                         \x20       }},\n",
-                        intensity, color[0], color[1], color[2]
-                    ));
-                }
-                ComponentData::DirectionalLight {
-                    intensity,
-                    color,
-                    shadows,
-                } => {
-                    body.push_str(&format!(
-                        "        DirectionalLight {{\n\
-                         \x20           illuminance: {:.6},\n\
-                         \x20           color: Color::srgb({:.6}, {:.6}, {:.6}),\n\
-                         \x20           shadows_enabled: {},\n\
-                         \x20           ..default()\n\
-                         \x20       }},\n",
-                        intensity, color[0], color[1], color[2], shadows
-                    ));
-                }
-                ComponentData::Camera => {
-                    body.push_str("        Camera3d::default(),\n");
-                }
-                ComponentData::MeshFromFile { path, .. } => {
-                    if !path.is_empty() {
-                        let asset_rel = path
-                            .replace('\\', "/")
-                            .split("/assets/")
-                            .nth(1)
-                            .unwrap_or(path)
-                            .to_string();
-                        body.push_str(&format!(
-                            "        SceneRoot(asset_server.load(\"{}#Scene0\")),\n",
-                            asset_rel
-                        ));
+    // Remove old BerryCode GLB block if present
+    let marker_start = "    // [BerryCode:GLB-start]\n";
+    let marker_end = "    // [BerryCode:GLB-end]\n";
+    if let Some(start) = result.find(marker_start) {
+        if let Some(end_offset) = result[start..].find(marker_end) {
+            let end = start + end_offset + marker_end.len();
+            result = format!("{}{}", &result[..start], &result[end..]);
+        }
+    }
+
+    // Find closing brace of setup function to insert before it
+    let setup_body_re =
+        regex::Regex::new(r"fn\s+(setup_world|setup_scene|setup)\s*\([^)]*\)\s*\{").unwrap();
+
+    if let Some(cap) = setup_body_re.captures(&result.clone()) {
+        let fn_body_start = cap.get(0).unwrap().end();
+        let bytes = result.as_bytes();
+        let mut depth = 1i32;
+        let mut close_pos = fn_body_start;
+        for i in fn_body_start..bytes.len() {
+            match bytes[i] {
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close_pos = i;
+                        break;
                     }
                 }
-                _ => {
-                    // Other components: add as comment
-                    body.push_str(&format!("        // [BerryCode:{}]\n", component.label()));
-                }
+                _ => {}
             }
         }
 
-        body.push_str(&format!("        Name::new(\"{}\"),\n", entity.name));
-        body.push_str("    ));\n\n");
+        // Generate GLB spawn code
+        let mut glb_code = String::new();
+        glb_code.push_str("    // [BerryCode:GLB-start]\n");
+        for entity in &glb_entities {
+            let t = &entity.transform;
+            for component in &entity.components {
+                if let ComponentData::MeshFromFile { path, .. } = component {
+                    if path.is_empty() {
+                        continue;
+                    }
+                    let asset_rel = path
+                        .replace('\\', "/")
+                        .split("/assets/")
+                        .nth(1)
+                        .unwrap_or(path)
+                        .to_string();
+                    glb_code.push_str(&format!(
+                        "    commands.spawn((\n\
+                         \x20       SceneRoot(asset_server.load(\"{}#Scene0\")),\n\
+                         \x20       Transform::from_xyz({:.3}, {:.3}, {:.3}),\n\
+                         \x20       Name::new(\"{}\"),\n\
+                         \x20   ));\n",
+                        asset_rel,
+                        t.translation[0],
+                        t.translation[1],
+                        t.translation[2],
+                        entity.name,
+                    ));
+                }
+            }
+        }
+        glb_code.push_str("    // [BerryCode:GLB-end]\n");
+
+        result = format!(
+            "{}{}{}",
+            &result[..close_pos],
+            glb_code,
+            &result[close_pos..]
+        );
     }
 
-    // Reconstruct the file
-    let mut result = String::new();
-    result.push_str(&main_code[..fn_sig_start]);
-    result.push_str(&new_sig);
-    result.push('\n');
-    result.push_str(&body);
-    result.push('}');
-    result.push_str(&main_code[fn_body_end..]);
     result
 }
 
@@ -778,9 +722,9 @@ mod tests {
             }],
         );
         let code = generate_scene_code(&scene);
-        assert!(code.contains("1.123456"));
-        assert!(code.contains("0.123456"));
-        assert!(code.contains("0.654321"));
+        assert!(code.contains("1.123"));
+        assert!(code.contains("0.123"));
+        assert!(code.contains("0.654"));
     }
 }
 
