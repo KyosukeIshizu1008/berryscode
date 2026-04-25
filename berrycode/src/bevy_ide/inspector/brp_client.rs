@@ -115,11 +115,15 @@ impl BrpClient {
                     .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
                     .unwrap_or_default();
 
-                // Skip internal entities (observers, systems, etc.)
+                // Skip BerryCode internal entities and Bevy internals
                 let is_internal = comp_list.iter().any(|c| {
                     c.contains("Observer")
                         || c.contains("SystemIdMarker")
                         || c.contains("RegisteredSystem")
+                        || c.contains("berrycode::")
+                        || c.contains("bevy_egui::")
+                        || c.contains("PrimaryEguiContext")
+                        || c.contains("bevy_window::monitor::Monitor")
                 });
                 if is_internal {
                     continue;
