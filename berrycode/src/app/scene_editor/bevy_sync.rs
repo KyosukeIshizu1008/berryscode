@@ -347,7 +347,13 @@ fn spawn_scene_entity(
                 } else if path.starts_with('/') || path.contains(":\\") {
                     path.clone()
                 } else {
-                    format!("{}/{}", project_root, path)
+                    // Relative paths are relative to the assets/ directory
+                    let with_assets = format!("{}/assets/{}", project_root, path);
+                    if std::path::Path::new(&with_assets).exists() {
+                        with_assets
+                    } else {
+                        format!("{}/{}", project_root, path)
+                    }
                 };
 
                 let loaded = if !abs_path.is_empty() {
