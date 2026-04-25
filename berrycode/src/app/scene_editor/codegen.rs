@@ -705,6 +705,14 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
         if !entity.enabled {
             continue;
         }
+        // Skip Camera entities — the main template already spawns a camera
+        if entity
+            .components
+            .iter()
+            .any(|c| matches!(c, ComponentData::Camera))
+        {
+            continue;
+        }
         code.push_str(&format!("    // Entity: {}\n", entity.name));
         let t = &entity.transform;
         code.push_str(&format!(
