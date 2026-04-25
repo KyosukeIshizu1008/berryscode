@@ -535,6 +535,35 @@ pub fn patch_main_rs_setup(main_code: &str, scene: &SceneModel) -> String {
                         .nth(1)
                         .unwrap_or(path)
                         .to_string();
+
+                    // Compute auto-scale for GLB models (match bevy_sync behavior)
+                    let auto_scale =
+                        crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(path)
+                            .map(|data| {
+                                let mut min = [f32::MAX; 3];
+                                let mut max = [f32::MIN; 3];
+                                for p in &data.positions {
+                                    for i in 0..3 {
+                                        min[i] = min[i].min(p[i]);
+                                        max[i] = max[i].max(p[i]);
+                                    }
+                                }
+                                let extent = (max[0] - min[0])
+                                    .max(max[1] - min[1])
+                                    .max(max[2] - min[2])
+                                    .max(0.001);
+                                if extent > 5.0 {
+                                    2.0 / extent
+                                } else {
+                                    1.0
+                                }
+                            })
+                            .unwrap_or(1.0);
+
+                    let sx = t.scale[0] * auto_scale;
+                    let sy = t.scale[1] * auto_scale;
+                    let sz = t.scale[2] * auto_scale;
+
                     glb_code.push_str(&format!(
                         "    commands.spawn((\n\
                          \x20       SceneRoot(asset_server.load(\"{}#Scene0\")),\n\
@@ -550,9 +579,7 @@ pub fn patch_main_rs_setup(main_code: &str, scene: &SceneModel) -> String {
                         t.rotation_euler[0],
                         t.rotation_euler[1],
                         t.rotation_euler[2],
-                        t.scale[0],
-                        t.scale[1],
-                        t.scale[2],
+                        sx, sy, sz,
                         entity.name,
                     ));
                 }
