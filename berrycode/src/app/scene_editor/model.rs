@@ -301,6 +301,46 @@ fn default_navmesh_cell_size() -> f32 {
     1.0
 }
 
+/// Default axis for a hinge joint (Y-up).
+fn default_hinge_axis() -> [f32; 3] {
+    [0.0, 1.0, 0.0]
+}
+
+/// Default stiffness for a spring joint.
+fn default_spring_stiffness() -> f32 {
+    100.0
+}
+
+/// Default damping for a spring joint.
+fn default_spring_damping() -> f32 {
+    1.0
+}
+
+/// Default rest length for a spring joint.
+fn default_spring_rest_length() -> f32 {
+    1.0
+}
+
+/// Default agent speed.
+fn default_agent_speed() -> f32 {
+    3.5
+}
+
+/// Default agent radius.
+fn default_agent_radius() -> f32 {
+    0.5
+}
+
+/// Default agent height.
+fn default_agent_height() -> f32 {
+    2.0
+}
+
+/// Default agent max slope in radians (~45 degrees).
+fn default_agent_max_slope() -> f32 {
+    0.785
+}
+
 /// Rigid body simulation mode (editor-side metadata; not yet wired to a
 /// physics engine — see Phase J docs).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -663,6 +703,45 @@ pub enum ComponentData {
         #[serde(default)]
         height: usize,
     },
+    /// Editor-authored fixed joint. Locks two entities together with no
+    /// relative movement.
+    JointFixed {
+        #[serde(default)]
+        connected_entity: Option<u64>,
+    },
+    /// Editor-authored hinge joint. Allows rotation around a single axis.
+    JointHinge {
+        #[serde(default)]
+        connected_entity: Option<u64>,
+        #[serde(default = "default_hinge_axis")]
+        axis: [f32; 3],
+        /// Optional min/max angle limits in radians.
+        #[serde(default)]
+        limits: Option<[f32; 2]>,
+    },
+    /// Editor-authored spring joint. Applies spring force between two entities.
+    JointSpring {
+        #[serde(default)]
+        connected_entity: Option<u64>,
+        #[serde(default = "default_spring_stiffness")]
+        stiffness: f32,
+        #[serde(default = "default_spring_damping")]
+        damping: f32,
+        #[serde(default = "default_spring_rest_length")]
+        rest_length: f32,
+    },
+    /// Editor-authored navigation mesh agent. Configures an entity for
+    /// automatic pathfinding on a NavMesh.
+    NavMeshAgent {
+        #[serde(default = "default_agent_speed")]
+        speed: f32,
+        #[serde(default = "default_agent_radius")]
+        radius: f32,
+        #[serde(default = "default_agent_height")]
+        height: f32,
+        #[serde(default = "default_agent_max_slope")]
+        max_slope: f32,
+    },
 }
 
 impl ComponentData {
@@ -868,6 +947,38 @@ impl ComponentData {
                     height: 0,
                 },
             ),
+            (
+                "Joint Fixed",
+                ComponentData::JointFixed {
+                    connected_entity: None,
+                },
+            ),
+            (
+                "Joint Hinge",
+                ComponentData::JointHinge {
+                    connected_entity: None,
+                    axis: [0.0, 1.0, 0.0],
+                    limits: None,
+                },
+            ),
+            (
+                "Joint Spring",
+                ComponentData::JointSpring {
+                    connected_entity: None,
+                    stiffness: 100.0,
+                    damping: 1.0,
+                    rest_length: 1.0,
+                },
+            ),
+            (
+                "NavMesh Agent",
+                ComponentData::NavMeshAgent {
+                    speed: 3.5,
+                    radius: 0.5,
+                    height: 2.0,
+                    max_slope: 0.785,
+                },
+            ),
         ]
     }
 
@@ -903,6 +1014,10 @@ impl ComponentData {
             ComponentData::SkinnedMesh { .. } => "Skinned Mesh",
             ComponentData::VisualScript { .. } => "Visual Script",
             ComponentData::NavMesh { .. } => "NavMesh",
+            ComponentData::JointFixed { .. } => "Joint Fixed",
+            ComponentData::JointHinge { .. } => "Joint Hinge",
+            ComponentData::JointSpring { .. } => "Joint Spring",
+            ComponentData::NavMeshAgent { .. } => "NavMesh Agent",
         }
     }
 }

@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BerryCode — The IDE Built for Bevy</title>
   <meta name="description" content="A fast, lightweight IDE purpose-built for the Bevy game engine. No Electron. Built with Bevy + WGPU.">
-  <link rel="stylesheet" href="https://unpkg.com/@vscode/codicons@0.0.36/dist/codicon.css">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.35/dist/codicon.css">
   <style>
     :root {
       --bg: #0d1117;
@@ -39,7 +40,7 @@
       padding: 0 2rem;
     }
     .nav-inner {
-      max-width: 1200px;
+      max-width: 1400px;
       margin: 0 auto;
       display: flex;
       align-items: center;
@@ -47,10 +48,18 @@
       height: 64px;
     }
     .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
       font-size: 1.25rem;
       font-weight: 700;
       color: var(--text);
       text-decoration: none;
+    }
+    .nav-logo img {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
     }
     .nav-links { display: flex; gap: 2rem; align-items: center; }
     .nav-links a {
@@ -62,36 +71,58 @@
     .nav-links a:hover { color: var(--text); }
 
     /* Hero */
+    /* Hero */
     .hero {
-      padding: 10rem 2rem 4rem;
-      text-align: center;
-      max-width: 900px;
+      padding: 5rem 3rem 2rem;
+      max-width: 1400px;
       margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 2.5rem;
+      min-height: 100vh;
+    }
+    .hero-text {
+      flex: 0 0 28%;
+    }
+    .hero-app-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+    .hero-demo {
+      flex: 1;
+    }
+    .hero-demo img,
+    .hero-demo video {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
     }
     .hero-badge {
       display: inline-block;
       background: rgba(88, 166, 255, 0.1);
       border: 1px solid rgba(88, 166, 255, 0.3);
       color: var(--accent);
-      padding: 0.3rem 1rem;
+      padding: 0.25rem 0.75rem;
       border-radius: 999px;
-      font-size: 0.85rem;
-      margin-bottom: 1.5rem;
+      font-size: 0.8rem;
+      margin-bottom: 1rem;
     }
     .hero h1 {
-      font-size: 3.5rem;
-      font-weight: 800;
-      line-height: 1.15;
-      margin-bottom: 1.5rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 1rem;
     }
     .hero h1 span { color: var(--accent); }
     .hero p {
-      font-size: 1.25rem;
+      font-size: 0.95rem;
       color: var(--text-muted);
-      max-width: 650px;
-      margin: 0 auto 2.5rem;
+      margin-bottom: 1.5rem;
     }
-    .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .hero-buttons { display: flex; gap: 1rem; flex-wrap: wrap; }
     .btn {
       padding: 0.75rem 2rem;
       border-radius: 8px;
@@ -112,24 +143,11 @@
     }
     .btn-secondary:hover { border-color: var(--text-muted); }
 
-    /* Demo */
-    .demo {
-      max-width: 1000px;
-      margin: 3rem auto;
-      padding: 0 2rem;
-    }
-    .demo img, .demo video {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      box-shadow: 0 16px 64px rgba(0, 0, 0, 0.5);
-    }
-
     /* Why section */
     .why {
-      max-width: 900px;
+      max-width: 1200px;
       margin: 6rem auto;
-      padding: 0 2rem;
+      padding: 0 3rem;
       text-align: center;
     }
     .why h2 {
@@ -176,20 +194,20 @@
       color: var(--text-muted);
     }
     .compare-card ul li::before {
-      content: "✕ ";
+      content: "\2715  ";
       color: #f85149;
     }
     .compare-card.highlight ul li { color: var(--text); }
     .compare-card.highlight ul li::before {
-      content: "✓ ";
+      content: "\2713  ";
       color: var(--green);
     }
 
     /* Features */
     .features {
-      max-width: 1100px;
+      max-width: 1400px;
       margin: 6rem auto;
-      padding: 0 2rem;
+      padding: 0 3rem;
     }
     .features h2 {
       font-size: 2.25rem;
@@ -206,17 +224,17 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.75rem;
+      padding: 2rem;
       transition: border-color 0.2s;
     }
     .feature-card:hover { border-color: var(--text-muted); }
     .feature-icon {
-      font-size: 1.5rem;
-      margin-bottom: 0.75rem;
+      font-size: 2rem;
+      margin-bottom: 1rem;
       color: var(--accent);
     }
     .feature-card h3 {
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       margin-bottom: 0.5rem;
     }
     .feature-card p {
@@ -226,9 +244,9 @@
 
     /* Screenshots */
     .screenshots {
-      max-width: 1100px;
+      max-width: 1400px;
       margin: 6rem auto;
-      padding: 0 2rem;
+      padding: 0 3rem;
     }
     .screenshots h2 {
       font-size: 2.25rem;
@@ -257,9 +275,9 @@
 
     /* Tech Stack */
     .stack {
-      max-width: 800px;
+      max-width: 1000px;
       margin: 6rem auto;
-      padding: 0 2rem;
+      padding: 0 3rem;
       text-align: center;
     }
     .stack h2 {
@@ -295,9 +313,9 @@
 
     /* Install */
     .install {
-      max-width: 700px;
+      max-width: 800px;
       margin: 6rem auto;
-      padding: 0 2rem;
+      padding: 0 3rem;
       text-align: center;
     }
     .install h2 {
@@ -323,10 +341,50 @@
     }
     .install-code .comment { color: var(--text-muted); }
 
+    /* Community */
+    .community {
+      max-width: 1200px;
+      margin: 6rem auto;
+      padding: 0 3rem;
+      text-align: center;
+    }
+    .community h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .community > p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-bottom: 2.5rem;
+    }
+    .community-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+    .community-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .community-card:hover { border-color: var(--text-muted); }
+    .community-card .feature-icon { margin-bottom: 0.75rem; }
+    .community-card h3 {
+      font-size: 1rem;
+      margin-bottom: 0.4rem;
+    }
+    .community-card p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
     /* CTA */
     .cta {
       text-align: center;
-      padding: 6rem 2rem;
+      padding: 6rem 3rem;
       border-top: 1px solid var(--border);
       margin-top: 4rem;
     }
@@ -340,6 +398,7 @@
       font-size: 1.1rem;
       margin-bottom: 2rem;
     }
+    .cta .hero-buttons { justify-content: center; }
 
     /* Footer */
     footer {
@@ -353,11 +412,21 @@
 
     /* Responsive */
     @media (max-width: 768px) {
-      .hero h1 { font-size: 2.25rem; }
+      .hero {
+        flex-direction: column;
+        padding: 5rem 1.5rem 2rem;
+        min-height: auto;
+        gap: 2rem;
+      }
+      .hero-text { flex: none; text-align: center; }
+      .hero-buttons { justify-content: center; }
+      .hero h1 { font-size: 1.5rem; }
+      .hero-app-icon { margin-left: auto; margin-right: auto; }
       .feature-grid { grid-template-columns: 1fr; }
       .comparison { grid-template-columns: 1fr; }
       .screenshot-grid { grid-template-columns: 1fr; }
       .stack-grid { grid-template-columns: repeat(2, 1fr); }
+      .community-grid { grid-template-columns: repeat(2, 1fr); }
       .nav-links { gap: 1rem; }
     }
   </style>
@@ -367,7 +436,10 @@
   <!-- Nav -->
   <nav>
     <div class="nav-inner">
-      <a href="#" class="nav-logo">BerryCode</a>
+      <a href="#" class="nav-logo">
+        <img src="icon.png" alt="BerryCode">
+        BerryCode
+      </a>
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#screenshots">Screenshots</a>
@@ -380,18 +452,18 @@
 
   <!-- Hero -->
   <section class="hero">
-    <div class="hero-badge">v0.3.1 — Open Source / MIT License</div>
-    <h1>The <span>lightweight IDE</span> built for Bevy</h1>
-    <p>No Electron. No bloat. Built with Bevy + WGPU — the same stack as your game. Scene editor, ECS inspector, and system graph included from day one.</p>
-    <div class="hero-buttons">
-      <a href="https://github.com/KyosukeIshizu1008/berryscode" class="btn btn-primary">Star on GitHub</a>
-      <a href="#install" class="btn btn-secondary">Get Started</a>
+    <div class="hero-text">
+      <div class="hero-badge">v0.3.1 — Open Source / MIT License</div>
+      <h1>The <span>lightweight IDE</span> built for Bevy</h1>
+      <p>No Electron. No bloat. Built with Bevy + WGPU — the same stack as your game. Scene editor, ECS inspector, and system graph included from day one.</p>
+      <div class="hero-buttons">
+        <a href="https://github.com/KyosukeIshizu1008/berryscode" class="btn btn-primary">Star on GitHub</a>
+        <a href="#install" class="btn btn-secondary">Get Started</a>
+      </div>
     </div>
-  </section>
-
-  <!-- Demo -->
-  <section class="demo">
-    <img src="demo/demo.gif" alt="BerryCode Demo">
+    <div class="hero-demo">
+      <img src="demo/demo.gif" alt="BerryCode Demo">
+    </div>
   </section>
 
   <!-- Why -->
@@ -479,17 +551,17 @@
         <p>Full modal editing — Normal, Insert, Visual, Command, Replace — with operators, text objects, registers, marks, and dot repeat.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🔀</div>
+        <div class="feature-icon"><i class="codicon codicon-source-control"></i></div>
         <h3>Git Integration</h3>
         <p>6-tab panel with Status, History, Branches, Remotes, Tags, and Stash. Commit graph and diff viewer included.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🐛</div>
+        <div class="feature-icon"><i class="codicon codicon-debug-alt"></i></div>
         <h3>Debugger</h3>
         <p>Variables, call stack, watch expressions, and breakpoints via DAP protocol.</p>
       </div>
       <div class="feature-card">
-        <div class="feature-icon">🤖</div>
+        <div class="feature-icon"><i class="codicon codicon-comment-discussion"></i></div>
         <h3>AI Chat</h3>
         <p>Integrated LLM assistant via gRPC. Get help without leaving the editor.</p>
       </div>
@@ -564,6 +636,34 @@
       cargo run --release --bin berrycode
     </div>
     <p>macOS (Metal) · Linux (Vulkan / OpenGL) · Windows (DirectX 12)</p>
+  </section>
+
+  <!-- Community -->
+  <section class="community" id="community">
+    <h2>Everyone Is Welcome</h2>
+    <p>You don't need to be an engineer or a designer to contribute. There are many ways to get involved.</p>
+    <div class="community-grid">
+      <div class="community-card">
+        <div class="feature-icon"><i class="codicon codicon-bug"></i></div>
+        <h3>Report Bugs</h3>
+        <p>Found something broken? Open an issue — that alone helps us improve.</p>
+      </div>
+      <div class="community-card">
+        <div class="feature-icon"><i class="codicon codicon-comment"></i></div>
+        <h3>Give Feedback</h3>
+        <p>Share your ideas, suggest features, or tell us what's confusing.</p>
+      </div>
+      <div class="community-card">
+        <div class="feature-icon"><i class="codicon codicon-book"></i></div>
+        <h3>Write Docs</h3>
+        <p>Help make BerryCode easier to learn for newcomers. No code required.</p>
+      </div>
+      <div class="community-card">
+        <div class="feature-icon"><i class="codicon codicon-megaphone"></i></div>
+        <h3>Spread the Word</h3>
+        <p>Star the repo, share a post, or tell a friend. Every bit of visibility counts.</p>
+      </div>
+    </div>
   </section>
 
   <!-- CTA -->

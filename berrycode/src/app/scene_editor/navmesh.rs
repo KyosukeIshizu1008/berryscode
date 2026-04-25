@@ -1,6 +1,7 @@
 //! NavMesh: grid-based navigation with A* pathfinding.
 
 use super::model::*;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -207,6 +208,72 @@ pub fn find_path(grid: &NavGrid, start: [f32; 2], goal: [f32; 2]) -> Option<Vec<
     None
 }
 
+/// Configuration for a navigation mesh agent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NavMeshAgent {
+    pub speed: f32,
+    pub radius: f32,
+    pub height: f32,
+    pub max_slope: f32,
+    pub auto_path: bool,
+}
+
+impl Default for NavMeshAgent {
+    fn default() -> Self {
+        Self {
+            speed: 3.5,
+            radius: 0.5,
+            height: 2.0,
+            max_slope: 0.785,
+            auto_path: true,
+        }
+    }
+}
+
+/// A colored line segment for path visualization.
+#[derive(Debug, Clone)]
+pub struct PathSegment {
+    pub start: [f32; 2],
+    pub end: [f32; 2],
+    pub color: [f32; 4],
+}
+
+/// Render an agent's path on the navmesh grid as colored line segments.
+/// Given start and end positions (world XZ), compute the shortest A* path and
+/// return a list of line segments for visualization.
+///
+/// The path is colored with a gradient from green (start) to red (end).
+pub fn render_navmesh_agent_preview(
+    grid: &NavGrid,
+    start: [f32; 2],
+    end: [f32; 2],
+) -> Vec<PathSegment> {
+    let path = match find_path(grid, start, end) {
+        Some(p) => p,
+        None => return vec![],
+    };
+
+    if path.len() < 2 {
+        return vec![];
+    }
+
+    let total = (path.len() - 1) as f32;
+    let mut segments = Vec::with_capacity(path.len() - 1);
+
+    for i in 0..path.len() - 1 {
+        let t = i as f32 / total;
+        // Gradient: green -> red
+        let color = [t, 1.0 - t, 0.0, 1.0];
+        segments.push(PathSegment {
+            start: path[i],
+            end: path[i + 1],
+            color,
+        });
+    }
+
+    segments
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,5 +298,88 @@ mod tests {
         let scene = SceneModel::new();
         let grid = bake_nav_grid(&scene, 1.0);
         assert!(grid.cells.iter().all(|&c| c));
+    }
+
+    #[test]
+    fn astar_straight_line_path() {
+        let grid = NavGrid::new(1.0, 10, 10);
+        let path = find_path(&grid, [-4.5, 0.5], [4.5, 0.5]).unwrap();
+        // Path should go from left to right, all y values should be the same row
+        assert!(path.len() >= 2);
+        // First waypoint near start, last near goal
+        assert!((path[0][0] - (-4.5)).abs() < 1.0);
+        assert!((path.last().unwrap()[0] - 4.5).abs() < 1.0);
+    }
+
+    #[test]
+    fn astar_path_around_obstacle() {
+        let mut grid = NavGrid::new(1.0, 10, 10);
+        // Block a vertical wall in the middle (column 5), leaving a gap at row 0
+        for row in 1..10 {
+            grid.cells[row * 10 + 5] = false;
+        }
+        // Start at column 0, row 5; goal at column 6, row 5 (past the wall)
+        let path = find_path(&grid, [-4.5, 0.5], [1.5, 0.5]);
+        assert!(path.is_some(), "Should find a path around the wall");
+        let path = path.unwrap();
+        assert!(
+            path.len() > 2,
+            "Path around obstacle should have multiple waypoints"
+        );
+    }
+
+    #[test]
+    fn astar_no_path_fully_blocked() {
+        let mut grid = NavGrid::new(1.0, 10, 10);
+        // Block entire column 5, completely splitting the grid
+        for row in 0..10 {
+            grid.cells[row * 10 + 5] = false;
+        }
+        let path = find_path(&grid, [-4.5, 0.5], [0.5, 0.5]);
+        assert!(path.is_none(), "Should return None when fully blocked");
+    }
+
+    #[test]
+    fn navmesh_agent_default() {
+        let agent = NavMeshAgent::default();
+        assert!((agent.speed - 3.5).abs() < 1e-6);
+        assert!((agent.radius - 0.5).abs() < 1e-6);
+        assert!((agent.height - 2.0).abs() < 1e-6);
+        assert!(agent.auto_path);
+    }
+
+    #[test]
+    fn render_preview_empty_on_no_path() {
+        let mut grid = NavGrid::new(1.0, 10, 10);
+        grid.cells[0] = false; // block start
+        let segments = render_navmesh_agent_preview(&grid, [-4.5, -4.5], [4.0, 4.0]);
+        assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn render_preview_produces_segments() {
+        let grid = NavGrid::new(1.0, 10, 10);
+        let segments = render_navmesh_agent_preview(&grid, [-4.0, -4.0], [4.0, 4.0]);
+        assert!(!segments.is_empty());
+        // First segment should be green-ish, last should be red-ish
+        let first = &segments[0];
+        assert!(
+            first.color[1] > first.color[0],
+            "First segment should be more green"
+        );
+        let last = segments.last().unwrap();
+        assert!(
+            last.color[0] > last.color[1],
+            "Last segment should be more red"
+        );
+    }
+
+    #[test]
+    fn astar_start_equals_goal() {
+        let grid = NavGrid::new(1.0, 10, 10);
+        let path = find_path(&grid, [0.0, 0.0], [0.0, 0.0]);
+        assert!(path.is_some());
+        let path = path.unwrap();
+        assert_eq!(path.len(), 1, "Start==goal should return a single waypoint");
     }
 }

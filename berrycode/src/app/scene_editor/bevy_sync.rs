@@ -525,6 +525,14 @@ fn spawn_scene_entity(
             ComponentData::NavMesh { .. } => {
                 // Data-only; navmesh is baked metadata for pathfinding.
             }
+            ComponentData::JointFixed { .. }
+            | ComponentData::JointHinge { .. }
+            | ComponentData::JointSpring { .. } => {
+                // Data-only; physics joints are metadata for the runtime.
+            }
+            ComponentData::NavMeshAgent { .. } => {
+                // Data-only; navmesh agent is metadata for the runtime.
+            }
         }
     }
 
@@ -1041,6 +1049,48 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     grid.len().hash(&mut hasher);
                     width.hash(&mut hasher);
                     height.hash(&mut hasher);
+                }
+                ComponentData::JointFixed { connected_entity } => {
+                    connected_entity.hash(&mut hasher);
+                }
+                ComponentData::JointHinge {
+                    connected_entity,
+                    axis,
+                    limits,
+                } => {
+                    connected_entity.hash(&mut hasher);
+                    for v in axis {
+                        v.to_bits().hash(&mut hasher);
+                    }
+                    if let Some(lim) = limits {
+                        true.hash(&mut hasher);
+                        lim[0].to_bits().hash(&mut hasher);
+                        lim[1].to_bits().hash(&mut hasher);
+                    } else {
+                        false.hash(&mut hasher);
+                    }
+                }
+                ComponentData::JointSpring {
+                    connected_entity,
+                    stiffness,
+                    damping,
+                    rest_length,
+                } => {
+                    connected_entity.hash(&mut hasher);
+                    stiffness.to_bits().hash(&mut hasher);
+                    damping.to_bits().hash(&mut hasher);
+                    rest_length.to_bits().hash(&mut hasher);
+                }
+                ComponentData::NavMeshAgent {
+                    speed,
+                    radius,
+                    height,
+                    max_slope,
+                } => {
+                    speed.to_bits().hash(&mut hasher);
+                    radius.to_bits().hash(&mut hasher);
+                    height.to_bits().hash(&mut hasher);
+                    max_slope.to_bits().hash(&mut hasher);
                 }
             }
         }

@@ -1795,6 +1795,107 @@ impl BerryCodeApp {
                                 bake_navmesh_requested = Some(*cell_size);
                             }
                         }
+                        ComponentData::JointFixed { connected_entity } => {
+                            ui.horizontal(|ui| {
+                                ui.label("Connected Entity ID:");
+                                let mut id_val = connected_entity.unwrap_or(0) as i64;
+                                if ui.add(egui::DragValue::new(&mut id_val).speed(1.0)).changed() {
+                                    *connected_entity = if id_val > 0 { Some(id_val as u64) } else { None };
+                                    mutated = true;
+                                }
+                            });
+                        }
+                        ComponentData::JointHinge { connected_entity, axis, limits } => {
+                            ui.horizontal(|ui| {
+                                ui.label("Connected Entity ID:");
+                                let mut id_val = connected_entity.unwrap_or(0) as i64;
+                                if ui.add(egui::DragValue::new(&mut id_val).speed(1.0)).changed() {
+                                    *connected_entity = if id_val > 0 { Some(id_val as u64) } else { None };
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Axis:");
+                                for v in axis.iter_mut() {
+                                    if ui.add(egui::DragValue::new(v).speed(0.01).range(-1.0..=1.0)).changed() {
+                                        mutated = true;
+                                    }
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                let mut has_limits = limits.is_some();
+                                if ui.checkbox(&mut has_limits, "Angle Limits").changed() {
+                                    *limits = if has_limits { Some([-1.57, 1.57]) } else { None };
+                                    mutated = true;
+                                }
+                            });
+                            if let Some(lim) = limits {
+                                ui.horizontal(|ui| {
+                                    ui.label("Min:");
+                                    if ui.add(egui::DragValue::new(&mut lim[0]).speed(0.01)).changed() {
+                                        mutated = true;
+                                    }
+                                    ui.label("Max:");
+                                    if ui.add(egui::DragValue::new(&mut lim[1]).speed(0.01)).changed() {
+                                        mutated = true;
+                                    }
+                                });
+                            }
+                        }
+                        ComponentData::JointSpring { connected_entity, stiffness, damping, rest_length } => {
+                            ui.horizontal(|ui| {
+                                ui.label("Connected Entity ID:");
+                                let mut id_val = connected_entity.unwrap_or(0) as i64;
+                                if ui.add(egui::DragValue::new(&mut id_val).speed(1.0)).changed() {
+                                    *connected_entity = if id_val > 0 { Some(id_val as u64) } else { None };
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Stiffness:");
+                                if ui.add(egui::DragValue::new(stiffness).speed(1.0).range(0.0..=10000.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Damping:");
+                                if ui.add(egui::DragValue::new(damping).speed(0.1).range(0.0..=100.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Rest Length:");
+                                if ui.add(egui::DragValue::new(rest_length).speed(0.1).range(0.0..=100.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                        }
+                        ComponentData::NavMeshAgent { speed, radius, height, max_slope } => {
+                            ui.horizontal(|ui| {
+                                ui.label("Speed:");
+                                if ui.add(egui::DragValue::new(speed).speed(0.1).range(0.0..=100.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Radius:");
+                                if ui.add(egui::DragValue::new(radius).speed(0.01).range(0.01..=10.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Height:");
+                                if ui.add(egui::DragValue::new(height).speed(0.1).range(0.1..=10.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Max Slope (rad):");
+                                if ui.add(egui::DragValue::new(max_slope).speed(0.01).range(0.0..=1.57)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                        }
                     }
                 });
             }

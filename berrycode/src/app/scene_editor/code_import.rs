@@ -582,6 +582,38 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                         height,
                     });
                 }
+                "JointFixed" => {
+                    components.push(ComponentData::JointFixed {
+                        connected_entity: None,
+                    });
+                }
+                "JointHinge" => {
+                    components.push(ComponentData::JointHinge {
+                        connected_entity: None,
+                        axis: [
+                            parse_param_f32(params, "axis_x", 0.0),
+                            parse_param_f32(params, "axis_y", 1.0),
+                            parse_param_f32(params, "axis_z", 0.0),
+                        ],
+                        limits: None,
+                    });
+                }
+                "JointSpring" => {
+                    components.push(ComponentData::JointSpring {
+                        connected_entity: None,
+                        stiffness: parse_param_f32(params, "stiffness", 100.0),
+                        damping: parse_param_f32(params, "damping", 1.0),
+                        rest_length: parse_param_f32(params, "rest_length", 1.0),
+                    });
+                }
+                "NavMeshAgent" => {
+                    components.push(ComponentData::NavMeshAgent {
+                        speed: parse_param_f32(params, "speed", 3.5),
+                        radius: parse_param_f32(params, "radius", 0.5),
+                        height: parse_param_f32(params, "height", 2.0),
+                        max_slope: parse_param_f32(params, "max_slope", 0.785),
+                    });
+                }
                 "CustomField" => {
                     // Handled as part of CustomScript parsing above; skip here
                 }
@@ -1198,8 +1230,11 @@ pub fn setup_scene(
 
         // Verify ALL 26 component types are correctly preserved during roundtrip
         for entity in imported.entities.values() {
-            // MeshFromFile entities may lose components due to normalize_code stripping
-            if entity.name == "Mesh From File" {
+            // Components that generate comment-only output lose data during roundtrip
+            if matches!(
+                entity.name.as_str(),
+                "Mesh From File" | "Joint Fixed" | "Joint Hinge" | "Joint Spring" | "NavMesh Agent"
+            ) {
                 continue;
             }
             assert!(
@@ -1386,6 +1421,8 @@ pub fn setup_scene(
                         .any(|c| matches!(c, ComponentData::NavMesh { .. })),
                     "NavMesh missing"
                 ),
+                // New component types with comment-only codegen
+                "Joint Fixed" | "Joint Hinge" | "Joint Spring" | "NavMesh Agent" => {}
                 other => panic!("Unexpected entity name: {}", other),
             }
         }

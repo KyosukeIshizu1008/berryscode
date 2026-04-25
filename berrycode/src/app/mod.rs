@@ -37,6 +37,7 @@ mod macro_expand;
 mod minimap;
 mod model_preview;
 pub(crate) mod new_project;
+pub(crate) mod package_manager;
 mod peek;
 pub(crate) mod plugin_system;
 pub(crate) mod preview_3d;
@@ -658,6 +659,27 @@ pub struct BerryCodeApp {
 
     // === Bevy Version Management ===
     pub(crate) bevy_version: Option<String>,
+
+    // === Package Manager ===
+    pub(crate) package_manager_open: bool,
+    pub(crate) package_manager: package_manager::PackageManagerState,
+    /// Receiver for async crates.io search results
+    pub(crate) package_manager_search_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
+
+    // === Texture Importer ===
+    pub(crate) texture_importer: scene_editor::texture_importer::TextureImporterState,
+
+    // === Audio Mixer ===
+    pub(crate) audio_mixer: scene_editor::audio_mixer::AudioMixerState,
+
+    // === Play Test Panel ===
+    pub(crate) play_test: scene_editor::play_test::PlayTestState,
+
+    // === Visual Merge ===
+    pub(crate) visual_merge: scene_editor::visual_merge::VisualMergeState,
+
+    // === Lighting Profiler ===
+    pub(crate) lighting_profiler: scene_editor::lightmap::LightingProfilerState,
 }
 
 impl BerryCodeApp {
@@ -1632,6 +1654,16 @@ impl BerryCodeApp {
             plugin_search_results: Vec::new(),
 
             bevy_version,
+
+            package_manager_open: false,
+            package_manager: package_manager::PackageManagerState::default(),
+            package_manager_search_rx: None,
+
+            texture_importer: scene_editor::texture_importer::TextureImporterState::default(),
+            audio_mixer: scene_editor::audio_mixer::AudioMixerState::default(),
+            play_test: scene_editor::play_test::PlayTestState::default(),
+            visual_merge: scene_editor::visual_merge::VisualMergeState::default(),
+            lighting_profiler: scene_editor::lightmap::LightingProfilerState::default(),
         };
 
         // === Test Mode CLI: --test-mode ===
@@ -2179,6 +2211,9 @@ pub fn berry_ui_system(
 
         // floating build settings window.
         app.render_build_settings(ctx);
+
+        // floating package manager window.
+        app.render_package_manager_window(ctx);
 
         // floating scene merge panel.
         app.render_merge_panel(ctx);

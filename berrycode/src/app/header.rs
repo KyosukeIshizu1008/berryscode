@@ -177,6 +177,23 @@ impl BerryCodeApp {
                     {
                         self.build_settings_open = true;
                     }
+
+                    ui.add_space(4.0);
+
+                    // Packages button
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(self.tr("Packages"))
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                            )
+                            .frame(false),
+                        )
+                        .clicked()
+                    {
+                        self.package_manager_open = !self.package_manager_open;
+                    }
                 });
             });
     }

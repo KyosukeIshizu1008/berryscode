@@ -25,6 +25,7 @@ fn translate_ja(en: &'static str) -> &'static str {
         "Release" => "リリース",
         "Play in Editor" => "エディタ内プレイ",
         "Build Settings" => "ビルド設定",
+        "Packages" => "パッケージ",
 
         // ── Editor ──
         "BerryCode Editor" => "BerryCode エディタ",

@@ -377,6 +377,44 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         cell_size, width, height
                     ));
                 }
+                ComponentData::JointFixed { connected_entity } => {
+                    code.push_str(&format!(
+                        "        // [BerryCode:JointFixed] connected_entity={:?}\n",
+                        connected_entity
+                    ));
+                }
+                ComponentData::JointHinge {
+                    connected_entity,
+                    axis,
+                    limits,
+                } => {
+                    code.push_str(&format!(
+                        "        // [BerryCode:JointHinge] connected_entity={:?} axis=[{:.3},{:.3},{:.3}] limits={:?}\n",
+                        connected_entity, axis[0], axis[1], axis[2], limits
+                    ));
+                }
+                ComponentData::JointSpring {
+                    connected_entity,
+                    stiffness,
+                    damping,
+                    rest_length,
+                } => {
+                    code.push_str(&format!(
+                        "        // [BerryCode:JointSpring] connected_entity={:?} stiffness={:.3} damping={:.3} rest_length={:.3}\n",
+                        connected_entity, stiffness, damping, rest_length
+                    ));
+                }
+                ComponentData::NavMeshAgent {
+                    speed,
+                    radius,
+                    height,
+                    max_slope,
+                } => {
+                    code.push_str(&format!(
+                        "        // [BerryCode:NavMeshAgent] speed={:.3} radius={:.3} height={:.3} max_slope={:.3}\n",
+                        speed, radius, height, max_slope
+                    ));
+                }
             }
         }
 

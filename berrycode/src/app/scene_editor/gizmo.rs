@@ -336,6 +336,13 @@ pub fn aabb_for_entity(
                 // Data-only, no footprint.
                 continue;
             }
+            ComponentData::JointFixed { .. }
+            | ComponentData::JointHinge { .. }
+            | ComponentData::JointSpring { .. }
+            | ComponentData::NavMeshAgent { .. } => {
+                // Data-only; no visual footprint.
+                continue;
+            }
         }
     }
     None
