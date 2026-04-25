@@ -152,7 +152,7 @@ impl BrpClient {
                         "DirectionalLight", "PointLight", "SpotLight", "AmbientLight",
                         "Mesh3d", "Mesh2d", "Sprite", "Text2d", "Text",
                         "PrimaryEguiContext", "EguiContext",
-                        "Window", "PrimaryWindow",
+                        "Window", "PrimaryWindow", "Monitor",
                     ];
                     let mut inferred: Option<String> = None;
                     for comp in &comp_list {
