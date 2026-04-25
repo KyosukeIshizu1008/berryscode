@@ -146,23 +146,58 @@ impl BrpClient {
                         Err(_) => None,
                     }
                 } else {
-                    // Infer label from notable component types
-                    let label_candidates = [
-                        "Camera3d", "Camera2d", "Camera",
-                        "DirectionalLight", "PointLight", "SpotLight", "AmbientLight",
-                        "Mesh3d", "Mesh2d", "Sprite", "Text2d", "Text",
-                        "PrimaryEguiContext", "EguiContext",
-                        "Window", "PrimaryWindow", "Monitor",
-                    ];
+                    // Infer label from component types with priority ordering
+                    // Internal BerryCode markers take priority for clear identification
                     let mut inferred: Option<String> = None;
+
+                    // Check BerryCode internal markers first
+                    let internal_markers = [
+                        ("PreviewCamera", "[Internal: 3D Preview Camera]"),
+                        ("SceneEditorCamera", "[Internal: Scene Editor Camera]"),
+                        ("SceneEditorLight", "[Internal: Scene Editor Light]"),
+                        ("SceneEditorObject", "[Internal: Scene Object]"),
+                        ("MaterialPreviewCamera", "[Internal: Material Preview Camera]"),
+                        ("PrimaryEguiContext", "[Internal: UI Camera]"),
+                    ];
                     for comp in &comp_list {
-                        // Extract short type name (last segment after ::)
                         let short = comp.rsplit("::").next().unwrap_or(comp);
-                        if label_candidates.contains(&short) {
-                            inferred = Some(format!("[{}]", short));
-                            break;
+                        for (marker, label) in &internal_markers {
+                            if short == *marker {
+                                inferred = Some(label.to_string());
+                                break;
+                            }
+                        }
+                        if inferred.is_some() { break; }
+                    }
+
+                    // Fallback: infer from Bevy component types
+                    if inferred.is_none() {
+                        let bevy_labels = [
+                            ("Camera3d", "[Camera3d]"),
+                            ("Camera2d", "[Camera2d]"),
+                            ("Camera", "[Camera]"),
+                            ("DirectionalLight", "[DirectionalLight]"),
+                            ("PointLight", "[PointLight]"),
+                            ("SpotLight", "[SpotLight]"),
+                            ("AmbientLight", "[AmbientLight]"),
+                            ("Mesh3d", "[Mesh3d]"),
+                            ("Mesh2d", "[Mesh2d]"),
+                            ("Sprite", "[Sprite]"),
+                            ("Window", "[Window]"),
+                            ("Monitor", "[Monitor]"),
+                        ];
+                        for comp in &comp_list {
+                            let short = comp.rsplit("::").next().unwrap_or(comp);
+                            for (name, label) in &bevy_labels {
+                                if short == *name {
+                                    inferred = Some(label.to_string());
+                                    break;
+                                }
+                            }
+                            if inferred.is_some() { break; }
                         }
                     }
+
                     inferred
                 };
 
