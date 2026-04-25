@@ -86,20 +86,74 @@ impl BrpClient {
 
     /// List named entities (user-created, not internal Bevy observers).
     ///
-    /// Single BRP call. Component lists are fetched lazily on selection.
+    /// Fetches all entities, then filters client-side for those with a Name component.
     pub async fn list_entities(&mut self) -> Result<Vec<EntityInfo>> {
-        let result = self
-            .send_request(
-                "world.query",
-                Some(json!({
-                    "data": {
-                        "components": ["bevy_ecs::name::Name"]
-                    }
-                })),
-            )
+        // Get all entity IDs
+        let all = self
+            .send_request("world.query", Some(json!({ "data": {} })))
             .await?;
 
-        let entities = Self::parse_query_response(&result);
+        let mut entities = Vec::new();
+        if let Some(rows) = all.as_array() {
+            for row in rows {
+                let id = match row.get("entity").and_then(|e| e.as_u64()) {
+                    Some(id) => id,
+                    None => continue,
+                };
+
+                // List components for this entity
+                let comps = match self
+                    .send_request("world.list_components", Some(json!({ "entity": id })))
+                    .await
+                {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+
+                let comp_list: Vec<String> = comps
+                    .as_array()
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                    .unwrap_or_default();
+
+                // Skip internal entities (observers, systems, etc.)
+                let is_internal = comp_list.iter().any(|c| {
+                    c.contains("Observer")
+                        || c.contains("SystemIdMarker")
+                        || c.contains("RegisteredSystem")
+                });
+                if is_internal {
+                    continue;
+                }
+
+                // Get name if present
+                let name = if comp_list.iter().any(|c| c.contains("::Name")) {
+                    match self
+                        .send_request(
+                            "world.get_components",
+                            Some(json!({ "entity": id, "components": ["bevy_ecs::name::Name"] })),
+                        )
+                        .await
+                    {
+                        Ok(val) => val
+                            .get("components")
+                            .or(Some(&val))
+                            .and_then(|c| c.get("bevy_ecs::name::Name"))
+                            .and_then(|n| n.get("name").or(n.get("hash")).and_then(|_| n.get("name")))
+                            .and_then(|n| n.as_str())
+                            .map(String::from),
+                        Err(_) => None,
+                    }
+                } else {
+                    None
+                };
+
+                entities.push(EntityInfo {
+                    id,
+                    components: comp_list,
+                    name,
+                });
+            }
+        }
         Ok(entities)
     }
 
