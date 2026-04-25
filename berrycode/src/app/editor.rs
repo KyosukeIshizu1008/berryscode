@@ -381,7 +381,7 @@ impl BerryCodeApp {
                                 job.wrap.max_width = f32::INFINITY;
                                 job
                             };
-                            ui.fonts(|f| f.layout_job(job))
+                            ui.fonts_mut(|f| f.layout_job(job))
                         })
                         .show(ui);
 

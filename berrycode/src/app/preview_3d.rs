@@ -2,9 +2,9 @@
 //! Renders GLB/GLTF models to an off-screen texture displayed in egui
 
 use bevy::prelude::*;
-use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
-use bevy::render::view::RenderLayers;
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{TextureFormatPixelInfo as _, ImageSampler}; use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
+use bevy::camera::visibility::RenderLayers;
 
 /// Resource tracking the 3D preview state
 #[derive(Resource, Default)]
@@ -66,7 +66,7 @@ pub fn setup_preview_render_target(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::render::camera::RenderTarget::Image(image_handle.clone().into()),
+            target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0)),
             order: -2,
             ..default()
@@ -126,7 +126,7 @@ pub fn manage_preview_scene(
 
     if !needs_load {
         // Update camera orbit position each frame
-        if let Ok(mut camera_transform) = camera_query.get_single_mut() {
+        if let Ok(mut camera_transform) = camera_query.single_mut() {
             let yaw = preview.orbit_yaw;
             let pitch = preview.orbit_pitch;
             let distance = preview.orbit_distance;

@@ -14,7 +14,7 @@ use super::bevy_render::*;
 use crate::app::scene_editor::model::*;
 use crate::app::BerryCodeApp;
 use bevy::prelude::*;
-use bevy::render::view::RenderLayers;
+use bevy::camera::visibility::RenderLayers;
 
 /// Sync the editor `SceneModel` to Bevy entities (spawn / update / despawn).
 pub fn sync_scene_to_bevy(
@@ -638,16 +638,16 @@ fn load_gltf_mesh_for_bevy(
         .collect();
 
     let mut bevy_mesh = Mesh::new(
-        bevy::render::mesh::PrimitiveTopology::TriangleList,
-        bevy::render::render_asset::RenderAssetUsages::MAIN_WORLD
-            | bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
+        bevy::mesh::PrimitiveTopology::TriangleList,
+        bevy::asset::RenderAssetUsages::MAIN_WORLD
+            | bevy::asset::RenderAssetUsages::RENDER_WORLD,
     );
     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, scaled_positions);
     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals);
     bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs);
 
     if let Some(indices) = data.indices {
-        bevy_mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
+        bevy_mesh.insert_indices(bevy::mesh::Indices::U32(indices));
     }
 
     let mesh_handle = meshes.add(bevy_mesh);
@@ -687,8 +687,8 @@ fn load_gltf_mesh_for_bevy(
                 bevy::render::render_resource::TextureDimension::D2,
                 rgba_pixels,
                 bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
-                bevy::render::render_asset::RenderAssetUsages::MAIN_WORLD
-                    | bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
+                bevy::asset::RenderAssetUsages::MAIN_WORLD
+                    | bevy::asset::RenderAssetUsages::RENDER_WORLD,
             );
             Some(bevy_images.add(bevy_image))
         });

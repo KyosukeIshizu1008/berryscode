@@ -7,9 +7,9 @@
 //! render layer.
 
 use bevy::prelude::*;
-use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
-use bevy::render::view::RenderLayers;
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{TextureFormatPixelInfo as _, ImageSampler}; use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
+use bevy::camera::visibility::RenderLayers;
 use std::collections::HashMap;
 
 /// Resource holding the scene editor's render state.
@@ -160,7 +160,7 @@ pub fn setup_scene_editor_render(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::render::camera::RenderTarget::Image(image_handle.clone().into()),
+            target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.137, 0.149, 0.176, 1.0)),
             order: -2,
             ..default()
@@ -207,11 +207,11 @@ pub fn update_scene_editor_camera(
     camera_entity_q: Query<Entity, With<SceneEditorCamera>>,
 ) {
     // Keep the editor light's shadow flag in sync with the resource.
-    if let Ok(mut light) = light_q.get_single_mut() {
+    if let Ok(mut light) = light_q.single_mut() {
         light.shadows_enabled = state.shadows_enabled;
     }
 
-    if let Ok((mut t, mut proj)) = q.get_single_mut() {
+    if let Ok((mut t, mut proj)) = q.single_mut() {
         let yaw = state.orbit_yaw;
         let pitch = state.orbit_pitch;
         let d = state.orbit_distance;
@@ -225,7 +225,7 @@ pub fn update_scene_editor_camera(
         // Swap projection based on ortho flag.
         if state.ortho {
             *proj = Projection::Orthographic(OrthographicProjection {
-                scaling_mode: bevy::render::camera::ScalingMode::FixedVertical {
+                scaling_mode: bevy::camera::ScalingMode::FixedVertical {
                     viewport_height: state.ortho_scale * 2.0,
                 },
                 ..OrthographicProjection::default_3d()
@@ -244,7 +244,7 @@ pub fn update_scene_editor_camera(
     // When a skybox HDR path is set, attempt to load it via AssetServer and
     // insert a Skybox component on the camera. Also boost ambient light to
     // approximate image-based lighting (IBL).
-    if let Ok(cam_entity) = camera_entity_q.get_single() {
+    if let Ok(cam_entity) = camera_entity_q.single() {
         let skybox_path_cloned = state.skybox_path.clone();
         if let Some(ref path) = skybox_path_cloned {
             // Load skybox image if path changed or not yet loaded.
@@ -268,8 +268,8 @@ pub fn update_scene_editor_camera(
                 target: state
                     .render_target
                     .as_ref()
-                    .map(|h| bevy::render::camera::RenderTarget::Image(h.clone().into()))
-                    .unwrap_or(bevy::render::camera::RenderTarget::default()),
+                    .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
+                    .unwrap_or(bevy::camera::RenderTarget::default()),
                 clear_color,
                 order: -2,
                 ..default()
@@ -290,8 +290,8 @@ pub fn update_scene_editor_camera(
                 target: state
                     .render_target
                     .as_ref()
-                    .map(|h| bevy::render::camera::RenderTarget::Image(h.clone().into()))
-                    .unwrap_or(bevy::render::camera::RenderTarget::default()),
+                    .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
+                    .unwrap_or(bevy::camera::RenderTarget::default()),
                 clear_color,
                 order: -2,
                 ..default()
@@ -305,18 +305,18 @@ pub fn update_scene_editor_camera(
     }
 
     // Apply bloom and tonemapping post-processing to the scene editor camera.
-    if let Ok(cam_entity) = camera_entity_q.get_single() {
+    if let Ok(cam_entity) = camera_entity_q.single() {
         if state.bloom_enabled {
             commands
                 .entity(cam_entity)
-                .insert(bevy::core_pipeline::bloom::Bloom {
+                .insert(bevy::post_process::bloom::Bloom {
                     intensity: state.bloom_intensity,
                     ..default()
                 });
         } else {
             commands
                 .entity(cam_entity)
-                .remove::<bevy::core_pipeline::bloom::Bloom>();
+                .remove::<bevy::post_process::bloom::Bloom>();
         }
 
         let tm = match state.tonemapping {
@@ -342,7 +342,7 @@ pub fn update_scene_editor_camera(
 
         // --- TAA (Temporal Anti-Aliasing) ---
         {
-            use bevy::core_pipeline::experimental::taa::TemporalAntiAliasing;
+            use bevy::anti_alias::taa::TemporalAntiAliasing;
             if state.taa_enabled {
                 commands
                     .entity(cam_entity)
@@ -370,7 +370,7 @@ pub fn update_scene_editor_camera(
 
         // --- Depth of Field ---
         {
-            use bevy::core_pipeline::dof::{DepthOfField, DepthOfFieldMode};
+            use bevy::post_process::dof::{DepthOfField, DepthOfFieldMode};
             if state.dof_enabled {
                 commands.entity(cam_entity).insert(DepthOfField {
                     focal_distance: state.dof_focus_distance,

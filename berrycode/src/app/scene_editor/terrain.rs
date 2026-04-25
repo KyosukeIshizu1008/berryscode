@@ -59,7 +59,7 @@ pub fn generate_terrain_mesh(
     world_size: [f32; 2],
 ) -> bevy::prelude::Mesh {
     use bevy::prelude::Mesh;
-    use bevy::render::mesh::{Indices, PrimitiveTopology};
+    use bevy::mesh::{Indices, PrimitiveTopology};
 
     let res = resolution as usize;
     let vertex_count = res * res;
@@ -102,7 +102,7 @@ pub fn generate_terrain_mesh(
 
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
-        bevy::render::render_asset::RenderAssetUsages::default(),
+        bevy::asset::RenderAssetUsages::default(),
     );
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);

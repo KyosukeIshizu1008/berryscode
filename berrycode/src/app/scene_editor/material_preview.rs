@@ -5,9 +5,9 @@
 //! kept as a fallback (used when the GPU preview texture is not yet ready).
 
 use bevy::prelude::*;
-use bevy::render::render_asset::RenderAssetUsages;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
-use bevy::render::view::RenderLayers;
+use bevy::asset::RenderAssetUsages;
+use bevy::image::{TextureFormatPixelInfo as _, ImageSampler}; use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
+use bevy::camera::visibility::RenderLayers;
 
 // ---------------------------------------------------------------------------
 // Bevy Resource: GPU material preview state
@@ -95,7 +95,7 @@ pub fn setup_material_preview(
     commands.spawn((
         Camera3d::default(),
         Camera {
-            target: bevy::render::camera::RenderTarget::Image(image_handle.clone().into()),
+            target: bevy::camera::RenderTarget::Image(image_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::srgba(0.12, 0.13, 0.14, 1.0)),
             order: -3,
             ..default()
@@ -151,7 +151,7 @@ pub fn update_material_preview(
     }
     preview.dirty = false;
 
-    if let Ok(mat_handle) = sphere_q.get_single() {
+    if let Ok(mat_handle) = sphere_q.single() {
         if let Some(mat) = materials.get_mut(&mat_handle.0) {
             mat.base_color = Color::srgb(
                 preview.current_color[0],

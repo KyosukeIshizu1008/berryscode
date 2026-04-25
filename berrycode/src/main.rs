@@ -51,7 +51,7 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "BerryCode - Bevy IDE".into(),
-                        resolution: (1400.0, 900.0).into(),
+                        resolution: (1400, 900).into(),
                         ..default()
                     }),
                     exit_condition: bevy::window::ExitCondition::DontExit,

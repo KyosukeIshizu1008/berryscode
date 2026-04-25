@@ -391,7 +391,7 @@ fn setup_player(mut commands: Commands) {
 }
 
 fn grab_cursor(mut windows: Query<&mut Window, With<PrimaryWindow>>) {
-    if let Ok(mut window) = windows.get_single_mut() {
+    if let Ok(mut window) = windows.single_mut() {
         window.cursor_options.grab_mode = CursorGrabMode::Locked;
         window.cursor_options.visible = false;
     }
@@ -402,7 +402,7 @@ fn toggle_cursor_grab(
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
-        if let Ok(mut window) = windows.get_single_mut() {
+        if let Ok(mut window) = windows.single_mut() {
             let grabbed = window.cursor_options.grab_mode != CursorGrabMode::None;
             window.cursor_options.grab_mode = if grabbed { CursorGrabMode::None } else { CursorGrabMode::Locked };
             window.cursor_options.visible = grabbed;
@@ -415,7 +415,7 @@ fn mouse_look(
     mut player_q: Query<(&mut Transform, &mut Player)>,
     windows: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let Ok(window) = windows.get_single() else { return; };
+    let Ok(window) = windows.single() else { return; };
     if window.cursor_options.grab_mode == CursorGrabMode::None {
         motion_events.clear();
         return;
@@ -426,7 +426,7 @@ fn mouse_look(
         delta += ev.delta;
     }
 
-    if let Ok((mut transform, mut player)) = player_q.get_single_mut() {
+    if let Ok((mut transform, mut player)) = player_q.single_mut() {
         player.yaw -= delta.x * MOUSE_SENSITIVITY;
         player.pitch -= delta.y * MOUSE_SENSITIVITY;
         player.pitch = player.pitch.clamp(-1.5, 1.5);
@@ -441,7 +441,7 @@ fn player_movement(
     time: Res<Time>,
     mut player_q: Query<(&mut Transform, &mut Player)>,
 ) {
-    let Ok((mut transform, mut player)) = player_q.get_single_mut() else { return; };
+    let Ok((mut transform, mut player)) = player_q.single_mut() else { return; };
 
     let forward = Vec3::new(player.yaw.sin(), 0.0, player.yaw.cos()) * -1.0;
     let right = Vec3::new(player.yaw.cos(), 0.0, -player.yaw.sin());
@@ -471,7 +471,7 @@ fn player_movement(
 }
 
 fn apply_gravity(time: Res<Time>, mut player_q: Query<(&mut Transform, &mut Player)>) {
-    let Ok((mut transform, mut player)) = player_q.get_single_mut() else { return; };
+    let Ok((mut transform, mut player)) = player_q.single_mut() else { return; };
 
     player.velocity_y += GRAVITY * time.delta_secs();
     transform.translation.y += player.velocity_y * time.delta_secs();

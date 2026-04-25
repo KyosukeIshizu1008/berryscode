@@ -2293,7 +2293,7 @@ pub fn berry_ui_system(
             preview_scene.orbit_distance = orbit_zoom * 3.0;
 
             if let Some(handle) = preview_scene.render_target.clone() {
-                let texture_id = egui_ctx.add_image(handle);
+                let texture_id = egui_ctx.add_image(bevy_egui::EguiTextureHandle::Strong(handle));
                 app.editor_tabs[idx].gpu_preview_texture_id = Some(texture_id);
             }
         } else {
@@ -2337,7 +2337,7 @@ pub fn berry_ui_system(
         scene_render.dof_aperture = app.scene_dof_aperture;
 
         if let Some(handle) = scene_render.render_target.clone() {
-            let tex_id = egui_ctx.add_image(handle);
+            let tex_id = egui_ctx.add_image(bevy_egui::EguiTextureHandle::Strong(handle));
             scene_render.egui_texture_id = Some(tex_id);
             app.scene_view_texture_id = Some(tex_id);
         }
@@ -2357,7 +2357,7 @@ pub fn berry_ui_system(
         }
 
         if let Some(handle) = mat_preview.render_target.clone() {
-            let tex_id = egui_ctx.add_image(handle);
+            let tex_id = egui_ctx.add_image(bevy_egui::EguiTextureHandle::Strong(handle));
             mat_preview.egui_texture_id = Some(tex_id);
             app.material_preview_texture_id = Some(tex_id);
         }
