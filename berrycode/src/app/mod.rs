@@ -1725,9 +1725,22 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
     Ok(())
 }
 
-/// Bevy startup system: configure egui fonts and style
-pub fn setup_egui_fonts_and_style(mut egui_ctx: bevy_egui::EguiContexts) {
-    let ctx = egui_ctx.ctx_mut().unwrap();
+/// Resource to track whether egui fonts have been configured.
+#[derive(bevy::prelude::Resource, Default)]
+pub struct EguiFontsConfigured(pub bool);
+
+/// Bevy update system: configure egui fonts and style (runs once on first successful access).
+pub fn setup_egui_fonts_and_style(
+    mut egui_ctx: bevy_egui::EguiContexts,
+    mut configured: bevy::prelude::ResMut<EguiFontsConfigured>,
+) {
+    if configured.0 {
+        return;
+    }
+    let Ok(ctx) = egui_ctx.ctx_mut() else {
+        return;
+    };
+    configured.0 = true;
 
     // Setup fonts with Japanese support
     let mut fonts = egui::FontDefinitions::default();

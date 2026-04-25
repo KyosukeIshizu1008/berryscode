@@ -35,15 +35,16 @@ impl Plugin for BerryCodePlugin {
             .init_resource::<ModelPreviewScene>()
             .init_resource::<SceneEditorRender>()
             .init_resource::<MaterialPreviewRender>()
+            .init_resource::<crate::app::EguiFontsConfigured>()
             .add_systems(
                 Startup,
                 (
-                    setup_egui_fonts_and_style,
                     setup_preview_render_target,
                     setup_scene_editor_render,
                     setup_material_preview,
                 ),
             )
+            .add_systems(Update, setup_egui_fonts_and_style)
             .add_systems(Update, berry_ui_system)
             .add_systems(Update, demo_capture_system.after(berry_ui_system))
             .add_systems(Update, manage_preview_scene.after(berry_ui_system))
