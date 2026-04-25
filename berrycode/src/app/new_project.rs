@@ -194,14 +194,9 @@ impl BerryCodeApp {
         );
         fs::write(root.join("Cargo.toml"), cargo_toml)?;
 
-        // Copy fox.glb asset for 3D templates
-        if matches!(
-            template,
-            ProjectTemplate::Empty3D | ProjectTemplate::Walker3D
-        ) {
-            let fox_bytes = include_bytes!("../../assets/_preview/fox.glb");
-            let _ = fs::write(root.join("assets/fox.glb"), fox_bytes);
-        }
+        // Copy fox.glb asset to all project templates
+        let fox_bytes = include_bytes!("../../assets/_preview/fox.glb");
+        let _ = fs::write(root.join("assets/fox.glb"), fox_bytes);
 
         // src/main.rs based on template
         let main_rs = template_main_rs(template);
