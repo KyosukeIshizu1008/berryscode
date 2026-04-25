@@ -1733,13 +1733,11 @@ pub struct EguiFontsConfigured(pub bool);
 pub fn setup_egui_fonts_and_style(
     mut egui_ctx: bevy_egui::EguiContexts,
     mut configured: bevy::prelude::ResMut<EguiFontsConfigured>,
-) {
+) -> bevy::prelude::Result {
     if configured.0 {
-        return;
+        return Ok(());
     }
-    let Ok(ctx) = egui_ctx.ctx_mut() else {
-        return;
-    };
+    let ctx = egui_ctx.ctx_mut()?;
     configured.0 = true;
 
     // Setup fonts with Japanese support
@@ -1842,6 +1840,7 @@ pub fn setup_egui_fonts_and_style(
     BerryCodeApp::setup_egui_style(ctx);
 
     tracing::info!("egui fonts and style configured");
+    Ok(())
 }
 
 /// Main UI update system for Bevy
@@ -1856,7 +1855,7 @@ pub fn berry_ui_system(
     mut mat_preview: bevy::ecs::system::ResMut<
         scene_editor::material_preview::MaterialPreviewRender,
     >,
-) {
+) -> bevy::prelude::Result {
     // Handle window close — check for unsaved files
     let mut exiting = false;
     for _event in close_events.read() {
@@ -1941,11 +1940,11 @@ pub fn berry_ui_system(
 
     // After sending AppExit, skip UI rendering to avoid accessing destroyed context
     if exiting {
-        return;
+        return Ok(());
     }
 
     {
-        let ctx = egui_ctx.ctx_mut().unwrap();
+        let ctx = egui_ctx.ctx_mut()?;
 
         // Global panel switching: Ctrl+1..9 — processed BEFORE any panel rendering
         // so it works regardless of which widget has focus
@@ -1983,7 +1982,7 @@ pub fn berry_ui_system(
             app.render_project_picker(ctx);
             // Still render the New Project dialog if open
             app.render_new_project_dialog(ctx);
-            return;
+            return Ok(());
         }
 
         // Initialize Git repository on first update
@@ -2375,6 +2374,7 @@ pub fn berry_ui_system(
             app.material_preview_texture_id = Some(tex_id);
         }
     }
+    Ok(())
 }
 
 /// Bevy system for demo capture — uses Screenshot API to read GPU framebuffer.

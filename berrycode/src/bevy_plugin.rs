@@ -44,16 +44,18 @@ impl Plugin for BerryCodePlugin {
                     setup_material_preview,
                 ),
             )
-            .add_systems(Update, setup_egui_fonts_and_style)
-            .add_systems(Update, berry_ui_system)
-            .add_systems(Update, demo_capture_system.after(berry_ui_system))
-            .add_systems(Update, manage_preview_scene.after(berry_ui_system))
+            .add_systems(bevy_egui::EguiPrimaryContextPass, (
+                setup_egui_fonts_and_style,
+                berry_ui_system.after(setup_egui_fonts_and_style),
+            ))
+            .add_systems(Update, demo_capture_system)
+            .add_systems(Update, manage_preview_scene)
             .add_systems(
                 Update,
                 propagate_preview_render_layers.after(manage_preview_scene),
             )
-            .add_systems(Update, update_scene_editor_camera.after(berry_ui_system))
-            .add_systems(Update, sync_scene_to_bevy.after(berry_ui_system))
-            .add_systems(Update, update_material_preview.after(berry_ui_system));
+            .add_systems(Update, update_scene_editor_camera)
+            .add_systems(Update, sync_scene_to_bevy)
+            .add_systems(Update, update_material_preview);
     }
 }

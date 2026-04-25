@@ -59,11 +59,16 @@ fn main() {
                 }),
         )
         .add_plugins(BerryCodePlugin)
+        .add_systems(PreStartup, setup_camera)
         .add_systems(Startup, set_window_icon)
         .run();
 
     // Clean up lock file on exit
     let _ = fs::remove_file(&lock_path);
+}
+
+fn setup_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
 }
 
 fn set_window_icon(windows: Option<NonSend<WinitWindows>>) {
