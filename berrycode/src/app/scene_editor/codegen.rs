@@ -538,13 +538,21 @@ pub fn patch_main_rs_setup(main_code: &str, scene: &SceneModel) -> String {
                     glb_code.push_str(&format!(
                         "    commands.spawn((\n\
                          \x20       SceneRoot(asset_server.load(\"{}#Scene0\")),\n\
-                         \x20       Transform::from_xyz({:.3}, {:.3}, {:.3}),\n\
+                         \x20       Transform::from_xyz({:.3}, {:.3}, {:.3})\n\
+                         \x20           .with_rotation(Quat::from_euler(EulerRot::XYZ, {:.3}, {:.3}, {:.3}))\n\
+                         \x20           .with_scale(Vec3::new({:.3}, {:.3}, {:.3})),\n\
                          \x20       Name::new(\"{}\"),\n\
                          \x20   ));\n",
                         asset_rel,
                         t.translation[0],
                         t.translation[1],
                         t.translation[2],
+                        t.rotation_euler[0],
+                        t.rotation_euler[1],
+                        t.rotation_euler[2],
+                        t.scale[0],
+                        t.scale[1],
+                        t.scale[2],
                         entity.name,
                     ));
                 }
