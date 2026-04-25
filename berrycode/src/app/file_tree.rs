@@ -803,6 +803,36 @@ impl BerryCodeApp {
                             close_menu = true;
                         }
 
+                        if ui.button(self.tr("Move to...")).clicked() {
+                            let src = std::path::PathBuf::from(&path);
+                            if let Some(dest_dir) = rfd::FileDialog::new()
+                                .set_title("Move to folder")
+                                .set_directory(src.parent().unwrap_or(std::path::Path::new("/")))
+                                .pick_folder()
+                            {
+                                let file_name = src.file_name().unwrap_or_default();
+                                let dest = dest_dir.join(file_name);
+                                if src != dest && src.exists() && !dest.exists() {
+                                    match std::fs::rename(&src, &dest) {
+                                        Ok(_) => {
+                                            self.status_message =
+                                                format!("Moved to {}", dest_dir.display());
+                                            self.status_message_timestamp =
+                                                Some(std::time::Instant::now());
+                                            self.file_tree_cache.clear();
+                                            self.file_tree_load_pending = true;
+                                        }
+                                        Err(e) => {
+                                            self.status_message = format!("Move failed: {}", e);
+                                            self.status_message_timestamp =
+                                                Some(std::time::Instant::now());
+                                        }
+                                    }
+                                }
+                            }
+                            close_menu = true;
+                        }
+
                         if ui.button(self.tr("Delete")).clicked() {
                             let is_dir = std::path::Path::new(&path).is_dir();
                             let result = if is_dir {
