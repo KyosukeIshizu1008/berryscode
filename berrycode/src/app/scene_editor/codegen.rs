@@ -61,6 +61,7 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
     code.push_str("    mut commands: Commands,\n");
     code.push_str("    mut meshes: ResMut<Assets<Mesh>>,\n");
     code.push_str("    mut materials: ResMut<Assets<StandardMaterial>>,\n");
+    code.push_str("    asset_server: Res<AssetServer>,\n");
     code.push_str(") {\n");
 
     for entity in scene.entities.values() {
@@ -189,10 +190,18 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     ));
                 }
                 ComponentData::MeshFromFile { path, .. } => {
-                    code.push_str(&format!(
-                        "        // [BerryCode:MeshFromFile] path={}\n",
-                        path
-                    ));
+                    if !path.is_empty() {
+                        let asset_rel = path
+                            .replace('\\', "/")
+                            .split("/assets/")
+                            .nth(1)
+                            .unwrap_or(path)
+                            .to_string();
+                        code.push_str(&format!(
+                            "        SceneRoot(asset_server.load(\"{}#Scene0\")),\n",
+                            asset_rel
+                        ));
+                    }
                 }
                 ComponentData::AudioSource {
                     path,

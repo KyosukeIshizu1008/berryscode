@@ -21,6 +21,7 @@ pub fn sync_scene_to_bevy(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: ResMut<Assets<Image>>,
     asset_server: Res<AssetServer>,
     app: bevy::ecs::system::NonSend<BerryCodeApp>,
     mut state: ResMut<SceneEditorRender>,
@@ -47,6 +48,14 @@ pub fn sync_scene_to_bevy(
     }
 
     // Topology changed: despawn everything and respawn. Inefficient but simple.
+    tracing::info!(
+        "Scene sync: hash changed, respawning {} entities",
+        app.scene_model.entities.len()
+    );
+    for (id, e) in &app.scene_model.entities {
+        let comp_labels: Vec<&str> = e.components.iter().map(|c| c.label()).collect();
+        tracing::info!("  Entity {} '{}': {:?}", id, e.name, comp_labels);
+    }
     let entities_to_despawn: Vec<Entity> = state.spawned_entities.values().copied().collect();
     for e in entities_to_despawn {
         commands.entity(e).despawn_recursive();
@@ -66,10 +75,12 @@ pub fn sync_scene_to_bevy(
             &mut commands,
             &mut meshes,
             &mut materials,
+            &mut images,
             &asset_server,
             transform,
             scene_entity,
             *id,
+            &app.root_path,
         );
 
         state.spawned_entities.insert(*id, bevy_entity);
@@ -144,10 +155,12 @@ fn spawn_scene_entity(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    images: &mut Assets<Image>,
     asset_server: &AssetServer,
     transform: Transform,
     scene_entity: &SceneEntity,
     id: u64,
+    project_root: &str,
 ) -> Entity {
     let mut entity = commands.spawn((
         transform,
@@ -329,14 +342,37 @@ fn spawn_scene_entity(
                 entity.insert((Mesh3d(mesh), MeshMaterial3d(mat)));
             }
             ComponentData::MeshFromFile { path, .. } => {
-                let asset_path = if path.starts_with('/') || path.contains(":\\") {
-                    format!("file://{}", path)
-                } else {
+                let abs_path = if path.is_empty() {
+                    String::new()
+                } else if path.starts_with('/') || path.contains(":\\") {
                     path.clone()
+                } else {
+                    format!("{}/{}", project_root, path)
                 };
-                let scene_handle: Handle<Scene> =
-                    asset_server.load(format!("{}#Scene0", asset_path));
-                entity.insert(SceneRoot(scene_handle));
+
+                let loaded = if !abs_path.is_empty() {
+                    tracing::info!("Loading GLB mesh: {}", abs_path);
+                    let result = load_gltf_mesh_for_bevy(&abs_path, meshes, materials, images);
+                    if result.is_none() {
+                        tracing::warn!("Failed to load GLB mesh: {}", abs_path);
+                    }
+                    result
+                } else {
+                    None
+                };
+
+                if let Some((mesh_handle, mat_handle)) = loaded {
+                    tracing::info!("GLB mesh loaded successfully");
+                    entity.insert((Mesh3d(mesh_handle), MeshMaterial3d(mat_handle)));
+                } else {
+                    // Fallback placeholder
+                    let mesh = meshes.add(Cuboid::new(0.5, 0.5, 0.5));
+                    let mat = materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.6, 0.3, 0.8),
+                        ..default()
+                    });
+                    entity.insert((Mesh3d(mesh), MeshMaterial3d(mat)));
+                }
             }
             ComponentData::AudioSource {
                 path,
@@ -493,6 +529,176 @@ fn spawn_scene_entity(
     }
 
     entity.id()
+}
+
+/// Extracted GLTF mesh data (testable without Bevy Assets).
+pub struct GltfMeshData {
+    pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
+    pub uvs: Vec<[f32; 2]>,
+    pub indices: Option<Vec<u32>>,
+    pub base_color: [f32; 4],
+    pub metallic: f32,
+    pub roughness: f32,
+}
+
+/// Extract mesh data from a GLTF/GLB file. Pure function, no Bevy dependency.
+pub fn extract_gltf_mesh_data(file_path: &str) -> Option<GltfMeshData> {
+    let (document, buffers, _images) = gltf::import(file_path).ok()?;
+
+    let gltf_mesh = document.meshes().next()?;
+    let primitive = gltf_mesh.primitives().next()?;
+
+    // Read each attribute with a fresh reader (reader is consumed by iterators)
+    let positions: Vec<[f32; 3]> = {
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        reader.read_positions()?.collect()
+    };
+
+    let normals: Vec<[f32; 3]> = {
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        reader
+            .read_normals()
+            .map(|n| n.collect())
+            .unwrap_or_else(|| vec![[0.0, 1.0, 0.0]; positions.len()])
+    };
+
+    let uvs: Vec<[f32; 2]> = {
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        reader
+            .read_tex_coords(0)
+            .map(|tc| tc.into_f32().collect())
+            .unwrap_or_else(|| vec![[0.0, 0.0]; positions.len()])
+    };
+
+    let indices: Option<Vec<u32>> = {
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        reader.read_indices().map(|i| i.into_u32().collect())
+    };
+
+    let mat = primitive.material();
+    let pbr = mat.pbr_metallic_roughness();
+    let base = pbr.base_color_factor();
+
+    Some(GltfMeshData {
+        positions,
+        normals,
+        uvs,
+        indices,
+        base_color: base,
+        metallic: pbr.metallic_factor(),
+        roughness: pbr.roughness_factor(),
+    })
+}
+
+/// Load a GLB/GLTF file directly and create Bevy Mesh + StandardMaterial with texture.
+fn load_gltf_mesh_for_bevy(
+    file_path: &str,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    bevy_images: &mut Assets<Image>,
+) -> Option<(Handle<Mesh>, Handle<StandardMaterial>)> {
+    let (document, _buffers, gltf_images) = gltf::import(file_path).ok()?;
+    let data = extract_gltf_mesh_data(file_path)?;
+
+    // Auto-scale large models to fit in the scene (~2 unit size)
+    let mut min = [f32::MAX; 3];
+    let mut max = [f32::MIN; 3];
+    for p in &data.positions {
+        for i in 0..3 {
+            min[i] = min[i].min(p[i]);
+            max[i] = max[i].max(p[i]);
+        }
+    }
+    let extent = (max[0] - min[0])
+        .max(max[1] - min[1])
+        .max(max[2] - min[2])
+        .max(0.001);
+    let auto_scale = if extent > 5.0 { 2.0 / extent } else { 1.0 };
+    let center = [(min[0] + max[0]) * 0.5, min[1], (min[2] + max[2]) * 0.5];
+
+    let scaled_positions: Vec<[f32; 3]> = data
+        .positions
+        .iter()
+        .map(|p| {
+            [
+                (p[0] - center[0]) * auto_scale,
+                (p[1] - center[1]) * auto_scale,
+                (p[2] - center[2]) * auto_scale,
+            ]
+        })
+        .collect();
+
+    let mut bevy_mesh = Mesh::new(
+        bevy::render::mesh::PrimitiveTopology::TriangleList,
+        bevy::render::render_asset::RenderAssetUsages::MAIN_WORLD
+            | bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
+    );
+    bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, scaled_positions);
+    bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, data.normals);
+    bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, data.uvs);
+
+    if let Some(indices) = data.indices {
+        bevy_mesh.insert_indices(bevy::render::mesh::Indices::U32(indices));
+    }
+
+    let mesh_handle = meshes.add(bevy_mesh);
+
+    // Create texture from GLTF embedded image
+    let texture_handle: Option<Handle<Image>> = document
+        .meshes()
+        .next()
+        .and_then(|m| m.primitives().next())
+        .and_then(|prim| {
+            let pbr = prim.material().pbr_metallic_roughness();
+            pbr.base_color_texture()
+        })
+        .and_then(|tex_info| {
+            let img_idx = tex_info.texture().source().index();
+            let img = gltf_images.get(img_idx)?;
+            let rgba_pixels = match img.format {
+                gltf::image::Format::R8G8B8A8 => img.pixels.clone(),
+                gltf::image::Format::R8G8B8 => {
+                    let mut rgba = Vec::with_capacity(img.pixels.len() / 3 * 4);
+                    for chunk in img.pixels.chunks(3) {
+                        rgba.push(chunk[0]);
+                        rgba.push(chunk[1]);
+                        rgba.push(chunk[2]);
+                        rgba.push(255);
+                    }
+                    rgba
+                }
+                _ => return None,
+            };
+            let bevy_image = Image::new(
+                bevy::render::render_resource::Extent3d {
+                    width: img.width,
+                    height: img.height,
+                    depth_or_array_layers: 1,
+                },
+                bevy::render::render_resource::TextureDimension::D2,
+                rgba_pixels,
+                bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+                bevy::render::render_asset::RenderAssetUsages::MAIN_WORLD
+                    | bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
+            );
+            Some(bevy_images.add(bevy_image))
+        });
+
+    let mat_handle = materials.add(StandardMaterial {
+        base_color: Color::srgba(
+            data.base_color[0],
+            data.base_color[1],
+            data.base_color[2],
+            data.base_color[3],
+        ),
+        base_color_texture: texture_handle,
+        metallic: data.metallic,
+        perceptual_roughness: data.roughness,
+        ..default()
+    });
+
+    Some((mesh_handle, mat_handle))
 }
 
 fn compute_scene_hash(scene: &SceneModel) -> u64 {
@@ -840,4 +1046,80 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
         }
     }
     hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_gltf_mesh_data_from_fox() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../berrycode/tests/fixtures/fox_test.glb"
+        );
+        // If test fixture doesn't exist, try the user's project
+        let path = if std::path::Path::new(path).exists() {
+            path.to_string()
+        } else {
+            "/Users/Kyosuke/Test2/assets/fox.glb".to_string()
+        };
+        if !std::path::Path::new(&path).exists() {
+            eprintln!("Skipping test: fox.glb not found at {}", path);
+            return;
+        }
+
+        let data = extract_gltf_mesh_data(&path);
+        assert!(data.is_some(), "extract_gltf_mesh_data returned None");
+        let data = data.unwrap();
+        assert!(!data.positions.is_empty(), "No positions extracted");
+        assert_eq!(
+            data.positions.len(),
+            data.normals.len(),
+            "Position/normal count mismatch"
+        );
+        assert_eq!(
+            data.positions.len(),
+            data.uvs.len(),
+            "Position/uv count mismatch"
+        );
+        println!(
+            "fox.glb: {} positions, {} normals, {} uvs, indices: {:?}, base_color: {:?}",
+            data.positions.len(),
+            data.normals.len(),
+            data.uvs.len(),
+            data.indices.as_ref().map(|i| i.len()),
+            data.base_color,
+        );
+    }
+
+    #[test]
+    fn extract_gltf_mesh_data_bounds() {
+        let path = "/Users/Kyosuke/Test2/assets/fox.glb";
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let data = extract_gltf_mesh_data(path).unwrap();
+        let mut min = [f32::MAX; 3];
+        let mut max = [f32::MIN; 3];
+        for p in &data.positions {
+            for i in 0..3 {
+                min[i] = min[i].min(p[i]);
+                max[i] = max[i].max(p[i]);
+            }
+        }
+        println!("Bounds: min={:?} max={:?}", min, max);
+        println!(
+            "Size: [{}, {}, {}]",
+            max[0] - min[0],
+            max[1] - min[1],
+            max[2] - min[2]
+        );
+    }
+
+    #[test]
+    fn extract_gltf_nonexistent_returns_none() {
+        let result = extract_gltf_mesh_data("/nonexistent/file.glb");
+        assert!(result.is_none());
+    }
 }

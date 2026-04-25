@@ -210,10 +210,41 @@ pub fn aabb_for_entity(
                 let h = Vec3::splat(0.3);
                 return Some((pos - h, pos + h));
             }
-            ComponentData::MeshFromFile { .. } => {
-                // We don't know the real bounds without inspecting the loaded
-                // mesh; use a conservative 1m cube around the origin scaled by
-                // the entity scale.
+            ComponentData::MeshFromFile { path, .. } => {
+                // Try to get real bounds from GLTF data
+                if !path.is_empty() {
+                    if let Some(data) =
+                        crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(path)
+                    {
+                        let mut bmin = [f32::MAX; 3];
+                        let mut bmax = [f32::MIN; 3];
+                        for p in &data.positions {
+                            for i in 0..3 {
+                                bmin[i] = bmin[i].min(p[i]);
+                                bmax[i] = bmax[i].max(p[i]);
+                            }
+                        }
+                        let extent_max = (bmax[0] - bmin[0])
+                            .max(bmax[1] - bmin[1])
+                            .max(bmax[2] - bmin[2])
+                            .max(0.001);
+                        let auto_s = if extent_max > 5.0 {
+                            2.0 / extent_max
+                        } else {
+                            1.0
+                        };
+                        let h = Vec3::new(
+                            (bmax[0] - bmin[0]) * 0.5 * auto_s,
+                            (bmax[1] - bmin[1]) * 0.5 * auto_s,
+                            (bmax[2] - bmin[2]) * 0.5 * auto_s,
+                        ) * scale.abs();
+                        let center_y = (bmax[1] - bmin[1]) * 0.5 * auto_s;
+                        return Some((
+                            pos - h + Vec3::new(0.0, center_y, 0.0),
+                            pos + h + Vec3::new(0.0, center_y, 0.0),
+                        ));
+                    }
+                }
                 let h = Vec3::splat(0.5) * scale.abs();
                 return Some((pos - h, pos + h));
             }
