@@ -125,7 +125,7 @@ impl BrpClient {
                     continue;
                 }
 
-                // Get name if present
+                // Get name: try Name component first, then infer from component types
                 let name = if comp_list.iter().any(|c| c.contains("::Name")) {
                     match self
                         .send_request(
@@ -146,7 +146,24 @@ impl BrpClient {
                         Err(_) => None,
                     }
                 } else {
-                    None
+                    // Infer label from notable component types
+                    let label_candidates = [
+                        "Camera3d", "Camera2d", "Camera",
+                        "DirectionalLight", "PointLight", "SpotLight", "AmbientLight",
+                        "Mesh3d", "Mesh2d", "Sprite", "Text2d", "Text",
+                        "PrimaryEguiContext", "EguiContext",
+                        "Window", "PrimaryWindow",
+                    ];
+                    let mut inferred: Option<String> = None;
+                    for comp in &comp_list {
+                        // Extract short type name (last segment after ::)
+                        let short = comp.rsplit("::").next().unwrap_or(comp);
+                        if label_candidates.contains(&short) {
+                            inferred = Some(format!("[{}]", short));
+                            break;
+                        }
+                    }
+                    inferred
                 };
 
                 entities.push(EntityInfo {
