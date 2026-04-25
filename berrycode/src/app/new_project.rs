@@ -189,10 +189,19 @@ impl BerryCodeApp {
 
         // Cargo.toml with fast compile settings
         let cargo_toml = format!(
-            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nbevy = {{ version = \"0.15\", features = [\"dynamic_linking\"] }}\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
+            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nbevy = {{ version = \"0.18\", features = [\"dynamic_linking\", \"bevy_remote\"] }}\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
             name = project_name
         );
         fs::write(root.join("Cargo.toml"), cargo_toml)?;
+
+        // Copy fox.glb asset for 3D templates
+        if matches!(
+            template,
+            ProjectTemplate::Empty3D | ProjectTemplate::Walker3D
+        ) {
+            let fox_bytes = include_bytes!("../../assets/_preview/fox.glb");
+            let _ = fs::write(root.join("assets/fox.glb"), fox_bytes);
+        }
 
         // src/main.rs based on template
         let main_rs = template_main_rs(template);
@@ -225,10 +234,11 @@ pub fn template_main_rs_for_test(template: ProjectTemplate) -> String {
 fn template_main_rs(template: ProjectTemplate) -> String {
     match template {
         ProjectTemplate::Empty2D => {
-            "use bevy::prelude::*;\n\nmod scenes;\nmod components;\nmod systems;\nmod events;\n\nfn main() {\n    App::new()\n        .add_plugins(DefaultPlugins)\n        .add_plugins(scenes::ScenesPlugin)\n        .add_systems(Startup, setup)\n        .run();\n}\n\nfn setup(mut commands: Commands) {\n    commands.spawn(Camera2d);\n}\n".to_string()
+            "use bevy::prelude::*;\nuse bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};\n\nmod scenes;\nmod components;\nmod systems;\nmod events;\n\nfn main() {\n    App::new()\n        .add_plugins(DefaultPlugins)\n        .add_plugins(RemotePlugin::default())\n        .add_plugins(RemoteHttpPlugin::default())\n        .add_plugins(scenes::ScenesPlugin)\n        .add_systems(Startup, setup)\n        .run();\n}\n\nfn setup(mut commands: Commands) {\n    commands.spawn(Camera2d);\n}\n".to_string()
         }
         ProjectTemplate::Empty3D => {
             r#"use bevy::prelude::*;
+use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 
 mod scenes;
 mod components;
@@ -238,6 +248,8 @@ mod events;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(RemotePlugin::default())
+        .add_plugins(RemoteHttpPlugin::default())
         .add_plugins(scenes::ScenesPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -292,6 +304,7 @@ fn setup(
 use bevy::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 
 mod scenes;
 mod components;
@@ -316,6 +329,8 @@ struct Player {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(RemotePlugin::default())
+        .add_plugins(RemoteHttpPlugin::default())
         .add_plugins(scenes::ScenesPlugin)
         .add_systems(Startup, (setup_world, setup_player, grab_cursor))
         .add_systems(Update, (
