@@ -715,6 +715,44 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
         }
         code.push_str(&format!("    // Entity: {}\n", entity.name));
         let t = &entity.transform;
+
+        // Compute auto-scale for GLB models to match scene editor preview size
+        let glb_auto_scale = entity
+            .components
+            .iter()
+            .find_map(|c| {
+                if let ComponentData::MeshFromFile { path, .. } = c {
+                    if !path.is_empty() {
+                        return crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(path)
+                            .map(|data| {
+                                let mut min = [f32::MAX; 3];
+                                let mut max = [f32::MIN; 3];
+                                for p in &data.positions {
+                                    for i in 0..3 {
+                                        min[i] = min[i].min(p[i]);
+                                        max[i] = max[i].max(p[i]);
+                                    }
+                                }
+                                let extent = (max[0] - min[0])
+                                    .max(max[1] - min[1])
+                                    .max(max[2] - min[2])
+                                    .max(0.001);
+                                if extent > 5.0 {
+                                    2.0 / extent
+                                } else {
+                                    1.0
+                                }
+                            });
+                    }
+                }
+                None
+            })
+            .unwrap_or(1.0);
+
+        let sx = t.scale[0] * glb_auto_scale;
+        let sy = t.scale[1] * glb_auto_scale;
+        let sz = t.scale[2] * glb_auto_scale;
+
         code.push_str(&format!(
             "    commands.spawn((\n        Transform::from_xyz({:.3}, {:.3}, {:.3})",
             t.translation[0], t.translation[1], t.translation[2]
@@ -725,10 +763,10 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
                 t.rotation_euler[0], t.rotation_euler[1], t.rotation_euler[2]
             ));
         }
-        if t.scale.iter().any(|&v| (v - 1.0).abs() > 0.001) {
+        if (sx - 1.0).abs() > 0.001 || (sy - 1.0).abs() > 0.001 || (sz - 1.0).abs() > 0.001 {
             code.push_str(&format!(
                 "\n            .with_scale(Vec3::new({:.3}, {:.3}, {:.3}))",
-                t.scale[0], t.scale[1], t.scale[2]
+                sx, sy, sz
             ));
         }
         code.push_str(",\n");
