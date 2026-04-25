@@ -411,7 +411,7 @@ fn toggle_cursor_grab(
 }
 
 fn mouse_look(
-    mut motion_events: EventReader<MouseMotion>,
+    mut motion_events: MessageReader<MouseMotion>,
     mut player_q: Query<(&mut Transform, &mut Player)>,
     windows: Query<&Window, With<PrimaryWindow>>,
 ) {

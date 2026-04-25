@@ -1092,7 +1092,7 @@ impl BerryCodeApp {
 
                     ui.add_space(40.0);
                     ui.label(
-                        egui::RichText::new(format!("v{} | Bevy 0.15", env!("CARGO_PKG_VERSION")))
+                        egui::RichText::new(format!("v{} | Bevy 0.18", env!("CARGO_PKG_VERSION")))
                             .size(11.0)
                             .color(egui::Color32::from_gray(100)),
                     );

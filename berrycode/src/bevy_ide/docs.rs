@@ -15,8 +15,9 @@ const BEVY_DOCS: &[(&str, &str)] = &[
     ("Entity", "bevy/ecs/entity/struct.Entity.html"),
     ("Bundle", "bevy/ecs/bundle/trait.Bundle.html"),
     ("Event", "bevy/ecs/event/trait.Event.html"),
-    ("EventReader", "bevy/ecs/event/struct.EventReader.html"),
-    ("EventWriter", "bevy/ecs/event/struct.EventWriter.html"),
+    ("Message", "bevy/ecs/message/trait.Message.html"),
+    ("MessageReader", "bevy/ecs/message/struct.MessageReader.html"),
+    ("MessageWriter", "bevy/ecs/message/struct.MessageWriter.html"),
     ("App", "bevy/app/struct.App.html"),
     (
         "Transform",
@@ -30,7 +31,7 @@ const BEVY_DOCS: &[(&str, &str)] = &[
     ("Vec2", "bevy/math/struct.Vec2.html"),
     ("Quat", "bevy/math/struct.Quat.html"),
     ("Color", "bevy/render/color/enum.Color.html"),
-    ("Camera", "bevy/render/camera/struct.Camera.html"),
+    ("Camera", "bevy/camera/struct.Camera.html"),
     (
         "Camera2d",
         "bevy/core_pipeline/core_2d/struct.Camera2d.html",
@@ -39,7 +40,7 @@ const BEVY_DOCS: &[(&str, &str)] = &[
         "Camera3d",
         "bevy/core_pipeline/core_3d/struct.Camera3d.html",
     ),
-    ("Mesh", "bevy/render/mesh/struct.Mesh.html"),
+    ("Mesh", "bevy/mesh/struct.Mesh.html"),
     ("Handle", "bevy/asset/struct.Handle.html"),
     ("AssetServer", "bevy/asset/struct.AssetServer.html"),
     ("Assets", "bevy/asset/struct.Assets.html"),
@@ -59,12 +60,8 @@ const BEVY_DOCS: &[(&str, &str)] = &[
     ("Without", "bevy/ecs/query/struct.Without.html"),
     ("Added", "bevy/ecs/query/struct.Added.html"),
     ("Changed", "bevy/ecs/query/struct.Changed.html"),
-    (
-        "DespawnRecursiveExt",
-        "bevy/hierarchy/trait.DespawnRecursiveExt.html",
-    ),
     ("Children", "bevy/hierarchy/struct.Children.html"),
-    ("Parent", "bevy/hierarchy/struct.Parent.html"),
+    ("ChildOf", "bevy/hierarchy/struct.ChildOf.html"),
     ("Visibility", "bevy/render/view/enum.Visibility.html"),
     ("AudioPlayer", "bevy/audio/struct.AudioPlayer.html"),
 ];

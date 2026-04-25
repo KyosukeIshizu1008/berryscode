@@ -77,7 +77,7 @@ impl BevyTemplate {
                 )
             }
             BevyTemplate::Event { name, fields } => {
-                let mut code = format!("#[derive(Event)]\npub struct {} {{\n", name);
+                let mut code = format!("#[derive(Message)]\npub struct {} {{\n", name);
                 for (field_name, field_type) in fields {
                     code.push_str(&format!("    pub {}: {},\n", field_name, field_type));
                 }
@@ -137,7 +137,7 @@ impl BevyTemplate {
                         snake, scene
                     ));
                     code.push_str(&format!(
-                        "fn cleanup_{}(mut commands: Commands, query: Query<Entity>) {{\n    for entity in &query {{\n        commands.entity(entity).despawn_recursive();\n    }}\n}}\n\n",
+                        "fn cleanup_{}(mut commands: Commands, query: Query<Entity>) {{\n    for entity in &query {{\n        commands.entity(entity).despawn();\n    }}\n}}\n\n",
                         snake
                     ));
                 }

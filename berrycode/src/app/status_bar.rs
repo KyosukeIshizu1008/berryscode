@@ -82,7 +82,7 @@ impl BerryCodeApp {
 
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(egui::RichText::new("Bevy 0.15 + WGPU").small());
+                        ui.label(egui::RichText::new("Bevy 0.18 + WGPU").small());
                     });
                 });
             });
