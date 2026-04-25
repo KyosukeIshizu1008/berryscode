@@ -119,7 +119,7 @@ impl BrpClient {
                     })
                     .unwrap_or_default();
 
-                // Skip BerryCode internal entities and Bevy internals
+                // Skip BerryCode internal entities, Bevy internals, and child entities (bones, etc.)
                 let is_internal = comp_list.iter().any(|c| {
                     c.contains("Observer")
                         || c.contains("SystemIdMarker")
@@ -128,6 +128,7 @@ impl BrpClient {
                         || c.contains("bevy_egui::")
                         || c.contains("PrimaryEguiContext")
                         || c.contains("bevy_window::monitor::Monitor")
+                        || c.contains("ChildOf")
                 });
                 if is_internal {
                     continue;
