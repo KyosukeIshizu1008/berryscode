@@ -277,22 +277,11 @@ impl BerryCodeApp {
 
             let (rect, response) = ui.allocate_exact_size(
                 egui::vec2(ui.available_width(), row_height),
-                egui::Sense::click_and_drag(),
+                egui::Sense::click(),
             );
 
-            // Drag start for folder
-            if response.drag_started() {
-                event = Some(FileTreeEvent::StartFileDrag(node.path.clone()));
-            }
-
-            // Drop target: highlight when a file is being dragged over this folder
-            let is_drop_target = response.hovered() && ui.input(|i| i.pointer.any_released());
-
-            // Hover highlight (blue tint if drop target)
-            if is_drop_target {
-                ui.painter()
-                    .rect_filled(rect, 0.0, egui::Color32::from_rgb(38, 79, 120));
-            } else if response.hovered() {
+            // Hover highlight
+            if response.hovered() {
                 ui.painter().rect_filled(rect, 0.0, hover_bg);
             }
 
@@ -349,11 +338,6 @@ impl BerryCodeApp {
                 event = Some(FileTreeEvent::ContextMenu(node.path.clone(), true));
             }
 
-            // Accept file drop onto this folder
-            if is_drop_target {
-                event = Some(FileTreeEvent::MoveFile(String::new(), node.path.clone()));
-            }
-
             if is_expanded {
                 if let Some(children) = &node.children {
                     for child in children {
@@ -382,10 +366,14 @@ impl BerryCodeApp {
             let is_selected = selected_file == Some(node.path.as_str());
             let droppable = is_droppable_asset(&node.name);
 
-            let (rect, response) = ui.allocate_exact_size(
-                egui::vec2(ui.available_width(), row_height),
-                egui::Sense::click_and_drag(),
-            );
+            let sense = if droppable {
+                egui::Sense::click_and_drag()
+            } else {
+                egui::Sense::click()
+            };
+
+            let (rect, response) =
+                ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), sense);
 
             // Selection / hover highlight (full row width, VS Code style)
             if is_selected {
@@ -439,11 +427,8 @@ impl BerryCodeApp {
                 event = Some(FileTreeEvent::ContextMenu(node.path.clone(), false));
             }
 
-            if response.drag_started() {
-                event = Some(FileTreeEvent::StartFileDrag(node.path.clone()));
-                if droppable {
-                    event = Some(FileTreeEvent::StartAssetDrag(node.path.clone()));
-                }
+            if droppable && response.drag_started() {
+                event = Some(FileTreeEvent::StartAssetDrag(node.path.clone()));
             }
         }
 
