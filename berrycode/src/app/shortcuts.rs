@@ -461,22 +461,41 @@ impl BerryCodeApp {
                 self.status_message_timestamp = Some(std::time::Instant::now());
                 tracing::info!("Scene saved: {}", path);
 
-                // Auto-update main.rs setup function with scene entities
-                let main_rs_path = format!("{}/src/main.rs", self.root_path);
-                if std::path::Path::new(&main_rs_path).exists() {
-                    if let Ok(main_code) = std::fs::read_to_string(&main_rs_path) {
-                        let updated = crate::app::scene_editor::codegen::patch_main_rs_setup(
-                            &main_code,
-                            &self.scene_model,
-                        );
-                        if updated != main_code {
-                            let _ = std::fs::write(&main_rs_path, &updated);
-                            tracing::info!("Updated main.rs with scene entities");
+                // Generate code based on project structure
+                let use_modular =
+                    crate::app::scene_editor::codegen::has_modular_structure(&self.root_path);
+                if use_modular {
+                    // Modular structure: write to src/scenes/ as a Plugin
+                    match crate::app::scene_editor::codegen::save_scene_code_modular(
+                        &self.scene_model,
+                        &path,
+                        &self.root_path,
+                    ) {
+                        Ok(rs_path) => {
+                            tracing::info!("Scene plugin generated: {}", rs_path);
+                        }
+                        Err(e) => {
+                            tracing::warn!("Scene plugin generation failed: {}", e);
+                        }
+                    }
+                } else {
+                    // Legacy: patch main.rs + write alongside .bscene
+                    let main_rs_path = format!("{}/src/main.rs", self.root_path);
+                    if std::path::Path::new(&main_rs_path).exists() {
+                        if let Ok(main_code) = std::fs::read_to_string(&main_rs_path) {
+                            let updated = crate::app::scene_editor::codegen::patch_main_rs_setup(
+                                &main_code,
+                                &self.scene_model,
+                            );
+                            if updated != main_code {
+                                let _ = std::fs::write(&main_rs_path, &updated);
+                                tracing::info!("Updated main.rs with scene entities (legacy)");
+                            }
                         }
                     }
                 }
 
-                // Auto-generate Rust code alongside the scene
+                // Also generate _scene.rs alongside .bscene (for both modes)
                 match crate::app::scene_editor::codegen::save_scene_code(&self.scene_model, &path) {
                     Ok(rs_path) => {
                         tracing::info!("Code generated: {}", rs_path);

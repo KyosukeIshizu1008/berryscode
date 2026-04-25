@@ -543,6 +543,277 @@ pub fn save_scene_code(scene: &SceneModel, scene_path: &str) -> Result<String, S
     Ok(rs_path)
 }
 
+// ---------------------------------------------------------------------------
+// Modular project structure support
+// ---------------------------------------------------------------------------
+
+/// Returns true if the project at `root` has the modular `src/scenes/` structure.
+pub fn has_modular_structure(root: &str) -> bool {
+    std::path::Path::new(&format!("{}/src/scenes/mod.rs", root)).exists()
+}
+
+/// Ensures `pub mod <module_name>;` exists in the given mod.rs file.
+/// Creates the file if it doesn't exist. Idempotent.
+pub fn ensure_mod_declaration(mod_rs_path: &str, module_name: &str) -> Result<(), String> {
+    let decl = format!("pub mod {};", module_name);
+    let content = std::fs::read_to_string(mod_rs_path).unwrap_or_default();
+    if content.contains(&decl) {
+        return Ok(());
+    }
+    if let Some(parent) = std::path::Path::new(mod_rs_path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let updated = if content.is_empty() {
+        format!("{}\n", decl)
+    } else {
+        format!("{}\n{}\n", content.trim_end(), decl)
+    };
+    std::fs::write(mod_rs_path, updated).map_err(|e| e.to_string())
+}
+
+/// Convert a scene name to a valid Rust module name (snake_case).
+fn scene_name_to_module(scene_name: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in scene_name.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            out.push('_');
+        }
+        out.push(c.to_lowercase().next().unwrap_or(c));
+    }
+    out.replace([' ', '-', '.'], "_")
+}
+
+/// Convert a module name to PascalCase for struct names.
+fn module_to_pascal(module: &str) -> String {
+    module
+        .split('_')
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(c) => c.to_uppercase().chain(chars).collect(),
+            }
+        })
+        .collect()
+}
+
+/// Generate a scene as a Bevy Plugin module.
+pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> String {
+    let module_name = scene_name_to_module(scene_name);
+    let pascal_name = module_to_pascal(&module_name);
+    let plugin_name = format!("{}ScenePlugin", pascal_name);
+    let setup_fn = format!("setup_{}_scene", module_name);
+
+    let mut code = String::new();
+    code.push_str("//! Auto-generated scene plugin from BerryCode Scene Editor.\n");
+    code.push_str("//! DO NOT EDIT MANUALLY -- changes will be overwritten on next save.\n\n");
+    code.push_str("use bevy::prelude::*;\n\n");
+
+    // Plugin struct
+    code.push_str(&format!("pub struct {};\n\n", plugin_name));
+    code.push_str(&format!("impl Plugin for {} {{\n", plugin_name));
+    code.push_str("    fn build(&self, app: &mut App) {\n");
+    code.push_str(&format!(
+        "        app.add_systems(Startup, {});\n",
+        setup_fn
+    ));
+    code.push_str("    }\n");
+    code.push_str("}\n\n");
+
+    // Setup function (reuses existing generation logic)
+    code.push_str(&format!("fn {}(\n", setup_fn));
+    code.push_str("    mut commands: Commands,\n");
+    code.push_str("    mut meshes: ResMut<Assets<Mesh>>,\n");
+    code.push_str("    mut materials: ResMut<Assets<StandardMaterial>>,\n");
+    code.push_str("    asset_server: Res<AssetServer>,\n");
+    code.push_str(") {\n");
+
+    for entity in scene.entities.values() {
+        if !entity.enabled {
+            continue;
+        }
+        code.push_str(&format!("    // Entity: {}\n", entity.name));
+        let t = &entity.transform;
+        code.push_str(&format!(
+            "    commands.spawn((\n        Transform::from_xyz({:.3}, {:.3}, {:.3})",
+            t.translation[0], t.translation[1], t.translation[2]
+        ));
+        if t.rotation_euler.iter().any(|&v| v.abs() > 0.001) {
+            code.push_str(&format!(
+                "\n            .with_rotation(Quat::from_euler(EulerRot::XYZ, {:.3}, {:.3}, {:.3}))",
+                t.rotation_euler[0], t.rotation_euler[1], t.rotation_euler[2]
+            ));
+        }
+        if t.scale.iter().any(|&v| (v - 1.0).abs() > 0.001) {
+            code.push_str(&format!(
+                "\n            .with_scale(Vec3::new({:.3}, {:.3}, {:.3}))",
+                t.scale[0], t.scale[1], t.scale[2]
+            ));
+        }
+        code.push_str(",\n");
+
+        for component in &entity.components {
+            match component {
+                ComponentData::MeshCube {
+                    size,
+                    color,
+                    metallic,
+                    roughness,
+                    ..
+                } => {
+                    code.push_str(&format!(
+                        "        Mesh3d(meshes.add(Cuboid::new({:.3}, {:.3}, {:.3}))),\n",
+                        size, size, size
+                    ));
+                    code.push_str(&format!(
+                        "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
+                         \x20           base_color: Color::srgb({:.3}, {:.3}, {:.3}),\n\
+                         \x20           metallic: {:.3},\n\
+                         \x20           perceptual_roughness: {:.3},\n\
+                         \x20           ..default()\n\
+                         \x20       }})),\n",
+                        color[0], color[1], color[2], metallic, roughness
+                    ));
+                }
+                ComponentData::MeshSphere {
+                    radius,
+                    color,
+                    metallic,
+                    roughness,
+                    ..
+                } => {
+                    code.push_str(&format!(
+                        "        Mesh3d(meshes.add(Sphere::new({:.3}).mesh().uv(32, 16))),\n",
+                        radius
+                    ));
+                    code.push_str(&format!(
+                        "        MeshMaterial3d(materials.add(StandardMaterial {{\n\
+                         \x20           base_color: Color::srgb({:.3}, {:.3}, {:.3}),\n\
+                         \x20           metallic: {:.3},\n\
+                         \x20           perceptual_roughness: {:.3},\n\
+                         \x20           ..default()\n\
+                         \x20       }})),\n",
+                        color[0], color[1], color[2], metallic, roughness
+                    ));
+                }
+                ComponentData::MeshPlane { size, color, .. } => {
+                    code.push_str(&format!(
+                        "        Mesh3d(meshes.add(Plane3d::default().mesh().size({:.3}, {:.3}))),\n",
+                        size, size
+                    ));
+                    code.push_str(&format!(
+                        "        MeshMaterial3d(materials.add(Color::srgb({:.3}, {:.3}, {:.3}))),\n",
+                        color[0], color[1], color[2]
+                    ));
+                }
+                ComponentData::Light { intensity, color } => {
+                    code.push_str(&format!(
+                        "        PointLight {{ intensity: {:.1}, color: Color::srgb({:.3}, {:.3}, {:.3}), ..default() }},\n",
+                        intensity, color[0], color[1], color[2]
+                    ));
+                }
+                ComponentData::DirectionalLight {
+                    intensity,
+                    color,
+                    shadows,
+                } => {
+                    code.push_str(&format!(
+                        "        DirectionalLight {{ illuminance: {:.1}, color: Color::srgb({:.3}, {:.3}, {:.3}), shadows_enabled: {}, ..default() }},\n",
+                        intensity, color[0], color[1], color[2], shadows
+                    ));
+                }
+                ComponentData::Camera => {
+                    code.push_str("        Camera3d::default(),\n");
+                }
+                ComponentData::MeshFromFile { path, .. } => {
+                    if !path.is_empty() {
+                        let asset_rel = path
+                            .replace('\\', "/")
+                            .split("/assets/")
+                            .nth(1)
+                            .unwrap_or(path)
+                            .to_string();
+                        code.push_str(&format!(
+                            "        SceneRoot(asset_server.load(\"{}#Scene0\")),\n",
+                            asset_rel
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        code.push_str(&format!("        Name::new(\"{}\"),\n", entity.name));
+        code.push_str("    ));\n\n");
+    }
+
+    code.push_str("}\n");
+    code
+}
+
+/// Scan `src/scenes/` for `*_scene.rs` files and generate a `mod.rs` with ScenesPlugin.
+pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
+    let mut modules: Vec<String> = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(scenes_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.ends_with("_scene.rs") && name != "mod.rs" {
+                let module = name.strip_suffix(".rs").unwrap_or(&name).to_string();
+                modules.push(module);
+            }
+        }
+    }
+    modules.sort();
+
+    let mut code = String::new();
+    for m in &modules {
+        code.push_str(&format!("pub mod {};\n", m));
+    }
+    code.push_str("\nuse bevy::prelude::*;\n\n");
+    code.push_str("pub struct ScenesPlugin;\n\n");
+    code.push_str("impl Plugin for ScenesPlugin {\n");
+    code.push_str("    fn build(&self, app: &mut App) {\n");
+    for m in &modules {
+        let pascal = module_to_pascal(m);
+        code.push_str(&format!(
+            "        app.add_plugins({}::{}Plugin);\n",
+            m, pascal
+        ));
+    }
+    code.push_str("    }\n");
+    code.push_str("}\n");
+    code
+}
+
+/// Save scene code in modular structure: `src/scenes/{name}_scene.rs` + update mod.rs.
+pub fn save_scene_code_modular(
+    scene: &SceneModel,
+    scene_path: &str,
+    project_root: &str,
+) -> Result<String, String> {
+    // Derive scene name from path
+    let scene_name = std::path::Path::new(scene_path)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "scene".to_string());
+    let module_name = format!("{}_scene", scene_name_to_module(&scene_name));
+
+    let scenes_dir = format!("{}/src/scenes", project_root);
+    std::fs::create_dir_all(&scenes_dir).map_err(|e| e.to_string())?;
+
+    // Generate and write scene plugin code
+    let code = generate_scene_plugin_code(scene, &scene_name);
+    let rs_path = format!("{}/{}.rs", scenes_dir, module_name);
+    std::fs::write(&rs_path, &code).map_err(|e| e.to_string())?;
+
+    // Regenerate scenes/mod.rs
+    let mod_rs = generate_scenes_mod_rs(&scenes_dir);
+    std::fs::write(format!("{}/mod.rs", scenes_dir), &mod_rs).map_err(|e| e.to_string())?;
+
+    Ok(rs_path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2038,4 +2309,155 @@ bevy = "0.15"
             }],
         }
     );
+
+    #[test]
+    fn scene_name_to_module_converts() {
+        assert_eq!(scene_name_to_module("GameLevel"), "game_level");
+        assert_eq!(scene_name_to_module("my-scene"), "my_scene");
+        assert_eq!(scene_name_to_module("simple"), "simple");
+    }
+
+    #[test]
+    fn module_to_pascal_converts() {
+        assert_eq!(module_to_pascal("game_level"), "GameLevel");
+        assert_eq!(module_to_pascal("scene"), "Scene");
+        assert_eq!(module_to_pascal("my_cool_scene"), "MyCoolScene");
+    }
+
+    #[test]
+    fn generate_scene_plugin_has_plugin_struct() {
+        let scene = SceneModel::new();
+        let code = generate_scene_plugin_code(&scene, "game");
+        assert!(code.contains("pub struct GameScenePlugin;"));
+        assert!(code.contains("impl Plugin for GameScenePlugin"));
+        assert!(code.contains("fn setup_game_scene("));
+        assert!(code.contains("add_systems(Startup, setup_game_scene)"));
+    }
+
+    #[test]
+    fn generate_scene_plugin_with_entities() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "TestCube".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 0.0, 0.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "level1");
+        assert!(code.contains("pub struct Level1ScenePlugin;"));
+        assert!(code.contains("Cuboid::new(1.000"));
+        assert!(code.contains("Name::new(\"TestCube\")"));
+    }
+
+    #[test]
+    fn generate_scene_plugin_with_glb() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "fox".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/Users/test/project/assets/fox.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "world");
+        assert!(code.contains("SceneRoot(asset_server.load(\"fox.glb#Scene0\"))"));
+        assert!(code.contains("asset_server: Res<AssetServer>"));
+    }
+
+    #[test]
+    fn ensure_mod_declaration_idempotent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mod_path = tmp.path().join("mod.rs");
+        let mod_str = mod_path.to_string_lossy().to_string();
+
+        ensure_mod_declaration(&mod_str, "player").unwrap();
+        let content1 = std::fs::read_to_string(&mod_path).unwrap();
+        assert!(content1.contains("pub mod player;"));
+
+        // Second call should not duplicate
+        ensure_mod_declaration(&mod_str, "player").unwrap();
+        let content2 = std::fs::read_to_string(&mod_path).unwrap();
+        assert_eq!(
+            content2.matches("pub mod player;").count(),
+            1,
+            "Should not duplicate"
+        );
+
+        // Add another module
+        ensure_mod_declaration(&mod_str, "enemy").unwrap();
+        let content3 = std::fs::read_to_string(&mod_path).unwrap();
+        assert!(content3.contains("pub mod player;"));
+        assert!(content3.contains("pub mod enemy;"));
+    }
+
+    #[test]
+    fn has_modular_structure_false_for_nonexistent() {
+        assert!(!has_modular_structure("/nonexistent/path"));
+    }
+
+    #[test]
+    fn has_modular_structure_true_when_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let scenes_dir = tmp.path().join("src/scenes");
+        std::fs::create_dir_all(&scenes_dir).unwrap();
+        std::fs::write(scenes_dir.join("mod.rs"), "").unwrap();
+        assert!(has_modular_structure(&tmp.path().to_string_lossy()));
+    }
+
+    #[test]
+    fn generate_scenes_mod_rs_aggregates_plugins() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("game_scene.rs"), "").unwrap();
+        std::fs::write(tmp.path().join("title_scene.rs"), "").unwrap();
+        std::fs::write(tmp.path().join("mod.rs"), "").unwrap(); // should be ignored
+        std::fs::write(tmp.path().join("helpers.rs"), "").unwrap(); // not a scene
+
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        assert!(code.contains("pub mod game_scene;"));
+        assert!(code.contains("pub mod title_scene;"));
+        assert!(!code.contains("pub mod helpers;"));
+        assert!(!code.contains("pub mod mod;"));
+        assert!(code.contains("pub struct ScenesPlugin;"));
+        assert!(code.contains("game_scene::GameScenePlugin"));
+        assert!(code.contains("title_scene::TitleScenePlugin"));
+    }
+
+    #[test]
+    fn save_scene_code_modular_creates_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_string_lossy().to_string();
+        std::fs::create_dir_all(format!("{}/src/scenes", root)).unwrap();
+
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Cube".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 0.0, 0.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+
+        let result = save_scene_code_modular(&scene, "scenes/game.bscene", &root);
+        assert!(result.is_ok());
+
+        let rs_path = result.unwrap();
+        assert!(rs_path.contains("game_scene.rs"));
+        assert!(std::path::Path::new(&rs_path).exists());
+
+        let mod_rs = std::fs::read_to_string(format!("{}/src/scenes/mod.rs", root)).unwrap();
+        assert!(mod_rs.contains("pub mod game_scene;"));
+        assert!(mod_rs.contains("ScenesPlugin"));
+    }
 }

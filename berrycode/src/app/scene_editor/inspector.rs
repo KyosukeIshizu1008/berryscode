@@ -1960,7 +1960,11 @@ impl BerryCodeApp {
                                     })
                                     .collect();
 
-                                let src_dir = format!("{}/src", self.root_path);
+                                let src_dir = if crate::app::scene_editor::codegen::has_modular_structure(&self.root_path) {
+                                    format!("{}/src/components", self.root_path)
+                                } else {
+                                    format!("{}/src", self.root_path)
+                                };
                                 let _ = std::fs::create_dir_all(&src_dir);
                                 let file_path = format!("{}/{}.rs", src_dir, snake_name);
 
@@ -1980,6 +1984,12 @@ impl BerryCodeApp {
                                 );
 
                                 if std::fs::write(&file_path, &code).is_ok() {
+                                    if crate::app::scene_editor::codegen::has_modular_structure(&self.root_path) {
+                                        let _ = crate::app::scene_editor::codegen::ensure_mod_declaration(
+                                            &format!("{}/src/components/mod.rs", self.root_path),
+                                            &snake_name,
+                                        );
+                                    }
                                     // Attach as CustomScript component
                                     add_component = Some(ComponentData::CustomScript {
                                         type_name: comp_name,

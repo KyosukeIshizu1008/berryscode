@@ -177,6 +177,15 @@ impl BerryCodeApp {
 
         fs::create_dir_all(root.join("src"))?;
         fs::create_dir_all(root.join("assets"))?;
+        fs::create_dir_all(root.join("src/scenes"))?;
+        fs::create_dir_all(root.join("src/components"))?;
+        fs::create_dir_all(root.join("src/systems"))?;
+        fs::create_dir_all(root.join("src/events"))?;
+
+        fs::write(root.join("src/scenes/mod.rs"), "use bevy::prelude::*;\n\npub struct ScenesPlugin;\n\nimpl Plugin for ScenesPlugin {\n    fn build(&self, _app: &mut App) {\n    }\n}\n")?;
+        fs::write(root.join("src/components/mod.rs"), "// Components\n")?;
+        fs::write(root.join("src/systems/mod.rs"), "// Systems\n")?;
+        fs::write(root.join("src/events/mod.rs"), "// Events\n")?;
 
         // Cargo.toml with fast compile settings
         let cargo_toml = format!(
@@ -216,14 +225,20 @@ pub fn template_main_rs_for_test(template: ProjectTemplate) -> String {
 fn template_main_rs(template: ProjectTemplate) -> String {
     match template {
         ProjectTemplate::Empty2D => {
-            "use bevy::prelude::*;\n\nfn main() {\n    App::new()\n        .add_plugins(DefaultPlugins)\n        .add_systems(Startup, setup)\n        .run();\n}\n\nfn setup(mut commands: Commands) {\n    commands.spawn(Camera2d);\n}\n".to_string()
+            "use bevy::prelude::*;\n\nmod scenes;\nmod components;\nmod systems;\nmod events;\n\nfn main() {\n    App::new()\n        .add_plugins(DefaultPlugins)\n        .add_plugins(scenes::ScenesPlugin)\n        .add_systems(Startup, setup)\n        .run();\n}\n\nfn setup(mut commands: Commands) {\n    commands.spawn(Camera2d);\n}\n".to_string()
         }
         ProjectTemplate::Empty3D => {
             r#"use bevy::prelude::*;
 
+mod scenes;
+mod components;
+mod systems;
+mod events;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(scenes::ScenesPlugin)
         .add_systems(Startup, setup)
         .run();
 }
@@ -278,6 +293,11 @@ use bevy::prelude::*;
 use bevy::input::mouse::MouseMotion;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 
+mod scenes;
+mod components;
+mod systems;
+mod events;
+
 const PLAYER_SPEED: f32 = 5.0;
 const RUN_MULTIPLIER: f32 = 2.0;
 const MOUSE_SENSITIVITY: f32 = 0.002;
@@ -296,6 +316,7 @@ struct Player {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(scenes::ScenesPlugin)
         .add_systems(Startup, (setup_world, setup_player, grab_cursor))
         .add_systems(Update, (
             mouse_look,
@@ -467,9 +488,15 @@ fn apply_gravity(time: Res<Time>, mut player_q: Query<(&mut Transform, &mut Play
         ProjectTemplate::Plugin => {
             r#"use bevy::prelude::*;
 
+mod scenes;
+mod components;
+mod systems;
+mod events;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(scenes::ScenesPlugin)
         .add_plugins(MyPlugin)
         .run();
 }
