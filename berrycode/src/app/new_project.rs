@@ -300,7 +300,7 @@ fn setup(
 
 use bevy::prelude::*;
 use bevy::input::mouse::MouseMotion;
-use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
 
 mod scenes;
@@ -402,22 +402,22 @@ fn setup_player(mut commands: Commands) {
     ));
 }
 
-fn grab_cursor(mut windows: Query<&mut Window, With<PrimaryWindow>>) {
-    if let Ok(mut window) = windows.single_mut() {
-        window.cursor_options.grab_mode = CursorGrabMode::Locked;
-        window.cursor_options.visible = false;
+fn grab_cursor(mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+    if let Ok(mut opts) = cursor.single_mut() {
+        opts.grab_mode = CursorGrabMode::Locked;
+        opts.visible = false;
     }
 }
 
 fn toggle_cursor_grab(
     keys: Res<ButtonInput<KeyCode>>,
-    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     if keys.just_pressed(KeyCode::Escape) {
-        if let Ok(mut window) = windows.single_mut() {
-            let grabbed = window.cursor_options.grab_mode != CursorGrabMode::None;
-            window.cursor_options.grab_mode = if grabbed { CursorGrabMode::None } else { CursorGrabMode::Locked };
-            window.cursor_options.visible = grabbed;
+        if let Ok(mut opts) = cursor.single_mut() {
+            let grabbed = opts.grab_mode != CursorGrabMode::None;
+            opts.grab_mode = if grabbed { CursorGrabMode::None } else { CursorGrabMode::Locked };
+            opts.visible = grabbed;
         }
     }
 }
@@ -425,10 +425,10 @@ fn toggle_cursor_grab(
 fn mouse_look(
     mut motion_events: MessageReader<MouseMotion>,
     mut player_q: Query<(&mut Transform, &mut Player)>,
-    windows: Query<&Window, With<PrimaryWindow>>,
+    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok(window) = windows.single() else { return; };
-    if window.cursor_options.grab_mode == CursorGrabMode::None {
+    let Ok(opts) = cursor.single() else { return; };
+    if opts.grab_mode == CursorGrabMode::None {
         motion_events.clear();
         return;
     }
