@@ -25,7 +25,9 @@ BerryCode is not a general-purpose editor with Bevy plugins bolted on — it's a
 ### Demo
 
 <p align="center">
-  <img src="docs/demo/demo.gif" width="80%" alt="BerryCode Demo">
+  <video src="https://github.com/KyosukeIshizu1008/berryscode/raw/main/docs/demo/demo.mp4" width="80%" autoplay loop muted playsinline>
+    <img src="docs/demo/demo.gif" width="80%" alt="BerryCode Demo">
+  </video>
 </p>
 
 ### What Makes BerryCode Different
@@ -177,7 +179,9 @@ BerryCode は汎用エディタに Bevy プラグインを後付けしたもの�
 ### デモ
 
 <p align="center">
-  <img src="docs/demo/demo.gif" width="80%" alt="BerryCode デモ">
+  <video src="https://github.com/KyosukeIshizu1008/berryscode/raw/main/docs/demo/demo.mp4" width="80%" autoplay loop muted playsinline>
+    <img src="docs/demo/demo.gif" width="80%" alt="BerryCode デモ">
+  </video>
 </p>
 
 ### BerryCode が他と違う点
