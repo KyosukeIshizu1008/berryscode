@@ -73,6 +73,10 @@ pub struct SceneEditorRender {
     pub dof_focus_distance: f32,
     /// DoF aperture f-stop value.
     pub dof_aperture: f32,
+    /// Tracked ambient light entity (to avoid spawning new ones every frame).
+    pub ambient_light_entity: Option<Entity>,
+    /// Previous skybox enabled state for change detection.
+    pub prev_skybox_active: bool,
 }
 
 impl Default for SceneEditorRender {
@@ -106,6 +110,8 @@ impl Default for SceneEditorRender {
             dof_enabled: false,
             dof_focus_distance: 10.0,
             dof_aperture: 0.02,
+            ambient_light_entity: None,
+            prev_skybox_active: false,
         }
     }
 }
@@ -247,7 +253,9 @@ pub fn update_scene_editor_camera(
     // insert a Skybox component on the camera. Also boost ambient light to
     // approximate image-based lighting (IBL).
     if let Ok(cam_entity) = camera_entity_q.single() {
+        let skybox_active = state.skybox_path.is_some();
         let skybox_path_cloned = state.skybox_path.clone();
+
         if let Some(ref path) = skybox_path_cloned {
             // Load skybox image if path changed or not yet loaded.
             let needs_load = match state.skybox_path_loaded.as_deref() {
@@ -264,49 +272,59 @@ pub fn update_scene_editor_camera(
                 state.skybox_handle = Some(handle);
                 state.skybox_path_loaded = Some(path.clone());
             }
-            // Sky-tinted background and elevated ambient light for IBL feel.
-            let clear_color = ClearColorConfig::Custom(Color::srgb(0.05, 0.1, 0.2));
-            commands.entity(cam_entity).insert((
-                Camera {
-                    clear_color,
-                    order: -2,
-                    ..default()
-                },
-                state
-                    .render_target
-                    .as_ref()
-                    .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
-                    .unwrap_or(bevy::camera::RenderTarget::default()),
-            ));
-            commands.spawn(AmbientLight {
-                color: Color::WHITE,
-                brightness: 500.0,
-                affects_lightmapped_meshes: false,
-            });
-        } else {
-            // No skybox: clean up cached state and revert to default background.
-            if state.skybox_handle.is_some() {
-                state.skybox_handle = None;
-                state.skybox_path_loaded = None;
+        } else if state.skybox_handle.is_some() {
+            state.skybox_handle = None;
+            state.skybox_path_loaded = None;
+        }
+
+        // Only update camera and ambient light when skybox state changes.
+        if skybox_active != state.prev_skybox_active {
+            state.prev_skybox_active = skybox_active;
+
+            // Despawn old ambient light if tracked.
+            if let Some(old_light) = state.ambient_light_entity.take() {
+                commands.entity(old_light).despawn();
             }
-            let clear_color = ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0));
-            commands.entity(cam_entity).insert((
-                Camera {
-                    clear_color,
-                    order: -2,
-                    ..default()
-                },
-                state
-                    .render_target
-                    .as_ref()
-                    .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
-                    .unwrap_or(bevy::camera::RenderTarget::default()),
-            ));
-            commands.spawn(AmbientLight {
-                color: Color::WHITE,
-                brightness: 300.0,
-                affects_lightmapped_meshes: false,
-            });
+
+            if skybox_active {
+                let clear_color = ClearColorConfig::Custom(Color::srgb(0.05, 0.1, 0.2));
+                commands.entity(cam_entity).insert((
+                    Camera {
+                        clear_color,
+                        order: -2,
+                        ..default()
+                    },
+                    state
+                        .render_target
+                        .as_ref()
+                        .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
+                        .unwrap_or(bevy::camera::RenderTarget::default()),
+                ));
+                state.ambient_light_entity = Some(commands.spawn(AmbientLight {
+                    color: Color::WHITE,
+                    brightness: 500.0,
+                    affects_lightmapped_meshes: false,
+                }).id());
+            } else {
+                let clear_color = ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0));
+                commands.entity(cam_entity).insert((
+                    Camera {
+                        clear_color,
+                        order: -2,
+                        ..default()
+                    },
+                    state
+                        .render_target
+                        .as_ref()
+                        .map(|h| bevy::camera::RenderTarget::Image(h.clone().into()))
+                        .unwrap_or(bevy::camera::RenderTarget::default()),
+                ));
+                state.ambient_light_entity = Some(commands.spawn(AmbientLight {
+                    color: Color::WHITE,
+                    brightness: 300.0,
+                    affects_lightmapped_meshes: false,
+                }).id());
+            }
         }
     }
 
