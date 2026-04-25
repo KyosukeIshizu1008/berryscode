@@ -30,6 +30,20 @@ BerryCode is not a general-purpose editor with Bevy plugins bolted on — it's a
   </video>
 </p>
 
+### Screenshots
+
+| Scene Editor | Game Runtime |
+|:---:|:---:|
+| ![Scene Editor](docs/screenshots/scene_editor_fox.png) | ![Game Runtime](docs/screenshots/game_runtime.png) |
+
+| ECS Inspector | Git Integration |
+|:---:|:---:|
+| ![ECS Inspector](docs/screenshots/ecs_inspector.png) | ![Git Panel](docs/screenshots/git_panel.png) |
+
+| Code Editor + AI Chat |
+|:---:|
+| ![Code Editor](docs/screenshots/code_editor.png) |
+
 ### What Makes BerryCode Different
 
 | Feature | VS Code + Extensions | BerryCode |
@@ -183,6 +197,20 @@ BerryCode は汎用エディタに Bevy プラグインを後付けしたもの�
     <img src="docs/demo/demo.gif" width="80%" alt="BerryCode デモ">
   </video>
 </p>
+
+### スクリーンショット
+
+| シーンエディタ | ゲーム実行 |
+|:---:|:---:|
+| ![シーンエディタ](docs/screenshots/scene_editor_fox.png) | ![ゲーム実行](docs/screenshots/game_runtime.png) |
+
+| ECS インスペクター | Git 統合 |
+|:---:|:---:|
+| ![ECS インスペクター](docs/screenshots/ecs_inspector.png) | ![Git パネル](docs/screenshots/git_panel.png) |
+
+| コードエディタ + AI チャット |
+|:---:|
+| ![コードエディタ](docs/screenshots/code_editor.png) |
 
 ### BerryCode が他と違う点
 
