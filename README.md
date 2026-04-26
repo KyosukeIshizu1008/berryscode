@@ -235,6 +235,22 @@ Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Dat
 - [ ] **Ship**: IPA / AAB build & signing inside the IDE, App Store Connect / Play Console upload helper, TestFlight & internal-test QR generator
 - [ ] **VR/AR bonus**: Vision Pro / Quest builds reuse the v0.7 walkable scenes — pipeline becomes "CAD → walkthrough → headset" in one tool
 
+#### v0.9 — Game Data Inspector (target: 2028 H2)
+
+> _ECS and the database in one pane._ A DB viewer purpose-built for
+> game development — save files, live multiplayer back-ends, and the
+> Bevy asset cache are first-class, not an afterthought.
+
+- [ ] **Connections**: SQLite / Postgres / MySQL / Redis / sled, with auto-detection of save-file paths inside a Bevy project
+- [ ] **Browser UI**: table / KV navigation that mirrors the ECS Inspector (same filter, search, and column-pinning UX)
+- [ ] **Query editor**: SQL with syntax highlighting + completion via the existing Tree-sitter / LSP plumbing
+- [ ] **Schema diagrams**: ER view rendered with the same node-graph layer as the System Graph
+- [ ] **Live save-file editing**: rewrite a running game's save and hot-reload without restarting
+- [ ] **ECS ↔ DB bridge**: visualise how Bevy Components map to rows / columns and trace persistence flow
+- [ ] **Migrations**: track schema changes alongside save-file compatibility so old saves don't silently break
+
+Positioning: not a DataGrip clone — a game-data debugger that ships in the same IDE as the Scene Editor and ECS Inspector.
+
 #### Long term
 - [ ] WASM build for in-browser editing
 - [ ] Cloud sync for workspaces
@@ -487,6 +503,22 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 - [ ] **パフォーマンス**: GPU プロファイラ統合 (Metal frame capture / RenderDoc Android)、フレーム予算可視化、バッテリー消費見積もり、ライフサイクル (Background / Foreground / Lock) テストハーネス
 - [ ] **公開**: IPA / AAB ビルド・署名を IDE 内で完結、App Store Connect / Play Console アップロード補助、TestFlight / 内部テスト用 QR 生成
 - [ ] **VR/AR ボーナス**: v0.7 の walkable シーンをそのまま Vision Pro / Quest ビルドに流用 — 「CAD → ウォークスルー → ヘッドセット」が 1 ツールで完結
+
+#### v0.9 — Game Data Inspector (目標: 2028 H2)
+
+> _ECS と DB を 1 画面で。_ ゲーム開発専用の DB ビューア —
+> セーブファイル、ライブのマルチプレイバックエンド、Bevy アセットキャッシュを
+> 後付けではなくファーストクラスで扱う。
+
+- [ ] **接続管理**: SQLite / Postgres / MySQL / Redis / sled、Bevy プロジェクトのセーブファイルパス自動検出
+- [ ] **ブラウザ UI**: ECS Inspector と同じフィルタ・検索・列ピン留め UX のテーブル / KV ナビゲーション
+- [ ] **クエリエディタ**: 既存の Tree-sitter / LSP 基盤を流用した SQL シンタックスハイライト + 補完
+- [ ] **スキーマ可視化**: System Graph と同じノードグラフレイヤーで ER 図を描画
+- [ ] **ライブセーブ編集**: 実行中ゲームの save を書き換えて再起動なしでホットリロード
+- [ ] **ECS ↔ DB ブリッジ**: Bevy Component が row / column にどうマップされるか可視化、永続化フロー追跡
+- [ ] **マイグレーション**: スキーマ変更を save 互換と一緒に追跡し、古い save が静かに壊れない
+
+ポジショニング: DataGrip のクローンではなく、Scene Editor / ECS Inspector と同じ IDE に同梱されるゲームデータデバッガ。
 
 #### 長期
 - [ ] ブラウザ内編集用 WASM ビルド
