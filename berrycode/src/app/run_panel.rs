@@ -314,12 +314,13 @@ impl BerryCodeApp {
 
             ui.separator();
 
-            // Filter input (compact)
+            // Filter input
             ui.add_sized(
-                [160.0, 16.0],
+                [180.0, 22.0],
                 egui::TextEdit::singleline(&mut self.console_filter_text)
-                    .hint_text("\u{ea6d} Filter")
-                    .font(egui::FontId::proportional(11.0)),
+                    .hint_text("Filter...")
+                    .font(egui::FontId::proportional(12.0))
+                    .id(egui::Id::new("console_filter_input")),
             );
 
             ui.separator();

@@ -52,19 +52,60 @@ impl BerryCodeApp {
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
-                // Tab bar (VS Code style)
-                let tabs: Vec<(ToolTab, &str)> =
-                    ToolTab::ALL.iter().map(|t| (*t, t.label())).collect();
-                super::utils::render_tab_bar(ui, &tabs, &mut self.active_tool_tab);
+                // Tab bar + close button in one row
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    for tab in ToolTab::ALL {
+                        let selected = self.active_tool_tab == *tab;
+                        let text = egui::RichText::new(tab.label())
+                            .size(13.0)
+                            .color(if selected {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_rgb(140, 140, 140)
+                            });
+                        let resp = ui.add(
+                            egui::Button::new(text)
+                                .frame(false)
+                                .min_size(egui::vec2(0.0, 24.0)),
+                        );
+                        if resp.clicked() {
+                            self.active_tool_tab = *tab;
+                        }
+                        // Underline for selected tab
+                        if selected {
+                            let rect = resp.rect;
+                            ui.painter().line_segment(
+                                [
+                                    egui::pos2(rect.left() + 4.0, rect.bottom()),
+                                    egui::pos2(rect.right() - 4.0, rect.bottom()),
+                                ],
+                                egui::Stroke::new(2.0, egui::Color32::from_rgb(80, 140, 255)),
+                            );
+                        }
+                        ui.add_space(12.0);
+                    }
+
+                    // Close button (right-aligned)
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("x").clicked() {
+                        let icon_font =
+                            egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into()));
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new("\u{ea76}") // codicon: close
+                                        .font(icon_font)
+                                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                                )
+                                .frame(false),
+                            )
+                            .on_hover_text("Close Panel")
+                            .clicked()
+                        {
                             self.tool_panel_open = false;
                         }
                     });
                 });
-
-                ui.separator();
 
                 // Content based on active tab
                 match self.active_tool_tab {
