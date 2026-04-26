@@ -209,6 +209,19 @@ BerryCode is in active development. The next milestones in priority order:
 - [ ] Asset import pipeline (FBX, OBJ, custom converters)
 - [ ] Visual scripting → Rust codegen
 
+#### v0.7 — Architecture → Game pipeline (target: 2027 H2)
+
+> _Bring your buildings to life._ Treat the artifacts that architects, BIM
+> engineers, and archviz studios already produce as first-class Bevy
+> assets — no Blender / Unreal detour required.
+
+- [ ] **Native CAD importers**: DWG / DXF / IFC (BIM) / STEP / IGES / SketchUp `.skp`, plus a Revit → IFC bridge
+- [ ] **Auto-prep for real-time rendering**: Z-up → Y-up, mm → m, LOD synthesis, UV unwrap, layer-name → PBR material inference (`Wall` → masonry, `Glass` → transmissive, `Floor` → tiled, …)
+- [ ] **Walkable scene scaffolding**: collision auto-generation, first-person walkthrough template, day/night lighting presets, door / elevator interaction defaults
+- [ ] **Targets**: architecture firms shipping client demos, real-estate viz, BIM-driven digital twins, Quest / Vision Pro VR walkthroughs
+
+Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Datasmith.
+
 #### Long term
 - [ ] WASM build for in-browser editing
 - [ ] Mobile (iPad / Android) viewer mode
@@ -436,6 +449,19 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 - [ ] プロファイラ統合 (Bevy + Tracy)
 - [ ] アセットインポートパイプライン (FBX, OBJ, カスタムコンバータ)
 - [ ] ビジュアルスクリプト → Rust コード生成
+
+#### v0.7 — 建築 → ゲーム パイプライン (目標: 2027 H2)
+
+> _建物に命を吹き込む。_ 建築家・BIM エンジニア・archviz スタジオが既に
+> 作っているデータをそのまま Bevy のアセットとして扱う —
+> Blender や Unreal を経由する必要なし。
+
+- [ ] **CAD ネイティブインポート**: DWG / DXF / IFC (BIM) / STEP / IGES / SketchUp `.skp`、Revit → IFC ブリッジ
+- [ ] **リアルタイムレンダリング向け自動最適化**: Z-up → Y-up、mm → m、LOD 合成、UV アンラップ、レイヤー名から PBR マテリアル自動推定 (`Wall` → 石造、`Glass` → 透過、`Floor` → タイル、…)
+- [ ] **ウォークスルーテンプレート**: コリジョン自動生成、ファーストパーソン視点、昼夜ライティングプリセット、ドア・エレベーターのインタラクション defaults
+- [ ] **ターゲット**: クライアント向けデモを作る建築事務所、不動産 viz、BIM 駆動のデジタルツイン、Quest / Vision Pro 向け VR ウォークスルー
+
+ポジショニング: Twinmotion / Enscape / Datasmith のオープンソース Bevy 版。
 
 #### 長期
 - [ ] ブラウザ内編集用 WASM ビルド
