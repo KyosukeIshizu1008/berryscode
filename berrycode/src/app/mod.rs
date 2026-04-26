@@ -167,11 +167,6 @@ const MAIN_PANELS: &[SidebarPanel] = &[
         _name: "ECS Inspector",
     },
     SidebarPanel {
-        variant: ActivePanel::BevyTemplates,
-        icon: "\u{ea60}", // codicon-symbol-method
-        _name: "Bevy Templates",
-    },
-    SidebarPanel {
         variant: ActivePanel::AssetBrowser,
         icon: "\u{ea96}", // codicon-file-media
         _name: "Asset Browser",
@@ -1969,12 +1964,9 @@ pub fn berry_ui_system(
                     app.active_panel = types::ActivePanel::EcsInspector;
                 }
                 if i.key_pressed(egui::Key::Num6) {
-                    app.active_panel = types::ActivePanel::BevyTemplates;
-                }
-                if i.key_pressed(egui::Key::Num7) {
                     app.active_panel = types::ActivePanel::AssetBrowser;
                 }
-                if i.key_pressed(egui::Key::Num8) {
+                if i.key_pressed(egui::Key::Num7) {
                     app.active_panel = types::ActivePanel::SceneEditor;
                 }
             }
@@ -2130,9 +2122,7 @@ pub fn berry_ui_system(
                 .show(ctx, |ui| {
                     app.render_asset_preview(ui);
                 });
-        } else if app.active_panel == ActivePanel::BevyTemplates
-            || app.active_panel == ActivePanel::Settings
-        {
+        } else if app.active_panel == ActivePanel::Settings {
             // Sidebar-only panels: no editor in center
             app.render_sidebar(ctx);
             egui::CentralPanel::default()

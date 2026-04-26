@@ -193,11 +193,6 @@ fn feature_steps() -> Vec<FeatureStep> {
             setup: SetupAction::None,
         },
         FeatureStep {
-            filename: "09_bevy_templates.png",
-            panel: Some(ActivePanel::BevyTemplates),
-            setup: SetupAction::None,
-        },
-        FeatureStep {
             filename: "10_asset_browser.png",
             panel: Some(ActivePanel::AssetBrowser),
             setup: SetupAction::None,
