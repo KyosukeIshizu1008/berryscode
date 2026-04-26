@@ -73,9 +73,7 @@ impl BerryCodeApp {
                                 for (col_idx, cell) in line.iter().enumerate() {
                                     // Continuation slot of a wide CJK glyph
                                     // — leading cell already carries the char.
-                                    if cell.ch
-                                        == super::terminal_emulator::WIDE_CONTINUATION
-                                    {
+                                    if cell.ch == super::terminal_emulator::WIDE_CONTINUATION {
                                         continue;
                                     }
                                     let same = cell.fg == run_fg && cell.bold == run_bold;
@@ -456,48 +454,41 @@ impl BerryCodeApp {
                     let mut run_bold = false;
                     let mut run_underline = false;
 
-                    let flush =
-                        |painter: &egui::Painter,
-                         run_start_col: usize,
-                         run_text: &str,
-                         run_cells: usize,
-                         run_fg: egui::Color32,
-                         run_bg: egui::Color32,
-                         run_bold: bool,
-                         run_underline: bool| {
-                            if run_text.is_empty() {
-                                return;
-                            }
-                            let x = origin.x + run_start_col as f32 * cell_w;
-                            let run_w = run_cells as f32 * cell_w;
-                            if run_bg != TERM_BG {
-                                let bg_rect = egui::Rect::from_min_size(
-                                    egui::pos2(x, y),
-                                    egui::vec2(run_w, cell_h),
-                                );
-                                painter.rect_filled(bg_rect, 0.0, run_bg);
-                            }
-                            let text_pos = egui::pos2(x, y + 1.0);
-                            let fid = if run_bold {
-                                egui::FontId::monospace(font_size)
-                            } else {
-                                egui::FontId::monospace(font_size)
-                            };
-                            painter.text(
-                                text_pos,
-                                egui::Align2::LEFT_TOP,
-                                run_text,
-                                fid,
-                                run_fg,
+                    let flush = |painter: &egui::Painter,
+                                 run_start_col: usize,
+                                 run_text: &str,
+                                 run_cells: usize,
+                                 run_fg: egui::Color32,
+                                 run_bg: egui::Color32,
+                                 run_bold: bool,
+                                 run_underline: bool| {
+                        if run_text.is_empty() {
+                            return;
+                        }
+                        let x = origin.x + run_start_col as f32 * cell_w;
+                        let run_w = run_cells as f32 * cell_w;
+                        if run_bg != TERM_BG {
+                            let bg_rect = egui::Rect::from_min_size(
+                                egui::pos2(x, y),
+                                egui::vec2(run_w, cell_h),
                             );
-                            if run_underline {
-                                let ul_y = y + cell_h - 2.0;
-                                painter.line_segment(
-                                    [egui::pos2(x, ul_y), egui::pos2(x + run_w, ul_y)],
-                                    egui::Stroke::new(1.0, run_fg),
-                                );
-                            }
+                            painter.rect_filled(bg_rect, 0.0, run_bg);
+                        }
+                        let text_pos = egui::pos2(x, y + 1.0);
+                        let fid = if run_bold {
+                            egui::FontId::monospace(font_size)
+                        } else {
+                            egui::FontId::monospace(font_size)
                         };
+                        painter.text(text_pos, egui::Align2::LEFT_TOP, run_text, fid, run_fg);
+                        if run_underline {
+                            let ul_y = y + cell_h - 2.0;
+                            painter.line_segment(
+                                [egui::pos2(x, ul_y), egui::pos2(x + run_w, ul_y)],
+                                egui::Stroke::new(1.0, run_fg),
+                            );
+                        }
+                    };
 
                     for col in 0..=grid.cols.min(line.len()) {
                         let at_end = col >= grid.cols.min(line.len());
@@ -594,9 +585,7 @@ impl BerryCodeApp {
                         && grid.cursor_col < grid.cells[grid.cursor_row].len()
                     {
                         let ch = grid.cells[grid.cursor_row][grid.cursor_col].ch;
-                        if ch != ' '
-                            && ch != super::terminal_emulator::WIDE_CONTINUATION
-                        {
+                        if ch != ' ' && ch != super::terminal_emulator::WIDE_CONTINUATION {
                             painter.text(
                                 egui::pos2(cx, cy + 1.0),
                                 egui::Align2::LEFT_TOP,
