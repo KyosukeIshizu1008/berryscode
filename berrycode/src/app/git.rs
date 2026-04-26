@@ -871,6 +871,7 @@ impl BerryCodeApp {
                     egui::ScrollArea::vertical()
                         .auto_shrink([false; 2])
                         .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing.y = 0.0;
                             // Render each hunk
                             for hunk in &diff.hunks {
                                 // Hunk header
