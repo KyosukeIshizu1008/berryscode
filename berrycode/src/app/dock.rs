@@ -52,39 +52,13 @@ impl BerryCodeApp {
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
-                // Tab bar + close button in one row
+                // Header: Console label + close button
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    for tab in ToolTab::ALL {
-                        let selected = self.active_tool_tab == *tab;
-                        let text = egui::RichText::new(tab.label())
+                    ui.label(
+                        egui::RichText::new("Console")
                             .size(13.0)
-                            .color(if selected {
-                                egui::Color32::WHITE
-                            } else {
-                                egui::Color32::from_rgb(140, 140, 140)
-                            });
-                        let resp = ui.add(
-                            egui::Button::new(text)
-                                .frame(false)
-                                .min_size(egui::vec2(0.0, 24.0)),
-                        );
-                        if resp.clicked() {
-                            self.active_tool_tab = *tab;
-                        }
-                        // Underline for selected tab
-                        if selected {
-                            let rect = resp.rect;
-                            ui.painter().line_segment(
-                                [
-                                    egui::pos2(rect.left() + 4.0, rect.bottom()),
-                                    egui::pos2(rect.right() - 4.0, rect.bottom()),
-                                ],
-                                egui::Stroke::new(2.0, egui::Color32::from_rgb(80, 140, 255)),
-                            );
-                        }
-                        ui.add_space(12.0);
-                    }
+                            .color(egui::Color32::WHITE),
+                    );
 
                     // Close button (right-aligned)
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -107,21 +81,8 @@ impl BerryCodeApp {
                     });
                 });
 
-                // Content based on active tab
-                match self.active_tool_tab {
-                    ToolTab::Console => {
-                        self.render_console_content(ui);
-                    }
-                    ToolTab::Timeline => {
-                        self.render_timeline_content(ui);
-                    }
-                    ToolTab::Dopesheet => {
-                        self.render_dopesheet_content(ui);
-                    }
-                    ToolTab::Profiler => {
-                        self.render_profiler_content(ui);
-                    }
-                }
+                // Console content
+                self.render_console_content(ui);
             });
     }
 }
