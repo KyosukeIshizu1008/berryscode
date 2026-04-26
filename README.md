@@ -2,10 +2,15 @@
 
 [![CI](https://github.com/KyosukeIshizu1008/berryscode/actions/workflows/tests.yml/badge.svg)](https://github.com/KyosukeIshizu1008/berryscode/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![GitHub Sponsors](https://img.shields.io/github/sponsors/KyosukeIshizu1008)](https://github.com/sponsors/KyosukeIshizu1008)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi)](https://ko-fi.com/berrycode)
 [![crates.io](https://img.shields.io/crates/v/berrycode)](https://crates.io/crates/berrycode)
+[![Downloads](https://img.shields.io/github/downloads/KyosukeIshizu1008/berryscode/total)](https://github.com/KyosukeIshizu1008/berryscode/releases)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/tBYX3EZW)
+
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/KyosukeIshizu1008?logo=github&label=GitHub%20Sponsors)](https://github.com/sponsors/KyosukeIshizu1008)
+[![Open Collective](https://img.shields.io/badge/Open%20Collective-Support-7FADF2?logo=opencollective)](https://opencollective.com/berrycode)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=ko-fi)](https://ko-fi.com/berrycode)
+[![Liberapay](https://img.shields.io/badge/Liberapay-Support-f6c915?logo=liberapay)](https://liberapay.com/berrycode/)
+[![IssueHunt](https://img.shields.io/badge/IssueHunt-Bounties-00CC99)](https://issuehunt.io/r/KyosukeIshizu1008/berryscode)
 
 [English](#english) | [日本語](#japanese)
 
@@ -131,21 +136,86 @@ BerryCode isn't just Bevy tools — it's a complete Rust IDE.
 - **AI Chat** — integrated LLM assistant via gRPC
 - **Minimap, code folding, snippets, image/3D model preview, test runner**
 
-### Quick Start
+### Install
+
+#### Pre-built binaries (recommended)
+
+Grab the latest release artifact for your platform from the
+[Releases page](https://github.com/KyosukeIshizu1008/berryscode/releases/latest):
+
+| Platform | Artifact |
+|----------|----------|
+| macOS (Apple Silicon + Intel) | `berrycode-macos-universal.tar.gz` |
+| Linux (x86_64) | `berrycode-linux-x86_64.tar.gz` |
+| Windows (x86_64) | `berrycode-windows-x86_64.zip` |
+
+Releases are signed with [Sigstore](https://www.sigstore.dev/).
+
+#### Package managers
 
 ```bash
-# Run BerryCode
-cargo run --bin berrycode
+# macOS / Linux — Homebrew
+brew install berrycode
 
-# With AI features
-cd berry_api && cargo run  # Terminal 1
-cargo run --bin berrycode  # Terminal 2
+# Windows — winget
+winget install KyosukeIshizu1008.BerryCode
 
-# Release build
-cargo build --release --bin berrycode
+# Linux — Snap
+sudo snap install berrycode
+
+# Linux — Flatpak
+flatpak install flathub dev.berrycode.BerryCode
+
+# Cargo (any platform with Rust 1.75+)
+cargo install berrycode
+```
+
+#### Build from source
+
+```bash
+git clone https://github.com/KyosukeIshizu1008/berryscode
+cd berryscode
+cargo run --bin berrycode               # debug
+cargo build --release --bin berrycode   # release
+
+# AI features (optional)
+cd berry_api && cargo run               # terminal 1
+cargo run --bin berrycode               # terminal 2
 ```
 
 **Prerequisites**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
+
+### Roadmap
+
+BerryCode is in active development. The next milestones in priority order:
+
+#### v0.4 — Editor polish (target: Q3 2026)
+- [ ] GPU PBR preview for GLB/GLTF models ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
+- [ ] In-progress IME preedit display in source code editor (currently terminal only)
+- [ ] LSP: completion details (signature help, parameter hints)
+- [ ] Scene Editor: prefab nested overrides
+- [ ] Settings UI for keybindings and theme
+
+#### v0.5 — Bevy depth (target: Q4 2026)
+- [ ] System Graph: drag-to-reorder + visual scheduling
+- [ ] Animation: blend tree node graph editor
+- [ ] Shader Graph: live-recompile preview
+- [ ] Hot reload for `.bscene` and shader assets
+- [ ] Plugin Browser: install with one click + auto-update
+
+#### v0.6 — Collaboration (target: 2027 H1)
+- [ ] Multi-cursor + collaborative editing (CRDT-based)
+- [ ] Profiler integration (Bevy + Tracy)
+- [ ] Asset import pipeline (FBX, OBJ, custom converters)
+- [ ] Visual scripting → Rust codegen
+
+#### Long term
+- [ ] WASM build for in-browser editing
+- [ ] Mobile (iPad / Android) viewer mode
+- [ ] Cloud sync for workspaces
+
+See [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues) for the current backlog and
+[Discussions](https://github.com/KyosukeIshizu1008/berryscode/discussions) to suggest new directions.
 
 ### Community
 
@@ -294,21 +364,86 @@ Bevy ツールだけではなく、完全な Rust IDE。
 - **AI チャット** — gRPC 経由の統合 LLM アシスタント
 - **ミニマップ、コード折りたたみ、スニペット、画像/3Dモデルプレビュー、テストランナー**
 
-### クイックスタート
+### インストール
+
+#### ビルド済みバイナリ（推奨）
+
+[Releases ページ](https://github.com/KyosukeIshizu1008/berryscode/releases/latest)から
+プラットフォーム別にダウンロード:
+
+| プラットフォーム | アーティファクト |
+|------------------|------------------|
+| macOS (Apple Silicon + Intel) | `berrycode-macos-universal.tar.gz` |
+| Linux (x86_64) | `berrycode-linux-x86_64.tar.gz` |
+| Windows (x86_64) | `berrycode-windows-x86_64.zip` |
+
+リリースは [Sigstore](https://www.sigstore.dev/) で署名されています。
+
+#### パッケージマネージャー
 
 ```bash
-# BerryCode 起動
-cargo run --bin berrycode
+# macOS / Linux — Homebrew
+brew install berrycode
 
-# AI 機能付き
-cd berry_api && cargo run  # ターミナル1
-cargo run --bin berrycode  # ターミナル2
+# Windows — winget
+winget install KyosukeIshizu1008.BerryCode
 
-# リリースビルド
-cargo build --release --bin berrycode
+# Linux — Snap
+sudo snap install berrycode
+
+# Linux — Flatpak
+flatpak install flathub dev.berrycode.BerryCode
+
+# Cargo (Rust 1.75+ があればどのプラットフォームでも)
+cargo install berrycode
+```
+
+#### ソースからビルド
+
+```bash
+git clone https://github.com/KyosukeIshizu1008/berryscode
+cd berryscode
+cargo run --bin berrycode               # デバッグビルド
+cargo build --release --bin berrycode   # リリースビルド
+
+# AI 機能 (オプション)
+cd berry_api && cargo run               # ターミナル1
+cargo run --bin berrycode               # ターミナル2
 ```
 
 **前提条件**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
+
+### ロードマップ
+
+BerryCode は活発に開発中です。優先順位順の今後のマイルストーン:
+
+#### v0.4 — エディタの磨き込み (目標: 2026 Q3)
+- [ ] GLB/GLTF モデルの GPU PBR プレビュー ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
+- [ ] ソースコードエディタでの IME preedit 表示（現状ターミナルのみ）
+- [ ] LSP: 補完詳細（シグネチャヘルプ、パラメータヒント）
+- [ ] シーンエディタ: プレハブのネストオーバーライド
+- [ ] キーバインド・テーマの設定 UI
+
+#### v0.5 — Bevy 深耕 (目標: 2026 Q4)
+- [ ] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
+- [ ] アニメーション: ブレンドツリーノードグラフエディタ
+- [ ] シェーダーグラフ: ライブ再コンパイルプレビュー
+- [ ] `.bscene` とシェーダーアセットのホットリロード
+- [ ] プラグインブラウザ: ワンクリックインストール + 自動アップデート
+
+#### v0.6 — コラボレーション (目標: 2027 H1)
+- [ ] マルチカーソル + 共同編集 (CRDT ベース)
+- [ ] プロファイラ統合 (Bevy + Tracy)
+- [ ] アセットインポートパイプライン (FBX, OBJ, カスタムコンバータ)
+- [ ] ビジュアルスクリプト → Rust コード生成
+
+#### 長期
+- [ ] ブラウザ内編集用 WASM ビルド
+- [ ] モバイル (iPad / Android) ビューワーモード
+- [ ] ワークスペースのクラウド同期
+
+現在のバックログは [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues)、
+新規アイデアは [Discussions](https://github.com/KyosukeIshizu1008/berryscode/discussions) を参照。
 
 ### コミュニティ
 
