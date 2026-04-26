@@ -11,6 +11,7 @@ pub enum EcsInspectorTab {
 }
 
 // VS Code-like colors
+#[allow(dead_code)]
 const HEADER_BG: egui::Color32 = egui::Color32::from_rgb(37, 37, 38);
 const ITEM_HOVER: egui::Color32 = egui::Color32::from_rgb(45, 45, 48);
 const ITEM_SELECTED: egui::Color32 = egui::Color32::from_rgb(4, 57, 94);
@@ -20,7 +21,9 @@ const ACCENT_BLUE: egui::Color32 = egui::Color32::from_rgb(75, 139, 190);
 const STATUS_GREEN: egui::Color32 = egui::Color32::from_rgb(80, 200, 80);
 const STATUS_RED: egui::Color32 = egui::Color32::from_rgb(200, 80, 80);
 const PROP_KEY: egui::Color32 = egui::Color32::from_rgb(156, 220, 254);
+#[allow(dead_code)]
 const PROP_VAL_NUM: egui::Color32 = egui::Color32::from_rgb(181, 206, 168);
+#[allow(dead_code)]
 const PROP_VAL_STR: egui::Color32 = egui::Color32::from_rgb(206, 145, 120);
 const SECTION_ICON: &str = "\u{EB5F}"; // codicon: symbol-class
 
@@ -935,6 +938,7 @@ impl BerryCodeApp {
     }
 
     /// Legacy read-only render for backward compat
+    #[allow(dead_code)]
     fn render_json_properties(&self, ui: &mut egui::Ui, value: &serde_json::Value, depth: usize) {
         let small = egui::FontId::proportional(11.0);
         let indent = depth as f32 * 12.0;
@@ -979,6 +983,7 @@ impl BerryCodeApp {
     }
 
     /// Format a JSON scalar value with appropriate color
+    #[allow(dead_code)]
     fn format_json_value(&self, value: &serde_json::Value) -> (String, egui::Color32) {
         match value {
             serde_json::Value::Number(n) => {

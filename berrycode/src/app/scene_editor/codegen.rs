@@ -699,10 +699,12 @@ fn module_to_pascal(module: &str) -> String {
 }
 
 /// Generate a scene as a Bevy Plugin module.
+#[allow(dead_code)]
 pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> String {
     generate_scene_plugin_code_with_root(scene, scene_name, "")
 }
 
+#[allow(dead_code)]
 pub fn generate_scene_plugin_code_with_root(
     scene: &SceneModel,
     scene_name: &str,

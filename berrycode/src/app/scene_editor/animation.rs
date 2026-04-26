@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Editor-side animation playback.
 //!
 //! Keeps per-entity playback time so the Scene View can show animations live

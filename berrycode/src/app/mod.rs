@@ -12,7 +12,6 @@ use tokio::sync::mpsc;
 mod ai_chat;
 pub(crate) mod ansi;
 mod asset_browser;
-mod bevy_templates;
 mod cargo_completion;
 mod code_actions;
 mod custom_snippets;
@@ -360,7 +359,6 @@ pub struct BerryCodeApp {
     pub(crate) asset_browser: crate::bevy_ide::assets::scanner::AssetBrowserState,
 
     // === Bevy Templates ===
-    pub(crate) template_type: bevy_templates::TemplateType,
     pub(crate) template_name: String,
     pub(crate) template_fields: Vec<(String, String)>,
     pub(crate) template_params: Vec<String>,
@@ -660,21 +658,15 @@ pub struct BerryCodeApp {
     pub(crate) package_manager: package_manager::PackageManagerState,
     /// Receiver for async crates.io search results
     pub(crate) package_manager_search_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
-
     // === Texture Importer ===
-    pub(crate) texture_importer: scene_editor::texture_importer::TextureImporterState,
 
     // === Audio Mixer ===
-    pub(crate) audio_mixer: scene_editor::audio_mixer::AudioMixerState,
 
     // === Play Test Panel ===
-    pub(crate) play_test: scene_editor::play_test::PlayTestState,
 
     // === Visual Merge ===
-    pub(crate) visual_merge: scene_editor::visual_merge::VisualMergeState,
 
     // === Lighting Profiler ===
-    pub(crate) lighting_profiler: scene_editor::lightmap::LightingProfilerState,
 }
 
 impl BerryCodeApp {
@@ -1379,7 +1371,6 @@ impl BerryCodeApp {
 
             asset_browser: Default::default(),
 
-            template_type: bevy_templates::TemplateType::default(),
             template_name: String::new(),
             template_fields: Vec::new(),
             template_params: Vec::new(),
@@ -1687,12 +1678,6 @@ impl BerryCodeApp {
             package_manager_open: false,
             package_manager: package_manager::PackageManagerState::default(),
             package_manager_search_rx: None,
-
-            texture_importer: scene_editor::texture_importer::TextureImporterState::default(),
-            audio_mixer: scene_editor::audio_mixer::AudioMixerState::default(),
-            play_test: scene_editor::play_test::PlayTestState::default(),
-            visual_merge: scene_editor::visual_merge::VisualMergeState::default(),
-            lighting_profiler: scene_editor::lightmap::LightingProfilerState::default(),
         };
 
         // === Test Mode CLI: --test-mode ===

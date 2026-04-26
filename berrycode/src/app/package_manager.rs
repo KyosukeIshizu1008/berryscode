@@ -33,6 +33,7 @@ impl Default for PackageManagerState {
 pub struct CargoDep {
     pub name: String,
     pub version: String,
+    #[allow(dead_code)]
     pub features: Vec<String>,
     pub enabled_features: Vec<String>,
     pub optional: bool,

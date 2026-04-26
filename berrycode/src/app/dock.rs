@@ -15,6 +15,7 @@ pub enum ToolTab {
 }
 
 impl ToolTab {
+    #[allow(dead_code)]
     pub const ALL: &'static [ToolTab] = &[
         ToolTab::Console,
         ToolTab::Timeline,
@@ -22,6 +23,7 @@ impl ToolTab {
         ToolTab::Profiler,
     ];
 
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             ToolTab::Console => "Console",

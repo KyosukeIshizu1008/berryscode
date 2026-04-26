@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! NavMesh: grid-based navigation with A* pathfinding.
 
 use super::model::*;

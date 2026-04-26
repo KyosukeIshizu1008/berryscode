@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Dopesheet / Curve Editor for multi-track animations.
 //!
 //! Shows a 2D grid with one row per animation track. Keyframes are drawn as

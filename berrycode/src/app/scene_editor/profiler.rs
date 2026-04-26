@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Lightweight editor-side profiler panel.
 //!
 //! Records frame times in a ring buffer and renders a small line graph plus
