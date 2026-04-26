@@ -400,9 +400,12 @@ impl BerryCodeApp {
     fn render_terminal_grid(&mut self, ui: &mut egui::Ui) {
         let available = ui.available_rect_before_wrap();
 
-        // Calculate cell dimensions from monospace font
+        // Calculate cell dimensions from monospace font.
+        // The 0.575 ratio is tuned so CJK glyphs (rendered in 2 cells) leave
+        // only a small visual gap to neighbouring chars without making ASCII
+        // text feel cramped.
         let font_size = 13.5_f32;
-        let cell_w = font_size * 0.6; // approximate monospace char width
+        let cell_w = font_size * 0.575;
         let cell_h = font_size * 1.4;
         let padding_x = 6.0;
         let padding_y = 4.0;
@@ -422,6 +425,52 @@ impl BerryCodeApp {
         let (response, painter) =
             ui.allocate_painter(available.size(), egui::Sense::click_and_drag());
         let rect = response.rect;
+
+        // Focus handling: any pointer press inside the terminal area moves
+        // focus here. `response.clicked()` only fires on press+release on
+        // the same widget, which selection-drags don't satisfy, so use
+        // pointer state directly. We also auto-focus on first frame so
+        // typing works without needing to click first.
+        let (any_pressed, interact_pos) =
+            ui.input(|i| (i.pointer.any_pressed(), i.pointer.interact_pos()));
+        let pointer_pressed_in_rect =
+            any_pressed && interact_pos.map_or(false, |p| rect.contains(p));
+        if pointer_pressed_in_rect || response.clicked() || response.is_pointer_button_down_on() {
+            response.request_focus();
+        }
+
+        // Auto-focus when no other widget holds focus (e.g. right after
+        // switching to the fullscreen terminal panel). Without this, users
+        // have to click inside the grid before IME activates, which is
+        // surprising for a panel that's expected to receive typing
+        // immediately.
+        let any_focused = ui.memory(|m| m.focused().is_some());
+        if !any_focused && !response.has_focus() {
+            response.request_focus();
+        }
+        let focused = response.has_focus();
+
+        // Only advertise an IME area when the terminal has focus; otherwise
+        // every keystroke (including English) would route through the IME
+        // composition pipeline and stall normal typing.
+        if focused {
+            let cursor_rect = if let Some(tab) = self.terminal.active_tab() {
+                tab.grid
+                    .lock()
+                    .ok()
+                    .map(|g| {
+                        let cx = rect.left() + padding_x + g.cursor_col as f32 * cell_w;
+                        let cy = rect.top() + padding_y + g.cursor_row as f32 * cell_h;
+                        egui::Rect::from_min_size(egui::pos2(cx, cy), egui::vec2(cell_w, cell_h))
+                    })
+                    .unwrap_or(rect)
+            } else {
+                rect
+            };
+            ui.ctx().output_mut(|o| {
+                o.ime = Some(egui::output::IMEOutput { rect, cursor_rect });
+            });
+        }
 
         // Fill background
         painter.rect_filled(rect, 0.0, TERM_BG);
@@ -474,13 +523,47 @@ impl BerryCodeApp {
                             );
                             painter.rect_filled(bg_rect, 0.0, run_bg);
                         }
-                        let text_pos = egui::pos2(x, y + 1.0);
                         let fid = if run_bold {
                             egui::FontId::monospace(font_size)
                         } else {
                             egui::FontId::monospace(font_size)
                         };
-                        painter.text(text_pos, egui::Align2::LEFT_TOP, run_text, fid, run_fg);
+                        // The Japanese font we register as a Monospace fallback
+                        // is proportional, so CJK glyphs don't advance by exactly
+                        // 2 grid cells. Drawing the run with one `painter.text`
+                        // call accumulates that error and the cursor drifts past
+                        // the visible text. Place each char at its exact column
+                        // instead so grid coords stay aligned with pixels.
+                        let has_wide = run_text
+                            .chars()
+                            .any(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(1) > 1);
+                        if has_wide {
+                            // Place each char at the *center* of its slot
+                            // (1 cell wide for ASCII, 2 cells wide for CJK).
+                            // This keeps the cursor / grid math right while
+                            // distributing the leftover space evenly so we
+                            // don't get a big right-side gap on every CJK
+                            // glyph.
+                            let mut col = run_start_col;
+                            for c in run_text.chars() {
+                                let w = unicode_width::UnicodeWidthChar::width(c)
+                                    .unwrap_or(1)
+                                    .max(1);
+                                let slot_x = origin.x + col as f32 * cell_w;
+                                let slot_w = w as f32 * cell_w;
+                                painter.text(
+                                    egui::pos2(slot_x + slot_w * 0.5, y + 1.0),
+                                    egui::Align2::CENTER_TOP,
+                                    c.to_string(),
+                                    fid.clone(),
+                                    run_fg,
+                                );
+                                col += w;
+                            }
+                        } else {
+                            let text_pos = egui::pos2(x, y + 1.0);
+                            painter.text(text_pos, egui::Align2::LEFT_TOP, run_text, fid, run_fg);
+                        }
                         if run_underline {
                             let ul_y = y + cell_h - 2.0;
                             painter.line_segment(
@@ -597,6 +680,55 @@ impl BerryCodeApp {
                     }
                 }
 
+                // ─── IME preedit overlay ───────────────────────
+                // Draw the in-progress IME composition string at the cursor
+                // with a subtle background + underline so the user can see
+                // what they're typing before they confirm with Enter.
+                if !self.terminal.ime_preedit.is_empty() && grid.scroll_offset == 0 {
+                    let preedit = &self.terminal.ime_preedit;
+                    let preedit_cells: usize = preedit
+                        .chars()
+                        .map(|c| {
+                            unicode_width::UnicodeWidthChar::width(c)
+                                .unwrap_or(1)
+                                .max(1)
+                        })
+                        .sum();
+                    let px = origin.x + grid.cursor_col as f32 * cell_w;
+                    let py = origin.y + grid.cursor_row as f32 * cell_h;
+                    let pw = preedit_cells as f32 * cell_w;
+                    let bg_rect =
+                        egui::Rect::from_min_size(egui::pos2(px, py), egui::vec2(pw, cell_h));
+                    painter.rect_filled(
+                        bg_rect,
+                        0.0,
+                        egui::Color32::from_rgba_unmultiplied(60, 90, 140, 110),
+                    );
+                    // Per-char positioning so CJK glyphs stay aligned with the
+                    // 2-cell terminal grid (see the comment in `flush` above).
+                    let mut col = grid.cursor_col;
+                    for c in preedit.chars() {
+                        let w = unicode_width::UnicodeWidthChar::width(c)
+                            .unwrap_or(1)
+                            .max(1);
+                        let slot_x = origin.x + col as f32 * cell_w;
+                        let slot_w = w as f32 * cell_w;
+                        painter.text(
+                            egui::pos2(slot_x + slot_w * 0.5, py + 1.0),
+                            egui::Align2::CENTER_TOP,
+                            c.to_string(),
+                            font_id.clone(),
+                            TERM_FG,
+                        );
+                        col += w;
+                    }
+                    let ul_y = py + cell_h - 1.0;
+                    painter.line_segment(
+                        [egui::pos2(px, ul_y), egui::pos2(px + pw, ul_y)],
+                        egui::Stroke::new(1.0, TERM_FG),
+                    );
+                }
+
                 // ─── Scrollbar ──────────────────────────────────
                 let sb_len = grid.scrollback.len();
                 let total_lines = sb_len + grid.rows;
@@ -661,13 +793,40 @@ impl BerryCodeApp {
     fn handle_terminal_keyboard(&mut self, ui: &mut egui::Ui, _response: &egui::Response) {
         let events: Vec<egui::Event> = ui.input(|i| i.events.clone());
 
+        if self.terminal.active_tab().is_none() {
+            return;
+        }
+
+        // Reset cursor blink on any input
+        let mut had_input = false;
+
+        // Process IME events first (they touch `self.terminal.ime_preedit`)
+        // so we can hold a `tab` borrow afterwards without aliasing.
+        for event in &events {
+            if let egui::Event::Ime(ime_event) = event {
+                match ime_event {
+                    egui::ImeEvent::Preedit(text) => {
+                        self.terminal.ime_preedit = text.clone();
+                        had_input = true;
+                    }
+                    egui::ImeEvent::Commit(text) => {
+                        self.terminal.ime_preedit.clear();
+                        if let Some(tab) = self.terminal.active_tab() {
+                            tab.write_to_pty(text.as_bytes());
+                        }
+                        had_input = true;
+                    }
+                    egui::ImeEvent::Enabled | egui::ImeEvent::Disabled => {
+                        self.terminal.ime_preedit.clear();
+                    }
+                }
+            }
+        }
+
         let tab = match self.terminal.active_tab() {
             Some(t) => t,
             None => return,
         };
-
-        // Reset cursor blink on any input
-        let mut had_input = false;
 
         for event in &events {
             match event {
@@ -678,15 +837,8 @@ impl BerryCodeApp {
                     tab.write_to_pty(text.as_bytes());
                     had_input = true;
                 }
-                egui::Event::Ime(ime_event) => {
-                    // Some platforms (notably macOS) deliver the committed
-                    // IME string as a separate Ime::Commit instead of Text.
-                    // Forward it so Japanese / Chinese / Korean characters
-                    // typed via IME reach the PTY in either path.
-                    if let egui::ImeEvent::Commit(text) = ime_event {
-                        tab.write_to_pty(text.as_bytes());
-                        had_input = true;
-                    }
+                egui::Event::Ime(_) => {
+                    // Already handled above.
                 }
                 egui::Event::Key {
                     key,

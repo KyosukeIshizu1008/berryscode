@@ -686,7 +686,10 @@ impl BerryCodeApp {
         let bg_input = egui::Color32::from_rgb(50, 52, 56); // input fields
         let bg_hover = egui::Color32::from_rgb(55, 57, 61); // hover state
         let bg_active = egui::Color32::from_rgb(65, 68, 74); // active/pressed
-        let bg_selected = egui::Color32::from_rgb(38, 79, 140); // brighter blue selection
+                                                             // Selection bg uses RGBA with alpha so the underlying text remains
+                                                             // legible during IME preedit (egui paints selection over the glyphs).
+                                                             // Premultiplied alpha: ~30% opacity = (rgb * 0.3, alpha 76).
+        let bg_selected = egui::Color32::from_rgba_premultiplied(11, 24, 42, 76);
         let border = egui::Color32::from_rgb(60, 63, 68); // borders
         let border_focus = egui::Color32::from_rgb(75, 110, 175); // focused border (accent)
         let text = egui::Color32::from_rgb(205, 207, 213); // primary text
@@ -710,9 +713,12 @@ impl BerryCodeApp {
         visuals.window_corner_radius = egui::CornerRadius::same(8);
         visuals.menu_corner_radius = egui::CornerRadius::same(6);
 
-        // Selection
+        // Selection — `selection.stroke.color` is misleadingly named: egui
+        // uses it to *override* the glyph color of the selected text, so it
+        // must be visible (using TRANSPARENT here makes selected text — and
+        // IME preedit text — invisible).
         visuals.selection.bg_fill = bg_selected;
-        visuals.selection.stroke = egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
+        visuals.selection.stroke = egui::Stroke::new(0.0, text);
 
         // Text cursor
         visuals.text_cursor.stroke.color = egui::Color32::from_rgb(180, 190, 220);
@@ -1840,8 +1846,9 @@ pub fn setup_egui_fonts_and_style(
     visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(25, 26, 28);
     visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(45, 47, 50);
     visuals.widgets.active.bg_fill = egui::Color32::from_rgb(60, 63, 65);
-    visuals.selection.bg_fill = egui::Color32::from_rgb(38, 79, 140);
-    visuals.selection.stroke = egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
+    visuals.selection.bg_fill = egui::Color32::from_rgba_premultiplied(11, 24, 42, 76);
+    // `selection.stroke.color` is the text color override for selected glyphs.
+    visuals.selection.stroke = egui::Stroke::new(0.0, egui::Color32::from_rgb(212, 212, 212));
     visuals.code_bg_color = egui::Color32::from_rgb(25, 26, 28);
     ctx.set_visuals(visuals);
 

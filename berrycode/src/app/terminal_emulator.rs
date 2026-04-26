@@ -1126,6 +1126,10 @@ pub struct TerminalEmulator {
     pub working_dir: String,
     pub cursor_blink_timer: f64,
     pub cursor_visible_blink: bool,
+    /// Live IME composition string. Populated from `ImeEvent::Preedit` and
+    /// drawn inline at the cursor; cleared on `ImeEvent::Commit`/`Disabled`.
+    /// Does not get written to the PTY — only the eventual commit does.
+    pub ime_preedit: String,
 }
 
 impl TerminalEmulator {
@@ -1137,6 +1141,7 @@ impl TerminalEmulator {
             working_dir: working_dir.to_string(),
             cursor_blink_timer: 0.0,
             cursor_visible_blink: true,
+            ime_preedit: String::new(),
         }
     }
 
