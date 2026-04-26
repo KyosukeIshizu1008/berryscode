@@ -50,6 +50,55 @@ fn format_map_value(entries: &[(String, ScriptValue)]) -> String {
 }
 
 /// Generate a Rust source file from a SceneModel.
+/// Resolve a GLB path for auto-scale calculation.
+/// Tries the path as-is, then assets/ relative, then common project locations.
+fn resolve_glb_path(path: &str, project_root: &str) -> Option<String> {
+    if std::path::Path::new(path).exists() {
+        return Some(path.to_string());
+    }
+    if !project_root.is_empty() {
+        let with_root_assets = format!("{}/assets/{}", project_root, path);
+        if std::path::Path::new(&with_root_assets).exists() {
+            return Some(with_root_assets);
+        }
+        let with_root = format!("{}/{}", project_root, path);
+        if std::path::Path::new(&with_root).exists() {
+            return Some(with_root);
+        }
+    }
+    let with_assets = format!("assets/{}", path);
+    if std::path::Path::new(&with_assets).exists() {
+        return Some(with_assets);
+    }
+    None
+}
+
+/// Compute auto-scale for a GLB model to match scene editor preview size.
+fn compute_glb_auto_scale(path: &str, project_root: &str) -> f32 {
+    let resolved = resolve_glb_path(path, project_root).unwrap_or_else(|| path.to_string());
+    crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(&resolved)
+        .map(|data| {
+            let mut min = [f32::MAX; 3];
+            let mut max = [f32::MIN; 3];
+            for p in &data.positions {
+                for i in 0..3 {
+                    min[i] = min[i].min(p[i]);
+                    max[i] = max[i].max(p[i]);
+                }
+            }
+            let extent = (max[0] - min[0])
+                .max(max[1] - min[1])
+                .max(max[2] - min[2])
+                .max(0.001);
+            if extent > 5.0 {
+                2.0 / extent
+            } else {
+                1.0
+            }
+        })
+        .unwrap_or(1.0)
+}
+
 pub fn generate_scene_code(scene: &SceneModel) -> String {
     let mut code = String::new();
     code.push_str("//! Auto-generated scene setup code from BerryCode Scene Editor.\n");
@@ -537,28 +586,7 @@ pub fn patch_main_rs_setup(main_code: &str, scene: &SceneModel) -> String {
                         .to_string();
 
                     // Compute auto-scale for GLB models (match bevy_sync behavior)
-                    let auto_scale =
-                        crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(path)
-                            .map(|data| {
-                                let mut min = [f32::MAX; 3];
-                                let mut max = [f32::MIN; 3];
-                                for p in &data.positions {
-                                    for i in 0..3 {
-                                        min[i] = min[i].min(p[i]);
-                                        max[i] = max[i].max(p[i]);
-                                    }
-                                }
-                                let extent = (max[0] - min[0])
-                                    .max(max[1] - min[1])
-                                    .max(max[2] - min[2])
-                                    .max(0.001);
-                                if extent > 5.0 {
-                                    2.0 / extent
-                                } else {
-                                    1.0
-                                }
-                            })
-                            .unwrap_or(1.0);
+                    let auto_scale = compute_glb_auto_scale(path, "");
 
                     let sx = t.scale[0] * auto_scale;
                     let sy = t.scale[1] * auto_scale;
@@ -672,6 +700,14 @@ fn module_to_pascal(module: &str) -> String {
 
 /// Generate a scene as a Bevy Plugin module.
 pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> String {
+    generate_scene_plugin_code_with_root(scene, scene_name, "")
+}
+
+pub fn generate_scene_plugin_code_with_root(
+    scene: &SceneModel,
+    scene_name: &str,
+    project_root: &str,
+) -> String {
     let module_name = scene_name_to_module(scene_name);
     let pascal_name = module_to_pascal(&module_name);
     let plugin_name = format!("{}ScenePlugin", pascal_name);
@@ -723,26 +759,8 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
             .find_map(|c| {
                 if let ComponentData::MeshFromFile { path, .. } = c {
                     if !path.is_empty() {
-                        return crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(path)
-                            .map(|data| {
-                                let mut min = [f32::MAX; 3];
-                                let mut max = [f32::MIN; 3];
-                                for p in &data.positions {
-                                    for i in 0..3 {
-                                        min[i] = min[i].min(p[i]);
-                                        max[i] = max[i].max(p[i]);
-                                    }
-                                }
-                                let extent = (max[0] - min[0])
-                                    .max(max[1] - min[1])
-                                    .max(max[2] - min[2])
-                                    .max(0.001);
-                                if extent > 5.0 {
-                                    2.0 / extent
-                                } else {
-                                    1.0
-                                }
-                            });
+                        let scale = compute_glb_auto_scale(path, project_root);
+                        return Some(scale);
                     }
                 }
                 None
@@ -922,7 +940,7 @@ pub fn save_scene_code_modular(
     std::fs::create_dir_all(&scenes_dir).map_err(|e| e.to_string())?;
 
     // Generate and write scene plugin code
-    let code = generate_scene_plugin_code(scene, &scene_name);
+    let code = generate_scene_plugin_code_with_root(scene, &scene_name, project_root);
     let rs_path = format!("{}/{}.rs", scenes_dir, module_name);
     std::fs::write(&rs_path, &code).map_err(|e| e.to_string())?;
 
