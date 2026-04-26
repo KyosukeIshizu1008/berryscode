@@ -884,58 +884,81 @@ impl BerryCodeApp {
                                 ui.add_space(4.0);
 
                                 // Render lines in the hunk
+                                let row_height = 18.0;
+                                let font = egui::FontId::new(13.0, egui::FontFamily::Monospace);
+
                                 for line in &hunk.lines {
-                                    let (bg_color, fg_color, prefix) = match line.origin {
+                                    let (bg_color, marker_color, prefix) = match line.origin {
                                         '+' => (
-                                            egui::Color32::from_rgb(20, 60, 20), // Dark green background
-                                            ui_colors::TEXT_DEFAULT, // White text (same as file tree)
-                                            "+ ",
+                                            egui::Color32::from_rgba_premultiplied(30, 80, 30, 255),
+                                            egui::Color32::from_rgb(80, 200, 80),
+                                            "+",
                                         ),
                                         '-' => (
-                                            egui::Color32::from_rgb(60, 20, 20), // Dark red background
-                                            ui_colors::TEXT_DEFAULT, // White text (same as file tree)
-                                            "- ",
+                                            egui::Color32::from_rgba_premultiplied(80, 30, 30, 255),
+                                            egui::Color32::from_rgb(220, 80, 80),
+                                            "-",
                                         ),
                                         _ => (
-                                            ui_colors::SIDEBAR_BG,   // Default background
-                                            ui_colors::TEXT_DEFAULT, // Default text
-                                            "  ",
+                                            egui::Color32::TRANSPARENT,
+                                            egui::Color32::from_rgb(80, 80, 80),
+                                            " ",
                                         ),
                                     };
 
-                                    // Line number + content
-                                    let line_num = if line.origin == '+' {
-                                        line.new_lineno
-                                            .map(|n| format!("{:>4} ", n))
-                                            .unwrap_or_else(|| "     ".to_string())
-                                    } else if line.origin == '-' {
+                                    let line_num = if line.origin == '-' {
                                         line.old_lineno
-                                            .map(|n| format!("{:>4} ", n))
-                                            .unwrap_or_else(|| "     ".to_string())
+                                            .map(|n| format!("{:>4}", n))
+                                            .unwrap_or_else(|| "    ".to_string())
                                     } else {
                                         line.new_lineno
-                                            .map(|n| format!("{:>4} ", n))
-                                            .unwrap_or_else(|| "     ".to_string())
+                                            .map(|n| format!("{:>4}", n))
+                                            .unwrap_or_else(|| "    ".to_string())
                                     };
 
-                                    let text = format!(
-                                        "{}{}{}",
-                                        line_num,
-                                        prefix,
-                                        line.content.trim_end()
+                                    let content = line.content.trim_end();
+
+                                    let (rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(ui.available_width(), row_height),
+                                        egui::Sense::hover(),
                                     );
 
-                                    egui::Frame::NONE
-                                        .fill(bg_color)
-                                        .inner_margin(egui::Margin::symmetric(4, 2))
-                                        .show(ui, |ui| {
-                                            ui.label(
-                                                egui::RichText::new(text)
-                                                    .color(fg_color)
-                                                    .family(egui::FontFamily::Monospace)
-                                                    .size(13.0),
-                                            );
-                                        });
+                                    // Full-width background
+                                    if bg_color != egui::Color32::TRANSPARENT {
+                                        ui.painter().rect_filled(rect, 0.0, bg_color);
+                                    }
+
+                                    let y = rect.center().y;
+                                    let mut x = rect.left() + 4.0;
+
+                                    // Line number (dim)
+                                    ui.painter().text(
+                                        egui::pos2(x, y),
+                                        egui::Align2::LEFT_CENTER,
+                                        &line_num,
+                                        font.clone(),
+                                        egui::Color32::from_rgb(100, 100, 100),
+                                    );
+                                    x += 40.0;
+
+                                    // +/- marker (colored)
+                                    ui.painter().text(
+                                        egui::pos2(x, y),
+                                        egui::Align2::LEFT_CENTER,
+                                        prefix,
+                                        font.clone(),
+                                        marker_color,
+                                    );
+                                    x += 16.0;
+
+                                    // Content
+                                    ui.painter().text(
+                                        egui::pos2(x, y),
+                                        egui::Align2::LEFT_CENTER,
+                                        content,
+                                        font.clone(),
+                                        ui_colors::TEXT_DEFAULT,
+                                    );
                                 }
 
                                 ui.add_space(8.0);
