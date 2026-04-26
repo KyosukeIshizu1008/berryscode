@@ -580,10 +580,7 @@ impl BerryCodeApp {
                 .values()
                 .find(|e| e.name == *name)
                 .and_then(|e| {
-                    crate::app::scene_editor::mesh_outline::triangles_for_entity(
-                        e,
-                        &self.root_path,
-                    )
+                    crate::app::scene_editor::mesh_outline::triangles_for_entity(e, &self.root_path)
                 });
 
             if let Some(triangles) = scene_match {
@@ -593,12 +590,7 @@ impl BerryCodeApp {
                     scale: [1.0, 1.0, 1.0],
                 };
                 crate::app::scene_editor::mesh_outline::draw_mesh_outline_with(
-                    &painter,
-                    &triangles,
-                    &world_t,
-                    project_v3,
-                    color,
-                    width,
+                    &painter, &triangles, &world_t, project_v3, color, width,
                 );
             } else {
                 let s = 0.5_f32;
@@ -613,9 +605,18 @@ impl BerryCodeApp {
                     [pos[0] - s, pos[1] + s, pos[2] + s],
                 ];
                 let edges = [
-                    (0, 1), (1, 2), (2, 3), (3, 0),
-                    (4, 5), (5, 6), (6, 7), (7, 4),
-                    (0, 4), (1, 5), (2, 6), (3, 7),
+                    (0, 1),
+                    (1, 2),
+                    (2, 3),
+                    (3, 0),
+                    (4, 5),
+                    (5, 6),
+                    (6, 7),
+                    (7, 4),
+                    (0, 4),
+                    (1, 5),
+                    (2, 6),
+                    (3, 7),
                 ];
                 let projected: Vec<egui::Pos2> = corners.iter().map(|c| project(*c)).collect();
                 for (a, b) in &edges {

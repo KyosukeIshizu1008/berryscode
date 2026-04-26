@@ -13,10 +13,7 @@ use bevy::math::{Quat, Vec3};
 /// data-only components, etc.) so the caller can fall back to a default
 /// gizmo. Paths inside `MeshFromFile` are resolved relative to
 /// `<project_root>/assets/`.
-pub fn triangles_for_entity(
-    entity: &SceneEntity,
-    project_root: &str,
-) -> Option<Vec<[Vec3; 3]>> {
+pub fn triangles_for_entity(entity: &SceneEntity, project_root: &str) -> Option<Vec<[Vec3; 3]>> {
     for c in &entity.components {
         match c {
             ComponentData::MeshCube { size, .. } => {
@@ -50,7 +47,9 @@ pub fn triangles_for_entity(
             }
             ComponentData::Collider { shape, .. } => match shape {
                 ColliderShape::Box { half_extents } => {
-                    return Some(cube_triangles(half_extents[0].max(half_extents[1]).max(half_extents[2]) * 2.0));
+                    return Some(cube_triangles(
+                        half_extents[0].max(half_extents[1]).max(half_extents[2]) * 2.0,
+                    ));
                 }
                 ColliderShape::Sphere { radius } => {
                     return Some(sphere_triangles(*radius, 12, 8));
@@ -191,17 +190,20 @@ fn cube_triangles(size: f32) -> Vec<[Vec3; 3]> {
         Vec3::new(-h, h, h),
     ];
     let faces = [
-        [0, 1, 2], [0, 2, 3],
-        [4, 6, 5], [4, 7, 6],
-        [0, 4, 5], [0, 5, 1],
-        [2, 6, 7], [2, 7, 3],
-        [0, 3, 7], [0, 7, 4],
-        [1, 5, 6], [1, 6, 2],
+        [0, 1, 2],
+        [0, 2, 3],
+        [4, 6, 5],
+        [4, 7, 6],
+        [0, 4, 5],
+        [0, 5, 1],
+        [2, 6, 7],
+        [2, 7, 3],
+        [0, 3, 7],
+        [0, 7, 4],
+        [1, 5, 6],
+        [1, 6, 2],
     ];
-    faces
-        .iter()
-        .map(|f| [v[f[0]], v[f[1]], v[f[2]]])
-        .collect()
+    faces.iter().map(|f| [v[f[0]], v[f[1]], v[f[2]]]).collect()
 }
 
 fn plane_triangles(size: f32) -> Vec<[Vec3; 3]> {
