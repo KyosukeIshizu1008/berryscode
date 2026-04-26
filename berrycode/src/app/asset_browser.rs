@@ -24,64 +24,95 @@ impl BerryCodeApp {
             self.asset_browser.scan_pending = false;
         }
 
-        ui.heading(self.tr("Asset Browser"));
-        ui.separator();
-
-        // Asset root directory
+        // Header
         ui.horizontal(|ui| {
-            ui.label(self.tr("Root:"));
+            ui.label(
+                egui::RichText::new(self.tr("ASSET BROWSER").to_uppercase())
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(187, 187, 187))
+                    .strong(),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{21BB}")
+                                .size(14.0)
+                                .color(egui::Color32::from_rgb(150, 150, 150)),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_text("Refresh")
+                    .clicked()
+                {
+                    self.asset_browser.scan_pending = true;
+                }
+                ui.label(
+                    egui::RichText::new(format!("{} assets", self.asset_browser.assets.len()))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(120, 120, 120)),
+                );
+            });
+        });
+
+        ui.add_space(4.0);
+
+        // Root directory (compact)
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new("Root:")
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(150, 150, 150)),
+            );
             if ui
-                .text_edit_singleline(&mut self.asset_browser.asset_root)
+                .add_sized(
+                    [ui.available_width(), 18.0],
+                    egui::TextEdit::singleline(&mut self.asset_browser.asset_root)
+                        .font(egui::FontId::proportional(12.0)),
+                )
                 .changed()
             {
                 self.asset_browser.scan_pending = true;
             }
-            if ui.button("\u{21BB}").clicked() {
-                self.asset_browser.scan_pending = true;
-            }
         });
 
-        // Filter bar
+        // Filter
         ui.horizontal(|ui| {
-            ui.label(self.tr("Filter:"));
-            ui.text_edit_singleline(&mut self.asset_browser.filter_query);
+            ui.label(
+                egui::RichText::new("Filter:")
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(150, 150, 150)),
+            );
+            ui.add_sized(
+                [ui.available_width(), 18.0],
+                egui::TextEdit::singleline(&mut self.asset_browser.filter_query)
+                    .font(egui::FontId::proportional(12.0)),
+            );
         });
 
-        // Type filter buttons
+        ui.add_space(2.0);
+
+        // Type filter tabs (compact)
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
             let types: [(&str, Option<AssetType>); 6] = [
-                (self.tr("All"), None),
-                (self.tr("Images"), Some(AssetType::Image)),
-                (self.tr("Models"), Some(AssetType::Model3D)),
-                (self.tr("Audio"), Some(AssetType::Audio)),
-                (self.tr("Scenes"), Some(AssetType::Scene)),
-                (self.tr("Shaders"), Some(AssetType::Shader)),
+                ("All", None),
+                ("Images", Some(AssetType::Image)),
+                ("Models", Some(AssetType::Model3D)),
+                ("Audio", Some(AssetType::Audio)),
+                ("Scenes", Some(AssetType::Scene)),
+                ("Shaders", Some(AssetType::Shader)),
             ];
             for (label, filter_type) in &types {
                 let selected = self.asset_browser.filter_type == *filter_type;
-                if ui.selectable_label(selected, *label).clicked() {
+                let text = egui::RichText::new(*label).size(11.0);
+                if ui.selectable_label(selected, text).clicked() {
                     self.asset_browser.filter_type = filter_type.clone();
                 }
             }
         });
 
-        // View mode toggle
-        ui.horizontal(|ui| {
-            if ui
-                .selectable_label(self.asset_browser.view_mode == AssetViewMode::List, "List")
-                .clicked()
-            {
-                self.asset_browser.view_mode = AssetViewMode::List;
-            }
-            if ui
-                .selectable_label(self.asset_browser.view_mode == AssetViewMode::Grid, "Grid")
-                .clicked()
-            {
-                self.asset_browser.view_mode = AssetViewMode::Grid;
-            }
-            ui.label(format!("{} assets", self.asset_browser.assets.len()));
-        });
-
+        ui.add_space(2.0);
         ui.separator();
 
         // Pre-collect filtered asset data into owned structs to avoid borrow conflicts.
@@ -127,6 +158,13 @@ impl BerryCodeApp {
         let mut open_path: Option<String> = None;
 
         egui::ScrollArea::vertical().show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let row_height = 22.0;
+            let selected_bg = egui::Color32::from_rgb(4, 57, 94);
+            let hover_bg = egui::Color32::from_rgb(42, 45, 46);
+            let text_color = egui::Color32::from_rgb(212, 212, 212);
+            let dim_color = egui::Color32::from_rgb(120, 120, 120);
+
             for row in &rows {
                 let selected = self.asset_browser.selected_asset == Some(row.idx);
 
@@ -136,50 +174,71 @@ impl BerryCodeApp {
                     egui::Sense::click()
                 };
 
-                let response = ui.horizontal(|ui| {
-                    // Show thumbnail for image assets, fallback to text icon
-                    if row.asset_type == AssetType::Image {
-                        if let Some(tex) = self.thumbnail_cache.get_or_create(ctx, &row.path_str) {
-                            let size = egui::vec2(16.0, 16.0);
-                            ui.image((tex.id(), size));
-                        } else {
-                            ui.label(row.asset_type.icon());
-                        }
-                    } else {
-                        ui.label(row.asset_type.icon());
-                    }
-                    let resp = ui.add(
-                        egui::Label::new(egui::RichText::new(&row.file_name).color(if selected {
-                            egui::Color32::WHITE
-                        } else {
-                            egui::Color32::from_rgb(212, 212, 212)
-                        }))
-                        .sense(sense),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(format_size(row.size_bytes));
-                        ui.colored_label(egui::Color32::GRAY, row.asset_type.label());
-                    });
-                    resp
-                });
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::vec2(ui.available_width(), row_height), sense);
 
-                if response.inner.clicked() {
+                // Background
+                if selected {
+                    ui.painter().rect_filled(rect, 0.0, selected_bg);
+                } else if response.hovered() {
+                    ui.painter().rect_filled(rect, 0.0, hover_bg);
+                }
+
+                let y = rect.center().y;
+                let mut x = rect.left() + 8.0;
+
+                // Icon
+                let icon = row.asset_type.icon();
+                ui.painter().text(
+                    egui::pos2(x, y),
+                    egui::Align2::LEFT_CENTER,
+                    icon,
+                    egui::FontId::proportional(13.0),
+                    dim_color,
+                );
+                x += 20.0;
+
+                // Filename
+                ui.painter().text(
+                    egui::pos2(x, y),
+                    egui::Align2::LEFT_CENTER,
+                    &row.file_name,
+                    egui::FontId::proportional(12.0),
+                    if selected {
+                        egui::Color32::WHITE
+                    } else {
+                        text_color
+                    },
+                );
+
+                // Right side: type + size
+                let size_str = format_size(row.size_bytes);
+                let type_str = row.asset_type.label();
+                let right_text = format!("{}  {}", type_str, size_str);
+                ui.painter().text(
+                    egui::pos2(rect.right() - 8.0, y),
+                    egui::Align2::RIGHT_CENTER,
+                    &right_text,
+                    egui::FontId::proportional(11.0),
+                    dim_color,
+                );
+
+                if response.clicked() {
                     clicked_idx = Some(row.idx);
                 }
 
-                if response.inner.double_clicked() {
+                if response.double_clicked() {
                     double_clicked_path = Some((row.path_str.clone(), row.asset_type.clone()));
                 }
 
-                // Drag-and-drop: start dragging for 3D assets
-                if row.is_scene_asset && response.inner.drag_started() {
+                if row.is_scene_asset && response.drag_started() {
                     drag_started_path = Some(row.path_str.clone());
                 }
 
-                // Right-click context menu on the whole row
+                // Context menu
                 let ctx_path = row.path_str.clone();
                 let ctx_is_scene = row.is_scene_asset;
-                response.response.context_menu(|ui| {
+                response.context_menu(|ui| {
                     if ui.button("Open").clicked() {
                         open_path = Some(ctx_path.clone());
                         ui.close_menu();
@@ -277,13 +336,25 @@ impl BerryCodeApp {
         if let Some(idx) = self.asset_browser.selected_asset {
             if let Some(asset) = self.asset_browser.assets.get(idx) {
                 ui.separator();
-                ui.label(format!("Path: {}", asset.relative_path));
-                ui.label(format!(
-                    "Type: {} (.{})",
-                    asset.asset_type.label(),
-                    asset.extension
-                ));
-                ui.label(format!("Size: {}", format_size(asset.size_bytes)));
+                ui.label(
+                    egui::RichText::new(format!("Path: {}", asset.relative_path))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                );
+                ui.label(
+                    egui::RichText::new(format!(
+                        "Type: {} (.{})",
+                        asset.asset_type.label(),
+                        asset.extension
+                    ))
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(150, 150, 150)),
+                );
+                ui.label(
+                    egui::RichText::new(format!("Size: {}", format_size(asset.size_bytes)))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(150, 150, 150)),
+                );
 
                 // Import settings
                 let asset_path_str = asset.path.to_string_lossy().to_string();
