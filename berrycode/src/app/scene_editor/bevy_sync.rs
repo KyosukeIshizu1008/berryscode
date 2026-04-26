@@ -40,6 +40,9 @@ pub fn sync_scene_to_bevy(
                 if let Ok(mut t) = transforms.get_mut(bevy_entity) {
                     let effective = effective_transform(&app, *id, scene_entity);
                     apply_transform(&mut t, &effective);
+                    if let Some(factor) = state.auto_fit_factors.get(id) {
+                        t.scale *= *factor;
+                    }
                 }
             }
         }
@@ -60,6 +63,7 @@ pub fn sync_scene_to_bevy(
         commands.entity(e).despawn();
     }
     state.spawned_entities.clear();
+    state.auto_fit_factors.clear();
 
     // Spawn each scene entity (skip disabled ones).
     for (id, scene_entity) in &app.scene_model.entities {
@@ -70,7 +74,7 @@ pub fn sync_scene_to_bevy(
         let effective = effective_transform(&app, *id, scene_entity);
         apply_transform(&mut transform, &effective);
 
-        let bevy_entity = spawn_scene_entity(
+        let (bevy_entity, auto_fit) = spawn_scene_entity(
             &mut commands,
             &mut meshes,
             &mut materials,
@@ -82,6 +86,9 @@ pub fn sync_scene_to_bevy(
         );
 
         state.spawned_entities.insert(*id, bevy_entity);
+        if let Some(factor) = auto_fit {
+            state.auto_fit_factors.insert(*id, factor);
+        }
     }
 
     state.last_sync_hash = current_hash;
@@ -158,7 +165,7 @@ fn spawn_scene_entity(
     scene_entity: &SceneEntity,
     id: u64,
     project_root: &str,
-) -> Entity {
+) -> (Entity, Option<f32>) {
     let mut entity = commands.spawn((
         transform,
         Visibility::default(),
@@ -167,6 +174,7 @@ fn spawn_scene_entity(
         RenderLayers::layer(2),
         Name::new(scene_entity.name.clone()),
     ));
+    let mut auto_fit: Option<f32> = None;
 
     for component in &scene_entity.components {
         match component {
@@ -364,6 +372,12 @@ fn spawn_scene_entity(
                     let scene_handle: Handle<Scene> = asset_server
                         .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path));
                     entity.insert(SceneRoot(scene_handle));
+                    if let Some(factor) = compute_glb_auto_fit(&abs_path) {
+                        let mut t = transform;
+                        t.scale *= factor;
+                        entity.insert(t);
+                        auto_fit = Some(factor);
+                    }
                 } else {
                     if !abs_path.is_empty() {
                         tracing::warn!("Failed to stage GLB asset: {}", abs_path);
@@ -488,6 +502,12 @@ fn spawn_scene_entity(
                             let scene_handle: Handle<Scene> = asset_server
                                 .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path));
                             entity.insert(SceneRoot(scene_handle));
+                            if let Some(factor) = compute_glb_auto_fit(&abs_path) {
+                                let mut t = transform;
+                                t.scale *= factor;
+                                entity.insert(t);
+                                auto_fit = Some(factor);
+                            }
                         }
                     }
                 }
@@ -523,6 +543,12 @@ fn spawn_scene_entity(
                         let scene_handle: Handle<Scene> = asset_server
                             .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path));
                         entity.insert(SceneRoot(scene_handle));
+                        if let Some(factor) = compute_glb_auto_fit(&abs_path) {
+                            let mut t = transform;
+                            t.scale *= factor;
+                            entity.insert(t);
+                            auto_fit = Some(factor);
+                        }
                     }
                 }
             }
@@ -543,31 +569,61 @@ fn spawn_scene_entity(
         }
     }
 
-    entity.id()
+    (entity.id(), auto_fit)
 }
 
-/// Mesh positions extracted from a GLTF/GLB file (used for bounding-box and
-/// auto-scale calculations on the editor side).
+/// Mesh positions and triangle indices extracted from a GLTF/GLB file. Used
+/// for bounding-box / auto-scale calculations and for drawing mesh-outline
+/// overlays on selected entities. `indices` is always populated: when the
+/// primitive is unindexed, it is synthesized as `0,1,2,3,...` so callers can
+/// treat the data uniformly as a triangle list.
 pub struct GltfMeshData {
     pub positions: Vec<[f32; 3]>,
+    pub indices: Vec<u32>,
 }
 
-/// Extract vertex positions from the first primitive of the first mesh in a
-/// GLTF/GLB file. Pure function, no Bevy dependency. Used by the editor for
-/// fitting bounding boxes and computing auto-scale; runtime rendering goes
-/// through Bevy's `SceneRoot` pipeline.
+/// Extract vertex positions and triangle indices from the first primitive of
+/// the first mesh in a GLTF/GLB file. Pure function, no Bevy dependency.
 pub fn extract_gltf_mesh_data(file_path: &str) -> Option<GltfMeshData> {
     let (document, buffers, _images) = gltf::import(file_path).ok()?;
 
     let gltf_mesh = document.meshes().next()?;
     let primitive = gltf_mesh.primitives().next()?;
 
-    let positions: Vec<[f32; 3]> = {
-        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-        reader.read_positions()?.collect()
+    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+    let positions: Vec<[f32; 3]> = reader.read_positions()?.collect();
+    let indices: Vec<u32> = match reader.read_indices() {
+        Some(it) => it.into_u32().collect(),
+        None => (0..positions.len() as u32).collect(),
     };
 
-    Some(GltfMeshData { positions })
+    Some(GltfMeshData { positions, indices })
+}
+
+/// Compute a fit-to-view scale factor from the GLB's vertex bounds. Returns
+/// `Some(factor)` when the largest extent exceeds 5 units (i.e. the model is
+/// authored in centimeters or similar and would otherwise render huge);
+/// `None` for already-small models. The caller is expected to multiply this
+/// factor into the entity's `Transform.scale` and to re-apply it on every
+/// per-frame sync (since `apply_transform` overwrites scale wholesale).
+pub fn compute_glb_auto_fit(abs_path: &str) -> Option<f32> {
+    let data = extract_gltf_mesh_data(abs_path)?;
+    let mut min = [f32::MAX; 3];
+    let mut max = [f32::MIN; 3];
+    for p in &data.positions {
+        for i in 0..3 {
+            min[i] = min[i].min(p[i]);
+            max[i] = max[i].max(p[i]);
+        }
+    }
+    let extent = (max[0] - min[0])
+        .max(max[1] - min[1])
+        .max(max[2] - min[2])
+        .max(0.001);
+    if extent <= 5.0 {
+        return None;
+    }
+    Some(2.0 / extent)
 }
 
 /// Stage a model file for loading by Bevy's `AssetServer`.

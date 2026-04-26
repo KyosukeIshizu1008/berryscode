@@ -34,6 +34,13 @@ pub struct SceneEditorRender {
     /// Tracks which `SceneModel` entity id maps to which Bevy `Entity`
     /// (so the sync system can update or despawn them).
     pub spawned_entities: HashMap<u64, Entity>,
+    /// Per-entity GLB auto-fit scale factor. The key is the scene-model entity
+    /// id; the value is multiplied into the entity's `Transform.scale` on every
+    /// sync so that the user's authored scale stacks on top of the fit-to-view
+    /// factor. Entries are populated when an entity spawns with a `MeshFromFile`
+    /// / `SkinnedMesh` / `LodGroup` whose vertex bounds exceed 5 units, and are
+    /// cleared together with `spawned_entities` on respawn.
+    pub auto_fit_factors: HashMap<u64, f32>,
     /// Whether the directional light casts shadows.
     pub shadows_enabled: bool,
     /// Whether bloom post-processing is enabled.
@@ -93,6 +100,7 @@ impl Default for SceneEditorRender {
             ortho: false,
             ortho_scale: 0.0,
             spawned_entities: HashMap::new(),
+            auto_fit_factors: HashMap::new(),
             shadows_enabled: true,
             bloom_enabled: false,
             bloom_intensity: 0.3,

@@ -31,6 +31,7 @@ pub(crate) mod humanoid_avatar;
 pub(crate) mod inspector;
 pub(crate) mod live_sync;
 pub(crate) mod material_preview;
+pub(crate) mod mesh_outline;
 pub(crate) mod model;
 pub(crate) mod navmesh;
 pub(crate) mod particle_preview;

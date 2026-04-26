@@ -906,11 +906,32 @@ impl BerryCodeApp {
             }
         }
 
-        // Selection wireframe AABB overlay for ALL selected entities.
+        // Selection mesh-outline overlay for ALL selected entities. Falls
+        // back to the AABB wireframe for non-mesh components (lights,
+        // cameras, etc.) so users still get *some* selection feedback.
         for &sel_id in &self.scene_model.selected_ids.clone() {
             if let Some(entity) = self.scene_model.entities.get(&sel_id) {
                 let world_t = self.scene_model.compute_world_transform(sel_id);
-                if let Some((amin, amax)) = aabb_for_entity(entity, &world_t) {
+                let tris = crate::app::scene_editor::mesh_outline::triangles_for_entity(
+                    entity,
+                    &self.root_path,
+                );
+                if let Some(triangles) = tris {
+                    crate::app::scene_editor::mesh_outline::draw_mesh_outline(
+                        ui.painter(),
+                        &triangles,
+                        &world_t,
+                        cam_pos,
+                        orbit_target,
+                        rect,
+                        ortho,
+                        ortho_scale,
+                        egui::Color32::YELLOW,
+                        1.0,
+                    );
+                } else if let Some((amin, amax)) =
+                    aabb_for_entity(entity, &world_t, &self.root_path)
+                {
                     draw_wireframe_aabb(
                         ui.painter(),
                         amin,
@@ -1003,7 +1024,7 @@ impl BerryCodeApp {
                         continue;
                     }
                     let world_t = self.scene_model.compute_world_transform(*id);
-                    if let Some((amin, amax)) = aabb_for_entity(entity, &world_t) {
+                    if let Some((amin, amax)) = aabb_for_entity(entity, &world_t, &self.root_path) {
                         if let Some(t) = ray_aabb_hit(origin, dir, amin, amax) {
                             if closest.map_or(true, |(_, ct)| t < ct) {
                                 closest = Some((*id, t));

@@ -558,34 +558,13 @@ impl BerryCodeApp {
             egui::Stroke::new(1.5, egui::Color32::from_rgb(60, 60, 220)),
         );
 
-        // Draw entities as boxes
+        // Draw entities. When the entity name matches a scene-model entity
+        // with a renderable mesh component, draw its triangle outline using
+        // the shared `mesh_outline` helper. Otherwise fall back to a generic
+        // 1×1×1 wireframe cube so unknown / dynamically-spawned entities are
+        // still visible.
+        let project_v3 = |v: bevy::math::Vec3| project([v.x, v.y, v.z]);
         for (_eid, name, pos, is_selected) in &entity_positions {
-            let s = 0.5_f32; // box half-size
-            let corners = [
-                [pos[0] - s, pos[1] - s, pos[2] - s],
-                [pos[0] + s, pos[1] - s, pos[2] - s],
-                [pos[0] + s, pos[1] + s, pos[2] - s],
-                [pos[0] - s, pos[1] + s, pos[2] - s],
-                [pos[0] - s, pos[1] - s, pos[2] + s],
-                [pos[0] + s, pos[1] - s, pos[2] + s],
-                [pos[0] + s, pos[1] + s, pos[2] + s],
-                [pos[0] - s, pos[1] + s, pos[2] + s],
-            ];
-            let edges = [
-                (0, 1),
-                (1, 2),
-                (2, 3),
-                (3, 0),
-                (4, 5),
-                (5, 6),
-                (6, 7),
-                (7, 4),
-                (0, 4),
-                (1, 5),
-                (2, 6),
-                (3, 7),
-            ];
-
             let (color, width) = if *is_selected {
                 (egui::Color32::from_rgb(75, 180, 255), 2.0)
             } else {
@@ -595,16 +574,60 @@ impl BerryCodeApp {
                 )
             };
 
-            let projected: Vec<egui::Pos2> = corners.iter().map(|c| project(*c)).collect();
-            for (a, b) in &edges {
-                painter.line_segment(
-                    [projected[*a], projected[*b]],
-                    egui::Stroke::new(width, color),
+            let scene_match = self
+                .scene_model
+                .entities
+                .values()
+                .find(|e| e.name == *name)
+                .and_then(|e| {
+                    crate::app::scene_editor::mesh_outline::triangles_for_entity(
+                        e,
+                        &self.root_path,
+                    )
+                });
+
+            if let Some(triangles) = scene_match {
+                let world_t = crate::app::scene_editor::model::TransformData {
+                    translation: *pos,
+                    rotation_euler: [0.0, 0.0, 0.0],
+                    scale: [1.0, 1.0, 1.0],
+                };
+                crate::app::scene_editor::mesh_outline::draw_mesh_outline_with(
+                    &painter,
+                    &triangles,
+                    &world_t,
+                    project_v3,
+                    color,
+                    width,
                 );
+            } else {
+                let s = 0.5_f32;
+                let corners = [
+                    [pos[0] - s, pos[1] - s, pos[2] - s],
+                    [pos[0] + s, pos[1] - s, pos[2] - s],
+                    [pos[0] + s, pos[1] + s, pos[2] - s],
+                    [pos[0] - s, pos[1] + s, pos[2] - s],
+                    [pos[0] - s, pos[1] - s, pos[2] + s],
+                    [pos[0] + s, pos[1] - s, pos[2] + s],
+                    [pos[0] + s, pos[1] + s, pos[2] + s],
+                    [pos[0] - s, pos[1] + s, pos[2] + s],
+                ];
+                let edges = [
+                    (0, 1), (1, 2), (2, 3), (3, 0),
+                    (4, 5), (5, 6), (6, 7), (7, 4),
+                    (0, 4), (1, 5), (2, 6), (3, 7),
+                ];
+                let projected: Vec<egui::Pos2> = corners.iter().map(|c| project(*c)).collect();
+                for (a, b) in &edges {
+                    painter.line_segment(
+                        [projected[*a], projected[*b]],
+                        egui::Stroke::new(width, color),
+                    );
+                }
             }
 
             // Label
-            let label_pos = project([pos[0], pos[1] + s + 0.3, pos[2]]);
+            let label_pos = project([pos[0], pos[1] + 0.8, pos[2]]);
             let label_color = if *is_selected {
                 egui::Color32::WHITE
             } else {
