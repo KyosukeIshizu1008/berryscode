@@ -222,9 +222,21 @@ BerryCode is in active development. The next milestones in priority order:
 
 Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Datasmith.
 
+#### v0.8 — Ship to phones from one IDE (target: 2028 H1)
+
+> _Bevy mobile development without the toolchain hell._ Replace the
+> cargo-mobile + Xcode + Android Studio + SDK juggling with a single
+> integrated workflow.
+
+- [ ] **Toolchain setup**: one-click iOS / Android targets, auto-detect missing SDK / NDK / simulators, manage signing certs & keystores from the IDE
+- [ ] **Deploy & run**: one-click deploy to device or simulator, unified log / crashtrace console, **WiFi hot reload** for asset edits
+- [ ] **Mobile-aware editor**: visual touch-input editor (virtual joysticks, tap zones, gestures), safe-area / notch / orientation-aware layouts, mobile UI templates, auto texture compression (ASTC / ETC2), mobile LOD presets
+- [ ] **Performance**: integrated GPU profiler (Metal frame capture / RenderDoc Android), frame-budget visualisation, battery-cost estimator, lifecycle (Background / Foreground / Lock) test harness
+- [ ] **Ship**: IPA / AAB build & signing inside the IDE, App Store Connect / Play Console upload helper, TestFlight & internal-test QR generator
+- [ ] **VR/AR bonus**: Vision Pro / Quest builds reuse the v0.7 walkable scenes — pipeline becomes "CAD → walkthrough → headset" in one tool
+
 #### Long term
 - [ ] WASM build for in-browser editing
-- [ ] Mobile (iPad / Android) viewer mode
 - [ ] Cloud sync for workspaces
 
 See [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues) for the current backlog and
@@ -463,9 +475,21 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 
 ポジショニング: Twinmotion / Enscape / Datasmith のオープンソース Bevy 版。
 
+#### v0.8 — モバイル開発を1つの IDE で完結 (目標: 2028 H1)
+
+> _Bevy のモバイル開発をツールチェーン地獄から解放。_
+> cargo-mobile + Xcode + Android Studio + 各種 SDK の往復を、
+> 1つの統合ワークフローに置き換える。
+
+- [ ] **ツールチェーンセットアップ**: iOS / Android ターゲットのワンクリック追加、不足 SDK / NDK / シミュレータの自動検知、署名証明書 & keystore を IDE 内管理
+- [ ] **デプロイ・実行**: 実機・シミュレータへのワンクリックデプロイ、ログ・クラッシュトレース統合コンソール、**アセット変更の WiFi ホットリロード**
+- [ ] **モバイル対応エディタ**: タッチ入力ビジュアルエディタ (仮想ジョイスティック、タップゾーン、ジェスチャー)、セーフエリア / ノッチ / 縦横回転対応レイアウト、モバイル UI テンプレート、テクスチャ自動圧縮 (ASTC / ETC2)、モバイル LOD プリセット
+- [ ] **パフォーマンス**: GPU プロファイラ統合 (Metal frame capture / RenderDoc Android)、フレーム予算可視化、バッテリー消費見積もり、ライフサイクル (Background / Foreground / Lock) テストハーネス
+- [ ] **公開**: IPA / AAB ビルド・署名を IDE 内で完結、App Store Connect / Play Console アップロード補助、TestFlight / 内部テスト用 QR 生成
+- [ ] **VR/AR ボーナス**: v0.7 の walkable シーンをそのまま Vision Pro / Quest ビルドに流用 — 「CAD → ウォークスルー → ヘッドセット」が 1 ツールで完結
+
 #### 長期
 - [ ] ブラウザ内編集用 WASM ビルド
-- [ ] モバイル (iPad / Android) ビューワーモード
 - [ ] ワークスペースのクラウド同期
 
 現在のバックログは [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues)、
