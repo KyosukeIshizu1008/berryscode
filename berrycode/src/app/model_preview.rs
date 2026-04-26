@@ -1102,7 +1102,12 @@ impl BerryCodeApp {
             .next()
             .unwrap_or("")
             .to_lowercase();
-        if (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
+        // The GPU preview path is wired up but its render target still
+        // arrives black on macOS — the bevy_egui ↔ render-graph interaction
+        // is not yet sorted out (see Issue #1). The `false &&` keeps users
+        // on the CPU wireframe fallback (which works) until that's fixed,
+        // even though `gpu_preview_texture_id` is populated.
+        if false && (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
             let texture_id = tab.gpu_preview_texture_id.unwrap();
 
             // Metadata header
