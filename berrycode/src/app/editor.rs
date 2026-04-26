@@ -1318,9 +1318,13 @@ impl BerryCodeApp {
                     }
 
                     // === Compute cursor line for inline blame ===
+                    // egui's `CCursor::index` is a *char* index, not a byte
+                    // index. Slicing `text[..idx]` directly panics whenever
+                    // the cursor sits past a multi-byte glyph (e.g. CJK), so
+                    // count newlines via the char iterator instead.
                     let cursor_line_for_blame: Option<usize> = output.cursor_range.map(|cr| {
                         let idx = cr.primary.index;
-                        text[..idx.min(text.len())].matches('\n').count()
+                        text.chars().take(idx).filter(|c| *c == '\n').count()
                     });
 
                     // Store text back into cache (avoids re-conversion next frame)
