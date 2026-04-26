@@ -71,6 +71,11 @@ impl BerryCodeApp {
                                 let mut run_bold = false;
 
                                 for (col_idx, cell) in line.iter().enumerate() {
+                                    // Continuation slot of a wide CJK glyph
+                                    // — leading cell already carries the char.
+                                    if cell.ch == super::terminal_emulator::WIDE_CONTINUATION {
+                                        continue;
+                                    }
                                     let same = cell.fg == run_fg && cell.bold == run_bold;
                                     if !same && !run_text.is_empty() {
                                         let mut rt = egui::RichText::new(&run_text)
@@ -437,56 +442,79 @@ impl BerryCodeApp {
                 for (row, line) in visible.iter().enumerate() {
                     let y = origin.y + row as f32 * cell_h;
 
-                    // Paint by style runs (batched for performance)
+                    // Paint by style runs (batched for performance). `run_cells`
+                    // tracks how many grid columns the run covers, which differs
+                    // from `run_text.len()` whenever the run contains a CJK
+                    // double-width glyph (advances 2 columns but is 1 char).
                     let mut run_start_col = 0;
                     let mut run_text = String::new();
+                    let mut run_cells: usize = 0;
                     let mut run_fg = TERM_FG;
                     let mut run_bg = TERM_BG;
                     let mut run_bold = false;
                     let mut run_underline = false;
 
+                    let flush = |painter: &egui::Painter,
+                                 run_start_col: usize,
+                                 run_text: &str,
+                                 run_cells: usize,
+                                 run_fg: egui::Color32,
+                                 run_bg: egui::Color32,
+                                 run_bold: bool,
+                                 run_underline: bool| {
+                        if run_text.is_empty() {
+                            return;
+                        }
+                        let x = origin.x + run_start_col as f32 * cell_w;
+                        let run_w = run_cells as f32 * cell_w;
+                        if run_bg != TERM_BG {
+                            let bg_rect = egui::Rect::from_min_size(
+                                egui::pos2(x, y),
+                                egui::vec2(run_w, cell_h),
+                            );
+                            painter.rect_filled(bg_rect, 0.0, run_bg);
+                        }
+                        let text_pos = egui::pos2(x, y + 1.0);
+                        let fid = if run_bold {
+                            egui::FontId::monospace(font_size)
+                        } else {
+                            egui::FontId::monospace(font_size)
+                        };
+                        painter.text(text_pos, egui::Align2::LEFT_TOP, run_text, fid, run_fg);
+                        if run_underline {
+                            let ul_y = y + cell_h - 2.0;
+                            painter.line_segment(
+                                [egui::pos2(x, ul_y), egui::pos2(x + run_w, ul_y)],
+                                egui::Stroke::new(1.0, run_fg),
+                            );
+                        }
+                    };
+
                     for col in 0..=grid.cols.min(line.len()) {
                         let at_end = col >= grid.cols.min(line.len());
 
                         if at_end {
-                            // Flush remaining run
-                            if !run_text.is_empty() {
-                                let x = origin.x + run_start_col as f32 * cell_w;
-                                if run_bg != TERM_BG {
-                                    let bg_rect = egui::Rect::from_min_size(
-                                        egui::pos2(x, y),
-                                        egui::vec2(run_text.len() as f32 * cell_w, cell_h),
-                                    );
-                                    painter.rect_filled(bg_rect, 0.0, run_bg);
-                                }
-                                let text_pos = egui::pos2(x, y + 1.0);
-                                let fid = if run_bold {
-                                    egui::FontId::monospace(font_size)
-                                } else {
-                                    font_id.clone()
-                                };
-                                painter.text(
-                                    text_pos,
-                                    egui::Align2::LEFT_TOP,
-                                    &run_text,
-                                    fid,
-                                    run_fg,
-                                );
-                                if run_underline {
-                                    let ul_y = y + cell_h - 2.0;
-                                    painter.line_segment(
-                                        [
-                                            egui::pos2(x, ul_y),
-                                            egui::pos2(x + run_text.len() as f32 * cell_w, ul_y),
-                                        ],
-                                        egui::Stroke::new(1.0, run_fg),
-                                    );
-                                }
-                            }
+                            flush(
+                                &painter,
+                                run_start_col,
+                                &run_text,
+                                run_cells,
+                                run_fg,
+                                run_bg,
+                                run_bold,
+                                run_underline,
+                            );
                             break;
                         }
 
                         let cell = &line[col];
+
+                        // Skip continuation slot of the previous wide glyph;
+                        // it has already been "consumed" by the leading cell.
+                        if cell.ch == super::terminal_emulator::WIDE_CONTINUATION {
+                            continue;
+                        }
+
                         let in_selection = tab
                             .selection
                             .as_ref()
@@ -499,6 +527,10 @@ impl BerryCodeApp {
                             (cell.fg, cell.bg)
                         };
 
+                        let cell_width = unicode_width::UnicodeWidthChar::width(cell.ch)
+                            .unwrap_or(1)
+                            .max(1);
+
                         let same_style = !run_text.is_empty()
                             && cell_fg == run_fg
                             && cell_bg == run_bg
@@ -507,50 +539,26 @@ impl BerryCodeApp {
 
                         if same_style {
                             run_text.push(cell.ch);
+                            run_cells += cell_width;
                         } else {
-                            // Flush previous run
-                            if !run_text.is_empty() {
-                                let x = origin.x + run_start_col as f32 * cell_w;
-                                if run_bg != TERM_BG {
-                                    let bg_rect = egui::Rect::from_min_size(
-                                        egui::pos2(x, y),
-                                        egui::vec2(run_text.len() as f32 * cell_w, cell_h),
-                                    );
-                                    painter.rect_filled(bg_rect, 0.0, run_bg);
-                                }
-                                let text_pos = egui::pos2(x, y + 1.0);
-                                let fid = if run_bold {
-                                    egui::FontId::monospace(font_size)
-                                } else {
-                                    font_id.clone()
-                                };
-                                painter.text(
-                                    text_pos,
-                                    egui::Align2::LEFT_TOP,
-                                    &run_text,
-                                    fid,
-                                    run_fg,
-                                );
-                                if run_underline {
-                                    let ul_y = y + cell_h - 2.0;
-                                    painter.line_segment(
-                                        [
-                                            egui::pos2(x, ul_y),
-                                            egui::pos2(x + run_text.len() as f32 * cell_w, ul_y),
-                                        ],
-                                        egui::Stroke::new(1.0, run_fg),
-                                    );
-                                }
-                                run_text.clear();
-                            }
-
-                            // Start new run
+                            flush(
+                                &painter,
+                                run_start_col,
+                                &run_text,
+                                run_cells,
+                                run_fg,
+                                run_bg,
+                                run_bold,
+                                run_underline,
+                            );
+                            run_text.clear();
                             run_start_col = col;
                             run_fg = cell_fg;
                             run_bg = cell_bg;
                             run_bold = cell.bold;
                             run_underline = cell.underline;
                             run_text.push(cell.ch);
+                            run_cells = cell_width;
                         }
                     }
                 }
@@ -577,7 +585,7 @@ impl BerryCodeApp {
                         && grid.cursor_col < grid.cells[grid.cursor_row].len()
                     {
                         let ch = grid.cells[grid.cursor_row][grid.cursor_col].ch;
-                        if ch != ' ' {
+                        if ch != ' ' && ch != super::terminal_emulator::WIDE_CONTINUATION {
                             painter.text(
                                 egui::pos2(cx, cy + 1.0),
                                 egui::Align2::LEFT_TOP,
@@ -664,9 +672,21 @@ impl BerryCodeApp {
         for event in &events {
             match event {
                 egui::Event::Text(text) => {
-                    // Normal text input (not consumed by modifiers)
+                    // Normal text input (not consumed by modifiers).
+                    // egui converts most IME-committed CJK input into Text
+                    // events, so this path also handles 日本語 / 中文 input.
                     tab.write_to_pty(text.as_bytes());
                     had_input = true;
+                }
+                egui::Event::Ime(ime_event) => {
+                    // Some platforms (notably macOS) deliver the committed
+                    // IME string as a separate Ime::Commit instead of Text.
+                    // Forward it so Japanese / Chinese / Korean characters
+                    // typed via IME reach the PTY in either path.
+                    if let egui::ImeEvent::Commit(text) = ime_event {
+                        tab.write_to_pty(text.as_bytes());
+                        had_input = true;
+                    }
                 }
                 egui::Event::Key {
                     key,
