@@ -189,27 +189,40 @@ cargo run --bin berrycode               # terminal 2
 
 BerryCode is in active development. The next milestones in priority order:
 
-#### v0.4 — Editor polish (target: Q3 2026)
+The arc:
+**v0.4–v0.7** = core editor + first non-game wedge (architecture).
+**v0.8–v0.9** = the runtime story (ship to mobile, then connect players online).
+**v0.10–v0.12** = the publishing story (data, testing, store + i18n).
+**v1.0** = team-scale IDE.
+
+#### v0.4 — Editor polish (target: 2026 Q3)
 - [ ] GPU PBR preview for GLB/GLTF models ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
 - [ ] In-progress IME preedit display in source code editor (currently terminal only)
 - [ ] LSP: completion details (signature help, parameter hints)
 - [ ] Scene Editor: prefab nested overrides
 - [ ] Settings UI for keybindings and theme
 
-#### v0.5 — Bevy depth (target: Q4 2026)
+#### v0.5 — Bevy depth + asset import (target: 2026 Q4)
 - [ ] System Graph: drag-to-reorder + visual scheduling
 - [ ] Animation: blend tree node graph editor
 - [ ] Shader Graph: live-recompile preview
 - [ ] Hot reload for `.bscene` and shader assets
 - [ ] Plugin Browser: install with one click + auto-update
+- [ ] **Asset import pipeline**: FBX, OBJ, glTF variants, custom converter plugins (foundation that v0.6 / v0.7 build on)
 
-#### v0.6 — Collaboration (target: 2027 H1)
-- [ ] Multi-cursor + collaborative editing (CRDT-based)
-- [ ] Profiler integration (Bevy + Tracy)
-- [ ] Asset import pipeline (FBX, OBJ, custom converters)
-- [ ] Visual scripting → Rust codegen
+#### v0.6 — Audio pipeline (target: 2027 H1)
 
-#### v0.7 — Architecture → Game pipeline (target: 2027 H2)
+> _The audio half of game development, brought into the IDE._ An
+> open-source FMOD / Wwise alternative tuned for Bevy.
+
+- [ ] **Asset preview**: in-IDE waveform display + scrubbing for any audio file
+- [ ] **Event-driven editor**: define one-shots, loops, ducking, and parameter-driven layers
+- [ ] **Spatial audio**: visualise 3D source placement / attenuation curves on top of the Scene Editor viewport
+- [ ] **Music graph**: BGM transitions, stinger / cue triggers, vertical re-mixing
+- [ ] **SFX randomiser**: pitch / volume / variation tables to avoid repetitive sound
+- [ ] **Hot reload**: edit a sound and hear it in the running game without restart
+
+#### v0.7 — Architecture → game pipeline (target: 2027 H2)
 
 > _Bring your buildings to life._ Treat the artifacts that architects, BIM
 > engineers, and archviz studios already produce as first-class Bevy
@@ -235,7 +248,19 @@ Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Dat
 - [ ] **Ship**: IPA / AAB build & signing inside the IDE, App Store Connect / Play Console upload helper, TestFlight & internal-test QR generator
 - [ ] **VR/AR bonus**: Vision Pro / Quest builds reuse the v0.7 walkable scenes — pipeline becomes "CAD → walkthrough → headset" in one tool
 
-#### v0.9 — Game Data Inspector (target: 2028 H2)
+#### v0.9 — Networking & multiplayer (target: 2028 H2)
+
+> _Online games stop being a separate project._ First-class integration
+> with the Bevy netcode ecosystem.
+
+- [ ] **`lightyear` / `bevy_replicon` integration**: project templates, replication-rule editor, lag compensation toggles
+- [ ] **Rollback / interpolation visualiser**: see frame-by-frame what the predictor and reconciler are doing
+- [ ] **N-client local launcher**: start 4 clients + 1 server in one click, stress-test interactions
+- [ ] **Network condition simulator**: latency / packet loss / bandwidth caps applied per client
+- [ ] **Server packaging**: dedicated-server binary, Dockerfile generation, one-button deploy to Fly.io / Railway / a Kubernetes cluster
+- [ ] **Auth & matchmaking starters**: pluggable backends so indie devs don't reinvent leaderboards each time
+
+#### v0.10 — Game Data Inspector (target: 2029 H1)
 
 > _ECS and the database in one pane._ A DB viewer purpose-built for
 > game development — save files, live multiplayer back-ends, and the
@@ -251,7 +276,32 @@ Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Dat
 
 Positioning: not a DataGrip clone — a game-data debugger that ships in the same IDE as the Scene Editor and ECS Inspector.
 
-#### Long term
+#### v0.11 — Testing & QA (target: 2029 H2)
+
+- [ ] **Gameplay recording / replay**: deterministic capture of input + RNG seed, replay on demand
+- [ ] **AI playtesting agent**: random / heuristic / RL agent that wanders the scene to surface crashes and stuck states
+- [ ] **Visual regression tests**: per-scene screenshot diff against a baseline, integrated into CI
+- [ ] **Performance regression tracking**: frame-time budgets per scene, alert on regressions over time
+- [ ] **Bug-report bundler**: one-click collect logs + save state + screenshot + system info into a shareable archive
+
+#### v0.12 — Publishing & i18n (target: 2030 H1)
+
+- [ ] **Steam / itch.io / GOG / Epic integration**: build → upload via butler / SteamPipe / Epic's tooling, all from the IDE
+- [ ] **Store asset manager**: icons, trailers, screenshots, capsules — sized & previewed for each storefront's requirements
+- [ ] **Achievements & cloud saves**: define achievement schemas once, generate per-store integration code
+- [ ] **Localisation tables**: spreadsheet-style translation manager with translator workflow (review, lock, missing-key reports)
+- [ ] **Auto font fallback**: detect target locales and switch fonts (CJK, Arabic RTL, Devanagari) without manual setup
+- [ ] **Translation memory + AI assist**: leverage prior translations and optional LLM suggestions, human-reviewed
+
+#### v1.0 — Team-scale IDE (target: 2030 H2)
+
+- [ ] **Multi-cursor + CRDT collaborative editing** — multiple devs in the same scene / file
+- [ ] **Visual scripting → Rust codegen** — designers contribute logic without writing Rust by hand
+- [ ] **Profiler integration (Bevy + Tracy)** — promoted from earlier WIP into stable
+- [ ] **Project / workspace management** — for studios juggling many BerryCode projects
+- [ ] **Stabilisation** — settings migration, deprecation policy, plugin API freeze
+
+#### Beyond v1.0
 - [ ] WASM build for in-browser editing
 - [ ] Cloud sync for workspaces
 
@@ -458,6 +508,12 @@ cargo run --bin berrycode               # ターミナル2
 
 BerryCode は活発に開発中です。優先順位順の今後のマイルストーン:
 
+全体の流れ:
+**v0.4–v0.7** = コアエディタ + 最初の非ゲーム wedge（建築）
+**v0.8–v0.9** = ランタイムストーリー（モバイル → オンライン）
+**v0.10–v0.12** = リリースストーリー（データ / テスト / ストア + 多言語）
+**v1.0** = チーム規模で使える IDE
+
 #### v0.4 — エディタの磨き込み (目標: 2026 Q3)
 - [ ] GLB/GLTF モデルの GPU PBR プレビュー ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
 - [ ] ソースコードエディタでの IME preedit 表示（現状ターミナルのみ）
@@ -465,18 +521,25 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 - [ ] シーンエディタ: プレハブのネストオーバーライド
 - [ ] キーバインド・テーマの設定 UI
 
-#### v0.5 — Bevy 深耕 (目標: 2026 Q4)
+#### v0.5 — Bevy 深耕 + アセットインポート (目標: 2026 Q4)
 - [ ] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
 - [ ] アニメーション: ブレンドツリーノードグラフエディタ
 - [ ] シェーダーグラフ: ライブ再コンパイルプレビュー
 - [ ] `.bscene` とシェーダーアセットのホットリロード
 - [ ] プラグインブラウザ: ワンクリックインストール + 自動アップデート
+- [ ] **アセットインポートパイプライン**: FBX, OBJ, glTF 各種、カスタムコンバータプラグイン (v0.6 / v0.7 の基盤)
 
-#### v0.6 — コラボレーション (目標: 2027 H1)
-- [ ] マルチカーソル + 共同編集 (CRDT ベース)
-- [ ] プロファイラ統合 (Bevy + Tracy)
-- [ ] アセットインポートパイプライン (FBX, OBJ, カスタムコンバータ)
-- [ ] ビジュアルスクリプト → Rust コード生成
+#### v0.6 — オーディオパイプライン (目標: 2027 H1)
+
+> _ゲーム開発の半分を占める音をIDE 内で完結。_
+> Bevy 向けに最適化された OSS の FMOD / Wwise 代替。
+
+- [ ] **アセットプレビュー**: あらゆる音声ファイルの波形表示 + IDE 内スクラブ再生
+- [ ] **イベント駆動エディタ**: ワンショット、ループ、ダッキング、パラメータ駆動レイヤーの定義
+- [ ] **空間オーディオ**: シーンエディタビューポートに 3D 音源・減衰カーブを重ねて可視化
+- [ ] **ミュージックグラフ**: BGM トランジション、スティンガー、垂直リミックス
+- [ ] **SFX ランダマイザ**: ピッチ・音量・バリエーションテーブルで効果音の繰り返し感解消
+- [ ] **ホットリロード**: 音を編集すると実行中ゲームに即反映
 
 #### v0.7 — 建築 → ゲーム パイプライン (目標: 2027 H2)
 
@@ -504,7 +567,19 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 - [ ] **公開**: IPA / AAB ビルド・署名を IDE 内で完結、App Store Connect / Play Console アップロード補助、TestFlight / 内部テスト用 QR 生成
 - [ ] **VR/AR ボーナス**: v0.7 の walkable シーンをそのまま Vision Pro / Quest ビルドに流用 — 「CAD → ウォークスルー → ヘッドセット」が 1 ツールで完結
 
-#### v0.9 — Game Data Inspector (目標: 2028 H2)
+#### v0.9 — ネットワーキング & マルチプレイヤー (目標: 2028 H2)
+
+> _オンラインゲームを別プロジェクト扱いしない。_
+> Bevy のネットコードエコシステムと一級統合。
+
+- [ ] **`lightyear` / `bevy_replicon` 統合**: プロジェクトテンプレート、レプリケーションルールエディタ、ラグ補正トグル
+- [ ] **ロールバック / 補間ビジュアライザ**: 予測・調停の動きをフレーム単位で確認
+- [ ] **N クライアントローカル起動**: ワンクリックで 4 クライアント + 1 サーバを並行起動、相互作用ストレステスト
+- [ ] **ネットワーク条件シミュレータ**: クライアント別にレイテンシ / パケロス / 帯域制限
+- [ ] **サーバパッケージング**: dedicated server バイナリ、Dockerfile 自動生成、Fly.io / Railway / Kubernetes へのワンボタンデプロイ
+- [ ] **認証 & マッチメイキングスターター**: プラガブルなバックエンドでリーダーボード等を毎回作り直さない
+
+#### v0.10 — Game Data Inspector (目標: 2029 H1)
 
 > _ECS と DB を 1 画面で。_ ゲーム開発専用の DB ビューア —
 > セーブファイル、ライブのマルチプレイバックエンド、Bevy アセットキャッシュを
@@ -520,7 +595,32 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 
 ポジショニング: DataGrip のクローンではなく、Scene Editor / ECS Inspector と同じ IDE に同梱されるゲームデータデバッガ。
 
-#### 長期
+#### v0.11 — テスト & QA (目標: 2029 H2)
+
+- [ ] **ゲームプレイ録画 / 再生**: 入力 + RNG seed の決定論的キャプチャ、任意のタイミングで再生
+- [ ] **AI プレイテストエージェント**: ランダム / ヒューリスティック / 強化学習エージェントがシーンを徘徊しクラッシュやスタック状態を炙り出す
+- [ ] **ビジュアル回帰テスト**: シーンごとのスクリーンショット差分、CI 統合
+- [ ] **パフォーマンス回帰追跡**: シーンごとのフレーム予算、悪化時にアラート
+- [ ] **バグレポートバンドラ**: ログ + セーブ状態 + スクショ + システム情報をワンクリックで共有可能なアーカイブに
+
+#### v0.12 — 公開 & 多言語化 (目標: 2030 H1)
+
+- [ ] **Steam / itch.io / GOG / Epic 統合**: ビルド → butler / SteamPipe / Epic ツール経由で IDE からアップロード
+- [ ] **ストアアセットマネージャ**: アイコン、トレーラー、スクショ、カプセル — 各ストアの要件に合わせてサイズ調整・プレビュー
+- [ ] **実績 & クラウドセーブ**: 実績スキーマを 1 度定義してストアごとの統合コードを生成
+- [ ] **翻訳テーブル**: スプレッドシート風の翻訳マネージャ、翻訳者ワークフロー（レビュー、ロック、欠損キー報告）
+- [ ] **フォント自動フォールバック**: ターゲットロケールを検出し CJK・アラビア RTL・デーヴァナーガリーを手動設定なしで切替
+- [ ] **翻訳メモリ + AI アシスト**: 過去翻訳の流用と LLM 提案、人によるレビュー前提
+
+#### v1.0 — チームスケール IDE (目標: 2030 H2)
+
+- [ ] **マルチカーソル + CRDT 共同編集** — 複数人が同じシーン / ファイルで作業
+- [ ] **ビジュアルスクリプト → Rust コード生成** — デザイナーが Rust を書かずにロジック貢献
+- [ ] **プロファイラ統合 (Bevy + Tracy)** — WIP から正式機能へ昇格
+- [ ] **プロジェクト / ワークスペース管理** — 複数 BerryCode プロジェクトを抱えるスタジオ向け
+- [ ] **安定化** — 設定マイグレーション、非推奨ポリシー、プラグイン API 凍結
+
+#### v1.0 以降
 - [ ] ブラウザ内編集用 WASM ビルド
 - [ ] ワークスペースのクラウド同期
 
