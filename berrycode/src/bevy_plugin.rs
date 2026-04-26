@@ -8,7 +8,8 @@ use crate::app::preview_3d::{
     ModelPreviewScene,
 };
 use crate::app::scene_editor::bevy_render::{
-    setup_scene_editor_render, update_scene_editor_camera, SceneEditorRender,
+    propagate_scene_editor_render_layers, setup_scene_editor_render, update_scene_editor_camera,
+    SceneEditorRender,
 };
 use crate::app::scene_editor::bevy_sync::sync_scene_to_bevy;
 use crate::app::scene_editor::material_preview::{
@@ -59,6 +60,10 @@ impl Plugin for BerryCodePlugin {
             )
             .add_systems(Update, update_scene_editor_camera)
             .add_systems(Update, sync_scene_to_bevy)
+            .add_systems(
+                Update,
+                propagate_scene_editor_render_layers.after(sync_scene_to_bevy),
+            )
             .add_systems(Update, update_material_preview);
     }
 }

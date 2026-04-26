@@ -203,6 +203,39 @@ pub fn setup_scene_editor_render(
     state.orbit_distance = 8.0;
 }
 
+/// Propagate `RenderLayers::layer(2)` to children of `SceneEditorObject`
+/// entities. GLTF scenes loaded via `SceneRoot` spawn their child meshes
+/// asynchronously, so we detect newly-added children via `Added<ChildOf>` and
+/// walk up the ancestor chain to check whether they belong to the editor
+/// viewport. Without this, GLTF meshes spawned from `MeshFromFile` /
+/// `SkinnedMesh` / `LodGroup` would render on layer 0 and never reach the
+/// editor's off-screen camera (layer 2).
+pub fn propagate_scene_editor_render_layers(
+    new_children: Query<(Entity, &ChildOf), Added<ChildOf>>,
+    editor_markers: Query<&SceneEditorObject>,
+    ancestors: Query<&ChildOf>,
+    mut commands: Commands,
+) {
+    let target = RenderLayers::layer(2);
+    for (entity, _parent) in new_children.iter() {
+        let mut current = entity;
+        let mut is_editor = false;
+        for _ in 0..50 {
+            if editor_markers.get(current).is_ok() {
+                is_editor = true;
+                break;
+            }
+            match ancestors.get(current) {
+                Ok(p) => current = p.parent(),
+                Err(_) => break,
+            }
+        }
+        if is_editor {
+            commands.entity(entity).insert(target.clone());
+        }
+    }
+}
+
 /// Update the camera transform and projection each frame from the orbit
 /// parameters pushed in by the UI layer.
 pub fn update_scene_editor_camera(
