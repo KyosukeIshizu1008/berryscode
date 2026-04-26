@@ -891,18 +891,18 @@ impl BerryCodeApp {
                                 for line in &hunk.lines {
                                     let (bg_color, marker_color, prefix) = match line.origin {
                                         '+' => (
-                                            egui::Color32::from_rgba_premultiplied(30, 80, 30, 255),
-                                            egui::Color32::from_rgb(80, 200, 80),
+                                            egui::Color32::from_rgb(24, 50, 24),
+                                            egui::Color32::from_rgb(80, 180, 80),
                                             "+",
                                         ),
                                         '-' => (
-                                            egui::Color32::from_rgba_premultiplied(80, 30, 30, 255),
-                                            egui::Color32::from_rgb(220, 80, 80),
+                                            egui::Color32::from_rgb(55, 20, 20),
+                                            egui::Color32::from_rgb(200, 70, 70),
                                             "-",
                                         ),
                                         _ => (
                                             egui::Color32::TRANSPARENT,
-                                            egui::Color32::from_rgb(80, 80, 80),
+                                            egui::Color32::from_rgb(60, 60, 60),
                                             " ",
                                         ),
                                     };
@@ -932,13 +932,13 @@ impl BerryCodeApp {
                                     let y = rect.center().y;
                                     let mut x = rect.left() + 4.0;
 
-                                    // Line number (dim)
+                                    // Line number (dim gray)
                                     ui.painter().text(
                                         egui::pos2(x, y),
                                         egui::Align2::LEFT_CENTER,
                                         &line_num,
                                         font.clone(),
-                                        egui::Color32::from_rgb(100, 100, 100),
+                                        egui::Color32::from_rgb(70, 70, 70),
                                     );
                                     x += 40.0;
 
