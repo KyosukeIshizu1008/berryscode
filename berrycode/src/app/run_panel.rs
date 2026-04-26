@@ -249,7 +249,7 @@ impl BerryCodeApp {
             visible_indices.push(i);
         }
         let shown = visible_indices.len();
-        let hidden = total - shown;
+        let _hidden = total - shown;
 
         // VS Code-style compact toolbar
         ui.horizontal(|ui| {
@@ -492,7 +492,7 @@ impl BerryCodeApp {
             let font = egui::FontId::monospace(12.0);
             // Re-parse lines from log_text with their segment info
             let mut line_iter = log_text.lines();
-            for (seg_idx, segments) in line_segments.iter().enumerate() {
+            for (_seg_idx, segments) in line_segments.iter().enumerate() {
                 let Some(full_line) = line_iter.next() else {
                     break;
                 };

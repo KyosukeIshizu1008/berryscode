@@ -54,28 +54,28 @@ impl BerryCodeApp {
                                 name: format!("param_{}", controller.parameters.len()),
                                 value: false,
                             });
-                            ui.close_menu();
+                            ui.close();
                         }
                         if ui.button("Float").clicked() {
                             controller.parameters.push(AnimParam::Float {
                                 name: format!("param_{}", controller.parameters.len()),
                                 value: 0.0,
                             });
-                            ui.close_menu();
+                            ui.close();
                         }
                         if ui.button("Int").clicked() {
                             controller.parameters.push(AnimParam::Int {
                                 name: format!("param_{}", controller.parameters.len()),
                                 value: 0,
                             });
-                            ui.close_menu();
+                            ui.close();
                         }
                         if ui.button("Trigger").clicked() {
                             controller.parameters.push(AnimParam::Trigger {
                                 name: format!("trigger_{}", controller.parameters.len()),
                                 fired: false,
                             });
-                            ui.close_menu();
+                            ui.close();
                         }
                     });
                     if ui.button("+ Exit State").clicked() {
@@ -283,7 +283,7 @@ impl BerryCodeApp {
                             hit_resp.context_menu(|ui| {
                                 if ui.button("Delete Transition").clicked() {
                                     delete_transition_idx = Some(t_idx);
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             });
                         }
@@ -427,12 +427,12 @@ impl BerryCodeApp {
                             resp.context_menu(|ui| {
                                 if ui.button("Add Transition From Here").clicked() {
                                     self.pending_transition_from = Some(i);
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                                 if state_kind == StateKind::Normal {
                                     if ui.button("Set as Default").clicked() {
                                         controller.default_state = i;
-                                        ui.close_menu();
+                                        ui.close();
                                     }
                                 }
                                 ui.separator();
@@ -465,7 +465,7 @@ impl BerryCodeApp {
                                     if self.animator_selected_state == Some(i) {
                                         self.animator_selected_state = None;
                                     }
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             });
                         }

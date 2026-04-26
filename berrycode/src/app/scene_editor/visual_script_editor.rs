@@ -177,7 +177,7 @@ impl BerryCodeApp {
                             node_type: NodeType::OnStart,
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("On Update").clicked() {
                         let next_id = script.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -186,7 +186,7 @@ impl BerryCodeApp {
                             node_type: NodeType::OnUpdate,
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Branch").clicked() {
                         let next_id = script.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -195,7 +195,7 @@ impl BerryCodeApp {
                             node_type: NodeType::Branch,
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Print").clicked() {
                         let next_id = script.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -206,7 +206,7 @@ impl BerryCodeApp {
                             },
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Float Add").clicked() {
                         let next_id = script.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -215,7 +215,7 @@ impl BerryCodeApp {
                             node_type: NodeType::FloatAdd,
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Delay").clicked() {
                         let next_id = script.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -224,7 +224,7 @@ impl BerryCodeApp {
                             node_type: NodeType::Delay { seconds: 1.0 },
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                 });
             });

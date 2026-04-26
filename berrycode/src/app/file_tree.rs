@@ -221,33 +221,6 @@ impl BerryCodeApp {
                             self.dragged_asset_path = Some(path);
                             tracing::info!("Drag started for asset: {:?}", self.dragged_asset_path);
                         }
-                        Some(FileTreeEvent::StartFileDrag(path)) => {
-                            self.dragged_file_path = Some(path.clone());
-                            tracing::info!("File drag started: {}", path);
-                        }
-                        Some(FileTreeEvent::MoveFile(_, dest_dir)) => {
-                            if let Some(source) = self.dragged_file_path.take() {
-                                let src_path = std::path::Path::new(&source);
-                                let file_name = src_path.file_name().unwrap_or_default();
-                                let dest = std::path::Path::new(&dest_dir).join(file_name);
-                                if source != dest.to_string_lossy()
-                                    && src_path.exists()
-                                    && !dest.exists()
-                                {
-                                    if let Err(e) = std::fs::rename(&source, &dest) {
-                                        tracing::error!("Failed to move file: {}", e);
-                                    } else {
-                                        tracing::info!("Moved {} → {}", source, dest.display());
-                                        // Reload root file tree
-                                        if let Ok(entries) =
-                                            native::fs::read_dir(&self.root_path, Some(1))
-                                        {
-                                            self.file_tree_cache = entries;
-                                        }
-                                    }
-                                }
-                            }
-                        }
                         None => {}
                     }
                 }

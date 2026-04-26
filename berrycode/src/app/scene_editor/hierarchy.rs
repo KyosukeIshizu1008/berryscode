@@ -96,11 +96,11 @@ impl BerryCodeApp {
                                 .clicked()
                             {
                                 switch_to = Some(idx);
-                                ui.close_menu();
+                                ui.close();
                             }
                         } else if ui.button(&file_name).clicked() {
                             load_scene_path = Some(full_path);
-                            ui.close_menu();
+                            ui.close();
                         }
                     }
                 }
@@ -139,37 +139,37 @@ impl BerryCodeApp {
                     self.profiler.open = true;
                     self.tool_panel_open = true;
                     self.active_tool_tab = crate::app::dock::ToolTab::Profiler;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Timeline").clicked() {
                     self.tool_panel_open = true;
                     self.active_tool_tab = crate::app::dock::ToolTab::Timeline;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Dopesheet").clicked() {
                     self.tool_panel_open = true;
                     self.active_tool_tab = crate::app::dock::ToolTab::Dopesheet;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Systems").clicked() {
                     self.system_graph_open = !self.system_graph_open;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Events").clicked() {
                     self.event_monitor_open = !self.event_monitor_open;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Queries").clicked() {
                     self.query_viz_open = !self.query_viz_open;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("States").clicked() {
                     self.state_editor_open = !self.state_editor_open;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Plugins").clicked() {
                     self.plugin_browser_open = !self.plugin_browser_open;
-                    ui.close_menu();
+                    ui.close();
                 }
                 ui.separator();
                 if ui.button("Export .scn.ron").clicked() {
@@ -191,7 +191,7 @@ impl BerryCodeApp {
                             self.status_message_timestamp = Some(std::time::Instant::now());
                         }
                     }
-                    ui.close_menu();
+                    ui.close();
                 }
             });
             if let Some(path) = &self.scene_model.file_path {
@@ -537,7 +537,7 @@ impl BerryCodeApp {
                                 self.scene_model.select_only(new_id);
                                 self.primary_selected_id = Some(new_id);
                                 self.scene_needs_sync = true;
-                                ui.close_menu();
+                                ui.close();
                             }
                         }
                     }
@@ -559,7 +559,7 @@ impl BerryCodeApp {
                                 self.scene_snapshot();
                                 self.instantiate_prefab_from_path(&path_str);
                                 self.scene_needs_sync = true;
-                                ui.close_menu();
+                                ui.close();
                             }
                         }
                     }
@@ -922,20 +922,20 @@ impl BerryCodeApp {
             response.context_menu(|ui| {
                 if ui.button("Rename").clicked() {
                     request_rename = true;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Duplicate").clicked() {
                     request_duplicate = true;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui.button("Delete").clicked() {
                     request_delete = true;
-                    ui.close_menu();
+                    ui.close();
                 }
                 ui.separator();
                 if ui.button("Copy").clicked() {
                     request_copy = true;
-                    ui.close_menu();
+                    ui.close();
                 }
                 if ui
                     .button("Paste")
@@ -943,17 +943,17 @@ impl BerryCodeApp {
                     .clicked()
                 {
                     request_paste = true;
-                    ui.close_menu();
+                    ui.close();
                 }
                 ui.separator();
                 if ui.button("Add Child (Empty)").clicked() {
                     request_add_child = true;
-                    ui.close_menu();
+                    ui.close();
                 }
                 ui.separator();
                 if ui.button("Save as Prefab...").clicked() {
                     request_save_prefab = true;
-                    ui.close_menu();
+                    ui.close();
                 }
             });
         }

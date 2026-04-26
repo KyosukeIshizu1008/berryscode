@@ -119,7 +119,7 @@ impl BerryCodeApp {
 
         // Helper: flat toolbar button (returns true if clicked)
         let flat_btn = |ui: &mut egui::Ui, label: &str, selected: bool, enabled: bool| -> bool {
-            let text = if !enabled {
+            let _text = if !enabled {
                 egui::RichText::new(label)
                     .font(font.clone())
                     .color(text_dim)

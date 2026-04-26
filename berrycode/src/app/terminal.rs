@@ -613,11 +613,11 @@ impl BerryCodeApp {
         response.context_menu(|ui| {
             if ui.button("Copy").clicked() {
                 self.terminal_copy_selection();
-                ui.close_menu();
+                ui.close();
             }
             if ui.button("Paste").clicked() {
                 self.terminal_paste();
-                ui.close_menu();
+                ui.close();
             }
             ui.separator();
             if ui.button("Clear").clicked() {
@@ -625,24 +625,24 @@ impl BerryCodeApp {
                     // Send Ctrl+L to clear
                     tab.write_to_pty(b"\x0c");
                 }
-                ui.close_menu();
+                ui.close();
             }
             if ui.button("Search").clicked() {
                 if let Some(tab) = self.terminal.active_tab_mut() {
                     tab.search_active = true;
                 }
-                ui.close_menu();
+                ui.close();
             }
             ui.separator();
             if ui.button("New Tab").clicked() {
                 self.terminal.add_tab();
-                ui.close_menu();
+                ui.close();
             }
             if self.terminal.tabs.len() > 1 {
                 if ui.button("Close Tab").clicked() {
                     let idx = self.terminal.active_tab;
                     self.terminal.close_tab(idx);
-                    ui.close_menu();
+                    ui.close();
                 }
             }
         });

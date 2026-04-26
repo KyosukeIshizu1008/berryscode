@@ -1,22 +1,20 @@
 use super::scene_editor::asset_import::AssetImportSettings;
 use super::BerryCodeApp;
 use crate::app::i18n::t;
-use crate::bevy_ide::assets::scanner::{format_size, scan_assets, AssetType, AssetViewMode};
+use crate::bevy_ide::assets::scanner::{format_size, scan_assets, AssetType};
 
 /// Snapshot of one asset for rendering, avoiding borrow conflicts.
 struct AssetRow {
     idx: usize,
     file_name: String,
     path_str: String,
-    relative_path: String,
-    extension: String,
     asset_type: AssetType,
     size_bytes: u64,
     is_scene_asset: bool,
 }
 
 impl BerryCodeApp {
-    pub(crate) fn render_asset_browser_panel(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub(crate) fn render_asset_browser_panel(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
         // Scan assets on first render or when requested
         if self.asset_browser.scan_pending {
             self.asset_browser.assets =
@@ -137,8 +135,6 @@ impl BerryCodeApp {
                     idx,
                     file_name: asset.file_name.clone(),
                     path_str: asset.path.to_string_lossy().to_string(),
-                    relative_path: asset.relative_path.clone(),
-                    extension: asset.extension.clone(),
                     asset_type: asset.asset_type.clone(),
                     size_bytes: asset.size_bytes,
                     is_scene_asset: matches!(
@@ -241,12 +237,12 @@ impl BerryCodeApp {
                 response.context_menu(|ui| {
                     if ui.button("Open").clicked() {
                         open_path = Some(ctx_path.clone());
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ctx_is_scene {
                         if ui.button("Add to Scene").clicked() {
                             add_to_scene_path = Some(ctx_path.clone());
-                            ui.close_menu();
+                            ui.close();
                         }
                     }
                 });

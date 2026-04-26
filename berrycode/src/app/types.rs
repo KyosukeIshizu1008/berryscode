@@ -320,8 +320,6 @@ pub(crate) enum FileTreeEvent {
     OpenFile(String),
     ContextMenu(String, bool), // (path, is_dir)
     StartAssetDrag(String),    // asset path (3D model dropped into Scene View)
-    StartFileDrag(String),     // file/folder path being dragged
-    MoveFile(String, String),  // (source_path, dest_dir)
 }
 
 /// AI Chat response types

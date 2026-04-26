@@ -556,7 +556,7 @@ impl BerryCodeApp {
         );
 
         // Draw entities as boxes
-        for (eid, name, pos, is_selected) in &entity_positions {
+        for (_eid, name, pos, is_selected) in &entity_positions {
             let s = 0.5_f32; // box half-size
             let corners = [
                 [pos[0] - s, pos[1] - s, pos[2] - s],
@@ -684,7 +684,7 @@ impl BerryCodeApp {
             .id_salt("ecs_properties_right")
             .show(ui, |ui| {
                 for (_, comp_name) in &keys {
-                    if let Some(value) = self
+                    if let Some(_value) = self
                         .ecs_inspector
                         .component_values
                         .get(&(entity_id, comp_name.clone()))

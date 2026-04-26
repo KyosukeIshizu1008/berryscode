@@ -193,7 +193,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::OutputPBR,
                             position: [300.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Color Constant").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -204,7 +204,7 @@ impl BerryCodeApp {
                             },
                             position: [100.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Float Constant").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -213,7 +213,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::FloatConstant { value: 0.5 },
                             position: [100.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Texture Sample").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -224,7 +224,7 @@ impl BerryCodeApp {
                             },
                             position: [100.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Multiply").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -233,7 +233,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::Multiply,
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Lerp").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -242,7 +242,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::Lerp,
                             position: [200.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("UV Coord").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -251,7 +251,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::UVCoord,
                             position: [50.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Time").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -260,7 +260,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::Time,
                             position: [50.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Fresnel").clicked() {
                         let next_id = graph.nodes.iter().map(|n| n.id).max().unwrap_or(0) + 1;
@@ -269,7 +269,7 @@ impl BerryCodeApp {
                             node_type: ShaderNodeType::Fresnel { power: 2.0 },
                             position: [100.0, 200.0],
                         });
-                        ui.close_menu();
+                        ui.close();
                     }
                 });
             });
