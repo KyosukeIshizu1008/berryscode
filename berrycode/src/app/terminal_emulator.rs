@@ -11,6 +11,14 @@ use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use unicode_width::UnicodeWidthChar;
+
+/// Sentinel character stored in the cell immediately after a double-width
+/// (e.g. CJK) glyph. The renderer treats `'\0'` cells as continuation slots
+/// and skips them, while cursor / paste / selection logic uses cell columns
+/// that include the continuation, so a 2-column "あ" advances the cursor
+/// by 2 like a real terminal does.
+pub const WIDE_CONTINUATION: char = '\0';
 
 // ═══════════════════════════════════════════════════════════════════
 // Constants — iTerm2 Default Dark theme colors
@@ -181,7 +189,20 @@ impl TerminalGrid {
     }
 
     fn put_char(&mut self, ch: char) {
+        // Width 0 (combining marks) collapses into the previous cell — we
+        // treat it as 1 here for simplicity. Width 2 means CJK / fullwidth
+        // and consumes two grid columns.
+        let width = ch.width().unwrap_or(1).max(1);
+
         if self.wrap_next && self.auto_wrap {
+            self.cursor_col = 0;
+            self.newline();
+            self.wrap_next = false;
+        }
+
+        // A double-width glyph that would split across the right edge wraps
+        // to the next line first, matching xterm behavior.
+        if width == 2 && self.cursor_col + 1 >= self.cols && self.auto_wrap {
             self.cursor_col = 0;
             self.newline();
             self.wrap_next = false;
@@ -201,12 +222,22 @@ impl TerminalGrid {
                 underline: self.underline,
                 inverse: false,
             };
+            if width == 2 && self.cursor_col + 1 < self.cols {
+                self.cells[self.cursor_row][self.cursor_col + 1] = Cell {
+                    ch: WIDE_CONTINUATION,
+                    fg,
+                    bg,
+                    bold: self.bold,
+                    underline: self.underline,
+                    inverse: false,
+                };
+            }
         }
 
-        if self.cursor_col + 1 >= self.cols {
+        if self.cursor_col + width >= self.cols {
             self.wrap_next = true;
         } else {
-            self.cursor_col += 1;
+            self.cursor_col += width;
         }
     }
 
@@ -1060,7 +1091,13 @@ impl TerminalTab {
             };
 
             for col in col_start..=col_end {
-                text.push(grid.cells[row][col].ch);
+                let ch = grid.cells[row][col].ch;
+                // Skip continuation cells of double-width glyphs so a
+                // copied "あ" doesn't turn into "あ\0".
+                if ch == WIDE_CONTINUATION {
+                    continue;
+                }
+                text.push(ch);
             }
             // Trim trailing spaces on each line
             let trimmed = text.trim_end().len();
