@@ -181,10 +181,13 @@ pub fn ray_aabb_hit(
 
 /// Compute a world-space AABB for a scene entity based on its first renderable
 /// component. The caller must supply the entity's world-space transform (since
-/// `entity.transform` is now local-space).
+/// `entity.transform` is now local-space) and the project root so that
+/// `MeshFromFile` paths (which are stored relative to `assets/`) can be
+/// resolved to absolute paths for GLTF parsing.
 pub fn aabb_for_entity(
     entity: &SceneEntity,
     world_transform: &TransformData,
+    project_root: &str,
 ) -> Option<(Vec3, Vec3)> {
     let pos = Vec3::from_array(world_transform.translation);
     let scale = Vec3::from_array(world_transform.scale);
@@ -213,8 +216,18 @@ pub fn aabb_for_entity(
             ComponentData::MeshFromFile { path, .. } => {
                 // Try to get real bounds from GLTF data
                 if !path.is_empty() {
+                    let abs = if path.starts_with('/') || path.contains(":\\") {
+                        path.clone()
+                    } else {
+                        let with_assets = format!("{}/assets/{}", project_root, path);
+                        if std::path::Path::new(&with_assets).exists() {
+                            with_assets
+                        } else {
+                            format!("{}/{}", project_root, path)
+                        }
+                    };
                     if let Some(data) =
-                        crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(path)
+                        crate::app::scene_editor::bevy_sync::extract_gltf_mesh_data(&abs)
                     {
                         let mut bmin = [f32::MAX; 3];
                         let mut bmax = [f32::MIN; 3];

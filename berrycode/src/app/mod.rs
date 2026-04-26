@@ -926,12 +926,7 @@ impl BerryCodeApp {
                 })
                 .and_then(|entry| {
                     let bscene_path = entry.path().to_string_lossy().to_string();
-                    std::fs::read_to_string(&bscene_path)
-                        .ok()
-                        .and_then(|content| {
-                            ron::from_str::<crate::app::scene_editor::model::SceneModel>(&content)
-                                .ok()
-                        })
+                    crate::app::scene_editor::serialization::load_scene_from_ron(&bscene_path).ok()
                 })
                 .map(|scene| {
                     let count = scene.entities.len();

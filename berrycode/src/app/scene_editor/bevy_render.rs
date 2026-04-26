@@ -34,6 +34,13 @@ pub struct SceneEditorRender {
     /// Tracks which `SceneModel` entity id maps to which Bevy `Entity`
     /// (so the sync system can update or despawn them).
     pub spawned_entities: HashMap<u64, Entity>,
+    /// Per-entity GLB auto-fit scale factor. The key is the scene-model entity
+    /// id; the value is multiplied into the entity's `Transform.scale` on every
+    /// sync so that the user's authored scale stacks on top of the fit-to-view
+    /// factor. Entries are populated when an entity spawns with a `MeshFromFile`
+    /// / `SkinnedMesh` / `LodGroup` whose vertex bounds exceed 5 units, and are
+    /// cleared together with `spawned_entities` on respawn.
+    pub auto_fit_factors: HashMap<u64, f32>,
     /// Whether the directional light casts shadows.
     pub shadows_enabled: bool,
     /// Whether bloom post-processing is enabled.
@@ -93,6 +100,7 @@ impl Default for SceneEditorRender {
             ortho: false,
             ortho_scale: 0.0,
             spawned_entities: HashMap::new(),
+            auto_fit_factors: HashMap::new(),
             shadows_enabled: true,
             bloom_enabled: false,
             bloom_intensity: 0.3,
@@ -201,6 +209,39 @@ pub fn setup_scene_editor_render(
     state.orbit_yaw = std::f32::consts::FRAC_PI_4;
     state.orbit_pitch = 0.5;
     state.orbit_distance = 8.0;
+}
+
+/// Propagate `RenderLayers::layer(2)` to children of `SceneEditorObject`
+/// entities. GLTF scenes loaded via `SceneRoot` spawn their child meshes
+/// asynchronously, so we detect newly-added children via `Added<ChildOf>` and
+/// walk up the ancestor chain to check whether they belong to the editor
+/// viewport. Without this, GLTF meshes spawned from `MeshFromFile` /
+/// `SkinnedMesh` / `LodGroup` would render on layer 0 and never reach the
+/// editor's off-screen camera (layer 2).
+pub fn propagate_scene_editor_render_layers(
+    new_children: Query<(Entity, &ChildOf), Added<ChildOf>>,
+    editor_markers: Query<&SceneEditorObject>,
+    ancestors: Query<&ChildOf>,
+    mut commands: Commands,
+) {
+    let target = RenderLayers::layer(2);
+    for (entity, _parent) in new_children.iter() {
+        let mut current = entity;
+        let mut is_editor = false;
+        for _ in 0..50 {
+            if editor_markers.get(current).is_ok() {
+                is_editor = true;
+                break;
+            }
+            match ancestors.get(current) {
+                Ok(p) => current = p.parent(),
+                Err(_) => break,
+            }
+        }
+        if is_editor {
+            commands.entity(entity).insert(target.clone());
+        }
+    }
 }
 
 /// Update the camera transform and projection each frame from the orbit

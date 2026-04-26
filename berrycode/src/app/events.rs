@@ -699,7 +699,7 @@ impl BerryCodeApp {
                     let mut count = 0;
                     for entity in self.scene_model.entities.values() {
                         let world_t = self.scene_model.compute_world_transform(entity.id);
-                        let aabb = aabb_for_entity(entity, &world_t);
+                        let aabb = aabb_for_entity(entity, &world_t, &self.root_path);
                         if aabb.is_some() {
                             count += 1;
                         }
