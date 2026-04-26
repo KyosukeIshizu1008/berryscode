@@ -251,67 +251,152 @@ impl BerryCodeApp {
         let shown = visible_indices.len();
         let hidden = total - shown;
 
-        // Header row 1: title + run/stop controls.
+        // VS Code-style compact toolbar
         ui.horizontal(|ui| {
-            ui.heading("Console");
-            ui.separator();
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let icon_color = egui::Color32::from_rgb(150, 150, 150);
+            let icon_font = egui::FontId::new(14.0, egui::FontFamily::Name("codicon".into()));
 
+            // Run/Stop button
             let is_running = self.run_process.is_some();
             if is_running {
-                if ui.button("Stop").clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ead7}") // codicon: debug-stop
+                                .font(icon_font.clone())
+                                .color(egui::Color32::from_rgb(255, 100, 100)),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_text("Stop")
+                    .clicked()
+                {
                     self.stop_run();
                 }
-                ui.colored_label(egui::Color32::from_rgb(80, 200, 80), "Running");
+                ui.label(
+                    egui::RichText::new("Running")
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(80, 200, 80)),
+                );
             } else {
-                if ui.button("Run").clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{eb2c}") // codicon: play
+                                .font(icon_font.clone())
+                                .color(egui::Color32::from_rgb(80, 200, 80)),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_text("Run")
+                    .clicked()
+                {
                     self.start_run();
                 }
-                ui.colored_label(egui::Color32::from_rgb(150, 150, 150), "Stopped");
             }
 
-            ui.separator();
-            if ui.button("Clear").clicked() {
+            // Clear button
+            if ui
+                .add(
+                    egui::Button::new(
+                        egui::RichText::new("\u{ea99}") // codicon: clear-all
+                            .font(icon_font.clone())
+                            .color(icon_color),
+                    )
+                    .frame(false),
+                )
+                .on_hover_text("Clear")
+                .clicked()
+            {
                 self.run_output.clear();
             }
-        });
 
-        // Header row 2: severity filter chips + log level + auto-scroll + count.
-        ui.horizontal(|ui| {
-            ui.label("Show:");
-            ui.checkbox(&mut self.console_show_info, "Info");
-            ui.checkbox(&mut self.console_show_warning, "Warn");
-            ui.checkbox(&mut self.console_show_error, "Error");
             ui.separator();
-            ui.label("Level:");
-            egui::ComboBox::from_id_salt("log_level_filter_content")
-                .selected_text(self.console_log_level_filter.label())
-                .width(70.0)
-                .show_ui(ui, |ui| {
-                    for &lvl in LogLevelFilter::all() {
-                        ui.selectable_value(&mut self.console_log_level_filter, lvl, lvl.label());
-                    }
-                });
-            ui.separator();
-            ui.checkbox(&mut self.console_auto_scroll, "Auto-scroll");
-            ui.separator();
-            ui.label("Filter:");
-            ui.add(
+
+            // Filter input (compact)
+            ui.add_sized(
+                [160.0, 16.0],
                 egui::TextEdit::singleline(&mut self.console_filter_text)
-                    .hint_text("substring (case-insensitive)")
-                    .desired_width(220.0),
+                    .hint_text("\u{ea6d} Filter")
+                    .font(egui::FontId::proportional(11.0)),
             );
-            if !self.console_filter_text.is_empty() && ui.small_button("x").clicked() {
-                self.console_filter_text.clear();
-            }
-            ui.separator();
-            ui.label(
-                egui::RichText::new(format!("{} lines / {} hidden", shown, hidden))
-                    .color(egui::Color32::from_gray(160))
-                    .size(11.0),
-            );
-        });
 
-        ui.separator();
+            ui.separator();
+
+            // Severity toggles (compact)
+            ui.label(
+                egui::RichText::new("I")
+                    .size(11.0)
+                    .color(if self.console_show_info {
+                        egui::Color32::from_rgb(80, 200, 80)
+                    } else {
+                        egui::Color32::from_rgb(80, 80, 80)
+                    }),
+            )
+            .on_hover_text("Toggle Info");
+            if ui
+                .interact(
+                    ui.min_rect(),
+                    ui.id().with("info_toggle"),
+                    egui::Sense::click(),
+                )
+                .clicked()
+            {
+                self.console_show_info = !self.console_show_info;
+            }
+
+            ui.label(
+                egui::RichText::new("W")
+                    .size(11.0)
+                    .color(if self.console_show_warning {
+                        egui::Color32::from_rgb(230, 180, 60)
+                    } else {
+                        egui::Color32::from_rgb(80, 80, 80)
+                    }),
+            )
+            .on_hover_text("Toggle Warnings");
+            if ui
+                .interact(
+                    ui.min_rect(),
+                    ui.id().with("warn_toggle"),
+                    egui::Sense::click(),
+                )
+                .clicked()
+            {
+                self.console_show_warning = !self.console_show_warning;
+            }
+
+            ui.label(
+                egui::RichText::new("E")
+                    .size(11.0)
+                    .color(if self.console_show_error {
+                        egui::Color32::from_rgb(255, 110, 110)
+                    } else {
+                        egui::Color32::from_rgb(80, 80, 80)
+                    }),
+            )
+            .on_hover_text("Toggle Errors");
+            if ui
+                .interact(
+                    ui.min_rect(),
+                    ui.id().with("error_toggle"),
+                    egui::Sense::click(),
+                )
+                .clicked()
+            {
+                self.console_show_error = !self.console_show_error;
+            }
+
+            // Right side: line count
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    egui::RichText::new(format!("{} lines", shown))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(100, 100, 100)),
+                );
+            });
+        });
 
         // Output area.
         let scroll = egui::ScrollArea::vertical().auto_shrink([false; 2]);
