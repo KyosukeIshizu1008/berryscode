@@ -920,9 +920,43 @@ impl BerryCodeApp {
         // Save to recent projects
         Self::save_to_recent_projects(path);
 
-        // Auto-import from main.rs if scene is empty
-        let main_path = format!("{}/src/main.rs", path);
-        if self.scene_model.entities.is_empty() {
+        // Auto-load scene: try bscene first, then fall back to main.rs import
+        let scenes_dir = format!("{}/scenes", path);
+        let bscene_loaded = if std::path::Path::new(&scenes_dir).exists() {
+            // Find the first .bscene file
+            std::fs::read_dir(&scenes_dir)
+                .ok()
+                .and_then(|entries| {
+                    entries.filter_map(|e| e.ok()).find(|e| {
+                        e.path()
+                            .extension()
+                            .map(|ext| ext == "bscene")
+                            .unwrap_or(false)
+                    })
+                })
+                .and_then(|entry| {
+                    let bscene_path = entry.path().to_string_lossy().to_string();
+                    std::fs::read_to_string(&bscene_path)
+                        .ok()
+                        .and_then(|content| {
+                            ron::from_str::<crate::app::scene_editor::model::SceneModel>(&content)
+                                .ok()
+                        })
+                })
+                .map(|scene| {
+                    let count = scene.entities.len();
+                    self.scene_model = scene;
+                    self.scene_needs_sync = true;
+                    tracing::info!("Loaded {} entities from bscene", count);
+                    true
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        if !bscene_loaded && self.scene_model.entities.is_empty() {
+            let main_path = format!("{}/src/main.rs", path);
             if let Ok(code) = crate::native::fs::read_file(&main_path) {
                 let imported = crate::app::scene_editor::code_import::import_scene_from_code(&code);
                 if !imported.entities.is_empty() {
