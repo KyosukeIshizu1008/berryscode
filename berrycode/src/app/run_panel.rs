@@ -315,13 +315,16 @@ impl BerryCodeApp {
             ui.separator();
 
             // Filter input
-            ui.add_sized(
+            let filter_resp = ui.add_sized(
                 [180.0, 22.0],
                 egui::TextEdit::singleline(&mut self.console_filter_text)
                     .hint_text("Filter...")
                     .font(egui::FontId::proportional(12.0))
-                    .id(egui::Id::new("console_filter_input")),
+                    .id(egui::Id::new("console_filter_input_dock")),
             );
+            if filter_resp.clicked() {
+                filter_resp.request_focus();
+            }
 
             ui.separator();
 
