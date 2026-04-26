@@ -61,13 +61,17 @@ pub fn setup_preview_render_target(
 
     let image_handle = images.add(image);
 
-    // Spawn preview camera targeting the render texture
-    // Matches Scene Editor pattern (bevy_render.rs) which is known to work.
+    // Spawn preview camera targeting the render texture.
+    // `order: -1` is intentionally distinct from the scene editor camera
+    // (`order: -2` in `bevy_render.rs`) and the material preview camera
+    // (`order: -3`). When two off-screen cameras share an order Bevy's
+    // render order is undefined, which manifested as the preview render
+    // target staying black (#1).
     commands.spawn((
         Camera3d::default(),
         Camera {
             clear_color: ClearColorConfig::Custom(Color::srgba(0.098, 0.102, 0.11, 1.0)),
-            order: -2,
+            order: -1,
             ..default()
         },
         bevy::camera::RenderTarget::Image(image_handle.clone().into()),
@@ -94,12 +98,16 @@ pub fn setup_preview_render_target(
         RenderLayers::layer(1),
     ));
 
-    // Ambient light
-    commands.spawn(AmbientLight {
-        color: Color::WHITE,
-        brightness: 300.0,
-        affects_lightmapped_meshes: false,
-    });
+    // Ambient light, scoped to layer 1 so it lifts the preview scene without
+    // bleeding into the scene editor or material preview viewports.
+    commands.spawn((
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 600.0,
+            affects_lightmapped_meshes: false,
+        },
+        RenderLayers::layer(1),
+    ));
 
     preview.render_target = Some(image_handle);
     preview.preview_width = width;

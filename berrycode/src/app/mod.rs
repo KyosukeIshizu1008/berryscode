@@ -2313,7 +2313,11 @@ pub fn berry_ui_system(
             }
             preview_scene.orbit_yaw = orbit_yaw;
             preview_scene.orbit_pitch = orbit_pitch;
-            preview_scene.orbit_distance = orbit_zoom * 3.0;
+            // The previous multiplier of 3.0 placed the camera *inside* the
+            // bounding box of typical GLB models (e.g. fox.glb ~6 units),
+            // which combined with backface culling produced an empty render
+            // target. 10.0 keeps the default view comfortably outside.
+            preview_scene.orbit_distance = orbit_zoom * 10.0;
 
             if let Some(handle) = preview_scene.render_target.clone() {
                 let texture_id = egui_ctx.add_image(bevy_egui::EguiTextureHandle::Strong(handle));

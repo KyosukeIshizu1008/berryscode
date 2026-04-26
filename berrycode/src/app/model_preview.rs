@@ -1102,7 +1102,7 @@ impl BerryCodeApp {
             .next()
             .unwrap_or("")
             .to_lowercase();
-        if false && (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
+        if (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
             let texture_id = tab.gpu_preview_texture_id.unwrap();
 
             // Metadata header
