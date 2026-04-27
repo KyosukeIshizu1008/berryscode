@@ -193,11 +193,6 @@ fn feature_steps() -> Vec<FeatureStep> {
             setup: SetupAction::None,
         },
         FeatureStep {
-            filename: "10_asset_browser.png",
-            panel: Some(ActivePanel::AssetBrowser),
-            setup: SetupAction::None,
-        },
-        FeatureStep {
             filename: "11_scene_editor.png",
             panel: Some(ActivePanel::SceneEditor),
             setup: SetupAction::None,

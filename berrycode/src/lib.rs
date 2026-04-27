@@ -19,6 +19,9 @@ pub mod syntax;
 // ===== Native Platform Modules =====
 pub mod native;
 
+// ===== AI providers (BYOK direct API clients) =====
+pub mod ai;
+
 // ===== Common Utilities =====
 pub mod common;
 pub mod focus_stack;

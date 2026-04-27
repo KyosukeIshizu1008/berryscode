@@ -31,9 +31,6 @@ impl BerryCodeApp {
                     self.active_panel = ActivePanel::BevyTemplates;
                 }
                 if i.key_pressed(egui::Key::Num7) {
-                    self.active_panel = ActivePanel::AssetBrowser;
-                }
-                if i.key_pressed(egui::Key::Num8) {
                     self.active_panel = ActivePanel::SceneEditor;
                 }
             }

@@ -490,8 +490,24 @@ impl BerryCodeApp {
             return;
         }
 
-        // Check if it's an image file
+        // For files under `<project>/assets/`, prime the asset browser
+        // state so the editor's preview tab can use its richer renderer
+        // (3D viewport with PBR material panel, dimension info, etc.)
+        // without the user having to switch panels.
         let ext = super::utils::get_extension(file_path);
+        let in_assets_dir = file_path.contains("/assets/")
+            || file_path.starts_with(&format!("{}/assets", self.root_path));
+        if in_assets_dir {
+            if self.asset_browser.assets.is_empty() {
+                self.asset_browser.scan_pending = true;
+            }
+            self.asset_browser.selected_asset = self
+                .asset_browser
+                .assets
+                .iter()
+                .position(|a| a.path.to_string_lossy() == file_path);
+        }
+
         if Self::is_image_extension(&ext) {
             let mut tab = super::types::EditorTab::new(file_path.to_string(), String::new());
             tab.is_image = true;
@@ -503,7 +519,7 @@ impl BerryCodeApp {
             return;
         }
 
-        // Check if it's a 3D model file
+        // 3D model files outside `assets/` get the in-editor preview too.
         if matches!(ext.as_str(), "gltf" | "glb" | "obj" | "stl" | "ply") {
             let mut tab = super::types::EditorTab::new(file_path.to_string(), String::new());
             tab.is_model = true;

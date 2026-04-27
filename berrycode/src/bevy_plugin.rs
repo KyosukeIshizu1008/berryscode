@@ -19,8 +19,24 @@ use crate::app::BerryCodeApp;
 use crate::app::{berry_ui_system, demo_capture_system, setup_egui_fonts_and_style};
 use bevy::prelude::*;
 use bevy::winit::{UpdateMode, WinitSettings};
-use bevy_egui::EguiPlugin;
+use bevy_egui::{EguiGlobalSettings, EguiPlugin, PrimaryEguiContext};
 use std::time::Duration;
+
+/// Spawn a `Camera2d` for the primary window, marked as the host of the
+/// primary egui context. Without this, `bevy_egui`'s auto-create logic
+/// attaches the primary context to the *first* camera it sees — which in
+/// our app is the offscreen scene-editor `Camera3d` — and the main
+/// window receives no draws (entirely black window).
+fn setup_primary_camera(mut commands: Commands) {
+    commands.spawn((Camera2d, PrimaryEguiContext));
+}
+
+fn disable_auto_primary_context(mut settings: ResMut<EguiGlobalSettings>) {
+    // We attach the `PrimaryEguiContext` marker ourselves on a dedicated
+    // window-targeted Camera2d (see `setup_primary_camera`), so let
+    // bevy_egui know not to pick a camera at random.
+    settings.auto_create_primary_context = false;
+}
 
 /// Plugin that adds the BerryCode editor to a Bevy application.
 pub struct BerryCodePlugin;
@@ -37,9 +53,11 @@ impl Plugin for BerryCodePlugin {
             .init_resource::<SceneEditorRender>()
             .init_resource::<MaterialPreviewRender>()
             .init_resource::<crate::app::EguiFontsConfigured>()
+            .add_systems(PreStartup, disable_auto_primary_context)
             .add_systems(
                 Startup,
                 (
+                    setup_primary_camera,
                     setup_preview_render_target,
                     setup_scene_editor_render,
                     setup_material_preview,

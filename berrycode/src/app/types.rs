@@ -110,7 +110,6 @@ pub enum ActivePanel {
     Settings,
     EcsInspector,
     BevyTemplates,
-    AssetBrowser,
     SceneEditor,
 }
 
@@ -123,6 +122,8 @@ pub enum SettingsTab {
     Language,
     Plugins,
     GitHub,
+    /// AI providers: BYOK API keys + model selection (v0.4.5).
+    AiProviders,
 }
 
 /// Top-level visual theme preset. Each variant maps to a full

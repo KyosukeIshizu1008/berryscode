@@ -198,6 +198,36 @@ impl BerryCodeApp {
             });
     }
 
+    /// Lazily rasterise the Scene View dove SVG and upload it to an
+    /// egui texture. The handle is cached on `self` so we only pay the
+    /// SVG decode + raster cost once per session. The SVG uses
+    /// `currentColor` for its fill so the activity bar's tint
+    /// (icon_active / icon_inactive) applies directly.
+    pub(crate) fn scene_view_icon_texture(
+        &mut self,
+        ctx: &egui::Context,
+        size_px: u32,
+    ) -> Option<egui::TextureHandle> {
+        if let Some(tex) = &self.scene_view_icon {
+            return Some(tex.clone());
+        }
+        const SVG_BYTES: &str = include_str!("../../assets/icons/scene_view.svg");
+        let opts = resvg::usvg::Options::default();
+        let tree = resvg::usvg::Tree::from_str(SVG_BYTES, &opts).ok()?;
+        let render_size = size_px.max(8) * 3; // ×3 for hidpi crispness
+        let scale = render_size as f32 / tree.size().width().max(1.0);
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(render_size, render_size)?;
+        let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
+        resvg::render(&tree, transform, &mut pixmap.as_mut());
+        let image = egui::ColorImage::from_rgba_unmultiplied(
+            [render_size as usize, render_size as usize],
+            pixmap.data(),
+        );
+        let handle = ctx.load_texture("scene_view_icon", image, egui::TextureOptions::LINEAR);
+        self.scene_view_icon = Some(handle.clone());
+        Some(handle)
+    }
+
     /// Render Activity Bar (left-most 48px panel with icons)
     pub(crate) fn render_activity_bar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("activity_bar")
@@ -251,13 +281,53 @@ impl BerryCodeApp {
                         } else {
                             icon_inactive
                         };
-                        ui.painter().text(
-                            rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            panel.icon,
-                            egui::FontId::new(icon_size, egui::FontFamily::Name("codicon".into())),
-                            color,
-                        );
+                        if panel.variant == ActivePanel::SceneEditor {
+                            // Custom dove SVG (Lucide-style) for the
+                            // Scene View activity-bar entry. Rasterised
+                            // once and cached, then drawn tinted to match
+                            // the active / inactive icon colour.
+                            if let Some(tex) =
+                                self.scene_view_icon_texture(ctx, icon_size as u32)
+                            {
+                                // Codicon glyphs include their own padding
+                                // inside the EM box; SVG paths fill the
+                                // viewBox edge-to-edge. Scale the bird up
+                                // ~15% so its visual size matches the
+                                // neighbouring text icons.
+                                let visual = icon_size * 1.15;
+                                let img_rect = egui::Rect::from_center_size(
+                                    rect.center(),
+                                    egui::vec2(visual, visual),
+                                );
+                                egui::Image::new(&tex)
+                                    .tint(color)
+                                    .paint_at(ui, img_rect);
+                            } else {
+                                // Fallback to the codicon glyph if SVG
+                                // rasterisation failed for any reason.
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    panel.icon,
+                                    egui::FontId::new(
+                                        icon_size,
+                                        egui::FontFamily::Name("codicon".into()),
+                                    ),
+                                    color,
+                                );
+                            }
+                        } else {
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                panel.icon,
+                                egui::FontId::new(
+                                    icon_size,
+                                    egui::FontFamily::Name("codicon".into()),
+                                ),
+                                color,
+                            );
+                        }
 
                         if response.clicked() {
                             self.active_panel = panel.variant;

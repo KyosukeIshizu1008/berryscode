@@ -521,8 +521,9 @@ impl BerryCodeApp {
         }
     }
 
-    /// Debug console (output + REPL input)
-    fn render_debug_console(&mut self, ui: &mut egui::Ui) {
+    /// Debug console (output + REPL input).
+    /// `pub(crate)` so the unified bottom panel can host it as a tab.
+    pub(crate) fn render_debug_console(&mut self, ui: &mut egui::Ui) {
         let available = ui.available_height();
 
         egui::ScrollArea::vertical()

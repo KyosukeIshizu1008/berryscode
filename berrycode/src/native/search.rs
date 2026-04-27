@@ -24,15 +24,19 @@ pub fn search_in_files(
     pattern: &str,
     case_sensitive: bool,
     use_regex: bool,
+    whole_word: bool,
 ) -> Result<Vec<SearchResult>> {
     let root = root.as_ref();
 
     // Build regex pattern
-    let regex_pattern = if use_regex {
+    let mut regex_pattern = if use_regex {
         pattern.to_string()
     } else {
         regex::escape(pattern)
     };
+    if whole_word {
+        regex_pattern = format!(r"\b(?:{})\b", regex_pattern);
+    }
 
     let regex = if case_sensitive {
         Regex::new(&regex_pattern)?

@@ -262,7 +262,6 @@ impl BerryCodeApp {
                 "panel:settings" => self.active_panel = super::types::ActivePanel::Settings,
                 "panel:ecs" => self.active_panel = super::types::ActivePanel::EcsInspector,
                 "panel:templates" => self.active_panel = super::types::ActivePanel::BevyTemplates,
-                "panel:assets" => self.active_panel = super::types::ActivePanel::AssetBrowser,
                 "panel:scene-editor" => self.active_panel = super::types::ActivePanel::SceneEditor,
 
                 "quit" => std::process::exit(0),

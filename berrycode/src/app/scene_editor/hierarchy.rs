@@ -44,8 +44,9 @@ impl BerryCodeApp {
         let mut switch_to: Option<usize> = None;
         let mut load_scene_path: Option<String> = None;
 
+        let mut close_tab: Option<usize> = None;
         ui.horizontal_wrapped(|ui| {
-            // Existing scene tabs
+            // Existing scene tabs (label + × close button)
             for i in 0..tab_count {
                 let selected = i == self.active_scene_tab;
                 let label = if self.scene_tabs[i].model.modified {
@@ -53,9 +54,22 @@ impl BerryCodeApp {
                 } else {
                     self.scene_tabs[i].label.clone()
                 };
-                if ui.selectable_label(selected, &label).clicked() && i != self.active_scene_tab {
-                    switch_to = Some(i);
-                }
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    if ui.selectable_label(selected, &label).clicked()
+                        && i != self.active_scene_tab
+                    {
+                        switch_to = Some(i);
+                    }
+                    if tab_count > 1
+                        && ui
+                            .small_button("×")
+                            .on_hover_text("Close scene")
+                            .clicked()
+                    {
+                        close_tab = Some(i);
+                    }
+                });
             }
 
             // "Open Scene" dropdown - lists all .bscene files in project
@@ -119,6 +133,22 @@ impl BerryCodeApp {
                 self.primary_selected_id = None;
             }
         }
+        if let Some(idx) = close_tab {
+            // Persist the current scene back into its tab so we don't
+            // close stale state; then drop the tab and adjust the active
+            // index. The button is gated on `tab_count > 1` so we never
+            // remove the last remaining tab.
+            self.scene_tabs[self.active_scene_tab].model = self.scene_model.clone();
+            self.scene_tabs.remove(idx);
+            if self.active_scene_tab >= self.scene_tabs.len() {
+                self.active_scene_tab = self.scene_tabs.len() - 1;
+            } else if idx < self.active_scene_tab {
+                self.active_scene_tab -= 1;
+            }
+            self.scene_model = self.scene_tabs[self.active_scene_tab].model.clone();
+            self.scene_needs_sync = true;
+            self.primary_selected_id = None;
+        }
         if let Some(path) = load_scene_path {
             self.load_scene(&path);
         }
@@ -126,9 +156,33 @@ impl BerryCodeApp {
         // Compact toolbar: essential buttons + dropdown menus
         ui.horizontal(|ui| {
             if ui.small_button("New").clicked() {
+                // Save the current scene's edits back to its tab before
+                // we slot in the new one — otherwise switching back loses
+                // unsaved changes. Then push a fresh tab and activate it.
                 self.scene_snapshot();
-                self.scene_model = SceneModel::new();
+                if let Some(tab) = self.scene_tabs.get_mut(self.active_scene_tab) {
+                    tab.model = self.scene_model.clone();
+                }
+                let new_label = {
+                    let mut n = 1;
+                    loop {
+                        let candidate = format!("Untitled {}", n);
+                        if !self.scene_tabs.iter().any(|t| t.label == candidate) {
+                            break candidate;
+                        }
+                        n += 1;
+                    }
+                };
+                self.scene_tabs.push(
+                    crate::app::scene_editor::scene_tabs::SceneTab::new(
+                        SceneModel::new(),
+                        new_label,
+                    ),
+                );
+                self.active_scene_tab = self.scene_tabs.len() - 1;
+                self.scene_model = self.scene_tabs[self.active_scene_tab].model.clone();
                 self.scene_needs_sync = true;
+                self.primary_selected_id = None;
             }
             if ui.small_button("Save").clicked() {
                 self.save_current_scene();

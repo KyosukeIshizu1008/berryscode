@@ -8,55 +8,113 @@ use crate::app::i18n::t;
 impl BerryCodeApp {
     /// RustRover-style Settings Panel
     pub(crate) fn render_settings_panel(&mut self, ui: &mut egui::Ui) {
-        ui.heading(format!("⚙️ {}", self.tr("Settings")));
-        ui.separator();
+        use super::ui_colors;
 
-        ui.horizontal_top(|ui| {
-            // --- Left Navigation (150px width) ---
-            ui.vertical(|ui| {
-                ui.set_width(150.0);
-                ui.add_space(8.0);
-
-                ui.selectable_value(
-                    &mut self.active_settings_tab,
-                    super::types::SettingsTab::Appearance,
-                    t(self.ui_language, "Appearance"),
-                );
-                ui.selectable_value(
-                    &mut self.active_settings_tab,
-                    super::types::SettingsTab::EditorColor,
-                    t(self.ui_language, "Editor > Color Scheme"),
-                );
-                ui.selectable_value(
-                    &mut self.active_settings_tab,
-                    super::types::SettingsTab::Keybindings,
-                    t(self.ui_language, "Keybindings"),
-                );
-                ui.selectable_value(
-                    &mut self.active_settings_tab,
-                    super::types::SettingsTab::Language,
-                    t(self.ui_language, "Language"),
-                );
-
-                ui.add_space(12.0);
+        // VS Code-style header strip with the settings title and a
+        // global search box. Layout below splits into a fixed-width nav
+        // column on the left and a scrolled content area on the right.
+        ui.horizontal(|ui| {
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new("Settings")
+                    .size(18.0)
+                    .color(ui_colors::SETTINGS_HEADER)
+                    .strong(),
+            );
+            ui.add_space(16.0);
+            // Search box (placeholder state until v0.4.x search lands).
+            let search_frame = egui::Frame::NONE
+                .fill(ui_colors::SETTINGS_SEARCH_BG)
+                .stroke(egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER))
+                .corner_radius(egui::CornerRadius::same(4))
+                .inner_margin(egui::Margin::symmetric(8, 4));
+            search_frame.show(ui, |ui| {
+                ui.set_min_width(380.0);
                 ui.label(
-                    egui::RichText::new(self.tr("Plugins"))
+                    egui::RichText::new("Search settings (coming soon)")
                         .small()
-                        .color(egui::Color32::GRAY),
-                );
-                ui.selectable_value(
-                    &mut self.active_settings_tab,
-                    super::types::SettingsTab::GitHub,
-                    t(self.ui_language, "GitHub Review"),
-                );
-                ui.selectable_value(
-                    &mut self.active_settings_tab,
-                    super::types::SettingsTab::Plugins,
-                    t(self.ui_language, "Other Plugins"),
+                        .color(ui_colors::SETTINGS_HINT),
                 );
             });
+        });
+        ui.add_space(4.0);
+        ui.painter().hline(
+            ui.max_rect().x_range(),
+            ui.cursor().min.y,
+            egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER),
+        );
+        ui.add_space(8.0);
 
-            ui.separator();
+        ui.horizontal_top(|ui| {
+            // --- Left Navigation (220px) — VS Code-style two-pane split.
+            // Wrap in `ui.vertical` so items stack top-to-bottom; the
+            // outer `horizontal_top` would otherwise lay them on a single
+            // row.
+            egui::Frame::NONE
+                .fill(ui_colors::SETTINGS_NAV_BG)
+                .inner_margin(egui::Margin::symmetric(8, 12))
+                .show(ui, |ui| {
+                    ui.set_width(220.0);
+                    ui.set_min_height(ui.available_height());
+                    ui.vertical(|ui| {
+                        ui.set_width(220.0 - 16.0); // minus inner margin
+
+                        nav_section_header(ui, "Application");
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::Appearance,
+                            t(self.ui_language, "Appearance"),
+                        );
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::Language,
+                            t(self.ui_language, "Language"),
+                        );
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::Keybindings,
+                            t(self.ui_language, "Keybindings"),
+                        );
+
+                        ui.add_space(12.0);
+                        nav_section_header(ui, "Editor");
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::EditorColor,
+                            "Color Scheme",
+                        );
+
+                        ui.add_space(12.0);
+                        nav_section_header(ui, "Features");
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::AiProviders,
+                            "AI Providers",
+                        );
+
+                        ui.add_space(12.0);
+                        nav_section_header(ui, &self.tr("Plugins"));
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::GitHub,
+                            t(self.ui_language, "GitHub Review"),
+                        );
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::Plugins,
+                            t(self.ui_language, "Other Plugins"),
+                        );
+                    });
+                });
+
+            ui.add_space(8.0);
 
             // --- Right Content Area ---
             ui.vertical(|ui| {
@@ -111,26 +169,33 @@ impl BerryCodeApp {
                             ui.label(self.tr("Window theme, font settings, etc."));
                             ui.add_space(12.0);
 
-                            // Theme preset switcher — applies + persists
-                            // immediately so the user sees the change live.
+                            // Theme preset switcher. Light / High Contrast
+                            // are disabled until v0.4.x finishes auditing
+                            // the hardcoded `ui_colors::*` constants — only
+                            // the Dark preset currently renders all panels
+                            // (editor, sidebar, terminal) with consistent
+                            // colours.
                             ui.label(egui::RichText::new("Theme preset").strong());
                             ui.add_space(4.0);
-                            let presets = [
-                                super::types::ThemeMode::Dark,
-                                super::types::ThemeMode::Light,
-                                super::types::ThemeMode::HighContrast,
-                            ];
                             ui.horizontal(|ui| {
-                                for mode in presets {
-                                    let selected = self.theme_mode == mode;
-                                    if ui.selectable_label(selected, mode.label()).clicked()
-                                        && !selected
-                                    {
-                                        self.theme_mode = mode;
-                                        ui.ctx().set_visuals(super::visuals_for_theme(mode));
-                                        super::save_theme_mode(mode);
-                                    }
+                                let selected =
+                                    self.theme_mode == super::types::ThemeMode::Dark;
+                                if ui.selectable_label(selected, "Dark").clicked() && !selected {
+                                    let mode = super::types::ThemeMode::Dark;
+                                    self.theme_mode = mode;
+                                    ui.ctx().set_visuals(super::visuals_for_theme(mode));
+                                    super::save_theme_mode(mode);
                                 }
+                                ui.add_enabled(false, egui::SelectableLabel::new(false, "Light"));
+                                ui.add_enabled(
+                                    false,
+                                    egui::SelectableLabel::new(false, "High Contrast"),
+                                );
+                                ui.label(
+                                    egui::RichText::new("(WIP)")
+                                        .small()
+                                        .color(egui::Color32::from_rgb(150, 150, 160)),
+                                );
                             });
                             ui.add_space(12.0);
 
@@ -194,9 +259,236 @@ impl BerryCodeApp {
                                 }
                             }
                         }
+                        super::types::SettingsTab::AiProviders => {
+                            self.render_ai_providers_settings(ui);
+                        }
                     });
             });
         });
+    }
+
+    /// AI Providers settings tab — BYOK configuration. Lets the user
+    /// paste API keys for Anthropic / OpenAI, point at a local Ollama
+    /// instance, and pick which model handles chat vs inline completion.
+    /// All edits persist immediately to `~/.berrycode/ai.json`.
+    pub(crate) fn render_ai_providers_settings(&mut self, ui: &mut egui::Ui) {
+        use crate::ai::settings::AiSettings;
+        use crate::ai::ProviderKind;
+        use crate::app::ui_colors;
+
+        ui.label(
+            egui::RichText::new("AI Providers")
+                .size(20.0)
+                .color(ui_colors::SETTINGS_HEADER)
+                .strong(),
+        );
+        ui.add_space(2.0);
+        ui.label(
+            egui::RichText::new("Bring your own key — BerryCode talks to each provider directly.")
+                .small()
+                .color(ui_colors::SETTINGS_DESC),
+        );
+        ui.add_space(16.0);
+
+        let mut dirty = false;
+
+        // ── Master enable toggle ─────────────────────────────────
+        setting_card(
+            ui,
+            "Enable AI assistant",
+            Some(
+                "When off, all AI features (chat, inline completion) are disabled even if keys are set.",
+            ),
+            |ui| {
+                if ui
+                    .checkbox(&mut self.ai_settings.enabled, "Enabled")
+                    .changed()
+                {
+                    dirty = true;
+                }
+            },
+        );
+
+        // ── Anthropic ────────────────────────────────────────────
+        setting_card(
+            ui,
+            "Anthropic (Claude)",
+            Some("API key from https://console.anthropic.com/settings/keys."),
+            |ui| {
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut self.ai_settings.anthropic_api_key)
+                        .password(true)
+                        .desired_width(420.0)
+                        .hint_text("sk-ant-…"),
+                );
+                if resp.changed() {
+                    dirty = true;
+                }
+            },
+        );
+
+        // ── OpenAI ───────────────────────────────────────────────
+        setting_card(
+            ui,
+            "OpenAI (GPT / Codex)",
+            Some("API key from https://platform.openai.com/api-keys."),
+            |ui| {
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut self.ai_settings.openai_api_key)
+                        .password(true)
+                        .desired_width(420.0)
+                        .hint_text("sk-…"),
+                );
+                if resp.changed() {
+                    dirty = true;
+                }
+            },
+        );
+
+        // ── Ollama (local) ───────────────────────────────────────
+        setting_card(
+            ui,
+            "Ollama (local)",
+            Some("Self-hosted server. No API key required — `ollama serve` and pick a model."),
+            |ui| {
+                let resp = ui.add(
+                    egui::TextEdit::singleline(&mut self.ai_settings.ollama_endpoint)
+                        .desired_width(420.0)
+                        .hint_text("http://localhost:11434"),
+                );
+                if resp.changed() {
+                    dirty = true;
+                }
+            },
+        );
+
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new("Model selection")
+                .size(15.0)
+                .color(ui_colors::SETTINGS_HEADER)
+                .strong(),
+        );
+        ui.add_space(8.0);
+
+        let provider_options = [
+            ProviderKind::Anthropic,
+            ProviderKind::OpenAi,
+            ProviderKind::Ollama,
+        ];
+
+        // ── Chat model ───────────────────────────────────────────
+        setting_card(
+            ui,
+            "Chat sidebar",
+            Some("Provider and model used when you talk to the assistant in the right-hand chat panel."),
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Provider:");
+                    for kind in provider_options {
+                        if ui
+                            .selectable_label(
+                                self.ai_settings.chat_provider == kind,
+                                kind.label(),
+                            )
+                            .clicked()
+                        {
+                            self.ai_settings.chat_provider = kind;
+                            let models = AiSettings::chat_models_for(kind);
+                            if let Some(first) = models.first() {
+                                self.ai_settings.chat_model = first.to_string();
+                            }
+                            dirty = true;
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label("Model:");
+                    let models = AiSettings::chat_models_for(self.ai_settings.chat_provider);
+                    egui::ComboBox::from_id_salt("ai_chat_model")
+                        .selected_text(self.ai_settings.chat_model.clone())
+                        .show_ui(ui, |ui| {
+                            for model in models {
+                                if ui
+                                    .selectable_label(
+                                        self.ai_settings.chat_model == *model,
+                                        *model,
+                                    )
+                                    .clicked()
+                                {
+                                    self.ai_settings.chat_model = model.to_string();
+                                    dirty = true;
+                                }
+                            }
+                        });
+                });
+            },
+        );
+
+        // ── Inline completion model ──────────────────────────────
+        setting_card(
+            ui,
+            "Inline / Tab completion",
+            Some("Lower-latency model used for ghost-text suggestions. Smaller / faster models recommended."),
+            |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Provider:");
+                    for kind in provider_options {
+                        if ui
+                            .selectable_label(
+                                self.ai_settings.completion_provider == kind,
+                                kind.label(),
+                            )
+                            .clicked()
+                        {
+                            self.ai_settings.completion_provider = kind;
+                            let models = AiSettings::completion_models_for(kind);
+                            if let Some(first) = models.first() {
+                                self.ai_settings.completion_model = first.to_string();
+                            }
+                            dirty = true;
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label("Model:");
+                    let models =
+                        AiSettings::completion_models_for(self.ai_settings.completion_provider);
+                    egui::ComboBox::from_id_salt("ai_completion_model")
+                        .selected_text(self.ai_settings.completion_model.clone())
+                        .show_ui(ui, |ui| {
+                            for model in models {
+                                if ui
+                                    .selectable_label(
+                                        self.ai_settings.completion_model == *model,
+                                        *model,
+                                    )
+                                    .clicked()
+                                {
+                                    self.ai_settings.completion_model = model.to_string();
+                                    dirty = true;
+                                }
+                            }
+                        });
+                });
+            },
+        );
+
+        if dirty {
+            self.ai_settings.save();
+        }
+
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(
+                "Settings are persisted to ~/.berrycode/ai.json. Keys are stored in plaintext for now — \
+                 a future revision will move them to the OS keyring.",
+            )
+            .small()
+            .color(egui::Color32::from_rgb(140, 140, 150)),
+        );
     }
 
     /// Color Scheme Settings (RustRover Darcula)
@@ -629,4 +921,112 @@ impl BerryCodeApp {
             }
         });
     }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// VS Code-style settings UI helpers (free functions, used from inside
+// `render_settings_panel` and the per-tab renderers below).
+// ──────────────────────────────────────────────────────────────────────
+
+/// Tiny dimmed section label, used as a visual divider between groups
+/// of nav entries (e.g. "Application", "Editor", "Features").
+fn nav_section_header(ui: &mut egui::Ui, text: &str) {
+    use crate::app::ui_colors;
+    ui.add_space(2.0);
+    ui.label(
+        egui::RichText::new(text.to_uppercase())
+            .small()
+            .color(ui_colors::SETTINGS_HINT)
+            .strong(),
+    );
+    ui.add_space(2.0);
+}
+
+/// One row in the left navigation column. Looks like a VS Code tree
+/// item: full-row click target, subtle hover, accent bar on the
+/// selected entry.
+fn nav_item(
+    ui: &mut egui::Ui,
+    current: &mut crate::app::types::SettingsTab,
+    target: crate::app::types::SettingsTab,
+    label: impl Into<String>,
+) {
+    use crate::app::ui_colors;
+    let label = label.into();
+    let is_selected = *current == target;
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), 22.0),
+        egui::Sense::click(),
+    );
+    let bg = if is_selected {
+        egui::Color32::from_rgb(50, 56, 70)
+    } else if response.hovered() {
+        egui::Color32::from_rgb(40, 42, 47)
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(3), bg);
+    if is_selected {
+        // Accent bar on the left edge.
+        ui.painter().rect_filled(
+            egui::Rect::from_min_max(
+                rect.left_top(),
+                egui::pos2(rect.left() + 2.0, rect.bottom()),
+            ),
+            egui::CornerRadius::ZERO,
+            ui_colors::SETTINGS_ACCENT,
+        );
+    }
+    ui.painter().text(
+        egui::pos2(rect.left() + 12.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(13.0),
+        if is_selected {
+            ui_colors::SETTINGS_HEADER
+        } else {
+            ui_colors::TEXT_DEFAULT
+        },
+    );
+    if response.clicked() {
+        *current = target;
+    }
+}
+
+/// VS Code-style settings card: a title (bold), an optional dim
+/// description, and a control rendered by `body`. Each card is wrapped
+/// in a subtle bordered frame so individual settings are visually
+/// separated.
+fn setting_card(
+    ui: &mut egui::Ui,
+    title: &str,
+    description: Option<&str>,
+    body: impl FnOnce(&mut egui::Ui),
+) {
+    use crate::app::ui_colors;
+    egui::Frame::NONE
+        .stroke(egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(12, 10))
+        .fill(ui_colors::SETTINGS_NAV_BG)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width().min(720.0));
+            ui.label(
+                egui::RichText::new(title)
+                    .strong()
+                    .color(ui_colors::SETTINGS_HEADER),
+            );
+            if let Some(desc) = description {
+                ui.add_space(2.0);
+                ui.label(
+                    egui::RichText::new(desc)
+                        .small()
+                        .color(ui_colors::SETTINGS_DESC),
+                );
+            }
+            ui.add_space(6.0);
+            body(ui);
+        });
+    ui.add_space(8.0);
 }

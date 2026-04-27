@@ -1259,7 +1259,7 @@ impl BerryCodeApp {
         ];
 
         for pattern in search_patterns {
-            match native::search::search_in_files(&self.root_path, &pattern, false, true) {
+            match native::search::search_in_files(&self.root_path, &pattern, false, true, false) {
                 Ok(results) => {
                     if !results.is_empty() {
                         let first_result = &results[0];

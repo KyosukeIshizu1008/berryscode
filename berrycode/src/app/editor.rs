@@ -184,15 +184,53 @@ impl BerryCodeApp {
 
                 ui.separator();
 
-                // If the active tab is an image, render the image preview instead of the text editor
-                if self.editor_tabs[self.active_tab_idx].is_image {
-                    self.render_image_preview(ui, ctx);
-                    return;
-                }
-
-                // If the active tab is a 3D model, render the model preview
-                if self.editor_tabs[self.active_tab_idx].is_model {
-                    self.render_model_preview(ui);
+                // If the active tab is an image / 3D model, render the
+                // rich Asset Browser preview inline. The asset-browser
+                // selection has already been primed by `open_file_from_path`
+                // for files under `<project>/assets/`; for files outside
+                // we fall back to the simpler in-editor preview which
+                // doesn't depend on the scanned asset list.
+                let active_path = self.editor_tabs[self.active_tab_idx].file_path.clone();
+                let is_image = self.editor_tabs[self.active_tab_idx].is_image;
+                let is_model = self.editor_tabs[self.active_tab_idx].is_model;
+                if is_image || is_model {
+                    // Lazy-scan the project's assets/ tree if it hasn't
+                    // been scanned yet (the previous owner of this scan,
+                    // the Asset Browser panel, was removed in v0.4.x).
+                    if self.asset_browser.scan_pending
+                        || self.asset_browser.assets.is_empty()
+                    {
+                        self.asset_browser.assets =
+                            crate::bevy_ide::assets::scanner::scan_assets(
+                                &self.root_path,
+                                &self.asset_browser.asset_root,
+                            );
+                        self.asset_browser.scan_pending = false;
+                        // Re-resolve the index now that we have the list.
+                        self.asset_browser.selected_asset = self
+                            .asset_browser
+                            .assets
+                            .iter()
+                            .position(|a| a.path.to_string_lossy() == active_path);
+                    }
+                    let in_assets = self
+                        .asset_browser
+                        .assets
+                        .iter()
+                        .any(|a| a.path.to_string_lossy() == active_path);
+                    if in_assets {
+                        // Make sure the asset browser is pointed at this tab.
+                        self.asset_browser.selected_asset = self
+                            .asset_browser
+                            .assets
+                            .iter()
+                            .position(|a| a.path.to_string_lossy() == active_path);
+                        self.render_asset_preview(ui);
+                    } else if is_image {
+                        self.render_image_preview(ui, ctx);
+                    } else {
+                        self.render_model_preview(ui);
+                    }
                     return;
                 }
 

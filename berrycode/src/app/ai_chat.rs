@@ -688,28 +688,83 @@ impl BerryCodeApp {
         self.ai_streaming_message = Some(String::new());
 
         let tx = self.ai_response_tx.clone();
-        let repo_path = self.root_path.clone();
 
-        // Use REST (berry-core-api)
-        tracing::info!("📤 Sending via REST (berry-core-api): {}", message);
+        // BYOK provider layer (v0.4.5). Build a Provider trait object from
+        // the user's saved settings and call it directly, no proxy.
+        let ai = self.ai_settings.clone();
+        if !ai.enabled {
+            if let Some(tx) = &tx {
+                let _ = tx.send(AiChatResponse::ChatChunk(
+                    "AI assistant is disabled. Enable it in Settings → AI Providers.".to_string(),
+                ));
+                let _ = tx.send(AiChatResponse::ChatStreamCompleted);
+            }
+            return;
+        }
 
-        let rest_client = crate::native::rest_client::get_client().clone();
+        // Convert the existing UI history (`is_user: bool`) into the
+        // provider-neutral role/content shape.
+        let history: Vec<crate::ai::ChatMessage> = self
+            .ai_messages
+            .iter()
+            .map(|m| crate::ai::ChatMessage {
+                role: if m.is_user { "user" } else { "assistant" }.to_string(),
+                content: m.content.clone(),
+            })
+            .collect();
+
+        tracing::info!(
+            "📤 Sending chat via {:?} / {}",
+            ai.chat_provider,
+            ai.chat_model
+        );
 
         self.lsp_runtime.spawn(async move {
-            match rest_client.chat(&repo_path, &message, None).await {
-                Ok(response) => {
+            let provider: Box<dyn crate::ai::Provider> = match ai.chat_provider {
+                crate::ai::ProviderKind::Anthropic => Box::new(
+                    crate::ai::anthropic::AnthropicProvider::new(ai.anthropic_api_key.clone()),
+                ),
+                crate::ai::ProviderKind::OpenAi => Box::new(
+                    crate::ai::openai::OpenAiProvider::new(ai.openai_api_key.clone()),
+                ),
+                crate::ai::ProviderKind::Ollama => Box::new(
+                    crate::ai::ollama::OllamaProvider::new(ai.ollama_endpoint.clone()),
+                ),
+            };
+
+            let mut messages = history;
+            messages.push(crate::ai::ChatMessage {
+                role: "user".to_string(),
+                content: message,
+            });
+
+            let mut req = crate::ai::CompletionRequest::new(ai.chat_model.clone(), messages);
+            req.system = Some(
+                "You are BerryCode's built-in assistant for Bevy / Rust game development. \
+                 Prefer concise, code-first answers and cite the Bevy 0.18 API when relevant."
+                    .to_string(),
+            );
+            req.max_tokens = 2048;
+            req.temperature = 0.3;
+
+            match provider.complete(req).await {
+                Ok(resp) => {
                     if let Some(tx) = &tx {
-                        let _ = tx.send(AiChatResponse::ChatChunk(response));
+                        let _ = tx.send(AiChatResponse::ChatChunk(resp.text));
                         let _ = tx.send(AiChatResponse::ChatStreamCompleted);
                     }
                 }
                 Err(e) => {
-                    tracing::error!("❌ REST chat failed: {}", e);
+                    tracing::error!("❌ AI provider error: {}", e);
                     if let Some(tx) = &tx {
-                        let _ = tx.send(AiChatResponse::ChatChunk(format!(
-                            "⚠️ AI Chat error: {}.\n\nMake sure berry-core-api is running:\n```\ncd ../berry-core-api && cargo run\n```",
-                            e
-                        )));
+                        let hint = match &e {
+                            crate::ai::ProviderError::MissingKey(p) => format!(
+                                "⚠️ No API key configured for {}.\nAdd one in Settings → AI Providers.",
+                                p
+                            ),
+                            other => format!("⚠️ AI error: {}", other),
+                        };
+                        let _ = tx.send(AiChatResponse::ChatChunk(hint));
                         let _ = tx.send(AiChatResponse::ChatStreamCompleted);
                     }
                 }

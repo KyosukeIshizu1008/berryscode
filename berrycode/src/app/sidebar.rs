@@ -29,15 +29,15 @@ impl BerryCodeApp {
                     ActivePanel::Git => self.render_git_panel(ui),
                     ActivePanel::Terminal => self.render_terminal(ui),
                     ActivePanel::Settings => {
-                        self.render_settings_panel(ui);
+                        // Settings is rendered in the wider CentralPanel
+                        // (see `mod.rs`) — the sidebar is intentionally
+                        // blank in this mode so the user gets the full
+                        // window width for tabs and form fields.
                     }
                     ActivePanel::EcsInspector => {
                         self.render_ecs_inspector_panel(ctx, ui);
                     }
                     ActivePanel::BevyTemplates => {}
-                    ActivePanel::AssetBrowser => {
-                        self.render_asset_browser_panel(ctx, ui);
-                    }
                     ActivePanel::SceneEditor => {
                         self.render_scene_hierarchy(ui);
                     }

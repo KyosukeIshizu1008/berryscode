@@ -93,6 +93,16 @@ pub(crate) mod ui_colors {
     pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
     pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 Light Gray
     pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59); // #36393B Medium Gray
+
+    // VS Code-style settings palette
+    pub const SETTINGS_NAV_BG: Color32 = Color32::from_rgb(30, 30, 32); // panel column
+    pub const SETTINGS_BG: Color32 = Color32::from_rgb(36, 37, 41); // main scroll area
+    pub const SETTINGS_SEARCH_BG: Color32 = Color32::from_rgb(50, 52, 58); // search input
+    pub const SETTINGS_DESC: Color32 = Color32::from_rgb(150, 152, 160); // description text
+    pub const SETTINGS_HINT: Color32 = Color32::from_rgb(120, 122, 130); // tertiary hint
+    pub const SETTINGS_HEADER: Color32 = Color32::from_rgb(220, 222, 230); // section header
+    pub const SETTINGS_CARD_BORDER: Color32 = Color32::from_rgb(60, 62, 68);
+    pub const SETTINGS_ACCENT: Color32 = Color32::from_rgb(99, 139, 255);
 }
 
 // ===== Component Color Palette =====
@@ -165,11 +175,6 @@ const MAIN_PANELS: &[SidebarPanel] = &[
         _name: "ECS Inspector",
     },
     SidebarPanel {
-        variant: ActivePanel::AssetBrowser,
-        icon: "\u{ea96}", // codicon-file-media
-        _name: "Asset Browser",
-    },
-    SidebarPanel {
         variant: ActivePanel::SceneEditor,
         icon: "\u{eb44}", // codicon-layout
         _name: "Scene Editor",
@@ -221,6 +226,21 @@ pub struct BerryCodeApp {
     pub(crate) search_query: String,
     pub(crate) search_dialog_open: bool,
     pub(crate) search_case_sensitive: bool,
+    /// Match whole-word only (VS Code's `[ab]` toggle).
+    pub(crate) search_whole_word: bool,
+    /// Treat the query as a regular expression (VS Code's `.*` toggle).
+    pub(crate) search_use_regex: bool,
+    /// Whether the replace input row is expanded under the search input
+    /// (the small chevron at the left of the search box in VS Code).
+    pub(crate) search_show_replace: bool,
+    /// Files-to-include glob, e.g. `src/**/*.rs` (VS Code's "files to include").
+    pub(crate) search_include_glob: String,
+    /// Files-to-exclude glob, e.g. `target,**/*.lock`.
+    pub(crate) search_exclude_glob: String,
+    /// Whether the include/exclude details row is expanded.
+    pub(crate) search_show_details: bool,
+    /// Set of file paths whose result group is collapsed in the panel.
+    pub(crate) search_collapsed_files: std::collections::HashSet<String>,
     pub(crate) current_search_index: usize,
     pub(crate) search_results: Vec<SearchMatch>,
     pub(crate) replace_query: String,
@@ -595,6 +615,12 @@ pub struct BerryCodeApp {
     /// frame so the editor's `TextEdit` won't treat it as a newline. Read
     /// and cleared by `render_lsp_completions`.
     pub(crate) lsp_completion_accept_pending: bool,
+    /// BYOK provider configuration (Anthropic / OpenAI / Ollama API keys
+    /// and selected models). Persisted to `~/.berrycode/ai.json`.
+    pub(crate) ai_settings: crate::ai::settings::AiSettings,
+    /// Cached egui texture for the Scene View activity-bar icon
+    /// (rasterised from `assets/icons/scene_view.svg` on first use).
+    pub(crate) scene_view_icon: Option<egui::TextureHandle>,
 
     // === Dockable Tool Panel ===
     pub(crate) tool_panel_open: bool,
@@ -1289,6 +1315,13 @@ impl BerryCodeApp {
             search_query: String::new(),
             search_dialog_open: false,
             search_case_sensitive: false,
+            search_whole_word: false,
+            search_use_regex: false,
+            search_show_replace: false,
+            search_include_glob: String::new(),
+            search_exclude_glob: String::new(),
+            search_show_details: false,
+            search_collapsed_files: std::collections::HashSet::new(),
             current_search_index: 0,
             search_results: Vec::new(),
             replace_query: String::new(),
@@ -1612,9 +1645,11 @@ impl BerryCodeApp {
             keybinding_message: None,
             theme_mode: load_theme_mode(),
             lsp_completion_accept_pending: false,
+            ai_settings: crate::ai::settings::AiSettings::load(),
+            scene_view_icon: None,
 
             tool_panel_open: false,
-            active_tool_tab: dock::ToolTab::Console,
+            active_tool_tab: dock::ToolTab::Output,
 
             thumbnail_cache: scene_editor::thumbnail_cache::ThumbnailCache::new(),
 
@@ -1785,10 +1820,19 @@ fn theme_mode_path() -> std::path::PathBuf {
 
 fn load_theme_mode() -> types::ThemeMode {
     let path = theme_mode_path();
-    std::fs::read_to_string(&path)
+    let saved = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str::<types::ThemeMode>(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Light / High Contrast presets are still WIP (hardcoded ui_colors::*
+    // constants haven't been audited yet) — fall back to Dark so users on
+    // an upgraded build don't see half-themed panels until that work
+    // lands. The persisted file is overwritten the next time the user
+    // explicitly picks a theme.
+    match saved {
+        types::ThemeMode::Dark => types::ThemeMode::Dark,
+        _ => types::ThemeMode::Dark,
+    }
 }
 
 fn save_theme_mode(mode: types::ThemeMode) {
@@ -1842,12 +1886,25 @@ pub fn visuals_for_theme(mode: types::ThemeMode) -> egui::Visuals {
 pub fn setup_egui_fonts_and_style(
     mut egui_ctx: bevy_egui::EguiContexts,
     mut configured: bevy::prelude::ResMut<EguiFontsConfigured>,
+    mut fonts_uploaded: bevy::prelude::Local<bool>,
 ) -> bevy::prelude::Result {
     if configured.0 {
         return Ok(());
     }
     let ctx = egui_ctx.ctx_mut()?;
-    configured.0 = true;
+
+    // `Context::set_fonts` only takes effect on the *next* `Context::run`,
+    // so the first frame after upload still has the default font set live.
+    // We split the work across two frames: frame 1 uploads fonts, frame 2
+    // marks the resource ready. `berry_ui_system` skips rendering until
+    // `configured.0` is true, which prevents the activity bar (and other
+    // codicon-using widgets) from panicking with "FontFamily::Name(\"codicon\")
+    // is not bound to any fonts".
+    if *fonts_uploaded {
+        configured.0 = true;
+        ctx.request_repaint();
+        return Ok(());
+    }
 
     // Setup fonts with Japanese support
     let mut fonts = egui::FontDefinitions::default();
@@ -1938,6 +1995,11 @@ pub fn setup_egui_fonts_and_style(
     BerryCodeApp::setup_egui_style(ctx);
 
     tracing::info!("egui fonts and style configured");
+    *fonts_uploaded = true;
+    // Force a repaint so the next frame runs with the new font definitions
+    // already applied, after which `configured.0` is set and the main UI
+    // is allowed to render.
+    ctx.request_repaint();
     Ok(())
 }
 
@@ -1953,7 +2015,18 @@ pub fn berry_ui_system(
     mut mat_preview: bevy::ecs::system::ResMut<
         scene_editor::material_preview::MaterialPreviewRender,
     >,
+    fonts_configured: bevy::prelude::Res<EguiFontsConfigured>,
 ) -> bevy::prelude::Result {
+    // Wait until `setup_egui_fonts_and_style` has uploaded fonts AND a
+    // subsequent frame has confirmed they are live. Without this guard the
+    // activity bar's codicon glyphs panic with "FontFamily::Name(\"codicon\")
+    // is not bound to any fonts" on the first frame.
+    if !fonts_configured.0 {
+        if let Ok(ctx) = egui_ctx.ctx_mut() {
+            ctx.request_repaint();
+        }
+        return Ok(());
+    }
     // Handle window close — check for unsaved files
     let mut exiting = false;
     for _event in close_events.read() {
@@ -2064,9 +2137,6 @@ pub fn berry_ui_system(
                     app.active_panel = types::ActivePanel::EcsInspector;
                 }
                 if i.key_pressed(egui::Key::Num6) {
-                    app.active_panel = types::ActivePanel::AssetBrowser;
-                }
-                if i.key_pressed(egui::Key::Num7) {
                     app.active_panel = types::ActivePanel::SceneEditor;
                 }
             }
@@ -2211,27 +2281,19 @@ pub fn berry_ui_system(
                 .show(ctx, |ui| {
                     app.render_ecs_3d_view(ui);
                 });
-        } else if app.active_panel == ActivePanel::AssetBrowser {
-            app.render_sidebar(ctx);
+        } else if app.active_panel == ActivePanel::Settings {
+            // Settings spans the full width: skip the (now-empty) sidebar
+            // panel entirely — the activity bar is already rendered above
+            // and the settings form has its own internal nav column.
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::NONE
                         .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8)),
+                        .inner_margin(egui::Margin::same(16)),
                 )
                 .show(ctx, |ui| {
-                    app.render_asset_preview(ui);
+                    app.render_settings_panel(ui);
                 });
-        } else if app.active_panel == ActivePanel::Settings {
-            // Sidebar-only panels: no editor in center
-            app.render_sidebar(ctx);
-            egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(8)),
-                )
-                .show(ctx, |_ui| {});
         } else {
             app.render_sidebar(ctx);
             app.render_ai_chat_panel(ctx);
@@ -2250,9 +2312,13 @@ pub fn berry_ui_system(
             app.render_run_panel(ctx);
         }
 
-        // Render diagnostics panel
-        if !app.lsp_diagnostics.is_empty() {
-            app.render_diagnostics_panel(ctx);
+        // Render diagnostics: now hosted as the "Problems" tab inside the
+        // unified bottom panel (see `dock::render_tool_panel`). Auto-open
+        // that panel when new diagnostics arrive so users still notice
+        // them without an extra free-floating panel.
+        if !app.lsp_diagnostics.is_empty() && !app.tool_panel_open {
+            app.tool_panel_open = true;
+            app.active_tool_tab = dock::ToolTab::Problems;
         }
 
         // Render search dialog if open

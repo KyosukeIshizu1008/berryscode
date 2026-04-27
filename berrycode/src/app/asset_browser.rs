@@ -471,6 +471,15 @@ impl BerryCodeApp {
 
     /// Render asset preview in the central panel (3D wireframe for models).
     pub(crate) fn render_asset_preview(&mut self, ui: &mut egui::Ui) {
+        // Lazy-scan the project's `assets/` tree the first time the
+        // preview is shown (the dedicated Asset Browser panel used to
+        // own this responsibility before it was removed in v0.4.x).
+        if self.asset_browser.scan_pending || self.asset_browser.assets.is_empty() {
+            self.asset_browser.assets =
+                scan_assets(&self.root_path, &self.asset_browser.asset_root);
+            self.asset_browser.scan_pending = false;
+        }
+
         // Get selected asset path
         let selected_path = self
             .asset_browser
