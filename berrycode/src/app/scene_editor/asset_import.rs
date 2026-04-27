@@ -93,6 +93,11 @@ impl AssetImportSettings {
     ///
     /// For textures this resizes to `max_size` (if the image exceeds it) and
     /// optionally generates mipmaps.  Model / Audio processing is deferred.
+    ///
+    /// `dead_code` is allowed because the only current callers are unit
+    /// tests in this module — the asset browser UI that will invoke this
+    /// in production is still scaffolding (see `app::asset_browser`).
+    #[allow(dead_code)]
     pub fn process(&self, asset_path: &str) -> Result<String, String> {
         match self {
             AssetImportSettings::Texture {

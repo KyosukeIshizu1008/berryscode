@@ -27,8 +27,27 @@ use std::time::Duration;
 /// attaches the primary context to the *first* camera it sees — which in
 /// our app is the offscreen scene-editor `Camera3d` — and the main
 /// window receives no draws (entirely black window).
+///
+/// `RenderLayers::none()` keeps this camera UI-only (it doesn't pull in
+/// any of the offscreen scene/preview meshes), and `order: 100` makes
+/// it draw on top of everything else. We clear to the same dark UI
+/// color as the panel background so any unpainted splitter pixels don't
+/// appear as black bands.
 fn setup_primary_camera(mut commands: Commands) {
-    commands.spawn((Camera2d, PrimaryEguiContext));
+    commands.spawn((
+        PrimaryEguiContext,
+        Camera2d,
+        bevy::camera::visibility::RenderLayers::none(),
+        Camera {
+            order: 100,
+            clear_color: ClearColorConfig::Custom(Color::srgb(
+                25.0 / 255.0,
+                26.0 / 255.0,
+                28.0 / 255.0,
+            )),
+            ..default()
+        },
+    ));
 }
 
 fn disable_auto_primary_context(mut settings: ResMut<EguiGlobalSettings>) {
@@ -44,6 +63,18 @@ pub struct BerryCodePlugin;
 impl Plugin for BerryCodePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(EguiPlugin::default())
+            // Match Bevy's frame clear to the editor / sidebar fill (#191A1C).
+            // The egui camera uses `ClearColorConfig::None`, so any pixel
+            // that egui doesn't paint shows whatever the previous render
+            // pipeline wrote — by default Bevy clears to pure black, which
+            // appeared as a thin dark seam on the boundary between
+            // `SidePanel`s. Matching the clear color to the panel fill
+            // hides any subpixel/rounding gap.
+            .insert_resource(ClearColor(Color::srgb(
+                25.0 / 255.0,
+                26.0 / 255.0,
+                28.0 / 255.0,
+            )))
             .insert_resource(WinitSettings {
                 focused_mode: UpdateMode::Continuous,
                 unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(100)),
@@ -53,11 +84,16 @@ impl Plugin for BerryCodePlugin {
             .init_resource::<SceneEditorRender>()
             .init_resource::<MaterialPreviewRender>()
             .init_resource::<crate::app::EguiFontsConfigured>()
-            .add_systems(PreStartup, disable_auto_primary_context)
+            .add_systems(
+                PreStartup,
+                (
+                    disable_auto_primary_context,
+                    setup_primary_camera.before(bevy_egui::EguiStartupSet::InitContexts),
+                ),
+            )
             .add_systems(
                 Startup,
                 (
-                    setup_primary_camera,
                     setup_preview_render_target,
                     setup_scene_editor_render,
                     setup_material_preview,

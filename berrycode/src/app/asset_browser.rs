@@ -4,6 +4,11 @@ use crate::app::i18n::t;
 use crate::bevy_ide::assets::scanner::{format_size, scan_assets, AssetType};
 
 /// Snapshot of one asset for rendering, avoiding borrow conflicts.
+///
+/// `dead_code` is allowed because the asset browser panel is currently
+/// scaffolded but not yet wired into the activity bar — the struct and
+/// its renderer below are kept ready for the v0.5 asset pipeline work.
+#[allow(dead_code)]
 struct AssetRow {
     idx: usize,
     file_name: String,
@@ -14,6 +19,7 @@ struct AssetRow {
 }
 
 impl BerryCodeApp {
+    #[allow(dead_code)]
     pub(crate) fn render_asset_browser_panel(&mut self, _ctx: &egui::Context, ui: &mut egui::Ui) {
         // Scan assets on first render or when requested
         if self.asset_browser.scan_pending {

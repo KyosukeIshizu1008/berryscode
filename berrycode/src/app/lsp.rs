@@ -695,7 +695,13 @@ impl BerryCodeApp {
         }
     }
 
-    /// Render diagnostics panel at the bottom of the editor
+    /// Render diagnostics panel at the bottom of the editor.
+    ///
+    /// `dead_code` is allowed because the Problems UI now lives inside
+    /// the unified bottom tool panel (see `dock::render_tool_panel`);
+    /// this standalone implementation is preserved for fallback / debug
+    /// builds where the docked tool panel is disabled.
+    #[allow(dead_code)]
     pub(crate) fn render_diagnostics_panel(&mut self, ctx: &egui::Context) {
         let mut clear_diags = false;
 

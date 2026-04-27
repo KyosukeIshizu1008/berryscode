@@ -59,30 +59,11 @@ fn main() {
                 }),
         )
         .add_plugins(BerryCodePlugin)
-        .add_systems(
-            PreStartup,
-            setup_camera.before(bevy_egui::EguiStartupSet::InitContexts),
-        )
         .add_systems(Startup, set_window_icon)
         .run();
 
     // Clean up lock file on exit
     let _ = fs::remove_file(&lock_path);
-}
-
-fn setup_camera(mut commands: Commands, mut egui_settings: ResMut<bevy_egui::EguiGlobalSettings>) {
-    egui_settings.auto_create_primary_context = false;
-    // Egui camera - renders UI only
-    commands.spawn((
-        bevy_egui::PrimaryEguiContext,
-        Camera2d,
-        bevy::camera::visibility::RenderLayers::none(),
-        Camera {
-            order: 100, // render last, on top of everything
-            clear_color: ClearColorConfig::None,
-            ..default()
-        },
-    ));
 }
 
 fn set_window_icon(windows: Option<NonSend<WinitWindows>>) {

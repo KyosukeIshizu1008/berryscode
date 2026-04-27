@@ -14,12 +14,29 @@ impl BerryCodeApp {
         let text_muted = egui::Color32::from_rgb(133, 133, 133);
         let text_dim = egui::Color32::from_rgb(110, 110, 110);
         let input_bg = egui::Color32::from_rgb(60, 60, 60);
-        let input_border = egui::Color32::from_rgb(60, 60, 60);
+        // VS Code's `input.border` is invisible by default — the box is
+        // distinguished from the panel only by the slightly lighter fill.
+        let input_border = egui::Color32::TRANSPARENT;
         let input_border_focus = egui::Color32::from_rgb(0, 122, 204);
-        let toggle_active_bg = egui::Color32::from_rgba_premultiplied(99, 122, 168, 80);
+        let toggle_active_bg = egui::Color32::from_rgba_unmultiplied(99, 122, 168, 80);
         let toggle_active_border = egui::Color32::from_rgb(99, 122, 168);
-        let match_highlight = egui::Color32::from_rgba_premultiplied(234, 92, 0, 80);
-        let row_hover_bg = egui::Color32::from_rgba_premultiplied(255, 255, 255, 12);
+        let match_highlight = egui::Color32::from_rgba_unmultiplied(234, 92, 0, 90);
+        let row_hover_bg = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 12);
+
+        // Codicon glyphs (Microsoft's `vscode-codicons`). Using the icon
+        // font instead of bare unicode means the same characters render
+        // reliably across macOS / Windows / Linux without falling back to
+        // empty boxes.
+        let codicon_small =
+            egui::FontId::new(12.0, egui::FontFamily::Name("codicon".into()));
+        const ICON_REFRESH: &str = "\u{eb37}";
+        const ICON_CLEAR_ALL: &str = "\u{ea99}";
+        const ICON_COLLAPSE_ALL: &str = "\u{eac5}";
+        const ICON_CHEVRON_RIGHT: &str = "\u{eab6}";
+        const ICON_CHEVRON_DOWN: &str = "\u{eab4}";
+        const ICON_ELLIPSIS: &str = "\u{ea7c}";
+        const ICON_CLOSE: &str = "\u{ea76}";
+        const ICON_REPLACE_ALL: &str = "\u{eb3c}";
 
         // === SEARCH header with action icons (refresh / clear / collapse) ===
         ui.add_space(2.0);
@@ -34,7 +51,9 @@ impl BerryCodeApp {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let collapse_btn = ui.add(
                     egui::Button::new(
-                        egui::RichText::new("⊟").size(12.0).color(text_muted),
+                        egui::RichText::new(ICON_COLLAPSE_ALL)
+                            .font(codicon_small.clone())
+                            .color(text_muted),
                     )
                     .frame(false)
                     .min_size(egui::vec2(18.0, 18.0)),
@@ -53,7 +72,9 @@ impl BerryCodeApp {
                 }
                 let clear_btn = ui.add(
                     egui::Button::new(
-                        egui::RichText::new("✕").size(11.0).color(text_muted),
+                        egui::RichText::new(ICON_CLEAR_ALL)
+                            .font(codicon_small.clone())
+                            .color(text_muted),
                     )
                     .frame(false)
                     .min_size(egui::vec2(18.0, 18.0)),
@@ -70,7 +91,9 @@ impl BerryCodeApp {
                 }
                 let refresh_btn = ui.add(
                     egui::Button::new(
-                        egui::RichText::new("↻").size(12.0).color(text_muted),
+                        egui::RichText::new(ICON_REFRESH)
+                            .font(codicon_small.clone())
+                            .color(text_muted),
                     )
                     .frame(false)
                     .min_size(egui::vec2(18.0, 18.0)),
@@ -90,13 +113,19 @@ impl BerryCodeApp {
             ui.spacing_mut().item_spacing.x = 2.0;
 
             // Toggle replace chevron — VS Code shows ▶ / ▼ at the very left.
-            let chevron = if self.search_show_replace { "⌄" } else { "›" };
+            let chevron_glyph = if self.search_show_replace {
+                ICON_CHEVRON_DOWN
+            } else {
+                ICON_CHEVRON_RIGHT
+            };
             let chevron_btn = ui.add(
                 egui::Button::new(
-                    egui::RichText::new(chevron).size(13.0).color(text_muted),
+                    egui::RichText::new(chevron_glyph)
+                        .font(codicon_small.clone())
+                        .color(text_muted),
                 )
                 .frame(false)
-                .min_size(egui::vec2(14.0, 22.0)),
+                .min_size(egui::vec2(14.0, 20.0)),
             );
             if chevron_btn
                 .on_hover_text("Toggle Replace")
@@ -112,13 +141,17 @@ impl BerryCodeApp {
                 .fill(input_bg)
                 .stroke(egui::Stroke::new(1.0, frame_stroke_color))
                 .corner_radius(egui::CornerRadius::same(2))
-                .inner_margin(egui::Margin::symmetric(4, 2));
+                .inner_margin(egui::Margin::symmetric(3, 1));
 
             row_frame.show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
-                    let toggles_w = 3.0 * 22.0 + 2.0 * 2.0; // 3 toggles + gaps
-                    let input_w = (ui.available_width() - toggles_w - 4.0).max(40.0);
+                    // Reserve enough space for all three toggle buttons
+                    // (Aa / ab / .*) + the 2 gaps + a small overflow
+                    // safety so the regex toggle never wraps to a new line.
+                    let toggle_w = 20.0;
+                    let toggles_w = 3.0 * toggle_w + 2.0 * 2.0 + 6.0;
+                    let input_w = (ui.available_width() - toggles_w).max(20.0);
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut self.search_query)
                             .desired_width(input_w)
@@ -143,10 +176,12 @@ impl BerryCodeApp {
                     }
 
                     // Helper: render one of the three inline toggle buttons.
+                    // Sized just large enough to fit the 2-character label
+                    // ("Aa" / "ab" / ".*") plus a thin highlight padding.
                     let toggle = |ui: &mut egui::Ui,
-                                       label: &str,
-                                       state: &mut bool,
-                                       hover: &str| {
+                                  label: &str,
+                                  state: &mut bool,
+                                  hover: &str| {
                         let (bg, border) = if *state {
                             (toggle_active_bg, toggle_active_border)
                         } else {
@@ -157,14 +192,14 @@ impl BerryCodeApp {
                         } else {
                             text_muted
                         };
-                        let btn = ui.add(
+                        let btn = ui.add_sized(
+                            egui::vec2(toggle_w, 20.0),
                             egui::Button::new(
                                 egui::RichText::new(label).size(11.0).color(color),
                             )
                             .fill(bg)
                             .stroke(egui::Stroke::new(1.0, border))
-                            .corner_radius(egui::CornerRadius::same(2))
-                            .min_size(egui::vec2(22.0, 20.0)),
+                            .corner_radius(egui::CornerRadius::same(2)),
                         );
                         if btn.on_hover_text(hover).clicked() {
                             *state = !*state;
@@ -190,7 +225,7 @@ impl BerryCodeApp {
                     .fill(input_bg)
                     .stroke(egui::Stroke::new(1.0, input_border))
                     .corner_radius(egui::CornerRadius::same(2))
-                    .inner_margin(egui::Margin::symmetric(4, 2));
+                    .inner_margin(egui::Margin::symmetric(3, 1));
 
                 row_frame.show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -198,7 +233,7 @@ impl BerryCodeApp {
                         // Replace All button on the right; reserve ~24px.
                         let btn_w = 24.0;
                         let input_w =
-                            (ui.available_width() - btn_w - 4.0).max(40.0);
+                            (ui.available_width() - btn_w - 4.0).max(20.0);
                         let response = ui.add(
                             egui::TextEdit::singleline(&mut self.replace_query)
                                 .desired_width(input_w)
@@ -218,7 +253,9 @@ impl BerryCodeApp {
                         }
                         let replace_all = ui.add(
                             egui::Button::new(
-                                egui::RichText::new("⇄").size(12.0).color(text_muted),
+                                egui::RichText::new(ICON_REPLACE_ALL)
+                                    .font(codicon_small.clone())
+                                    .color(text_muted),
                             )
                             .frame(false)
                             .min_size(egui::vec2(btn_w, 20.0)),
@@ -237,15 +274,16 @@ impl BerryCodeApp {
         // === Files-to-include / Files-to-exclude (collapsed under "...") ===
         ui.add_space(2.0);
         ui.horizontal(|ui| {
-            ui.add_space(14.0);
-            let dots_label = if self.search_show_details {
-                "▾"
-            } else {
-                "…"
-            };
+            ui.add_space(16.0);
             let dots = ui.add(
                 egui::Button::new(
-                    egui::RichText::new(dots_label).size(11.0).color(text_muted),
+                    egui::RichText::new(ICON_ELLIPSIS)
+                        .font(codicon_small.clone())
+                        .color(if self.search_show_details {
+                            egui::Color32::from_rgb(220, 220, 220)
+                        } else {
+                            text_muted
+                        }),
                 )
                 .frame(false)
                 .min_size(egui::vec2(20.0, 18.0)),
@@ -274,7 +312,7 @@ impl BerryCodeApp {
                             .fill(input_bg)
                             .stroke(egui::Stroke::new(1.0, input_border))
                             .corner_radius(egui::CornerRadius::same(2))
-                            .inner_margin(egui::Margin::symmetric(4, 2));
+                            .inner_margin(egui::Margin::symmetric(3, 1));
                         row_frame.show(ui, |ui| {
                             ui.add(
                                 egui::TextEdit::singleline(value)
@@ -362,7 +400,11 @@ impl BerryCodeApp {
                 for (file_path, indices) in &groups {
                     let collapsed =
                         self.search_collapsed_files.contains(file_path);
-                    let chevron = if collapsed { "›" } else { "⌄" };
+                    let chevron_glyph = if collapsed {
+                        ICON_CHEVRON_RIGHT
+                    } else {
+                        ICON_CHEVRON_DOWN
+                    };
                     let filename = std::path::Path::new(file_path)
                         .file_name()
                         .and_then(|n| n.to_str())
@@ -387,25 +429,31 @@ impl BerryCodeApp {
                                 ui.spacing_mut().item_spacing.x = 4.0;
                                 ui.add_space(2.0);
                                 ui.label(
-                                    egui::RichText::new(chevron)
-                                        .size(12.0)
+                                    egui::RichText::new(chevron_glyph)
+                                        .font(codicon_small.clone())
                                         .color(text_muted),
                                 );
                                 ui.label(
-                                    egui::RichText::new("📄")
-                                        .size(11.5)
+                                    egui::RichText::new("\u{ea7b}") // codicon: file
+                                        .font(codicon_small.clone())
                                         .color(text_muted),
                                 );
-                                ui.label(
-                                    egui::RichText::new(&filename)
-                                        .size(12.0)
-                                        .color(text_primary),
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&filename)
+                                            .size(12.0)
+                                            .color(text_primary),
+                                    )
+                                    .truncate(),
                                 );
                                 if !parent.is_empty() {
-                                    ui.label(
-                                        egui::RichText::new(&parent)
-                                            .size(10.5)
-                                            .color(text_dim),
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(&parent)
+                                                .size(10.5)
+                                                .color(text_dim),
+                                        )
+                                        .truncate(),
                                     );
                                 }
                                 ui.with_layout(
@@ -415,12 +463,12 @@ impl BerryCodeApp {
                                     |ui| {
                                         let dismiss = ui.add(
                                             egui::Button::new(
-                                                egui::RichText::new("✕")
-                                                    .size(10.0)
+                                                egui::RichText::new(ICON_CLOSE)
+                                                    .font(codicon_small.clone())
                                                     .color(text_muted),
                                             )
                                             .frame(false)
-                                            .min_size(egui::vec2(16.0, 16.0)),
+                                            .min_size(egui::vec2(18.0, 18.0)),
                                         );
                                         if dismiss
                                             .on_hover_text("Dismiss")
@@ -485,7 +533,7 @@ impl BerryCodeApp {
                             .scope(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing.x = 0.0;
-                                    ui.add_space(20.0);
+                                    ui.add_space(18.0);
 
                                     // Build a LayoutJob so the matched
                                     // substring inside the line is
@@ -555,7 +603,7 @@ impl BerryCodeApp {
                             ui.painter().rect_filled(
                                 row_resp.rect,
                                 egui::CornerRadius::ZERO,
-                                egui::Color32::from_rgba_premultiplied(
+                                egui::Color32::from_rgba_unmultiplied(
                                     99, 122, 168, 60,
                                 ),
                             );

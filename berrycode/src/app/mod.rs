@@ -835,7 +835,13 @@ impl BerryCodeApp {
         style.spacing.window_margin = egui::Margin::same(12); // window inner padding
         style.spacing.menu_margin = egui::Margin::same(8);
         style.spacing.indent = 18.0; // tree indent
-        style.spacing.interact_size = egui::vec2(40.0, 24.0); // minimum interactive element size
+        // Keep resize handles and splitters slim and consistent across
+        // Explorer/Search/AI/Inspector side panels.
+        style.spacing.interact_size = egui::vec2(12.0, 24.0);
+        // SidePanel borders use egui's resize grab zone; shrink it so
+        // the draggable band doesn't appear as a thick black strip.
+        style.interaction.resize_grab_radius_side = 1.5;
+        style.interaction.resize_grab_radius_corner = 3.0;
         style.spacing.slider_width = 160.0;
         style.spacing.combo_width = 160.0;
         style.spacing.text_edit_width = 200.0;
@@ -1283,7 +1289,7 @@ impl BerryCodeApp {
             project_picker_path: picker_path,
             recent_projects: recent,
             active_panel: ActivePanel::Explorer,
-            sidebar_width: 300.0,
+            sidebar_width: 220.0,
             editor_tabs: {
                 // Auto-open src/main.rs if it exists
                 let main_path = format!("{}/src/main.rs", root_path_ref);
@@ -1340,7 +1346,12 @@ impl BerryCodeApp {
             lsp_runtime,
             lsp_native_client: Some(lsp_native_client),
             lsp_response_tx: Some(lsp_tx),
-            lsp_connected: false,
+            // Optimistic: if we have a project loaded we kicked off the
+            // LSP startup task above, so show "LSP" in the status bar
+            // immediately. The Connected message that arrives after the
+            // initialize handshake just confirms it; a hard failure logs
+            // a warning and the indicator can be reset by the caller.
+            lsp_connected: !root_path_ref.is_empty(),
             lsp_diagnostics: Vec::new(),
             lsp_hover_info: None,
             lsp_completions: Vec::new(),

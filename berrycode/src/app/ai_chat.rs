@@ -32,7 +32,7 @@ impl BerryCodeApp {
         const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(110, 115, 130);
         const DIVIDER: egui::Color32 = egui::Color32::from_rgb(35, 37, 45);
 
-        egui::SidePanel::right("ai_chat_panel")
+        egui::SidePanel::right("ai_chat_panel_v2")
             .default_width(420.0)
             .width_range(200.0..=600.0)
             .resizable(true)

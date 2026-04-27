@@ -176,7 +176,7 @@ impl BerryCodeApp {
             egui::Stroke::new(1.0, TAB_BORDER),
         );
 
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(bar_rect), |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(bar_rect), |ui| {
             ui.horizontal_centered(|ui| {
                 ui.add_space(8.0);
                 ui.spacing_mut().item_spacing.x = 0.0;
@@ -349,7 +349,7 @@ impl BerryCodeApp {
         ui.painter()
             .rect_filled(rect, 0.0, egui::Color32::from_rgb(38, 38, 38));
 
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(rect), |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.horizontal_centered(|ui| {
                 ui.add_space(12.0);
                 ui.label(

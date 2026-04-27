@@ -17,7 +17,7 @@ impl BerryCodeApp {
             [header_rect.left_bottom(), header_rect.right_bottom()],
             egui::Stroke::new(1.0, egui::Color32::from_rgb(54, 57, 59)),
         );
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(header_rect), |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(header_rect), |ui| {
             ui.horizontal_centered(|ui| {
                 ui.add_space(8.0);
                 ui.label(

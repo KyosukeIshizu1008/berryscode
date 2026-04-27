@@ -186,10 +186,10 @@ impl BerryCodeApp {
                                     ui.ctx().set_visuals(super::visuals_for_theme(mode));
                                     super::save_theme_mode(mode);
                                 }
-                                ui.add_enabled(false, egui::SelectableLabel::new(false, "Light"));
+                                ui.add_enabled(false, egui::Button::selectable(false, "Light"));
                                 ui.add_enabled(
                                     false,
-                                    egui::SelectableLabel::new(false, "High Contrast"),
+                                    egui::Button::selectable(false, "High Contrast"),
                                 );
                                 ui.label(
                                     egui::RichText::new("(WIP)")

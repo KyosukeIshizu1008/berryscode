@@ -44,10 +44,13 @@ pub fn search_in_files(
         Regex::new(&format!("(?i){}", regex_pattern))?
     };
 
-    // Collect all text files
+    // Collect all text files, skipping build artifacts / VCS / vendor
+    // directories so a project-wide search doesn't grind through
+    // `target/debug/.fingerprint/*.json` or `node_modules/`.
     let files: Vec<PathBuf> = WalkDir::new(root)
         .max_depth(10)
         .into_iter()
+        .filter_entry(|e| !is_excluded_dir(e.path()))
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .filter(|e| is_text_file(e.path()))
@@ -61,6 +64,30 @@ pub fn search_in_files(
         .collect();
 
     Ok(results)
+}
+
+/// Skip well-known build / VCS / vendor directories. Anything *inside*
+/// these paths is also skipped because `WalkDir::filter_entry` prunes
+/// the subtree.
+fn is_excluded_dir(path: &Path) -> bool {
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        matches!(
+            name,
+            "target"
+                | "node_modules"
+                | ".git"
+                | ".svn"
+                | ".hg"
+                | "dist"
+                | "build"
+                | ".idea"
+                | ".vscode"
+                | ".cache"
+                | ".DS_Store"
+        )
+    } else {
+        false
+    }
 }
 
 /// Check if file is a text file (simple heuristic)
@@ -141,6 +168,7 @@ pub fn replace_in_files(
     let files: Vec<PathBuf> = WalkDir::new(root)
         .max_depth(10)
         .into_iter()
+        .filter_entry(|e| !is_excluded_dir(e.path()))
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .filter(|e| is_text_file(e.path()))
