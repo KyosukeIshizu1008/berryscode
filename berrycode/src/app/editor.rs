@@ -13,7 +13,9 @@ impl BerryCodeApp {
             .frame(
                 egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG) // #191A1C - Match sidebar background
-                    .inner_margin(egui::Margin::same(8)),
+                    // Keep vertical breathing room, but avoid horizontal
+                    // gap next to side-panel splitters (looked like a black band).
+                    .inner_margin(egui::Margin::symmetric(0, 8)),
             )
             .show(ctx, |ui| {
                 // Save the full panel rect before any layout happens

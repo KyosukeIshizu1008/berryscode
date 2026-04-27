@@ -838,10 +838,9 @@ impl BerryCodeApp {
         // Keep resize handles and splitters slim and consistent across
         // Explorer/Search/AI/Inspector side panels.
         style.spacing.interact_size = egui::vec2(12.0, 24.0);
-        // SidePanel borders use egui's resize grab zone; shrink it so
-        // the draggable band doesn't appear as a thick black strip.
-        style.interaction.resize_grab_radius_side = 1.5;
-        style.interaction.resize_grab_radius_corner = 3.0;
+        // Keep resize handles easy to grab.
+        style.interaction.resize_grab_radius_side = 6.0;
+        style.interaction.resize_grab_radius_corner = 6.0;
         style.spacing.slider_width = 160.0;
         style.spacing.combo_width = 160.0;
         style.spacing.text_edit_width = 200.0;

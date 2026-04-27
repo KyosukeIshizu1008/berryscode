@@ -144,72 +144,101 @@ impl BerryCodeApp {
                 .inner_margin(egui::Margin::symmetric(3, 1));
 
             row_frame.show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
-                    // Reserve enough space for all three toggle buttons
-                    // (Aa / ab / .*) + the 2 gaps + a small overflow
-                    // safety so the regex toggle never wraps to a new line.
-                    let toggle_w = 20.0;
-                    let toggles_w = 3.0 * toggle_w + 2.0 * 2.0 + 6.0;
-                    let input_w = (ui.available_width() - toggles_w).max(20.0);
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut self.search_query)
-                            .desired_width(input_w)
-                            .frame(false)
-                            .text_color(text_primary)
-                            .hint_text(
-                                egui::RichText::new("Search").color(text_dim),
-                            ),
-                    );
-                    if response.has_focus() {
-                        ui.painter().rect_stroke(
-                            response.rect.expand(2.0),
-                            egui::CornerRadius::same(2),
-                            egui::Stroke::new(1.0, input_border_focus),
-                            egui::StrokeKind::Outside,
-                        );
-                    }
-                    if response.lost_focus()
-                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                    {
-                        do_search = true;
-                    }
+                // VS Code layout: toggles right-aligned, TextEdit fills the
+                // left remainder. Using `right_to_left` instead of giving
+                // the TextEdit a manual `desired_width(available - toggles)`
+                // avoids the row overflowing the panel at narrow widths,
+                // which otherwise puts the toggle buttons on top of the
+                // SidePanel resize handle and blocks horizontal resizing.
+                ui.with_layout(
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    |ui| {
+                        ui.spacing_mut().item_spacing.x = 2.0;
+                        let toggle_w = 20.0;
 
-                    // Helper: render one of the three inline toggle buttons.
-                    // Sized just large enough to fit the 2-character label
-                    // ("Aa" / "ab" / ".*") plus a thin highlight padding.
-                    let toggle = |ui: &mut egui::Ui,
-                                  label: &str,
-                                  state: &mut bool,
-                                  hover: &str| {
-                        let (bg, border) = if *state {
-                            (toggle_active_bg, toggle_active_border)
-                        } else {
-                            (egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT)
+                        // Helper: render one inline toggle. Placed in
+                        // right_to_left order so on-screen it reads
+                        // `[Aa] [ab] [.*]` left-to-right.
+                        let toggle = |ui: &mut egui::Ui,
+                                      label: &str,
+                                      state: &mut bool,
+                                      hover: &str| {
+                            let (bg, border) = if *state {
+                                (toggle_active_bg, toggle_active_border)
+                            } else {
+                                (
+                                    egui::Color32::TRANSPARENT,
+                                    egui::Color32::TRANSPARENT,
+                                )
+                            };
+                            let color = if *state {
+                                egui::Color32::from_rgb(220, 220, 220)
+                            } else {
+                                text_muted
+                            };
+                            let btn = ui.add_sized(
+                                egui::vec2(toggle_w, 20.0),
+                                egui::Button::new(
+                                    egui::RichText::new(label)
+                                        .size(11.0)
+                                        .color(color),
+                                )
+                                .fill(bg)
+                                .stroke(egui::Stroke::new(1.0, border))
+                                .corner_radius(egui::CornerRadius::same(2)),
+                            );
+                            if btn.on_hover_text(hover).clicked() {
+                                *state = !*state;
+                            }
                         };
-                        let color = if *state {
-                            egui::Color32::from_rgb(220, 220, 220)
-                        } else {
-                            text_muted
-                        };
-                        let btn = ui.add_sized(
-                            egui::vec2(toggle_w, 20.0),
-                            egui::Button::new(
-                                egui::RichText::new(label).size(11.0).color(color),
-                            )
-                            .fill(bg)
-                            .stroke(egui::Stroke::new(1.0, border))
-                            .corner_radius(egui::CornerRadius::same(2)),
+
+                        toggle(
+                            ui,
+                            ".*",
+                            &mut self.search_use_regex,
+                            "Use Regular Expression",
                         );
-                        if btn.on_hover_text(hover).clicked() {
-                            *state = !*state;
+                        toggle(
+                            ui,
+                            "ab",
+                            &mut self.search_whole_word,
+                            "Match Whole Word",
+                        );
+                        toggle(
+                            ui,
+                            "Aa",
+                            &mut self.search_case_sensitive,
+                            "Match Case",
+                        );
+
+                        // TextEdit fills the remaining width to the left
+                        // of the toggles. `f32::INFINITY` tells egui "take
+                        // whatever space is left" within the right_to_left
+                        // ui's remaining area.
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.search_query)
+                                .desired_width(f32::INFINITY)
+                                .frame(false)
+                                .text_color(text_primary)
+                                .hint_text(
+                                    egui::RichText::new("Search").color(text_dim),
+                                ),
+                        );
+                        if response.has_focus() {
+                            ui.painter().rect_stroke(
+                                response.rect.expand(2.0),
+                                egui::CornerRadius::same(2),
+                                egui::Stroke::new(1.0, input_border_focus),
+                                egui::StrokeKind::Outside,
+                            );
                         }
-                    };
-
-                    toggle(ui, "Aa", &mut self.search_case_sensitive, "Match Case");
-                    toggle(ui, "ab", &mut self.search_whole_word, "Match Whole Word");
-                    toggle(ui, ".*", &mut self.search_use_regex, "Use Regular Expression");
-                });
+                        if response.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                        {
+                            do_search = true;
+                        }
+                    },
+                );
             });
         });
 
@@ -228,45 +257,46 @@ impl BerryCodeApp {
                     .inner_margin(egui::Margin::symmetric(3, 1));
 
                 row_frame.show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 2.0;
-                        // Replace All button on the right; reserve ~24px.
-                        let btn_w = 24.0;
-                        let input_w =
-                            (ui.available_width() - btn_w - 4.0).max(20.0);
-                        let response = ui.add(
-                            egui::TextEdit::singleline(&mut self.replace_query)
-                                .desired_width(input_w)
+                    // Same pattern as the search input row above:
+                    // right_to_left places the Replace-All button on the
+                    // right, TextEdit fills the rest. Avoids overflowing
+                    // the panel and breaking SidePanel resize.
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            let btn_w = 24.0;
+                            let replace_all = ui.add(
+                                egui::Button::new(
+                                    egui::RichText::new(ICON_REPLACE_ALL)
+                                        .font(codicon_small.clone())
+                                        .color(text_muted),
+                                )
                                 .frame(false)
-                                .text_color(text_primary)
-                                .hint_text(
-                                    egui::RichText::new("Replace").color(text_dim),
-                                ),
-                        );
-                        if response.has_focus() {
-                            ui.painter().rect_stroke(
-                                response.rect.expand(2.0),
-                                egui::CornerRadius::same(2),
-                                egui::Stroke::new(1.0, input_border_focus),
-                                egui::StrokeKind::Outside,
+                                .min_size(egui::vec2(btn_w, 20.0)),
                             );
-                        }
-                        let replace_all = ui.add(
-                            egui::Button::new(
-                                egui::RichText::new(ICON_REPLACE_ALL)
-                                    .font(codicon_small.clone())
-                                    .color(text_muted),
-                            )
-                            .frame(false)
-                            .min_size(egui::vec2(btn_w, 20.0)),
-                        );
-                        if replace_all
-                            .on_hover_text("Replace All")
-                            .clicked()
-                        {
-                            do_replace_all = true;
-                        }
-                    });
+                            if replace_all.on_hover_text("Replace All").clicked() {
+                                do_replace_all = true;
+                            }
+                            let response = ui.add(
+                                egui::TextEdit::singleline(&mut self.replace_query)
+                                    .desired_width(f32::INFINITY)
+                                    .frame(false)
+                                    .text_color(text_primary)
+                                    .hint_text(
+                                        egui::RichText::new("Replace").color(text_dim),
+                                    ),
+                            );
+                            if response.has_focus() {
+                                ui.painter().rect_stroke(
+                                    response.rect.expand(2.0),
+                                    egui::CornerRadius::same(2),
+                                    egui::Stroke::new(1.0, input_border_focus),
+                                    egui::StrokeKind::Outside,
+                                );
+                            }
+                        },
+                    );
                 });
             });
         }

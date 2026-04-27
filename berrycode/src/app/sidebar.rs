@@ -14,13 +14,13 @@ impl BerryCodeApp {
         // this same panel, so they always share width by construction.
         egui::SidePanel::left("sidebar_v2")
             .default_width(220.0)
-            .width_range(150.0..=400.0)
+            .width_range(120.0..=400.0)
             .resizable(true)
             .show_separator_line(true)
             .frame(
                 egui::Frame::NONE
                     .fill(ui_colors::SIDEBAR_BG)
-                    .inner_margin(egui::Margin::same(6)),
+                    .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
                 // Track the current width for other UI code that needs it,
