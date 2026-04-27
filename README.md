@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![crates.io](https://img.shields.io/crates/v/berrycode)](https://crates.io/crates/berrycode)
 [![Downloads](https://img.shields.io/github/downloads/KyosukeIshizu1008/berryscode/total)](https://github.com/KyosukeIshizu1008/berryscode/releases)
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/tBYX3EZW)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/u5VYs7za)
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/KyosukeIshizu1008?logo=github&label=GitHub%20Sponsors)](https://github.com/sponsors/KyosukeIshizu1008)
 [![Open Collective](https://img.shields.io/badge/Open%20Collective-Support-7FADF2?logo=opencollective)](https://opencollective.com/berrycode)
@@ -328,7 +328,7 @@ See [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues) for th
 
 ### Community
 
-Join us on [Discord](https://discord.gg/tBYX3EZW) for questions, feedback, and discussion.
+Join us on [Discord](https://discord.gg/u5VYs7za) for questions, feedback, and discussion.
 
 ### Architecture
 
@@ -664,7 +664,7 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 
 ### コミュニティ
 
-[Discord](https://discord.gg/tBYX3EZW) で質問・フィードバック・議論ができます。
+[Discord](https://discord.gg/u5VYs7za) で質問・フィードバック・議論ができます。
 
 ### アーキテクチャ
 
