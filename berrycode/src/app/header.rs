@@ -286,9 +286,7 @@ impl BerryCodeApp {
                             // Scene View activity-bar entry. Rasterised
                             // once and cached, then drawn tinted to match
                             // the active / inactive icon colour.
-                            if let Some(tex) =
-                                self.scene_view_icon_texture(ctx, icon_size as u32)
-                            {
+                            if let Some(tex) = self.scene_view_icon_texture(ctx, icon_size as u32) {
                                 // Codicon glyphs include their own padding
                                 // inside the EM box; SVG paths fill the
                                 // viewBox edge-to-edge. Scale the bird up
@@ -299,9 +297,7 @@ impl BerryCodeApp {
                                     rect.center(),
                                     egui::vec2(visual, visual),
                                 );
-                                egui::Image::new(&tex)
-                                    .tint(color)
-                                    .paint_at(ui, img_rect);
+                                egui::Image::new(&tex).tint(color).paint_at(ui, img_rect);
                             } else {
                                 // Fallback to the codicon glyph if SVG
                                 // rasterisation failed for any reason.

@@ -88,10 +88,7 @@ impl Provider for OpenAiProvider {
             .to_string();
 
         let usage = json.get("usage").map(|u| TokenUsage {
-            prompt_tokens: u
-                .get("prompt_tokens")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0) as u32,
+            prompt_tokens: u.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
             completion_tokens: u
                 .get("completion_tokens")
                 .and_then(|v| v.as_u64())

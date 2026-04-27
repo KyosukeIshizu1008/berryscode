@@ -36,11 +36,8 @@ impl ToolTab {
 
     /// Tabs in the "output" group — separated from "tool" tabs in the
     /// header by a visual divider (VS Code style).
-    pub const OUTPUT_GROUP: &'static [ToolTab] = &[
-        ToolTab::Problems,
-        ToolTab::Output,
-        ToolTab::DebugConsole,
-    ];
+    pub const OUTPUT_GROUP: &'static [ToolTab] =
+        &[ToolTab::Problems, ToolTab::Output, ToolTab::DebugConsole];
 
     pub const TOOL_GROUP: &'static [ToolTab] =
         &[ToolTab::Timeline, ToolTab::Dopesheet, ToolTab::Profiler];

@@ -835,8 +835,8 @@ impl BerryCodeApp {
         style.spacing.window_margin = egui::Margin::same(12); // window inner padding
         style.spacing.menu_margin = egui::Margin::same(8);
         style.spacing.indent = 18.0; // tree indent
-        // Keep resize handles and splitters slim and consistent across
-        // Explorer/Search/AI/Inspector side panels.
+                                     // Keep resize handles and splitters slim and consistent across
+                                     // Explorer/Search/AI/Inspector side panels.
         style.spacing.interact_size = egui::vec2(12.0, 24.0);
         // Keep resize handles easy to grab.
         style.interaction.resize_grab_radius_side = 6.0;

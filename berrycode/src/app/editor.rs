@@ -199,14 +199,11 @@ impl BerryCodeApp {
                     // Lazy-scan the project's assets/ tree if it hasn't
                     // been scanned yet (the previous owner of this scan,
                     // the Asset Browser panel, was removed in v0.4.x).
-                    if self.asset_browser.scan_pending
-                        || self.asset_browser.assets.is_empty()
-                    {
-                        self.asset_browser.assets =
-                            crate::bevy_ide::assets::scanner::scan_assets(
-                                &self.root_path,
-                                &self.asset_browser.asset_root,
-                            );
+                    if self.asset_browser.scan_pending || self.asset_browser.assets.is_empty() {
+                        self.asset_browser.assets = crate::bevy_ide::assets::scanner::scan_assets(
+                            &self.root_path,
+                            &self.asset_browser.asset_root,
+                        );
                         self.asset_browser.scan_pending = false;
                         // Re-resolve the index now that we have the list.
                         self.asset_browser.selected_asset = self

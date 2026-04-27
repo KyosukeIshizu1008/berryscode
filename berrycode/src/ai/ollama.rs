@@ -81,8 +81,7 @@ impl Provider for OllamaProvider {
                 .get("prompt_eval_count")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0) as u32,
-            completion_tokens: json.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0)
-                as u32,
+            completion_tokens: json.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
         });
 
         Ok(CompletionResponse { text, usage })

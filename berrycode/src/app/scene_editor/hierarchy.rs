@@ -56,16 +56,11 @@ impl BerryCodeApp {
                 };
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
-                    if ui.selectable_label(selected, &label).clicked()
-                        && i != self.active_scene_tab
+                    if ui.selectable_label(selected, &label).clicked() && i != self.active_scene_tab
                     {
                         switch_to = Some(i);
                     }
-                    if tab_count > 1
-                        && ui
-                            .small_button("×")
-                            .on_hover_text("Close scene")
-                            .clicked()
+                    if tab_count > 1 && ui.small_button("×").on_hover_text("Close scene").clicked()
                     {
                         close_tab = Some(i);
                     }
@@ -173,12 +168,11 @@ impl BerryCodeApp {
                         n += 1;
                     }
                 };
-                self.scene_tabs.push(
-                    crate::app::scene_editor::scene_tabs::SceneTab::new(
+                self.scene_tabs
+                    .push(crate::app::scene_editor::scene_tabs::SceneTab::new(
                         SceneModel::new(),
                         new_label,
-                    ),
-                );
+                    ));
                 self.active_scene_tab = self.scene_tabs.len() - 1;
                 self.scene_model = self.scene_tabs[self.active_scene_tab].model.clone();
                 self.scene_needs_sync = true;

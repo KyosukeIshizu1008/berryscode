@@ -178,8 +178,7 @@ impl BerryCodeApp {
                             ui.label(egui::RichText::new("Theme preset").strong());
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
-                                let selected =
-                                    self.theme_mode == super::types::ThemeMode::Dark;
+                                let selected = self.theme_mode == super::types::ThemeMode::Dark;
                                 if ui.selectable_label(selected, "Dark").clicked() && !selected {
                                     let mode = super::types::ThemeMode::Dark;
                                     self.theme_mode = mode;
@@ -954,10 +953,8 @@ fn nav_item(
     use crate::app::ui_colors;
     let label = label.into();
     let is_selected = *current == target;
-    let (rect, response) = ui.allocate_exact_size(
-        egui::vec2(ui.available_width(), 22.0),
-        egui::Sense::click(),
-    );
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 22.0), egui::Sense::click());
     let bg = if is_selected {
         egui::Color32::from_rgb(50, 56, 70)
     } else if response.hovered() {

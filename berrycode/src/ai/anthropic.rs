@@ -47,9 +47,7 @@ impl Provider for AnthropicProvider {
             .messages
             .iter()
             .filter(|m| m.role != "system")
-            .map(|m: &ChatMessage| {
-                serde_json::json!({ "role": m.role, "content": m.content })
-            })
+            .map(|m: &ChatMessage| serde_json::json!({ "role": m.role, "content": m.content }))
             .collect();
 
         let mut body = serde_json::json!({
@@ -109,8 +107,7 @@ impl Provider for AnthropicProvider {
 
         let usage = json.get("usage").map(|u| TokenUsage {
             prompt_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            completion_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0)
-                as u32,
+            completion_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
         });
 
         Ok(CompletionResponse { text, usage })

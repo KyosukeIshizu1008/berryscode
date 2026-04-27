@@ -27,8 +27,7 @@ impl BerryCodeApp {
         // font instead of bare unicode means the same characters render
         // reliably across macOS / Windows / Linux without falling back to
         // empty boxes.
-        let codicon_small =
-            egui::FontId::new(12.0, egui::FontFamily::Name("codicon".into()));
+        let codicon_small = egui::FontId::new(12.0, egui::FontFamily::Name("codicon".into()));
         const ICON_REFRESH: &str = "\u{eb37}";
         const ICON_CLEAR_ALL: &str = "\u{ea99}";
         const ICON_COLLAPSE_ALL: &str = "\u{eac5}";
@@ -58,9 +57,7 @@ impl BerryCodeApp {
                     .frame(false)
                     .min_size(egui::vec2(18.0, 18.0)),
                 );
-                if collapse_btn
-                    .on_hover_text("Collapse All")
-                    .clicked()
+                if collapse_btn.on_hover_text("Collapse All").clicked()
                     && !self.search_results.is_empty()
                 {
                     let files: std::collections::HashSet<String> = self
@@ -79,10 +76,7 @@ impl BerryCodeApp {
                     .frame(false)
                     .min_size(egui::vec2(18.0, 18.0)),
                 );
-                if clear_btn
-                    .on_hover_text("Clear Search Results")
-                    .clicked()
-                {
+                if clear_btn.on_hover_text("Clear Search Results").clicked() {
                     self.search_results.clear();
                     self.search_query.clear();
                     self.replace_query.clear();
@@ -127,10 +121,7 @@ impl BerryCodeApp {
                 .frame(false)
                 .min_size(egui::vec2(14.0, 20.0)),
             );
-            if chevron_btn
-                .on_hover_text("Toggle Replace")
-                .clicked()
-            {
+            if chevron_btn.on_hover_text("Toggle Replace").clicked() {
                 self.search_show_replace = !self.search_show_replace;
             }
 
@@ -150,95 +141,68 @@ impl BerryCodeApp {
                 // avoids the row overflowing the panel at narrow widths,
                 // which otherwise puts the toggle buttons on top of the
                 // SidePanel resize handle and blocks horizontal resizing.
-                ui.with_layout(
-                    egui::Layout::right_to_left(egui::Align::Center),
-                    |ui| {
-                        ui.spacing_mut().item_spacing.x = 2.0;
-                        let toggle_w = 20.0;
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    let toggle_w = 20.0;
 
-                        // Helper: render one inline toggle. Placed in
-                        // right_to_left order so on-screen it reads
-                        // `[Aa] [ab] [.*]` left-to-right.
-                        let toggle = |ui: &mut egui::Ui,
-                                      label: &str,
-                                      state: &mut bool,
-                                      hover: &str| {
-                            let (bg, border) = if *state {
-                                (toggle_active_bg, toggle_active_border)
-                            } else {
-                                (
-                                    egui::Color32::TRANSPARENT,
-                                    egui::Color32::TRANSPARENT,
-                                )
-                            };
-                            let color = if *state {
-                                egui::Color32::from_rgb(220, 220, 220)
-                            } else {
-                                text_muted
-                            };
-                            let btn = ui.add_sized(
-                                egui::vec2(toggle_w, 20.0),
-                                egui::Button::new(
-                                    egui::RichText::new(label)
-                                        .size(11.0)
-                                        .color(color),
-                                )
+                    // Helper: render one inline toggle. Placed in
+                    // right_to_left order so on-screen it reads
+                    // `[Aa] [ab] [.*]` left-to-right.
+                    let toggle = |ui: &mut egui::Ui, label: &str, state: &mut bool, hover: &str| {
+                        let (bg, border) = if *state {
+                            (toggle_active_bg, toggle_active_border)
+                        } else {
+                            (egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT)
+                        };
+                        let color = if *state {
+                            egui::Color32::from_rgb(220, 220, 220)
+                        } else {
+                            text_muted
+                        };
+                        let btn = ui.add_sized(
+                            egui::vec2(toggle_w, 20.0),
+                            egui::Button::new(egui::RichText::new(label).size(11.0).color(color))
                                 .fill(bg)
                                 .stroke(egui::Stroke::new(1.0, border))
                                 .corner_radius(egui::CornerRadius::same(2)),
-                            );
-                            if btn.on_hover_text(hover).clicked() {
-                                *state = !*state;
-                            }
-                        };
-
-                        toggle(
-                            ui,
-                            ".*",
-                            &mut self.search_use_regex,
-                            "Use Regular Expression",
                         );
-                        toggle(
-                            ui,
-                            "ab",
-                            &mut self.search_whole_word,
-                            "Match Whole Word",
-                        );
-                        toggle(
-                            ui,
-                            "Aa",
-                            &mut self.search_case_sensitive,
-                            "Match Case",
-                        );
-
-                        // TextEdit fills the remaining width to the left
-                        // of the toggles. `f32::INFINITY` tells egui "take
-                        // whatever space is left" within the right_to_left
-                        // ui's remaining area.
-                        let response = ui.add(
-                            egui::TextEdit::singleline(&mut self.search_query)
-                                .desired_width(f32::INFINITY)
-                                .frame(false)
-                                .text_color(text_primary)
-                                .hint_text(
-                                    egui::RichText::new("Search").color(text_dim),
-                                ),
-                        );
-                        if response.has_focus() {
-                            ui.painter().rect_stroke(
-                                response.rect.expand(2.0),
-                                egui::CornerRadius::same(2),
-                                egui::Stroke::new(1.0, input_border_focus),
-                                egui::StrokeKind::Outside,
-                            );
+                        if btn.on_hover_text(hover).clicked() {
+                            *state = !*state;
                         }
-                        if response.lost_focus()
-                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                        {
-                            do_search = true;
-                        }
-                    },
-                );
+                    };
+
+                    toggle(
+                        ui,
+                        ".*",
+                        &mut self.search_use_regex,
+                        "Use Regular Expression",
+                    );
+                    toggle(ui, "ab", &mut self.search_whole_word, "Match Whole Word");
+                    toggle(ui, "Aa", &mut self.search_case_sensitive, "Match Case");
+
+                    // TextEdit fills the remaining width to the left
+                    // of the toggles. `f32::INFINITY` tells egui "take
+                    // whatever space is left" within the right_to_left
+                    // ui's remaining area.
+                    let response = ui.add(
+                        egui::TextEdit::singleline(&mut self.search_query)
+                            .desired_width(f32::INFINITY)
+                            .frame(false)
+                            .text_color(text_primary)
+                            .hint_text(egui::RichText::new("Search").color(text_dim)),
+                    );
+                    if response.has_focus() {
+                        ui.painter().rect_stroke(
+                            response.rect.expand(2.0),
+                            egui::CornerRadius::same(2),
+                            egui::Stroke::new(1.0, input_border_focus),
+                            egui::StrokeKind::Outside,
+                        );
+                    }
+                    if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        do_search = true;
+                    }
+                });
             });
         });
 
@@ -261,42 +225,37 @@ impl BerryCodeApp {
                     // right_to_left places the Replace-All button on the
                     // right, TextEdit fills the rest. Avoids overflowing
                     // the panel and breaking SidePanel resize.
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            ui.spacing_mut().item_spacing.x = 2.0;
-                            let btn_w = 24.0;
-                            let replace_all = ui.add(
-                                egui::Button::new(
-                                    egui::RichText::new(ICON_REPLACE_ALL)
-                                        .font(codicon_small.clone())
-                                        .color(text_muted),
-                                )
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing.x = 2.0;
+                        let btn_w = 24.0;
+                        let replace_all = ui.add(
+                            egui::Button::new(
+                                egui::RichText::new(ICON_REPLACE_ALL)
+                                    .font(codicon_small.clone())
+                                    .color(text_muted),
+                            )
+                            .frame(false)
+                            .min_size(egui::vec2(btn_w, 20.0)),
+                        );
+                        if replace_all.on_hover_text("Replace All").clicked() {
+                            do_replace_all = true;
+                        }
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.replace_query)
+                                .desired_width(f32::INFINITY)
                                 .frame(false)
-                                .min_size(egui::vec2(btn_w, 20.0)),
+                                .text_color(text_primary)
+                                .hint_text(egui::RichText::new("Replace").color(text_dim)),
+                        );
+                        if response.has_focus() {
+                            ui.painter().rect_stroke(
+                                response.rect.expand(2.0),
+                                egui::CornerRadius::same(2),
+                                egui::Stroke::new(1.0, input_border_focus),
+                                egui::StrokeKind::Outside,
                             );
-                            if replace_all.on_hover_text("Replace All").clicked() {
-                                do_replace_all = true;
-                            }
-                            let response = ui.add(
-                                egui::TextEdit::singleline(&mut self.replace_query)
-                                    .desired_width(f32::INFINITY)
-                                    .frame(false)
-                                    .text_color(text_primary)
-                                    .hint_text(
-                                        egui::RichText::new("Replace").color(text_dim),
-                                    ),
-                            );
-                            if response.has_focus() {
-                                ui.painter().rect_stroke(
-                                    response.rect.expand(2.0),
-                                    egui::CornerRadius::same(2),
-                                    egui::Stroke::new(1.0, input_border_focus),
-                                    egui::StrokeKind::Outside,
-                                );
-                            }
-                        },
-                    );
+                        }
+                    });
                 });
             });
         }
@@ -318,10 +277,7 @@ impl BerryCodeApp {
                 .frame(false)
                 .min_size(egui::vec2(20.0, 18.0)),
             );
-            if dots
-                .on_hover_text("Toggle Search Details")
-                .clicked()
-            {
+            if dots.on_hover_text("Toggle Search Details").clicked() {
                 self.search_show_details = !self.search_show_details;
             }
         });
@@ -335,9 +291,7 @@ impl BerryCodeApp {
                 ui.horizontal(|ui| {
                     ui.add_space(14.0);
                     ui.vertical(|ui| {
-                        ui.label(
-                            egui::RichText::new(label).size(10.5).color(text_muted),
-                        );
+                        ui.label(egui::RichText::new(label).size(10.5).color(text_muted));
                         let row_frame = egui::Frame::NONE
                             .fill(input_bg)
                             .stroke(egui::Stroke::new(1.0, input_border))
@@ -428,8 +382,7 @@ impl BerryCodeApp {
                 let mut dismiss_file: Option<String> = None;
 
                 for (file_path, indices) in &groups {
-                    let collapsed =
-                        self.search_collapsed_files.contains(file_path);
+                    let collapsed = self.search_collapsed_files.contains(file_path);
                     let chevron_glyph = if collapsed {
                         ICON_CHEVRON_RIGHT
                     } else {
@@ -479,17 +432,13 @@ impl BerryCodeApp {
                                 if !parent.is_empty() {
                                     ui.add(
                                         egui::Label::new(
-                                            egui::RichText::new(&parent)
-                                                .size(10.5)
-                                                .color(text_dim),
+                                            egui::RichText::new(&parent).size(10.5).color(text_dim),
                                         )
                                         .truncate(),
                                     );
                                 }
                                 ui.with_layout(
-                                    egui::Layout::right_to_left(
-                                        egui::Align::Center,
-                                    ),
+                                    egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         let dismiss = ui.add(
                                             egui::Button::new(
@@ -500,35 +449,22 @@ impl BerryCodeApp {
                                             .frame(false)
                                             .min_size(egui::vec2(18.0, 18.0)),
                                         );
-                                        if dismiss
-                                            .on_hover_text("Dismiss")
-                                            .clicked()
-                                        {
-                                            dismiss_file =
-                                                Some(file_path.clone());
+                                        if dismiss.on_hover_text("Dismiss").clicked() {
+                                            dismiss_file = Some(file_path.clone());
                                         }
                                         // Match-count badge (VS Code shows
                                         // a small grey pill on hover; we
                                         // keep it always visible to save a
                                         // hover state).
                                         let badge_frame = egui::Frame::NONE
-                                            .fill(egui::Color32::from_rgb(
-                                                70, 70, 70,
-                                            ))
-                                            .corner_radius(
-                                                egui::CornerRadius::same(8),
-                                            )
-                                            .inner_margin(
-                                                egui::Margin::symmetric(5, 0),
-                                            );
+                                            .fill(egui::Color32::from_rgb(70, 70, 70))
+                                            .corner_radius(egui::CornerRadius::same(8))
+                                            .inner_margin(egui::Margin::symmetric(5, 0));
                                         badge_frame.show(ui, |ui| {
                                             ui.label(
-                                                egui::RichText::new(format!(
-                                                    "{}",
-                                                    indices.len()
-                                                ))
-                                                .size(10.0)
-                                                .color(text_primary),
+                                                egui::RichText::new(format!("{}", indices.len()))
+                                                    .size(10.0)
+                                                    .color(text_primary),
                                             );
                                         });
                                     },
@@ -568,10 +504,8 @@ impl BerryCodeApp {
                                     // Build a LayoutJob so the matched
                                     // substring inside the line is
                                     // highlighted, exactly like VS Code.
-                                    let mut job =
-                                        egui::text::LayoutJob::default();
-                                    let font =
-                                        egui::FontId::proportional(11.5);
+                                    let mut job = egui::text::LayoutJob::default();
+                                    let font = egui::FontId::proportional(11.5);
                                     let line = &r.line_text;
                                     let start = r.start_col.min(line.len());
                                     let end = r.end_col.min(line.len()).max(start);
@@ -579,10 +513,8 @@ impl BerryCodeApp {
                                     // Trim long leading whitespace for a
                                     // tidier display, but keep cursor cols
                                     // mapped correctly.
-                                    let leading = line
-                                        .chars()
-                                        .take_while(|c| c.is_whitespace())
-                                        .count();
+                                    let leading =
+                                        line.chars().take_while(|c| c.is_whitespace()).count();
                                     let cut = leading.min(start);
                                     let display = &line[cut..];
                                     let s = start - cut;
@@ -603,9 +535,7 @@ impl BerryCodeApp {
                                             0.0,
                                             egui::TextFormat {
                                                 font_id: font.clone(),
-                                                color: egui::Color32::from_rgb(
-                                                    255, 255, 255,
-                                                ),
+                                                color: egui::Color32::from_rgb(255, 255, 255),
                                                 background: match_highlight,
                                                 ..Default::default()
                                             },
@@ -633,9 +563,7 @@ impl BerryCodeApp {
                             ui.painter().rect_filled(
                                 row_resp.rect,
                                 egui::CornerRadius::ZERO,
-                                egui::Color32::from_rgba_unmultiplied(
-                                    99, 122, 168, 60,
-                                ),
+                                egui::Color32::from_rgba_unmultiplied(99, 122, 168, 60),
                             );
                         } else if row_resp.hovered() {
                             ui.painter().rect_filled(
@@ -669,8 +597,7 @@ impl BerryCodeApp {
                     if let Some(fp) = results[idx].file_path.clone() {
                         self.open_file_from_path(&fp);
                     }
-                    if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx)
-                    {
+                    if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
                         tab.pending_cursor_jump =
                             Some((results[idx].line_number, results[idx].start_col));
                     }
@@ -701,11 +628,7 @@ impl BerryCodeApp {
                 // Reload any open buffers whose file was rewritten on disk
                 // so the editor stays in sync with the new contents.
                 for path in &modified {
-                    if let Some(tab) = self
-                        .editor_tabs
-                        .iter_mut()
-                        .find(|t| t.file_path == *path)
-                    {
+                    if let Some(tab) = self.editor_tabs.iter_mut().find(|t| t.file_path == *path) {
                         if let Ok(new_content) = std::fs::read_to_string(path) {
                             tab.buffer = TextBuffer::from_str(&new_content);
                             tab.text_cache = new_content;
