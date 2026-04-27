@@ -125,6 +125,35 @@ pub enum SettingsTab {
     GitHub,
 }
 
+/// Top-level visual theme preset. Each variant maps to a full
+/// `egui::Visuals` configuration, applied immediately when the user picks
+/// a different option in `Settings → Appearance`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ThemeMode {
+    /// Default — One Dark / Darcula-inspired dark theme.
+    Dark,
+    /// Bright background, lower contrast — for daylight / outdoor use.
+    Light,
+    /// Pure black + white with WCAG AAA contrast for accessibility.
+    HighContrast,
+}
+
+impl Default for ThemeMode {
+    fn default() -> Self {
+        Self::Dark
+    }
+}
+
+impl ThemeMode {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Dark => "Dark",
+            Self::Light => "Light",
+            Self::HighContrast => "High Contrast",
+        }
+    }
+}
+
 // ===== NEW: Git UI Tabs (SourceTree-compatible) =====
 
 /// Git panel tabs (6 tabs: Status, History, Branches, Remotes, Tags, Stash)
@@ -309,6 +338,27 @@ pub enum LspResponse {
     InlayHints(Vec<LspInlayHint>),
     CodeActions(Vec<LspCodeAction>),
     MacroExpansion(String, String), // (macro_name, expanded_text)
+    SignatureHelp(Option<LspSignatureHelp>),
+}
+
+/// Snapshot of a single signature returned by the LSP server, normalised
+/// into a form the editor popup can render directly.
+#[derive(Debug, Clone)]
+pub struct LspSignatureInfo {
+    /// The full signature label, e.g. `fn spawn<T: Bundle>(bundle: T) -> EntityCommands<'_>`.
+    pub label: String,
+    /// Optional documentation pulled from the language server.
+    pub documentation: Option<String>,
+    /// Byte ranges into `label` that locate each parameter, used to
+    /// underline / bold the active one.
+    pub param_ranges: Vec<(usize, usize)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LspSignatureHelp {
+    pub signatures: Vec<LspSignatureInfo>,
+    pub active_signature: usize,
+    pub active_parameter: Option<usize>,
 }
 
 /// Event produced by file tree rendering (one per frame at most).

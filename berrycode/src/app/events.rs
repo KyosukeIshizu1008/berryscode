@@ -202,6 +202,9 @@ impl BerryCodeApp {
                             t.is_readonly = true;
                         }
                     }
+                    LspResponse::SignatureHelp(help) => {
+                        self.lsp_signature_help = help;
+                    }
                 }
             }
         }

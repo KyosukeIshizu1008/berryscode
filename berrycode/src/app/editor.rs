@@ -343,6 +343,44 @@ impl BerryCodeApp {
                     // Gutter = 64px left margin in TextEdit
                     let gutter_width = 64.0_f32;
 
+                    // While the LSP completion popup is visible, intercept
+                    // navigation / accept keys *before* TextEdit sees them.
+                    // - Tab / Enter: commit the selected suggestion
+                    // - Arrow Up / Down: move the highlight in the list
+                    // - PageUp / PageDown: jump 5 entries
+                    if self.lsp_show_completions && !self.lsp_completions.is_empty() {
+                        let total = self.lsp_completions.len();
+                        let (accept, up, down, pgup, pgdown) = ui.input_mut(|i| {
+                            (
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::Tab)
+                                    || i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::PageUp),
+                                i.consume_key(egui::Modifiers::NONE, egui::Key::PageDown),
+                            )
+                        });
+                        if accept {
+                            self.lsp_completion_accept_pending = true;
+                        }
+                        if up {
+                            self.lsp_completion_index = self
+                                .lsp_completion_index
+                                .checked_sub(1)
+                                .unwrap_or(total - 1);
+                        }
+                        if down {
+                            self.lsp_completion_index = (self.lsp_completion_index + 1) % total;
+                        }
+                        if pgup {
+                            self.lsp_completion_index = self.lsp_completion_index.saturating_sub(5);
+                        }
+                        if pgdown {
+                            self.lsp_completion_index =
+                                (self.lsp_completion_index + 5).min(total - 1);
+                        }
+                    }
+
                     let output = egui::TextEdit::multiline(&mut text)
                         .code_editor()
                         .desired_width(f32::INFINITY)
@@ -385,8 +423,25 @@ impl BerryCodeApp {
                         })
                         .show(ui);
 
-                    // Auto-close brackets: if a bracket was just typed, insert closing pair
-                    if !is_readonly && output.response.changed() {
+                    // Auto-close brackets: only when the user *typed* a
+                    // bracket this frame. Checking `response.changed()` alone
+                    // also fires for undo / programmatic edits, which used
+                    // to re-insert orphaned `}` after `Cmd+Z`. Gate on a
+                    // matching `Event::Text` event in the input queue.
+                    let typed_bracket: Option<char> = ui.input(|i| {
+                        for ev in &i.events {
+                            if let egui::Event::Text(t) = ev {
+                                if t.len() == 1 {
+                                    let c = t.chars().next().unwrap();
+                                    if matches!(c, '(' | '{' | '[' | '"' | '\'') {
+                                        return Some(c);
+                                    }
+                                }
+                            }
+                        }
+                        None
+                    });
+                    if !is_readonly && typed_bracket.is_some() && output.response.changed() {
                         if let Some(cr) = output.cursor_range {
                             let cursor_pos = cr.primary.index;
                             if cursor_pos > 0 {
@@ -422,8 +477,17 @@ impl BerryCodeApp {
                                     _ => None,
                                 };
                                 if let Some(close_char) = closing {
-                                    // Insert closing bracket at cursor position
-                                    text.insert(cursor_pos, close_char);
+                                    // `cursor_pos` is a char index (egui's
+                                    // CCursor); `String::insert` wants a byte
+                                    // index. Convert via char_indices() so we
+                                    // don't slice through a multi-byte glyph
+                                    // when there's CJK before the cursor.
+                                    let byte_pos = text
+                                        .char_indices()
+                                        .nth(cursor_pos)
+                                        .map(|(b, _)| b)
+                                        .unwrap_or(text.len());
+                                    text.insert(byte_pos, close_char);
                                     // Don't move cursor - it should stay between the brackets
                                 }
                             }
@@ -469,7 +533,12 @@ impl BerryCodeApp {
                                     }
 
                                     if !indent.is_empty() {
-                                        text.insert_str(cursor_pos, &indent);
+                                        let byte_pos = text
+                                            .char_indices()
+                                            .nth(cursor_pos)
+                                            .map(|(b, _)| b)
+                                            .unwrap_or(text.len());
+                                        text.insert_str(byte_pos, &indent);
                                     }
                                 }
                             }
@@ -504,9 +573,15 @@ impl BerryCodeApp {
                         }
 
                         // Auto-trigger completions only on actual keyboard typing
-                        // (not on programmatic text changes like completion insert)
-                        let had_key_input = ui
-                            .input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Text(_))));
+                        // (not on programmatic text changes like completion insert).
+                        // Treat IME-committed strings as typing too, so 日本語
+                        // input still pops the completion list.
+                        let had_key_input = ui.input(|i| {
+                            i.events.iter().any(|e| {
+                                matches!(e, egui::Event::Text(_))
+                                    || matches!(e, egui::Event::Ime(egui::ImeEvent::Commit(_)))
+                            })
+                        });
                         if had_key_input {
                             if let Some(cr) = output.cursor_range {
                                 let cursor_pos = cr.primary.index;
@@ -522,6 +597,17 @@ impl BerryCodeApp {
                                     });
                                     if should_trigger {
                                         self.lsp_auto_trigger_pending = true;
+                                    }
+                                    // Signature help: '(' opens it, ',' moves
+                                    // to the next param, ')' closes it.
+                                    match last_char {
+                                        Some('(') | Some(',') => {
+                                            self.lsp_signature_trigger_pending = true;
+                                        }
+                                        Some(')') => {
+                                            self.lsp_signature_help = None;
+                                        }
+                                        _ => {}
                                     }
                                 }
                             }
@@ -573,11 +659,15 @@ impl BerryCodeApp {
                     }
 
                     // === Gutter: [BP dot | line number | fold icon] ===
-                    // All positions relative to editor_rect.min.x (left edge of TextEdit)
-                    // gutter_width = 64px, text starts at editor_rect.min.x + 64
-                    // editor_rect = inner rect (margin excluded), text starts at editor_rect.min.x
-                    // Gutter is in the margin area: BEFORE editor_rect.min.x
-                    let gutter_left = editor_rect.min.x - gutter_width;
+                    // The gutter sits exactly `gutter_width` left of where the
+                    // text actually starts drawing. Anchoring to `text_origin`
+                    // (egui's reported galley position) keeps the math correct
+                    // regardless of whether the TextEdit's response rect
+                    // includes its margin or not — egui 0.33 changed this and
+                    // the previous `editor_rect.min.x - gutter_width` placed
+                    // the gutter outside the editor's clip rect, hiding the
+                    // line numbers.
+                    let gutter_left = text_origin.x - gutter_width;
                     let bp_center_x = gutter_left + 10.0; // breakpoint dot
                     let line_num_right_x = gutter_left + 42.0; // line number right-align
                     let fold_center_x = gutter_left + 54.0; // fold icon center
@@ -1335,8 +1425,14 @@ impl BerryCodeApp {
                         text
                     };
 
-                    // Return gutter layout info for click handling outside ScrollArea
-                    let gutter_info = (gutter_left, fold_center_x, bp_center_x, editor_rect);
+                    // Return gutter layout info for click handling outside ScrollArea.
+                    // Use a synthetic rect for the gutter so the click handler doesn't
+                    // depend on whether `editor_rect` includes the margin or not.
+                    let gutter_rect = egui::Rect::from_min_max(
+                        egui::pos2(gutter_left, editor_rect.min.y),
+                        egui::pos2(text_origin.x, editor_rect.max.y),
+                    );
+                    let gutter_info = (gutter_left, fold_center_x, bp_center_x, gutter_rect);
                     (
                         output,
                         go_to_def_data,
@@ -1375,12 +1471,11 @@ impl BerryCodeApp {
 
                     if clicked {
                         if let Some(pos) = click_pos {
-                            // Check if click is in the gutter area (between gutter_left and editor_rect.min.x)
-                            if pos.x >= gutter_left
-                                && pos.x < ed_rect.min.x
-                                && pos.y >= ed_rect.min.y
-                                && pos.y <= ed_rect.max.y
-                            {
+                            // `ed_rect` here is the synthetic gutter rect:
+                            // [gutter_left .. text_origin.x] horizontally, full
+                            // editor height vertically. Click anywhere inside
+                            // is a gutter click.
+                            if ed_rect.contains(pos) {
                                 // Calculate line from Y position
                                 let relative_y =
                                     pos.y - ed_rect.min.y + scroll_output.state.offset.y;
@@ -1520,6 +1615,11 @@ impl BerryCodeApp {
             self.lsp_auto_trigger_pending = false;
             self.trigger_lsp_completions();
         }
+        // Auto-trigger signature help when '(' or ',' is typed.
+        if self.lsp_signature_trigger_pending && self.lsp_connected {
+            self.lsp_signature_trigger_pending = false;
+            self.trigger_lsp_signature_help();
+        }
 
         // Handle keyboard shortcuts for LSP
         self.handle_lsp_shortcuts(ctx);
@@ -1527,6 +1627,10 @@ impl BerryCodeApp {
         // Render completion popup
         if self.lsp_show_completions && !self.lsp_completions.is_empty() {
             self.render_lsp_completions(ctx);
+        }
+        // Render signature-help popup
+        if self.lsp_signature_help.is_some() {
+            self.render_lsp_signature_help(ctx);
         }
 
         // Render code actions popup (💡 menu)
