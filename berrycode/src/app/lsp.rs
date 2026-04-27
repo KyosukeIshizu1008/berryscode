@@ -1,5 +1,6 @@
 //! LSP integration: completions, diagnostics, hover, go-to-definition, find references
 
+use super::types;
 use super::types::{
     DiagnosticSeverity, LspCompletionItem, LspDiagnostic, LspHoverInfo, LspLocation, LspResponse,
     PendingGotoDefinition,
@@ -20,12 +21,21 @@ impl BerryCodeApp {
 
         ctx.input(|i| {
             if i.modifiers.command && i.key_pressed(egui::Key::Space) {
-                self.trigger_lsp_completions();
+                if i.modifiers.shift {
+                    self.trigger_lsp_signature_help();
+                } else {
+                    self.trigger_lsp_completions();
+                }
             }
 
-            if i.key_pressed(egui::Key::Escape) && self.lsp_show_completions {
-                self.lsp_show_completions = false;
-                self.lsp_completions.clear();
+            if i.key_pressed(egui::Key::Escape) {
+                if self.lsp_show_completions {
+                    self.lsp_show_completions = false;
+                    self.lsp_completions.clear();
+                }
+                if self.lsp_signature_help.is_some() {
+                    self.lsp_signature_help = None;
+                }
             }
         });
     }
@@ -153,6 +163,212 @@ impl BerryCodeApp {
         self.lsp_show_completions = true;
     }
 
+    /// Trigger `textDocument/signatureHelp` for the cursor position. Called
+    /// when `(` or `,` is typed inside a function call, or via Cmd+Shift+Space.
+    pub(crate) fn trigger_lsp_signature_help(&mut self) {
+        let tab = match self.editor_tabs.get(self.active_tab_idx) {
+            Some(t) => t,
+            None => return,
+        };
+        let file_path = tab.file_path.clone();
+        let line = tab.cursor_line;
+        let utf8_column = tab.cursor_col;
+
+        let utf16_column = {
+            let text = tab.buffer.to_string();
+            let lines: Vec<&str> = text.lines().collect();
+            if line < lines.len() {
+                utf8_offset_to_utf16(lines[line], utf8_column)
+            } else {
+                utf8_column
+            }
+        };
+
+        let client = match &self.lsp_native_client {
+            Some(c) => std::sync::Arc::clone(c),
+            None => return,
+        };
+        let tx = match &self.lsp_response_tx {
+            Some(t) => t.clone(),
+            None => return,
+        };
+        let runtime = std::sync::Arc::clone(&self.lsp_runtime);
+
+        runtime.spawn(async move {
+            let lang = match crate::native::lsp_native::detect_server_language(&file_path) {
+                Some(l) => l,
+                None => return,
+            };
+            match client
+                .get_signature_help(lang, file_path, line as u32, utf16_column as u32)
+                .await
+            {
+                Ok(Some(sig)) => {
+                    let signatures: Vec<types::LspSignatureInfo> = sig
+                        .signatures
+                        .iter()
+                        .map(|s| {
+                            let label = s.label.clone();
+                            let documentation = s.documentation.as_ref().and_then(|d| match d {
+                                lsp_types::Documentation::String(s) => Some(s.clone()),
+                                lsp_types::Documentation::MarkupContent(m) => Some(m.value.clone()),
+                            });
+                            let param_ranges: Vec<(usize, usize)> = s
+                                .parameters
+                                .as_ref()
+                                .map(|params| {
+                                    params
+                                        .iter()
+                                        .filter_map(|p| match &p.label {
+                                            lsp_types::ParameterLabel::Simple(s) => {
+                                                label.find(s.as_str()).map(|i| (i, i + s.len()))
+                                            }
+                                            lsp_types::ParameterLabel::LabelOffsets(off) => {
+                                                Some((off[0] as usize, off[1] as usize))
+                                            }
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            types::LspSignatureInfo {
+                                label,
+                                documentation,
+                                param_ranges,
+                            }
+                        })
+                        .collect();
+                    let normalised = types::LspSignatureHelp {
+                        signatures,
+                        active_signature: sig.active_signature.unwrap_or(0) as usize,
+                        active_parameter: sig.active_parameter.map(|p| p as usize),
+                    };
+                    let _ = tx.send(LspResponse::SignatureHelp(Some(normalised)));
+                }
+                _ => {
+                    let _ = tx.send(LspResponse::SignatureHelp(None));
+                }
+            }
+        });
+    }
+
+    /// Render the floating signature-help popup (VS Code-style: monospace
+    /// signature with the active parameter underlined, optional doc below).
+    pub(crate) fn render_lsp_signature_help(&mut self, ctx: &egui::Context) {
+        let help = match &self.lsp_signature_help {
+            Some(h) if !h.signatures.is_empty() => h.clone(),
+            _ => return,
+        };
+
+        let signature = match help.signatures.get(help.active_signature) {
+            Some(s) => s,
+            None => return,
+        };
+
+        // Anchor the popup near the editor's cursor. We don't have the exact
+        // pixel position from this scope, so place it under the active editor
+        // panel using a reasonable offset; the user can scroll the editor
+        // independently and the popup tracks pointer / cursor position.
+        let pointer = ctx.input(|i| i.pointer.hover_pos());
+        let anchor = pointer
+            .map(|p| egui::pos2(p.x, p.y + 24.0))
+            .unwrap_or_else(|| egui::pos2(80.0, 80.0));
+
+        egui::Area::new(egui::Id::new("lsp_signature_help_popup"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(anchor)
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style())
+                    .fill(egui::Color32::from_rgb(35, 36, 40))
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgb(75, 110, 175),
+                    ))
+                    .inner_margin(egui::Margin::same(8))
+                    .show(ui, |ui| {
+                        ui.set_max_width(560.0);
+
+                        // Build a coloured layout job: active parameter is
+                        // bright + bold, the rest dim.
+                        let mut job = egui::text::LayoutJob::default();
+                        let active = help.active_parameter.unwrap_or(usize::MAX);
+                        let active_range = signature.param_ranges.get(active).copied();
+                        let label = &signature.label;
+
+                        let dim = egui::Color32::from_rgb(180, 180, 190);
+                        let bright = egui::Color32::from_rgb(255, 255, 255);
+                        let accent = egui::Color32::from_rgb(120, 200, 255);
+
+                        match active_range {
+                            Some((s, e)) if s < label.len() && e <= label.len() && s < e => {
+                                job.append(
+                                    &label[..s],
+                                    0.0,
+                                    egui::TextFormat {
+                                        font_id: egui::FontId::monospace(13.0),
+                                        color: dim,
+                                        ..Default::default()
+                                    },
+                                );
+                                job.append(
+                                    &label[s..e],
+                                    0.0,
+                                    egui::TextFormat {
+                                        font_id: egui::FontId::monospace(13.0),
+                                        color: accent,
+                                        underline: egui::Stroke::new(1.0, accent),
+                                        ..Default::default()
+                                    },
+                                );
+                                job.append(
+                                    &label[e..],
+                                    0.0,
+                                    egui::TextFormat {
+                                        font_id: egui::FontId::monospace(13.0),
+                                        color: dim,
+                                        ..Default::default()
+                                    },
+                                );
+                            }
+                            _ => {
+                                job.append(
+                                    label,
+                                    0.0,
+                                    egui::TextFormat {
+                                        font_id: egui::FontId::monospace(13.0),
+                                        color: bright,
+                                        ..Default::default()
+                                    },
+                                );
+                            }
+                        }
+                        ui.label(job);
+
+                        if help.signatures.len() > 1 {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{}/{} overloads — Cmd+Shift+Space to cycle",
+                                    help.active_signature + 1,
+                                    help.signatures.len()
+                                ))
+                                .small()
+                                .color(egui::Color32::from_rgb(140, 140, 150)),
+                            );
+                        }
+
+                        if let Some(doc) = &signature.documentation {
+                            if !doc.trim().is_empty() {
+                                ui.separator();
+                                ui.label(
+                                    egui::RichText::new(doc)
+                                        .small()
+                                        .color(egui::Color32::from_rgb(200, 200, 210)),
+                                );
+                            }
+                        }
+                    });
+            });
+    }
+
     /// Render LSP completion popup (VS Code style)
     pub(crate) fn render_lsp_completions(&mut self, ctx: &egui::Context) {
         // Get the current word being typed (for filtering)
@@ -212,18 +428,36 @@ impl BerryCodeApp {
 
         let mut selected_item: Option<String> = None;
 
-        // Enter/Tab to accept selected item
-        if ctx.input(|i| i.key_pressed(egui::Key::Tab) || i.key_pressed(egui::Key::Enter)) {
+        // Accept on Tab/Enter. The actual key was consumed in `editor.rs`
+        // *before* the `TextEdit` widget rendered so it never reached the
+        // editor as a newline; this flag is the signal that happened.
+        let accepted = std::mem::take(&mut self.lsp_completion_accept_pending);
+        if accepted {
             if let Some(item) = filtered.get(self.lsp_completion_index) {
                 selected_item = Some(item.insert_text.clone().unwrap_or(item.label.clone()));
             }
         }
 
-        // Click outside to dismiss
+        // Position popup below cursor
+        let popup_pos = if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
+            // Approximate: gutter(64) + sidebar(280) + char_width(7.8) * col
+            let x = 64.0 + 280.0 + (tab.cursor_col as f32 * 7.8);
+            // header(32) + line_height(19.5) * (visible_line + 1)
+            let y = 32.0 + ((tab.cursor_line as f32 + 1.0) * 19.5).min(500.0);
+            egui::pos2(x.min(600.0), y)
+        } else {
+            egui::pos2(350.0, 150.0)
+        };
+
+        // Click outside to dismiss. Use the actual popup rect (not a stale
+        // hard-coded one) so clicks INSIDE the popup are correctly treated
+        // as item-clicks rather than as outside-clicks that dismiss it.
+        let popup_rect = egui::Rect::from_min_size(
+            popup_pos,
+            egui::vec2(400.0, (filtered.len().min(10) as f32) * 20.0 + 4.0),
+        );
         if ctx.input(|i| i.pointer.any_pressed()) {
             let click_pos = ctx.input(|i| i.pointer.interact_pos());
-            let popup_rect =
-                egui::Rect::from_min_size(egui::pos2(350.0, 150.0), egui::vec2(400.0, 220.0));
             if let Some(pos) = click_pos {
                 if !popup_rect.contains(pos) {
                     self.lsp_show_completions = false;
@@ -240,17 +474,6 @@ impl BerryCodeApp {
             let text_color = egui::Color32::from_rgb(212, 212, 212);
             let detail_color = egui::Color32::from_rgb(110, 110, 110);
             let max_items = 10;
-
-            // Position popup below cursor
-            let popup_pos = if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
-                // Approximate: gutter(64) + sidebar(280) + char_width(7.8) * col
-                let x = 64.0 + 280.0 + (tab.cursor_col as f32 * 7.8);
-                // header(32) + line_height(19.5) * (visible_line + 1)
-                let y = 32.0 + ((tab.cursor_line as f32 + 1.0) * 19.5).min(500.0);
-                egui::pos2(x.min(600.0), y)
-            } else {
-                egui::pos2(350.0, 150.0)
-            };
 
             egui::Area::new(egui::Id::new("lsp_completions"))
                 .order(egui::Order::Foreground)

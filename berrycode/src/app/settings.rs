@@ -111,12 +111,36 @@ impl BerryCodeApp {
                             ui.label(self.tr("Window theme, font settings, etc."));
                             ui.add_space(12.0);
 
+                            // Theme preset switcher — applies + persists
+                            // immediately so the user sees the change live.
+                            ui.label(egui::RichText::new("Theme preset").strong());
+                            ui.add_space(4.0);
+                            let presets = [
+                                super::types::ThemeMode::Dark,
+                                super::types::ThemeMode::Light,
+                                super::types::ThemeMode::HighContrast,
+                            ];
+                            ui.horizontal(|ui| {
+                                for mode in presets {
+                                    let selected = self.theme_mode == mode;
+                                    if ui.selectable_label(selected, mode.label()).clicked()
+                                        && !selected
+                                    {
+                                        self.theme_mode = mode;
+                                        ui.ctx().set_visuals(super::visuals_for_theme(mode));
+                                        super::save_theme_mode(mode);
+                                    }
+                                }
+                            });
+                            ui.add_space(12.0);
+
                             // Font size info
                             ui.label("Editor font: monospace 13.0px (default)");
                             ui.add_space(8.0);
 
-                            // Theme selector
-                            ui.label("Theme:");
+                            // Advanced theme tools
+                            ui.label(egui::RichText::new("Advanced").strong());
+                            ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 if ui.button("Open Theme Editor").clicked() {
                                     self.show_theme_editor = true;
@@ -408,36 +432,146 @@ impl BerryCodeApp {
 
     /// Keyboard Shortcuts settings tab
     pub(crate) fn render_keybindings_settings(&mut self, ui: &mut egui::Ui) {
-        use super::keymap::KeyAction;
+        use super::keymap::{KeyAction, KeyBinding};
 
         ui.heading(self.tr("Keybindings"));
         ui.add_space(4.0);
-        ui.label(
-            "Current keybinding assignments. Edit keybindings.ron for advanced customization.",
-        );
+        ui.label("Click a shortcut to rebind it. Press Esc to cancel.");
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(4.0);
 
+        // Capture the next key press while a recording is active. We do this
+        // before rendering the grid so the new binding is reflected
+        // immediately in the same frame.
+        if let Some(target) = self.keybinding_recording {
+            let captured = ui.input(|i| {
+                if i.key_pressed(egui::Key::Escape) {
+                    return Some(None); // cancel
+                }
+                for ev in &i.events {
+                    if let egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = ev
+                    {
+                        // Ignore modifier-only key events (Cmd / Shift / Alt
+                        // by themselves shouldn't count as a binding).
+                        let is_modifier = matches!(key, egui::Key::Backtick | egui::Key::Escape);
+                        if is_modifier {
+                            continue;
+                        }
+                        let new_binding = KeyBinding {
+                            command: modifiers.command,
+                            shift: modifiers.shift,
+                            alt: modifiers.alt,
+                            key: format!("{:?}", key),
+                        };
+                        return Some(Some(new_binding));
+                    }
+                }
+                None
+            });
+
+            match captured {
+                Some(None) => {
+                    self.keybinding_recording = None;
+                    self.keybinding_message =
+                        Some(format!("Cancelled (no change to {})", target.label()));
+                }
+                Some(Some(new_binding)) => {
+                    // Detect conflict — another action already uses this chord.
+                    let conflict = self
+                        .keymap
+                        .bindings
+                        .iter()
+                        .find(|(act, b)| {
+                            **act != target
+                                && b.command == new_binding.command
+                                && b.shift == new_binding.shift
+                                && b.alt == new_binding.alt
+                                && b.key == new_binding.key
+                        })
+                        .map(|(a, _)| *a);
+
+                    if let Some(conflict_action) = conflict {
+                        self.keybinding_message = Some(format!(
+                            "{} already bound to {}",
+                            new_binding.display(),
+                            conflict_action.label()
+                        ));
+                    } else {
+                        let display = new_binding.display();
+                        self.keymap.bindings.insert(target, new_binding);
+                        self.keymap.save();
+                        self.keybinding_message = Some(format!("{} → {}", target.label(), display));
+                    }
+                    self.keybinding_recording = None;
+                }
+                None => {}
+            }
+        }
+
         egui::Grid::new("keybindings_grid")
-            .num_columns(2)
-            .spacing([20.0, 4.0])
+            .num_columns(3)
+            .spacing([16.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
                 ui.strong("Action");
                 ui.strong("Shortcut");
+                ui.strong("");
                 ui.end_row();
 
                 for action in KeyAction::ALL {
                     ui.label(action.label());
-                    if let Some(binding) = self.keymap.bindings.get(action) {
-                        ui.monospace(binding.display());
+
+                    let is_recording = self.keybinding_recording == Some(*action);
+                    let label = if is_recording {
+                        "Press a key…".to_string()
                     } else {
-                        ui.label("(unbound)");
+                        self.keymap
+                            .bindings
+                            .get(action)
+                            .map(|b| b.display())
+                            .unwrap_or_else(|| "(unbound)".to_string())
+                    };
+
+                    let button = egui::Button::new(egui::RichText::new(&label).monospace())
+                        .min_size(egui::vec2(140.0, 22.0))
+                        .fill(if is_recording {
+                            egui::Color32::from_rgb(60, 90, 140)
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        });
+
+                    if ui.add(button).clicked() {
+                        self.keybinding_recording = Some(*action);
+                        self.keybinding_message = None;
+                    }
+
+                    if !is_recording && self.keymap.bindings.contains_key(action) {
+                        if ui.small_button("Clear").clicked() {
+                            self.keymap.bindings.remove(action);
+                            self.keymap.save();
+                            self.keybinding_message = Some(format!("Cleared {}", action.label()));
+                        }
+                    } else {
+                        ui.label("");
                     }
                     ui.end_row();
                 }
             });
+
+        ui.add_space(8.0);
+        if let Some(msg) = &self.keybinding_message {
+            ui.label(
+                egui::RichText::new(msg)
+                    .small()
+                    .color(egui::Color32::from_rgb(180, 200, 230)),
+            );
+        }
 
         ui.add_space(12.0);
         ui.separator();
@@ -447,11 +581,14 @@ impl BerryCodeApp {
             if ui.button("Reset to Defaults").clicked() {
                 self.keymap = super::keymap::Keymap::default();
                 self.keymap.save();
+                self.keybinding_recording = None;
+                self.keybinding_message = Some("Reset to defaults".to_string());
                 tracing::info!("Keyboard shortcuts reset to defaults");
             }
 
             if ui.button("Save to File").clicked() {
                 self.keymap.save();
+                self.keybinding_message = Some("Saved".to_string());
                 tracing::info!("Keyboard shortcuts saved");
             }
         });

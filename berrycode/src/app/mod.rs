@@ -251,6 +251,12 @@ pub struct BerryCodeApp {
     pub(crate) lsp_show_hover: bool,
     pub(crate) lsp_auto_trigger_pending: bool,
     pub(crate) lsp_completion_index: usize,
+    /// Latest `textDocument/signatureHelp` result. Cleared when the cursor
+    /// leaves a parameter list (`)` typed, Esc pressed, etc.).
+    pub(crate) lsp_signature_help: Option<types::LspSignatureHelp>,
+    /// `(` was just typed → trigger a signature-help request next frame
+    /// (paralleling `lsp_auto_trigger_pending` for completions).
+    pub(crate) lsp_signature_trigger_pending: bool,
     pub(crate) lsp_response_rx: Option<mpsc::UnboundedReceiver<LspResponse>>,
     pub(crate) lsp_diagnostics_rx:
         Option<mpsc::UnboundedReceiver<native::lsp_native::PublishedDiagnostics>>,
@@ -573,6 +579,22 @@ pub struct BerryCodeApp {
 
     // === Customizable Keyboard Shortcuts ===
     pub(crate) keymap: keymap::Keymap,
+    /// When `Some`, the Settings → Keybindings panel is capturing the next
+    /// key press to rebind this action. Cleared once a chord arrives or the
+    /// user cancels with `Esc`.
+    pub(crate) keybinding_recording: Option<keymap::KeyAction>,
+    /// Transient feedback string shown under the keybinding grid (e.g.
+    /// "Cmd+S already bound to Save"). Cleared when the user starts a new
+    /// recording.
+    pub(crate) keybinding_message: Option<String>,
+    /// Currently active visual theme preset (Dark / Light / High Contrast).
+    /// Persisted under `~/.berrycode/theme.json` so the choice survives
+    /// restarts.
+    pub(crate) theme_mode: types::ThemeMode,
+    /// `true` if the LSP completion popup pre-consumed Enter / Tab this
+    /// frame so the editor's `TextEdit` won't treat it as a newline. Read
+    /// and cleared by `render_lsp_completions`.
+    pub(crate) lsp_completion_accept_pending: bool,
 
     // === Dockable Tool Panel ===
     pub(crate) tool_panel_open: bool,
@@ -689,7 +711,7 @@ impl BerryCodeApp {
                                                              // Selection bg uses RGBA with alpha so the underlying text remains
                                                              // legible during IME preedit (egui paints selection over the glyphs).
                                                              // Premultiplied alpha: ~30% opacity = (rgb * 0.3, alpha 76).
-        let bg_selected = egui::Color32::from_rgba_premultiplied(11, 24, 42, 76);
+        let bg_selected = egui::Color32::from_rgba_premultiplied(20, 40, 70, 130);
         let border = egui::Color32::from_rgb(60, 63, 68); // borders
         let border_focus = egui::Color32::from_rgb(75, 110, 175); // focused border (accent)
         let text = egui::Color32::from_rgb(205, 207, 213); // primary text
@@ -1291,6 +1313,8 @@ impl BerryCodeApp {
             lsp_completions: Vec::new(),
             lsp_show_completions: false,
             lsp_auto_trigger_pending: false,
+            lsp_signature_help: None,
+            lsp_signature_trigger_pending: false,
             lsp_completion_index: 0,
             lsp_show_hover: false,
             lsp_response_rx: Some(lsp_rx),
@@ -1584,6 +1608,10 @@ impl BerryCodeApp {
             player_settings: scene_editor::build_settings::PlayerSettings::default(),
 
             keymap: keymap::Keymap::load(),
+            keybinding_recording: None,
+            keybinding_message: None,
+            theme_mode: load_theme_mode(),
+            lsp_completion_accept_pending: false,
 
             tool_panel_open: false,
             active_tool_tab: dock::ToolTab::Console,
@@ -1744,6 +1772,72 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
 #[derive(bevy::prelude::Resource, Default)]
 pub struct EguiFontsConfigured(pub bool);
 
+/// Where the chosen visual theme is persisted between sessions.
+fn theme_mode_path() -> std::path::PathBuf {
+    if let Some(home) = dirs::home_dir() {
+        let dir = home.join(".berrycode");
+        std::fs::create_dir_all(&dir).ok();
+        dir.join("theme.json")
+    } else {
+        std::path::PathBuf::from("theme.json")
+    }
+}
+
+fn load_theme_mode() -> types::ThemeMode {
+    let path = theme_mode_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<types::ThemeMode>(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_theme_mode(mode: types::ThemeMode) {
+    let path = theme_mode_path();
+    if let Ok(json) = serde_json::to_string_pretty(&mode) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+/// Build an `egui::Visuals` for the given theme preset. Centralised so the
+/// startup path and the runtime theme switcher always agree on colours.
+pub fn visuals_for_theme(mode: types::ThemeMode) -> egui::Visuals {
+    let mut v = match mode {
+        types::ThemeMode::Light => egui::Visuals::light(),
+        _ => egui::Visuals::dark(),
+    };
+    let (panel, text, accent, sel_bg, sel_text) = match mode {
+        types::ThemeMode::Dark => (
+            egui::Color32::from_rgb(25, 26, 28),
+            egui::Color32::from_rgb(212, 212, 212),
+            egui::Color32::from_rgb(75, 110, 175),
+            egui::Color32::from_rgba_premultiplied(20, 40, 70, 130),
+            egui::Color32::from_rgb(212, 212, 212),
+        ),
+        types::ThemeMode::Light => (
+            egui::Color32::from_rgb(245, 246, 248),
+            egui::Color32::from_rgb(35, 38, 44),
+            egui::Color32::from_rgb(50, 100, 200),
+            egui::Color32::from_rgba_premultiplied(70, 130, 220, 110),
+            egui::Color32::from_rgb(35, 38, 44),
+        ),
+        types::ThemeMode::HighContrast => (
+            egui::Color32::BLACK,
+            egui::Color32::WHITE,
+            egui::Color32::from_rgb(0, 200, 255),
+            egui::Color32::from_rgba_premultiplied(0, 200, 255, 120),
+            egui::Color32::WHITE,
+        ),
+    };
+    v.panel_fill = panel;
+    v.window_fill = panel;
+    v.extreme_bg_color = panel;
+    v.override_text_color = Some(text);
+    v.hyperlink_color = accent;
+    v.selection.bg_fill = sel_bg;
+    v.selection.stroke = egui::Stroke::new(0.0, sel_text);
+    v
+}
+
 /// Bevy update system: configure egui fonts and style (runs once on first successful access).
 pub fn setup_egui_fonts_and_style(
     mut egui_ctx: bevy_egui::EguiContexts,
@@ -1836,23 +1930,11 @@ pub fn setup_egui_fonts_and_style(
 
     ctx.set_fonts(fonts);
 
-    // Custom dark theme with #191a1c background and unified #D4D4D4 white
-    let mut visuals = egui::Visuals::dark();
-    visuals.override_text_color = Some(egui::Color32::from_rgb(212, 212, 212));
-    visuals.panel_fill = egui::Color32::from_rgb(25, 26, 28);
-    visuals.window_fill = egui::Color32::from_rgb(25, 26, 28);
-    visuals.extreme_bg_color = egui::Color32::from_rgb(25, 26, 28);
-    visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(25, 26, 28);
-    visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(25, 26, 28);
-    visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(45, 47, 50);
-    visuals.widgets.active.bg_fill = egui::Color32::from_rgb(60, 63, 65);
-    visuals.selection.bg_fill = egui::Color32::from_rgba_premultiplied(11, 24, 42, 76);
-    // `selection.stroke.color` is the text color override for selected glyphs.
-    visuals.selection.stroke = egui::Stroke::new(0.0, egui::Color32::from_rgb(212, 212, 212));
-    visuals.code_bg_color = egui::Color32::from_rgb(25, 26, 28);
-    ctx.set_visuals(visuals);
+    // Apply the persisted theme preset. Defaults to Dark on first run.
+    ctx.set_visuals(visuals_for_theme(load_theme_mode()));
 
-    // Also apply the One Dark style
+    // Also apply the One Dark style (panel-specific tweaks; visuals_for_theme
+    // covers the colour-scheme defaults).
     BerryCodeApp::setup_egui_style(ctx);
 
     tracing::info!("egui fonts and style configured");
