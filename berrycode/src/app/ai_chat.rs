@@ -161,6 +161,56 @@ impl BerryCodeApp {
 
                                     ui.add_space(4.0);
 
+                                    // Chat / Agent mode toggle. In Agent
+                                    // mode the prompt drives an external
+                                    // coding agent (Claude Code) instead
+                                    // of a chat-shaped Provider call.
+                                    ui.horizontal(|ui| {
+                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                        let chat = self.ai_chat_mode
+                                            == super::types::AIChatMode::Chat;
+                                        let agent = self.ai_chat_mode
+                                            == super::types::AIChatMode::Autonomous;
+                                        if ui.selectable_label(chat, "💬 Chat").clicked() {
+                                            self.ai_chat_mode =
+                                                super::types::AIChatMode::Chat;
+                                        }
+                                        if ui.selectable_label(agent, "🤖 Agent").clicked() {
+                                            self.ai_chat_mode =
+                                                super::types::AIChatMode::Autonomous;
+                                        }
+                                        if agent {
+                                            let installed = crate::agent::CodingAgent::check_installed(
+                                                &crate::agent::claude::ClaudeCodeAgent::new(),
+                                            );
+                                            match installed {
+                                                Some(v) => {
+                                                    ui.label(
+                                                        egui::RichText::new(format!(
+                                                            "Claude Code {}",
+                                                            v
+                                                        ))
+                                                        .size(11.0)
+                                                        .color(TEXT_DIM),
+                                                    );
+                                                }
+                                                None => {
+                                                    ui.label(
+                                                        egui::RichText::new(
+                                                            "claude not on PATH — install to use Agent mode",
+                                                        )
+                                                        .size(11.0)
+                                                        .color(egui::Color32::from_rgb(
+                                                            220, 120, 120,
+                                                        )),
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    });
+
+                                    ui.add_space(2.0);
+
                                     // Send button row
                                     ui.horizontal(|ui| {
                                         ui.with_layout(
@@ -685,6 +735,17 @@ impl BerryCodeApp {
             return;
         }
 
+        // In Autonomous mode the prompt is dispatched to an external
+        // coding agent (Claude Code today, Codex once installed) via
+        // the `agent` module rather than the chat-shaped Provider
+        // layer. The two paths intentionally share `ai_messages` /
+        // `ai_response_tx` / `ai_streaming` so the rendering side
+        // doesn't need to know which mode produced a chunk.
+        if self.ai_chat_mode == super::types::AIChatMode::Autonomous {
+            self.send_agent_message(message);
+            return;
+        }
+
         // Add user message to chat history
         self.ai_messages.push(AiChatMessage {
             content: message.clone(),
@@ -784,6 +845,114 @@ impl BerryCodeApp {
                         };
                         let _ = tx.send(AiChatResponse::ChatChunk(hint));
                         let _ = tx.send(AiChatResponse::ChatStreamCompleted);
+                    }
+                }
+            }
+        });
+    }
+
+    /// Autonomous-mode counterpart to [`send_ai_message`]. Spawns an
+    /// external coding agent (Claude Code today; Codex once we can
+    /// verify the CLI surface) inside the project root and pumps the
+    /// event stream into the chat panel as `AiChatResponse::ChatChunk`
+    /// values, so the rendering side renders agent output identically
+    /// to a normal chat response.
+    ///
+    /// `Edit` events are formatted as a small markdown-style header
+    /// block so the user can see which file the agent intends to
+    /// touch; the actual diff-viewer integration comes in Phase D.
+    pub(crate) fn send_agent_message(&mut self, message: String) {
+        self.ai_messages.push(AiChatMessage {
+            content: message.clone(),
+            is_user: true,
+        });
+        self.ai_input.clear();
+        self.ai_streaming = true;
+        self.ai_current_response.clear();
+        self.ai_streaming_message = Some(String::new());
+
+        let tx = self.ai_response_tx.clone();
+        let cwd = std::path::PathBuf::from(self.root_path.clone());
+
+        // Pull the model + budget from the same BYOK settings the chat
+        // path uses. We currently hard-code Claude Code as the backend;
+        // a follow-up will let the user pick Claude vs Codex per-task.
+        let model = Some(self.ai_settings.chat_model.clone());
+        let max_budget = if self.ai_settings.monthly_cap_usd > 0.0 {
+            Some(self.ai_settings.monthly_cap_usd)
+        } else {
+            None
+        };
+
+        self.lsp_runtime.spawn(async move {
+            let agent = crate::agent::claude::ClaudeCodeAgent::new();
+            let opts = crate::agent::AgentRunOpts {
+                model,
+                max_budget_usd: max_budget,
+                additional_dirs: Vec::new(),
+                append_system_prompt: Some(
+                    "You are running inside BerryCode, a native Bevy IDE. \
+                     Prefer Bevy 0.18 idioms, propose small focused edits, \
+                     and explain your plan before applying changes."
+                        .to_string(),
+                ),
+            };
+
+            let mut session =
+                match crate::agent::CodingAgent::run(&agent, &message, &cwd, opts).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        if let Some(tx) = &tx {
+                            let _ = tx.send(AiChatResponse::ChatChunk(format!(
+                                "⚠️ Agent failed to start: {}\n\
+                                 Install Claude Code with `brew install anthropic/claude/claude` \
+                                 or `npm install -g @anthropic-ai/claude-code` and re-run.",
+                                e
+                            )));
+                            let _ = tx.send(AiChatResponse::ChatStreamCompleted);
+                        }
+                        return;
+                    }
+                };
+
+            // Keep the whole session alive across the recv loop so its
+            // `Drop` impl can kill the child if we abort early.
+            while let Some(ev) = session.events.recv().await {
+                let Some(tx) = tx.as_ref() else {
+                    continue;
+                };
+                match ev {
+                    crate::agent::AgentEvent::AssistantMessage(text)
+                    | crate::agent::AgentEvent::Output(text) => {
+                        let _ = tx.send(AiChatResponse::ChatChunk(text));
+                    }
+                    crate::agent::AgentEvent::ToolUse { tool, .. } => {
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!("\n`[{}]`\n", tool)));
+                    }
+                    crate::agent::AgentEvent::Edit { path, .. } => {
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!(
+                            "\n**📝 Edit proposed:** `{}`\n",
+                            path.display()
+                        )));
+                    }
+                    crate::agent::AgentEvent::Error(msg) => {
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!("\n⚠️ {}\n", msg)));
+                    }
+                    crate::agent::AgentEvent::Done { success, usage } => {
+                        if let Some(usage) = usage {
+                            crate::ai::usage::record(
+                                crate::ai::ProviderKind::Anthropic,
+                                "claude-code-agent",
+                                &usage,
+                            );
+                        }
+                        if !success {
+                            let _ = tx.send(AiChatResponse::ChatChunk(
+                                "\n⚠️ Agent run finished with errors.\n".to_string(),
+                            ));
+                        }
+                        let _ = tx.send(AiChatResponse::ChatStreamCompleted);
+                        break;
                     }
                 }
             }
