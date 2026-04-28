@@ -460,6 +460,71 @@ impl BerryCodeApp {
                         })
                         .show(ui);
 
+                    // ── IME preedit capture ─────────────────────────────
+                    // egui's `TextEdit` consumes IME events internally for
+                    // its own rendering, but we also mirror them into
+                    // `self.editor_ime_preedit` so the overlay below can
+                    // surface the in-progress conversion at the cursor —
+                    // the README listed this as v0.4 work-in-progress
+                    // alongside the terminal-side equivalent.
+                    ui.input(|i| {
+                        for ev in &i.events {
+                            if let egui::Event::Ime(ime) = ev {
+                                match ime {
+                                    egui::ImeEvent::Preedit(s) => {
+                                        self.editor_ime_preedit = s.clone();
+                                    }
+                                    egui::ImeEvent::Commit(_)
+                                    | egui::ImeEvent::Enabled
+                                    | egui::ImeEvent::Disabled => {
+                                        self.editor_ime_preedit.clear();
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // ── IME preedit overlay ─────────────────────────────
+                    // Render the preedit string near the focused cursor
+                    // when IME is mid-conversion. We draw it as a small
+                    // floating area pinned to `output.galley_pos +
+                    // cursor_pixel_pos` so it tracks the caret regardless
+                    // of scroll position. Falls back to the TextEdit's
+                    // top-left if the cursor rect is unavailable.
+                    if !self.editor_ime_preedit.is_empty() && output.response.has_focus() {
+                        let caret_pos = output
+                            .cursor_range
+                            .map(|cr| {
+                                let cursor = output.galley.pos_from_cursor(cr.primary);
+                                output.galley_pos
+                                    + cursor.min.to_vec2()
+                                    + egui::vec2(0.0, cursor.height())
+                            })
+                            .unwrap_or_else(|| output.response.rect.left_top());
+                        egui::Area::new(egui::Id::new("editor_ime_preedit_overlay"))
+                            .order(egui::Order::Tooltip)
+                            .fixed_pos(caret_pos)
+                            .interactable(false)
+                            .show(ui.ctx(), |ui| {
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgb(50, 52, 60))
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_rgb(99, 122, 168),
+                                    ))
+                                    .corner_radius(egui::CornerRadius::same(2))
+                                    .inner_margin(egui::Margin::symmetric(4, 2))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(&self.editor_ime_preedit)
+                                                .font(egui::FontId::monospace(13.0))
+                                                .color(egui::Color32::from_rgb(220, 220, 220))
+                                                .underline(),
+                                        );
+                                    });
+                            });
+                    }
+
                     // Auto-close brackets: only when the user *typed* a
                     // bracket this frame. Checking `response.changed()` alone
                     // also fires for undo / programmatic edits, which used

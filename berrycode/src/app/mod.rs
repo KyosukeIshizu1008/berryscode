@@ -213,6 +213,10 @@ pub struct BerryCodeApp {
     pub(crate) editor_tabs: Vec<EditorTab>,
     pub(crate) active_tab_idx: usize,
     pub(crate) syntax_highlighter: SyntaxHighlighter, // Regex-based highlighter
+    /// In-progress IME preedit string for the source code editor. Populated
+    /// from `egui::Event::Ime(ImeEvent::Preedit(_))` and rendered as an
+    /// overlay near the cursor; cleared on Commit/Disabled.
+    pub(crate) editor_ime_preedit: String,
 
     // === File Tree State ===
     pub(crate) file_tree_cache: Vec<DirEntry>, // Cached directory tree
@@ -1304,6 +1308,7 @@ impl BerryCodeApp {
             },
             active_tab_idx: 0,
             syntax_highlighter: SyntaxHighlighter::new(),
+            editor_ime_preedit: String::new(),
             file_tree_cache: Vec::new(),
             file_tree_load_pending: true,
             expanded_dirs: {
