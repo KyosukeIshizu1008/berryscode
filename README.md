@@ -196,10 +196,10 @@ The arc:
 **v1.0** = team-scale IDE.
 
 #### v0.4 — Editor polish (target: 2026 Q3)
-- [ ] GPU PBR preview for GLB/GLTF models ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
+- [~] GPU PBR preview for GLB/GLTF models ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1) — closed wontfix; the CPU `asset_browser` preview already covers the user-visible path with skinning + animation playback)
 - [x] In-progress IME preedit display in source code editor
 - [x] LSP: completion details (signature help, parameter hints)
-- [ ] Scene Editor: prefab nested overrides ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10))
+- [ ] Scene Editor: prefab nested overrides ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10) — carryover to v0.4.x)
 - [x] Settings UI for keybindings and theme
 
 #### v0.4.5 — AI integration (target: 2026 Q4 / mid)
@@ -227,6 +227,7 @@ The arc:
 - [ ] **3-way merge**: apply edits cleanly when the buffer has been modified since the agent read it
 - [ ] **Bevy doc RAG**: auto-attach the relevant Bevy 0.18 docs / examples to chat prompts (in-process); agent runs already see the project source tree directly through `--add-dir`
 - [ ] **ECS-aware completion**: typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
+- [ ] **Release-blocking end-to-end verification with real provider tokens** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11) — Anthropic / OpenAI / Ollama chat round-trip, Cmd+L focus, cost panel cache rows, Agent mode Approve / Reject; tag + .dmg + GitHub Release blocked on this)
 
 Positioning: the first AI assistant that *understands* Bevy, not just Rust — backed by the same agent tooling expert Rust developers already trust.
 
@@ -256,10 +257,22 @@ Positioning: the first AI assistant that *understands* Bevy, not just Rust — b
 > engineers, and archviz studios already produce as first-class Bevy
 > assets — no Blender / Unreal detour required.
 
-- [ ] **Native CAD importers**: DWG / DXF / IFC (BIM) / STEP / IGES / SketchUp `.skp`, plus a Revit → IFC bridge
-- [ ] **Auto-prep for real-time rendering**: Z-up → Y-up, mm → m, LOD synthesis, UV unwrap, layer-name → PBR material inference (`Wall` → masonry, `Glass` → transmissive, `Floor` → tiled, …)
-- [ ] **Walkable scene scaffolding**: collision auto-generation, first-person walkthrough template, day/night lighting presets, door / elevator interaction defaults
-- [ ] **Targets**: architecture firms shipping client demos, real-estate viz, BIM-driven digital twins, Quest / Vision Pro VR walkthroughs
+**Shipped (Phases A–D, v0.7.0)**
+
+- [x] **DXF importer** — LINE / LWPOLYLINE / POLYLINE / 3DFACE / CIRCLE / ARC; curves tessellated at 32 segments; routed through the file tree, asset browser, drag-drop, and thumbnail cache
+- [x] **Auto-prep**: `$INSUNITS` → metres scale factor, Z-up → Y-up axis swap, layer-name → PBR colour with English + Japanese vocabulary (`Wall` / 壁, `Glass` / 窓, `Floor` / 床, `Door` / ドア, `Roof` / 屋根, `Ceiling` / 天井, `Stair` / 階段, `Furniture` / 家具)
+- [x] **Walkable Architecture project template** — FPS controller (WASD + mouse + jump + sprint), `AutoCollider { min, max }` AABB component with axis-independent collision so the player slides along walls, three-phase day / dusk / night cycle (T key) driving sun colour + intensity + sky `ClearColor` + ambient brightness in one pass
+- [x] **IFC importer (MVP)** — STEP-21 line scanner extracting `IFCCARTESIANPOINT` records and `IFCPOLYLINE` / `IFCPOLYLOOP` references; auto-prep applied; falls back to a sparse point cloud when no polylines are present so a malformed file still shows something
+
+**Deferred to v0.7.x**
+
+- [ ] Remaining CAD importers: DWG, STEP, IGES, SketchUp `.skp`, plus the Revit → IFC bridge (each one ships behind its own feature flag once the parser story is sorted)
+- [ ] `IFCEXTRUDEDAREASOLID` / `IFCFACETEDBREP` / swept-area tessellation — most IFC geometry actually lives in these; covering them is CAD-kernel-grade work
+- [ ] IFC entity-type → material inference (`IFCWALL` / `IFCSLAB` / `IFCWINDOW` / `IFCDOOR` walked via `IFCRELAGGREGATES` / `IFCRELDEFINESBYTYPE`) so every edge gets the right Phase B colour instead of the default `Wall` grey
+- [ ] IFC unit detection from `IFCSIUNIT`; `.ifczip` (zipped) and `.ifcXML` (XML) container variants
+- [ ] LOD synthesis + UV unwrap from the original auto-prep list — they need real surfaces to chew on, so they land with the IFC brep importer above
+- [ ] Door / elevator interaction defaults — pre-supposes the IFC entity-type story so the runtime trigger model can attach to the right elements
+- [ ] **Targets**: architecture firms shipping client demos, real-estate viz, BIM-driven digital twins, Quest / Vision Pro VR walkthroughs (pending the deferred importers + IFC geometry above; v0.7.0 covers wireframe preview but not yet "client demo quality")
 
 Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Datasmith.
 
