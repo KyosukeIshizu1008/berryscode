@@ -257,7 +257,7 @@ Positioning: the first AI assistant that *understands* Bevy, not just Rust — b
 > engineers, and archviz studios already produce as first-class Bevy
 > assets — no Blender / Unreal detour required.
 
-**Shipped (Phases A–D, v0.7.0)**
+**Shipped (Phases A–D, v0.7.0-alpha)**
 
 - [x] **DXF importer** — LINE / LWPOLYLINE / POLYLINE / 3DFACE / CIRCLE / ARC; curves tessellated at 32 segments; routed through the file tree, asset browser, drag-drop, and thumbnail cache
 - [x] **Auto-prep**: `$INSUNITS` → metres scale factor, Z-up → Y-up axis swap, layer-name → PBR colour with English + Japanese vocabulary (`Wall` / 壁, `Glass` / 窓, `Floor` / 床, `Door` / ドア, `Roof` / 屋根, `Ceiling` / 天井, `Stair` / 階段, `Furniture` / 家具)
@@ -272,7 +272,7 @@ Positioning: the first AI assistant that *understands* Bevy, not just Rust — b
 - [ ] IFC unit detection from `IFCSIUNIT`; `.ifczip` (zipped) and `.ifcXML` (XML) container variants
 - [ ] LOD synthesis + UV unwrap from the original auto-prep list — they need real surfaces to chew on, so they land with the IFC brep importer above
 - [ ] Door / elevator interaction defaults — pre-supposes the IFC entity-type story so the runtime trigger model can attach to the right elements
-- [ ] **Targets**: architecture firms shipping client demos, real-estate viz, BIM-driven digital twins, Quest / Vision Pro VR walkthroughs (pending the deferred importers + IFC geometry above; v0.7.0 covers wireframe preview but not yet "client demo quality")
+- [ ] **Targets**: architecture firms shipping client demos, real-estate viz, BIM-driven digital twins, Quest / Vision Pro VR walkthroughs (pending the deferred importers + IFC geometry above; v0.7.0-alpha covers wireframe preview but not yet "client demo quality")
 
 Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Datasmith.
 
@@ -556,10 +556,10 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 **v1.0** = チーム規模で使える IDE
 
 #### v0.4 — エディタの磨き込み (目標: 2026 Q3)
-- [ ] GLB/GLTF モデルの GPU PBR プレビュー ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
+- [~] GLB/GLTF モデルの GPU PBR プレビュー ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1) — wontfix でクローズ。`asset_browser` の CPU プレビューがスキニング + アニメ再生付きでユーザ可視パスをカバー済みのため)
 - [x] ソースコードエディタでの IME preedit 表示
 - [x] LSP: 補完詳細（シグネチャヘルプ、パラメータヒント）
-- [ ] シーンエディタ: プレハブのネストオーバーライド ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10))
+- [ ] シーンエディタ: プレハブのネストオーバーライド ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10) — v0.4.x 持ち越し)
 - [x] キーバインド・テーマの設定 UI
 
 #### v0.4.5 — AI 統合 (目標: 2026 Q4 / 中盤)
@@ -586,6 +586,7 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 - [ ] **3-way merge**: エージェントが読んだ後にバッファが変更されていてもクリーンに適用
 - [ ] **Bevy ドキュメント RAG**: チャットに Bevy 0.18 のドキュメント・例を自動添付(プロセス内)。エージェント実行は `--add-dir` 経由でプロジェクトソースを直接読める
 - [ ] **ECS 対応補完**: `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
+- [ ] **リリースブロッカー: 実プロバイダ鍵での E2E 検証** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11) — Anthropic / OpenAI / Ollama でチャット往復、Cmd+L フォーカス、Cost パネルのキャッシュ行、Agent モードの Approve / Reject。タグ + .dmg + GitHub Release はこの検証完了待ち)
 
 ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。 — 経験豊富な Rust 開発者が既に信頼しているエージェントツールが裏で走ります。
 
@@ -615,10 +616,22 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 > 作っているデータをそのまま Bevy のアセットとして扱う —
 > Blender や Unreal を経由する必要なし。
 
-- [ ] **CAD ネイティブインポート**: DWG / DXF / IFC (BIM) / STEP / IGES / SketchUp `.skp`、Revit → IFC ブリッジ
-- [ ] **リアルタイムレンダリング向け自動最適化**: Z-up → Y-up、mm → m、LOD 合成、UV アンラップ、レイヤー名から PBR マテリアル自動推定 (`Wall` → 石造、`Glass` → 透過、`Floor` → タイル、…)
-- [ ] **ウォークスルーテンプレート**: コリジョン自動生成、ファーストパーソン視点、昼夜ライティングプリセット、ドア・エレベーターのインタラクション defaults
-- [ ] **ターゲット**: クライアント向けデモを作る建築事務所、不動産 viz、BIM 駆動のデジタルツイン、Quest / Vision Pro 向け VR ウォークスルー
+**リリース済み (Phase A〜D、v0.7.0-alpha)**
+
+- [x] **DXF インポータ** — LINE / LWPOLYLINE / POLYLINE / 3DFACE / CIRCLE / ARC、曲線は 32 セグメントでテッセレート。ファイルツリー / アセットブラウザ / ドラッグ&ドロップ / サムネイルキャッシュまで配線済み
+- [x] **自動最適化**: `$INSUNITS` → メートル換算、Z-up → Y-up 軸変換、レイヤ名 → PBR 色推論 (英 + 日語語彙: `Wall` / 壁、`Glass` / 窓、`Floor` / 床、`Door` / ドア、`Roof` / 屋根、`Ceiling` / 天井、`Stair` / 階段、`Furniture` / 家具)
+- [x] **Walkable Architecture プロジェクトテンプレート** — FPS コントローラ (WASD + マウス + ジャンプ + スプリント)、`AutoCollider { min, max }` AABB コンポーネント (軸独立衝突で壁スライド可)、3 段階の昼/夕/夜サイクル (T キー、太陽の色 + 強度 + 空 `ClearColor` + 環境光を一括で切替)
+- [x] **IFC インポータ (MVP)** — STEP-21 行スキャンで `IFCCARTESIANPOINT` と `IFCPOLYLINE` / `IFCPOLYLOOP` を抽出、自動最適化適用、ポリラインが無いファイルは点群フォールバックで「全くの空」を回避
+
+**v0.7.x 持ち越し**
+
+- [ ] 残り CAD インポータ: DWG、STEP、IGES、SketchUp `.skp`、Revit → IFC ブリッジ (パーサ事情がそれぞれ違うのでフィーチャーフラグ別出し)
+- [ ] `IFCEXTRUDEDAREASOLID` / `IFCFACETEDBREP` / 掃引曲面のテッセレート — **実際の BIM ソフトが吐く IFC の幾何のほとんどはここに乗っている**。CAD カーネル相当の実装が必要
+- [ ] IFC エンティティタイプ → マテリアル推論 (`IFCWALL` / `IFCSLAB` / `IFCWINDOW` / `IFCDOOR` を `IFCRELAGGREGATES` / `IFCRELDEFINESBYTYPE` で辿る) — 現状は全エッジが既定の `Wall` グレー
+- [ ] IFC `IFCSIUNIT` ベースの単位検出、`.ifczip` (zip 圧縮) と `.ifcXML` (XML 形式) の対応
+- [ ] LOD 合成 + UV アンラップ — 元の自動最適化リストから持ち越し。実サーフェスが必要なので IFC brep インポータと一緒に着地
+- [ ] ドア / エレベーター インタラクション defaults — IFC のエンティティタイプ認識が前提なのでそれ待ち
+- [ ] **ターゲット**: クライアント向けデモを作る建築事務所、不動産 viz、BIM 駆動のデジタルツイン、Quest / Vision Pro 向け VR ウォークスルー (上記の残り CAD + IFC 幾何が前提。v0.7.0-alpha はワイヤフレームプレビューまで、まだ「クライアントデモ品質」には届かない)
 
 ポジショニング: Twinmotion / Enscape / Datasmith のオープンソース Bevy 版。
 
