@@ -26,7 +26,7 @@ impl BerryCodeApp {
                         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                             let is_asset_ext = matches!(
                                 ext,
-                                "png" | "jpg" | "jpeg" | "glb" | "gltf" | "dxf" | "wav" | "ogg" | "mp3"
+                                "png" | "jpg" | "jpeg" | "glb" | "gltf" | "dxf" | "ifc" | "wav" | "ogg" | "mp3"
                             );
                             let in_assets_dir = path.to_string_lossy().contains("/assets/");
                             if is_asset_ext && in_assets_dir {
@@ -2061,7 +2061,7 @@ impl BerryCodeApp {
                     // === thumbnail_cache.rs ===
                     {
                         use crate::app::scene_editor::thumbnail_cache::ThumbnailCache;
-                        let model_exts = ["glb", "gltf", "obj", "stl", "ply", "dxf"];
+                        let model_exts = ["glb", "gltf", "obj", "stl", "ply", "dxf", "ifc"];
                         let image_exts = ["png", "jpg", "jpeg", "gif", "webp", "bmp"];
                         let non_supported = ["rs", "toml", "txt"];
                         for e in model_exts {

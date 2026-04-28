@@ -262,8 +262,52 @@ fn layer_name_to_color(layer: &str) -> [u8; 4] {
     }
 }
 
+/// Parse `IFCCARTESIANPOINT((x,y,z))` (or the 2D form `((x,y))` —
+/// returns Z=0). Tolerates whitespace and the `IFCCARTESIANPOINT(...)`
+/// prefix being upper- or mixed-case (we lower-case the body before
+/// dispatch). Returns `None` on any malformed record.
+fn parse_ifc_cartesian_point(body: &str) -> Option<[f64; 3]> {
+    // Find the inner `((...))` payload.
+    let open = body.find("((")?;
+    let close = body.rfind("))")?;
+    if close <= open + 2 {
+        return None;
+    }
+    let nums: Vec<f64> = body[open + 2..close]
+        .split(',')
+        .filter_map(|s| s.trim().parse::<f64>().ok())
+        .collect();
+    match nums.len() {
+        2 => Some([nums[0], nums[1], 0.0]),
+        3 => Some([nums[0], nums[1], nums[2]]),
+        _ => None,
+    }
+}
+
+/// Parse the entity-reference list inside `IFCPOLYLINE((#1,#2,#3))` or
+/// `IFCPOLYLOOP((#1,#2,#3))`. Returns the bare numeric ids.
+fn parse_ifc_ref_list(body: &str) -> Option<Vec<u32>> {
+    let open = body.find("((")?;
+    let close = body.rfind("))")?;
+    if close <= open + 2 {
+        return None;
+    }
+    let refs: Vec<u32> = body[open + 2..close]
+        .split(',')
+        .filter_map(|s| {
+            let s = s.trim();
+            s.strip_prefix('#').and_then(|n| n.trim().parse().ok())
+        })
+        .collect();
+    if refs.is_empty() {
+        None
+    } else {
+        Some(refs)
+    }
+}
+
 impl BerryCodeApp {
-    /// Load and parse a 3D model file (GLTF/GLB, OBJ, STL, PLY, DXF)
+    /// Load and parse a 3D model file (GLTF/GLB, OBJ, STL, PLY, DXF, IFC)
     pub(crate) fn load_model_data(file_path: &str) -> Option<ModelPreviewData> {
         let ext = file_path.rsplit('.').next()?.to_lowercase();
         match ext.as_str() {
@@ -272,6 +316,7 @@ impl BerryCodeApp {
             "stl" => Self::load_stl(file_path),
             "ply" => Self::load_ply(file_path),
             "dxf" => Self::load_dxf(file_path),
+            "ifc" => Self::load_ifc(file_path),
             _ => None,
         }
     }
@@ -1387,6 +1432,159 @@ impl BerryCodeApp {
         })
     }
 
+    /// Load and parse an IFC file (Industry Foundation Classes — STEP-21
+    /// text encoding) at MVP fidelity: pull `IFCCARTESIANPOINT` records
+    /// into an `id → (x,y,z)` table, then walk `IFCPOLYLINE` /
+    /// `IFCPOLYLOOP` records and emit one edge per consecutive pair.
+    ///
+    /// What this does NOT do (deferred to v0.7.x patches):
+    /// - `IFCEXTRUDEDAREASOLID` / swept-area / brep tessellation —
+    ///   covering these means a CAD-kernel-grade implementation.
+    /// - `.ifczip` (zipped IFC) and `.ifcXML` (XML-encoded). Plain `.ifc`
+    ///   STEP-21 only.
+    /// - Per-element layer / material inference. The IFC entity hierarchy
+    ///   (`IFCWALL`, `IFCSLAB`, `IFCDOOR`, …) is reachable via
+    ///   `IFCRELAGGREGATES` / `IFCRELDEFINESBYTYPE` walks; for now every
+    ///   edge gets the default Wall colour.
+    ///
+    /// Phase B auto-prep is applied to every emitted vertex (units from
+    /// the file header default to metres for IFC; Z-up → Y-up swap).
+    /// Most architectural / civil IFC exports already author in metres,
+    /// so the default scale is correct in practice.
+    fn load_ifc(file_path: &str) -> Option<ModelPreviewData> {
+        use std::collections::HashMap;
+
+        let text = std::fs::read_to_string(file_path).ok()?;
+        // STEP-21 entity records can span multiple lines and end in `;`.
+        // Normalise to a single line per record before scanning.
+        let normalised = text.replace('\n', " ").replace('\r', " ");
+
+        // Extract every #N=IFCCARTESIANPOINT((x,y,z)); into a map.
+        // We tolerate optional whitespace and the 2D variant ((x,y)) by
+        // defaulting Z to 0.
+        let mut points: HashMap<u32, [f64; 3]> = HashMap::new();
+        let mut polylines: Vec<Vec<u32>> = Vec::new();
+
+        for record in normalised.split(';') {
+            let r = record.trim();
+            if r.is_empty() {
+                continue;
+            }
+            if !r.starts_with('#') {
+                continue;
+            }
+            let eq_idx = match r.find('=') {
+                Some(i) => i,
+                None => continue,
+            };
+            let id: u32 = r[1..eq_idx].trim().parse().ok()?;
+            let body = r[eq_idx + 1..].trim();
+            let body_upper = body.to_uppercase();
+
+            if body_upper.starts_with("IFCCARTESIANPOINT") {
+                if let Some(p) = parse_ifc_cartesian_point(body) {
+                    points.insert(id, p);
+                }
+            } else if body_upper.starts_with("IFCPOLYLINE")
+                || body_upper.starts_with("IFCPOLYLOOP")
+            {
+                if let Some(refs) = parse_ifc_ref_list(body) {
+                    polylines.push(refs);
+                }
+            }
+        }
+
+        if points.is_empty() {
+            return None;
+        }
+
+        let scale: f32 = 1.0; // IFC defaults to metres; per-file unit
+                               // detection lives in v0.7.x.
+        let wall_color = layer_name_to_color("Wall");
+
+        let mut vertices: Vec<[f32; 3]> = Vec::new();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        let mut edge_colors: Vec<[u8; 4]> = Vec::new();
+        let mut bounds_min = [f32::MAX; 3];
+        let mut bounds_max = [f32::MIN; 3];
+
+        // Z-up → Y-up swap (matches Phase B for DXF).
+        let transform = |p: [f64; 3]| -> [f32; 3] {
+            let xs = (p[0] as f32) * scale;
+            let ys = (p[1] as f32) * scale;
+            let zs = (p[2] as f32) * scale;
+            [xs, zs, -ys]
+        };
+
+        // Each polyline becomes a sequence of edges. Build a fresh
+        // vertex set per-polyline so a shared IFCCARTESIANPOINT can
+        // appear at multiple positions in the output (the alternative —
+        // sharing vertex indices — would require a id-→-index map and
+        // doesn't materially help wireframe rendering).
+        for poly in &polylines {
+            let mut poly_idxs: Vec<usize> = Vec::with_capacity(poly.len());
+            for pid in poly {
+                let Some(p) = points.get(pid) else { continue };
+                let v = transform(*p);
+                for j in 0..3 {
+                    bounds_min[j] = bounds_min[j].min(v[j]);
+                    bounds_max[j] = bounds_max[j].max(v[j]);
+                }
+                vertices.push(v);
+                poly_idxs.push(vertices.len() - 1);
+            }
+            for win in poly_idxs.windows(2) {
+                edges.push((win[0], win[1]));
+                edge_colors.push(wall_color);
+            }
+        }
+
+        if vertices.is_empty() {
+            // No polylines — fall back to scattering the cartesian
+            // points as isolated vertices so the user at least sees
+            // *something* (a sparse point cloud) instead of a blank
+            // panel saying "Cannot load 3D model".
+            for (_id, p) in &points {
+                let v = transform(*p);
+                for j in 0..3 {
+                    bounds_min[j] = bounds_min[j].min(v[j]);
+                    bounds_max[j] = bounds_max[j].max(v[j]);
+                }
+                vertices.push(v);
+            }
+        }
+
+        if vertices.is_empty() {
+            return None;
+        }
+
+        debug_assert_eq!(edges.len(), edge_colors.len());
+
+        Some(ModelPreviewData {
+            meshes: vec![MeshInfo {
+                name: "IFC".to_string(),
+                vertex_count: vertices.len(),
+                triangle_count: 0,
+            }],
+            materials_count: 0,
+            animations_count: 0,
+            nodes_count: 1,
+            vertices,
+            edges,
+            triangles: vec![],
+            bounds_min,
+            bounds_max,
+            splats: Vec::new(),
+            skin_vertices: vec![],
+            joint_node_indices: vec![],
+            inverse_bind_matrices: vec![],
+            node_parents: vec![],
+            node_transforms: vec![],
+            anim_clips: vec![],
+            edge_colors,
+        })
+    }
+
     /// Render 3D model preview
     pub(crate) fn render_model_preview(&mut self, ui: &mut egui::Ui) {
         let tab = &mut self.editor_tabs[self.active_tab_idx];
@@ -1952,6 +2150,77 @@ mod tests {
             data.edges.len(),
             "edge_colors should be parallel to edges"
         );
+    }
+
+    #[test]
+    fn parse_ifc_cartesian_point_3d_and_2d() {
+        // 3D form
+        let p = parse_ifc_cartesian_point("IFCCARTESIANPOINT((1.5,2.5,3.5))").unwrap();
+        assert_eq!(p, [1.5, 2.5, 3.5]);
+        // 2D form should default Z to 0
+        let p2 = parse_ifc_cartesian_point("IFCCARTESIANPOINT((4.0,5.0))").unwrap();
+        assert_eq!(p2, [4.0, 5.0, 0.0]);
+        // Whitespace tolerance
+        let p3 = parse_ifc_cartesian_point("IFCCARTESIANPOINT(( 7.0 , 8.0 , 9.0 ))").unwrap();
+        assert_eq!(p3, [7.0, 8.0, 9.0]);
+        // Garbage rejected
+        assert!(parse_ifc_cartesian_point("IFCCARTESIANPOINT(())").is_none());
+        assert!(parse_ifc_cartesian_point("IFCCARTESIANPOINT((1.0))").is_none());
+    }
+
+    #[test]
+    fn parse_ifc_ref_list_extracts_ids() {
+        let refs = parse_ifc_ref_list("IFCPOLYLINE((#10,#11,#12))").unwrap();
+        assert_eq!(refs, vec![10, 11, 12]);
+        // Polyloop syntax (same shape)
+        let refs2 = parse_ifc_ref_list("IFCPOLYLOOP((#1,#2,#3,#4))").unwrap();
+        assert_eq!(refs2, vec![1, 2, 3, 4]);
+        // Empty refused
+        assert!(parse_ifc_ref_list("IFCPOLYLINE(())").is_none());
+    }
+
+    #[test]
+    fn load_ifc_parses_sample_box() {
+        let path = "/Users/Kyosuke/Test6/assets/sample.ifc";
+        if !std::path::Path::new(path).exists() {
+            eprintln!("skipping: sample.ifc not present at {}", path);
+            return;
+        }
+        let data = BerryCodeApp::load_model_data(path)
+            .expect("load_model_data returned None for IFC");
+
+        // 6 polylines: 2 closed rectangles (5 points each → 4 edges)
+        // and 4 vertical lines (2 points each → 1 edge each).
+        // Total: 4+4+4 = 12 edges.
+        assert_eq!(data.edges.len(), 12, "expected 12 edges from sample IFC box");
+
+        // After Z-up → Y-up swap on the 10×6×3 box:
+        //   X stays 0..10
+        //   Y comes from original Z: 0..3
+        //   Z comes from -original Y: -6..0
+        assert!(
+            data.bounds_min[0] <= 0.0 && data.bounds_max[0] >= 10.0,
+            "X bounds: {}..{}",
+            data.bounds_min[0],
+            data.bounds_max[0]
+        );
+        assert!(
+            data.bounds_min[1] >= -0.01 && data.bounds_max[1] >= 3.0,
+            "Y bounds: {}..{}",
+            data.bounds_min[1],
+            data.bounds_max[1]
+        );
+        assert!(
+            data.bounds_min[2] <= -6.0 && data.bounds_max[2] >= 0.0,
+            "Z bounds: {}..{}",
+            data.bounds_min[2],
+            data.bounds_max[2]
+        );
+
+        // Phase B contract: edge_colors parallel to edges.
+        assert_eq!(data.edge_colors.len(), data.edges.len());
+        // No triangles for IFC MVP.
+        assert!(data.triangles.is_empty());
     }
 
     #[test]
