@@ -180,29 +180,72 @@ impl BerryCodeApp {
                                                 super::types::AIChatMode::Autonomous;
                                         }
                                         if agent {
-                                            let installed = crate::agent::CodingAgent::check_installed(
-                                                &crate::agent::claude::ClaudeCodeAgent::new(),
-                                            );
+                                            // Backend picker. Both
+                                            // CLIs share `CodingAgent`,
+                                            // so picking just swaps the
+                                            // box at run time.
+                                            let claude_installed =
+                                                crate::agent::CodingAgent::check_installed(
+                                                    &crate::agent::claude::ClaudeCodeAgent::new(),
+                                                );
+                                            let codex_installed =
+                                                crate::agent::CodingAgent::check_installed(
+                                                    &crate::agent::codex::CodexAgent::new(),
+                                                );
+                                            let mut backend =
+                                                self.ai_settings.agent_backend.clone();
+                                            egui::ComboBox::from_id_salt("agent_backend_picker")
+                                                .selected_text(match backend.as_str() {
+                                                    "codex" => "Codex",
+                                                    _ => "Claude Code",
+                                                })
+                                                .show_ui(ui, |ui| {
+                                                    ui.selectable_value(
+                                                        &mut backend,
+                                                        "claude".to_string(),
+                                                        "Claude Code",
+                                                    );
+                                                    ui.selectable_value(
+                                                        &mut backend,
+                                                        "codex".to_string(),
+                                                        "Codex",
+                                                    );
+                                                });
+                                            if backend != self.ai_settings.agent_backend {
+                                                self.ai_settings.agent_backend = backend.clone();
+                                                self.ai_settings.save();
+                                            }
+                                            // Inline install hint for
+                                            // the currently-selected
+                                            // backend so the user knows
+                                            // up front whether sending
+                                            // will work.
+                                            let (installed, install_hint) =
+                                                match backend.as_str() {
+                                                    "codex" => (
+                                                        codex_installed,
+                                                        "codex not on PATH — `npm i -g @openai/codex` or `brew install --cask codex`",
+                                                    ),
+                                                    _ => (
+                                                        claude_installed,
+                                                        "claude not on PATH — `npm i -g @anthropic-ai/claude-code`",
+                                                    ),
+                                                };
                                             match installed {
                                                 Some(v) => {
                                                     ui.label(
-                                                        egui::RichText::new(format!(
-                                                            "Claude Code {}",
-                                                            v
-                                                        ))
-                                                        .size(11.0)
-                                                        .color(TEXT_DIM),
+                                                        egui::RichText::new(v)
+                                                            .size(11.0)
+                                                            .color(TEXT_DIM),
                                                     );
                                                 }
                                                 None => {
                                                     ui.label(
-                                                        egui::RichText::new(
-                                                            "claude not on PATH — install to use Agent mode",
-                                                        )
-                                                        .size(11.0)
-                                                        .color(egui::Color32::from_rgb(
-                                                            220, 120, 120,
-                                                        )),
+                                                        egui::RichText::new(install_hint)
+                                                            .size(11.0)
+                                                            .color(egui::Color32::from_rgb(
+                                                                220, 120, 120,
+                                                            )),
                                                     );
                                                 }
                                             }
@@ -874,18 +917,26 @@ impl BerryCodeApp {
         let tx = self.ai_response_tx.clone();
         let cwd = std::path::PathBuf::from(self.root_path.clone());
 
-        // Pull the model + budget from the same BYOK settings the chat
-        // path uses. We currently hard-code Claude Code as the backend;
-        // a follow-up will let the user pick Claude vs Codex per-task.
+        // Pull model + budget from BYOK settings; pick the agent
+        // backend off `agent_backend` ("claude" / "codex").
         let model = Some(self.ai_settings.chat_model.clone());
         let max_budget = if self.ai_settings.monthly_cap_usd > 0.0 {
             Some(self.ai_settings.monthly_cap_usd)
         } else {
             None
         };
+        let backend = self.ai_settings.agent_backend.clone();
+        let provider_kind_for_usage = if backend == "codex" {
+            crate::ai::ProviderKind::OpenAi
+        } else {
+            crate::ai::ProviderKind::Anthropic
+        };
 
         self.lsp_runtime.spawn(async move {
-            let agent = crate::agent::claude::ClaudeCodeAgent::new();
+            let agent: Box<dyn crate::agent::CodingAgent> = match backend.as_str() {
+                "codex" => Box::new(crate::agent::codex::CodexAgent::new()),
+                _ => Box::new(crate::agent::claude::ClaudeCodeAgent::new()),
+            };
             let opts = crate::agent::AgentRunOpts {
                 model,
                 max_budget_usd: max_budget,
@@ -898,22 +949,21 @@ impl BerryCodeApp {
                 ),
             };
 
-            let mut session =
-                match crate::agent::CodingAgent::run(&agent, &message, &cwd, opts).await {
-                    Ok(s) => s,
-                    Err(e) => {
-                        if let Some(tx) = &tx {
-                            let _ = tx.send(AiChatResponse::ChatChunk(format!(
-                                "⚠️ Agent failed to start: {}\n\
+            let mut session = match agent.run(&message, &cwd, opts).await {
+                Ok(s) => s,
+                Err(e) => {
+                    if let Some(tx) = &tx {
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!(
+                            "⚠️ Agent failed to start: {}\n\
                                  Install Claude Code with `brew install anthropic/claude/claude` \
                                  or `npm install -g @anthropic-ai/claude-code` and re-run.",
-                                e
-                            )));
-                            let _ = tx.send(AiChatResponse::ChatStreamCompleted);
-                        }
-                        return;
+                            e
+                        )));
+                        let _ = tx.send(AiChatResponse::ChatStreamCompleted);
                     }
-                };
+                    return;
+                }
+            };
 
             // Keep the whole session alive across the recv loop so its
             // `Drop` impl can kill the child if we abort early.
@@ -940,11 +990,11 @@ impl BerryCodeApp {
                     }
                     crate::agent::AgentEvent::Done { success, usage } => {
                         if let Some(usage) = usage {
-                            crate::ai::usage::record(
-                                crate::ai::ProviderKind::Anthropic,
-                                "claude-code-agent",
-                                &usage,
-                            );
+                            let model_label = match provider_kind_for_usage {
+                                crate::ai::ProviderKind::OpenAi => "codex-agent",
+                                _ => "claude-code-agent",
+                            };
+                            crate::ai::usage::record(provider_kind_for_usage, model_label, &usage);
                         }
                         if !success {
                             let _ = tx.send(AiChatResponse::ChatChunk(

@@ -34,6 +34,20 @@ pub struct AiSettings {
     /// `#[serde(default)]` keeps existing `ai.json` files loadable.
     #[serde(default)]
     pub monthly_cap_usd: f32,
+
+    /// Which external coding-agent CLI to drive when the chat panel
+    /// is in Autonomous (🤖 Agent) mode. Stored as a short string
+    /// (`"claude"` or `"codex"`) instead of an enum so this field
+    /// doesn't pull `crate::agent` types into the AI settings layer.
+    /// The chat-side BYOK provider above is independent — users can
+    /// chat with Anthropic API keys directly and still pick Codex
+    /// for agent runs.
+    #[serde(default = "default_agent_backend")]
+    pub agent_backend: String,
+}
+
+fn default_agent_backend() -> String {
+    "claude".to_string()
 }
 
 impl Default for AiSettings {
@@ -48,6 +62,7 @@ impl Default for AiSettings {
             completion_model: "claude-haiku-4-5".to_string(),
             enabled: true,
             monthly_cap_usd: 0.0,
+            agent_backend: default_agent_backend(),
         }
     }
 }
