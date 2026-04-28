@@ -22,6 +22,12 @@ pub mod native;
 // ===== AI providers (BYOK direct API clients) =====
 pub mod ai;
 
+// ===== Coding agents (subprocess wrappers around Codex CLI / Claude Code) =====
+// Provides Agent mode, Apply diff, and tool-calling capabilities by
+// shelling out to mature external CLIs rather than reimplementing the
+// agent loop in Rust. v0.4.5 / Phase 4.
+pub mod agent;
+
 // ===== Common Utilities =====
 pub mod common;
 pub mod focus_stack;
