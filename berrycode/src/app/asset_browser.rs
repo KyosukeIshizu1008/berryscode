@@ -893,14 +893,24 @@ impl BerryCodeApp {
                     painter.add(egui::Shape::mesh(mesh));
                 }
             } else {
-                // Fallback: wireframe only
-                let edge_color = egui::Color32::from_rgb(100, 180, 255);
-                for &(a, b) in &data.edges {
+                // Fallback: wireframe only.
+                // Per-edge colours are populated by importers that have
+                // semantic info (currently DXF: layer-name → PBR colour).
+                // Otherwise fall back to a uniform light-blue.
+                let default_edge = egui::Color32::from_rgb(100, 180, 255);
+                let use_per_edge = data.edge_colors.len() == data.edges.len();
+                for (i, &(a, b)) in data.edges.iter().enumerate() {
                     if a < skinned_verts.len() && b < skinned_verts.len() {
                         let (p1, _) = project_3d(&skinned_verts[a]);
                         let (p2, _) = project_3d(&skinned_verts[b]);
                         if rect.contains(p1) || rect.contains(p2) {
-                            painter.line_segment([p1, p2], egui::Stroke::new(1.0, edge_color));
+                            let color = if use_per_edge {
+                                let c = data.edge_colors[i];
+                                egui::Color32::from_rgba_premultiplied(c[0], c[1], c[2], c[3])
+                            } else {
+                                default_edge
+                            };
+                            painter.line_segment([p1, p2], egui::Stroke::new(1.0, color));
                         }
                     }
                 }

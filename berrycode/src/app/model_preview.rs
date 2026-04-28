@@ -72,6 +72,12 @@ pub struct ModelPreviewData {
     pub node_parents: Vec<Option<usize>>,
     pub node_transforms: Vec<[[f32; 4]; 4]>,
     pub anim_clips: Vec<AnimClip>,
+    /// Optional per-edge RGBA colour. When non-empty, must be the same
+    /// length as `edges` — the renderer uses `edge_colors[i]` for
+    /// `edges[i]`. When empty, the renderer falls back to a default
+    /// wireframe colour. Populated by importers that have semantic
+    /// information per edge (currently DXF: layer-name → PBR material).
+    pub edge_colors: Vec<[u8; 4]>,
 }
 
 #[derive(Clone)]
@@ -195,6 +201,65 @@ fn draw_ellipse(
         color,
         egui::Stroke::NONE,
     ));
+}
+
+/// Convert a DXF `$INSUNITS` header value to a metres scale factor.
+/// Files without a recognised unit (the common case for AutoCAD plan
+/// exports authored in mm but with `$INSUNITS = 0`) fall back to a 1:1
+/// scale. Phase B treats the parsed file as authoritative — the user can
+/// always re-author the source if the resulting model is the wrong size.
+fn dxf_unit_scale_to_meters(header: &dxf::Header) -> f32 {
+    use dxf::enums::Units;
+    match header.default_drawing_units {
+        Units::Inches => 0.0254,
+        Units::Feet => 0.3048,
+        Units::Miles => 1609.344,
+        Units::Millimeters => 0.001,
+        Units::Centimeters => 0.01,
+        Units::Meters => 1.0,
+        Units::Kilometers => 1000.0,
+        Units::Yards => 0.9144,
+        Units::Decimeters => 0.1,
+        Units::Decameters => 10.0,
+        Units::Hectometers => 100.0,
+        Units::Microns => 1e-6,
+        Units::Nanometers => 1e-9,
+        // `Unitless`, `Microinches`, `Mils`, astronomical scales, … all
+        // fall through to 1.0. Astronomical units are theoretically
+        // representable but never showed up in real architecture exports.
+        _ => 1.0,
+    }
+}
+
+/// Heuristic layer-name → PBR base-colour mapping used by the DXF
+/// importer to give the wireframe / triangulated preview semantic
+/// distinction. Matches lower-cased substrings against an
+/// English / Japanese vocabulary common to architectural DXF exports.
+/// Returns `[r, g, b, a]` with `a = 255` (opaque) — except for `Glass`
+/// which uses `a = 200` to hint at transmission for downstream
+/// rendering, even though the current CPU rasteriser treats colours as
+/// opaque.
+fn layer_name_to_color(layer: &str) -> [u8; 4] {
+    let l = layer.to_lowercase();
+    if l.contains("wall") || layer.contains('壁') {
+        [180, 170, 160, 255] // masonry / drywall beige
+    } else if l.contains("glass") || l.contains("window") || layer.contains('窓') {
+        [120, 200, 230, 200] // transmissive cyan
+    } else if l.contains("floor") || l.contains("ground") || layer.contains('床') {
+        [150, 120, 90, 255] // wood-tone floor
+    } else if l.contains("door") || layer.contains("ドア") {
+        [140, 90, 50, 255] // door brown
+    } else if l.contains("roof") || layer.contains("屋根") {
+        [180, 80, 60, 255] // roof red
+    } else if l.contains("ceil") || layer.contains("天井") {
+        [220, 220, 215, 255] // ceiling off-white
+    } else if l.contains("stair") || layer.contains("階段") {
+        [160, 140, 110, 255] // stair tan
+    } else if l.contains("furn") || layer.contains("家具") {
+        [200, 160, 130, 255] // furniture light wood
+    } else {
+        [200, 200, 210, 255] // default cool grey
+    }
 }
 
 impl BerryCodeApp {
@@ -497,6 +562,7 @@ impl BerryCodeApp {
             node_parents,
             node_transforms,
             anim_clips,
+            edge_colors: vec![],
         })
     }
 
@@ -566,6 +632,7 @@ impl BerryCodeApp {
             node_parents: vec![],
             node_transforms: vec![],
             anim_clips: vec![],
+            edge_colors: vec![],
         })
     }
 
@@ -668,6 +735,7 @@ impl BerryCodeApp {
             node_parents: vec![],
             node_transforms: vec![],
             anim_clips: vec![],
+            edge_colors: vec![],
         })
     }
 
@@ -983,6 +1051,7 @@ impl BerryCodeApp {
                 node_parents: vec![],
                 node_transforms: vec![],
                 anim_clips: vec![],
+            edge_colors: vec![],
             })
         } else {
             // Standard PLY (non-Gaussian Splatting)
@@ -1088,25 +1157,50 @@ impl BerryCodeApp {
                 node_parents: vec![],
                 node_transforms: vec![],
                 anim_clips: vec![],
+            edge_colors: vec![],
             })
         }
     }
 
     /// Load and parse a DXF file (CAD interchange format).
     ///
-    /// Phase A scope: LINE, LWPOLYLINE, POLYLINE, 3DFACE, CIRCLE, ARC.
-    /// Curves (CIRCLE / ARC) are tessellated into 32 segments. Output is a
-    /// wireframe edge list — most architecture / civil DXFs are 2D plan
-    /// views, so triangulating closed polylines is left to a later phase.
-    /// 3DFACE entities do contribute one triangle (or two for quads).
+    /// Supports LINE, LWPOLYLINE, POLYLINE, 3DFACE, CIRCLE, ARC. Curves are
+    /// tessellated at 32 segments. 3DFACE quads split into two triangles
+    /// (degenerate quads collapse to one). 3DSOLID, INSERT, SPLINE, TEXT
+    /// are silently skipped.
+    ///
+    /// Phase B auto-prep applied to every loaded vertex:
+    /// 1. **Units → meters** via `$INSUNITS` (mm, cm, m, in, ft, …). Files
+    ///    without an INSUNITS header default to a 1:1 scale.
+    /// 2. **Z-up → Y-up** axis swap (`(x,y,z)` → `(x, z, -y)`). Standard
+    ///    DXF convention is Z-up; Bevy is Y-up. Plan-view exports collapse
+    ///    onto Y=0 (the ground plane), elevation rises in +Y.
+    /// 3. **Layer-name → PBR colour** inference. `Wall*` / `Glass*` /
+    ///    `Floor*` / `Door*` / `Roof*` / `Ceiling*` (and the Japanese
+    ///    equivalents `壁` / `窓` / `床` / `ドア` / `屋根` / `天井`) get
+    ///    distinct base colours; everything else falls back to light grey.
+    ///    Colours land on `triangles[i].color` and the parallel
+    ///    `edge_colors[i]` array so the wireframe renderer can pick them up.
     fn load_dxf(file_path: &str) -> Option<ModelPreviewData> {
         let drawing = dxf::Drawing::load_file(file_path).ok()?;
 
+        let scale = dxf_unit_scale_to_meters(&drawing.header);
+
         let mut vertices: Vec<[f32; 3]> = Vec::new();
         let mut edges: Vec<(usize, usize)> = Vec::new();
+        let mut edge_colors: Vec<[u8; 4]> = Vec::new();
         let mut triangles: Vec<TriFace> = Vec::new();
         let mut bounds_min = [f32::MAX; 3];
         let mut bounds_max = [f32::MIN; 3];
+
+        // Apply Phase B auto-prep transform: scale to meters, then swap
+        // Z-up to Y-up (`(x,y,z)` → `(x*s, z*s, -y*s)`).
+        let transform = |x: f64, y: f64, z: f64| -> [f32; 3] {
+            let xs = (x as f32) * scale;
+            let ys = (y as f32) * scale;
+            let zs = (z as f32) * scale;
+            [xs, zs, -ys]
+        };
 
         let push_vertex =
             |v: [f32; 3], vs: &mut Vec<[f32; 3]>, bmin: &mut [f32; 3], bmax: &mut [f32; 3]| {
@@ -1119,27 +1213,43 @@ impl BerryCodeApp {
             };
 
         const ARC_SEGMENTS: usize = 32;
-        let face_color = [220u8, 220u8, 220u8, 255u8];
 
         for entity in drawing.entities() {
             use dxf::entities::EntityType;
+            let layer_color = layer_name_to_color(&entity.common.layer);
+
+            // Helper closure for entity types that emit a chain of edges.
+            // `idxs` is the vertex-index list, `closed` adds the wrap-around.
+            let push_chain =
+                |idxs: &[usize], closed: bool, edges: &mut Vec<_>, edge_colors: &mut Vec<_>| {
+                    for win in idxs.windows(2) {
+                        edges.push((win[0], win[1]));
+                        edge_colors.push(layer_color);
+                    }
+                    if closed && idxs.len() >= 3 {
+                        edges.push((*idxs.last().unwrap(), idxs[0]));
+                        edge_colors.push(layer_color);
+                    }
+                };
+
             match &entity.specific {
                 EntityType::Line(line) => {
-                    let a = [line.p1.x as f32, line.p1.y as f32, line.p1.z as f32];
-                    let b = [line.p2.x as f32, line.p2.y as f32, line.p2.z as f32];
+                    let a = transform(line.p1.x, line.p1.y, line.p1.z);
+                    let b = transform(line.p2.x, line.p2.y, line.p2.z);
                     let i0 = push_vertex(a, &mut vertices, &mut bounds_min, &mut bounds_max);
                     let i1 = push_vertex(b, &mut vertices, &mut bounds_min, &mut bounds_max);
                     edges.push((i0, i1));
+                    edge_colors.push(layer_color);
                 }
                 EntityType::LwPolyline(poly) => {
-                    let mut idxs: Vec<usize> = Vec::with_capacity(poly.vertices.len());
                     // LWPOLYLINE is 2D by spec — Z is implicit (use 0). The
                     // entity-level "elevation" lives on the common `Entity`
-                    // record in some DXF dialects, but is omitted in the
+                    // record in some DXF dialects but is omitted in the
                     // ixmilia/dxf-rust 0.5 API; treating these as flat is
                     // correct for typical architecture/civil plan exports.
+                    let mut idxs: Vec<usize> = Vec::with_capacity(poly.vertices.len());
                     for v in &poly.vertices {
-                        let p = [v.x as f32, v.y as f32, 0.0];
+                        let p = transform(v.x, v.y, 0.0);
                         idxs.push(push_vertex(
                             p,
                             &mut vertices,
@@ -1147,21 +1257,13 @@ impl BerryCodeApp {
                             &mut bounds_max,
                         ));
                     }
-                    for win in idxs.windows(2) {
-                        edges.push((win[0], win[1]));
-                    }
-                    // Bit-1 of `flags` = closed polyline
-                    if (poly.flags & 1) != 0 && idxs.len() >= 3 {
-                        edges.push((*idxs.last().unwrap(), idxs[0]));
-                    }
+                    let closed = (poly.flags & 1) != 0;
+                    push_chain(&idxs, closed, &mut edges, &mut edge_colors);
                 }
                 EntityType::Polyline(poly) => {
-                    let pts: Vec<[f32; 3]> = poly
-                        .vertices()
-                        .map(|v| [v.location.x as f32, v.location.y as f32, v.location.z as f32])
-                        .collect();
-                    let mut idxs: Vec<usize> = Vec::with_capacity(pts.len());
-                    for p in pts {
+                    let mut idxs: Vec<usize> = Vec::new();
+                    for v in poly.vertices() {
+                        let p = transform(v.location.x, v.location.y, v.location.z);
                         idxs.push(push_vertex(
                             p,
                             &mut vertices,
@@ -1169,105 +1271,83 @@ impl BerryCodeApp {
                             &mut bounds_max,
                         ));
                     }
-                    for win in idxs.windows(2) {
-                        edges.push((win[0], win[1]));
-                    }
-                    if poly.get_is_closed() && idxs.len() >= 3 {
-                        edges.push((*idxs.last().unwrap(), idxs[0]));
-                    }
+                    let closed = poly.get_is_closed();
+                    push_chain(&idxs, closed, &mut edges, &mut edge_colors);
                 }
                 EntityType::Face3D(f) => {
-                    let p0 = [
-                        f.first_corner.x as f32,
-                        f.first_corner.y as f32,
-                        f.first_corner.z as f32,
-                    ];
-                    let p1 = [
-                        f.second_corner.x as f32,
-                        f.second_corner.y as f32,
-                        f.second_corner.z as f32,
-                    ];
-                    let p2 = [
-                        f.third_corner.x as f32,
-                        f.third_corner.y as f32,
-                        f.third_corner.z as f32,
-                    ];
-                    let p3 = [
-                        f.fourth_corner.x as f32,
-                        f.fourth_corner.y as f32,
-                        f.fourth_corner.z as f32,
-                    ];
+                    let p0 = transform(f.first_corner.x, f.first_corner.y, f.first_corner.z);
+                    let p1 = transform(f.second_corner.x, f.second_corner.y, f.second_corner.z);
+                    let p2 = transform(f.third_corner.x, f.third_corner.y, f.third_corner.z);
+                    let p3 = transform(f.fourth_corner.x, f.fourth_corner.y, f.fourth_corner.z);
                     let i0 = push_vertex(p0, &mut vertices, &mut bounds_min, &mut bounds_max);
                     let i1 = push_vertex(p1, &mut vertices, &mut bounds_min, &mut bounds_max);
                     let i2 = push_vertex(p2, &mut vertices, &mut bounds_min, &mut bounds_max);
                     edges.push((i0, i1));
                     edges.push((i1, i2));
+                    edge_colors.push(layer_color);
+                    edge_colors.push(layer_color);
                     triangles.push(TriFace {
                         idx: [i0, i1, i2],
-                        color: face_color,
+                        color: layer_color,
                     });
                     // DXF degenerate quads collapse the fourth corner onto the third.
                     if p3 != p2 {
-                        let i3 = push_vertex(p3, &mut vertices, &mut bounds_min, &mut bounds_max);
+                        let i3 =
+                            push_vertex(p3, &mut vertices, &mut bounds_min, &mut bounds_max);
                         edges.push((i2, i3));
                         edges.push((i3, i0));
+                        edge_colors.push(layer_color);
+                        edge_colors.push(layer_color);
                         triangles.push(TriFace {
                             idx: [i0, i2, i3],
-                            color: face_color,
+                            color: layer_color,
                         });
                     } else {
                         edges.push((i2, i0));
+                        edge_colors.push(layer_color);
                     }
                 }
                 EntityType::Circle(c) => {
-                    let cx = c.center.x as f32;
-                    let cy = c.center.y as f32;
-                    let cz = c.center.z as f32;
-                    let r = c.radius as f32;
-                    let mut prev_idx: Option<usize> = None;
-                    let mut first_idx: Option<usize> = None;
+                    let mut idxs: Vec<usize> = Vec::with_capacity(ARC_SEGMENTS);
                     for i in 0..ARC_SEGMENTS {
-                        let t = (i as f32 / ARC_SEGMENTS as f32) * std::f32::consts::TAU;
-                        let p = [cx + r * t.cos(), cy + r * t.sin(), cz];
-                        let idx =
-                            push_vertex(p, &mut vertices, &mut bounds_min, &mut bounds_max);
-                        if let Some(prev) = prev_idx {
-                            edges.push((prev, idx));
-                        } else {
-                            first_idx = Some(idx);
-                        }
-                        prev_idx = Some(idx);
+                        let t = (i as f64 / ARC_SEGMENTS as f64) * std::f64::consts::TAU;
+                        let lx = c.center.x + c.radius * t.cos();
+                        let ly = c.center.y + c.radius * t.sin();
+                        let p = transform(lx, ly, c.center.z);
+                        idxs.push(push_vertex(
+                            p,
+                            &mut vertices,
+                            &mut bounds_min,
+                            &mut bounds_max,
+                        ));
                     }
-                    if let (Some(prev), Some(first)) = (prev_idx, first_idx) {
-                        edges.push((prev, first));
-                    }
+                    push_chain(&idxs, true, &mut edges, &mut edge_colors);
                 }
                 EntityType::Arc(a) => {
-                    let cx = a.center.x as f32;
-                    let cy = a.center.y as f32;
-                    let cz = a.center.z as f32;
-                    let r = a.radius as f32;
-                    // DXF angles are degrees; sweep counter-clockwise from start to end.
-                    let s = (a.start_angle as f32).to_radians();
-                    let mut e = (a.end_angle as f32).to_radians();
+                    // DXF angles are degrees; sweep counter-clockwise.
+                    let s = a.start_angle.to_radians();
+                    let mut e = a.end_angle.to_radians();
                     if e < s {
-                        e += std::f32::consts::TAU;
+                        e += std::f64::consts::TAU;
                     }
-                    let mut prev_idx: Option<usize> = None;
+                    let mut idxs: Vec<usize> = Vec::with_capacity(ARC_SEGMENTS + 1);
                     for i in 0..=ARC_SEGMENTS {
-                        let t = s + (e - s) * (i as f32 / ARC_SEGMENTS as f32);
-                        let p = [cx + r * t.cos(), cy + r * t.sin(), cz];
-                        let idx =
-                            push_vertex(p, &mut vertices, &mut bounds_min, &mut bounds_max);
-                        if let Some(prev) = prev_idx {
-                            edges.push((prev, idx));
-                        }
-                        prev_idx = Some(idx);
+                        let t = s + (e - s) * (i as f64 / ARC_SEGMENTS as f64);
+                        let lx = a.center.x + a.radius * t.cos();
+                        let ly = a.center.y + a.radius * t.sin();
+                        let p = transform(lx, ly, a.center.z);
+                        idxs.push(push_vertex(
+                            p,
+                            &mut vertices,
+                            &mut bounds_min,
+                            &mut bounds_max,
+                        ));
                     }
+                    push_chain(&idxs, false, &mut edges, &mut edge_colors);
                 }
                 _ => {
                     // Unsupported entity types (3DSOLID, INSERT, SPLINE, TEXT, …)
-                    // are silently skipped in Phase A.
+                    // are silently skipped.
                 }
             }
         }
@@ -1275,6 +1355,9 @@ impl BerryCodeApp {
         if vertices.is_empty() {
             return None;
         }
+
+        // Sanity check — every edge must have a colour entry.
+        debug_assert_eq!(edges.len(), edge_colors.len());
 
         let triangle_count = triangles.len();
         let vertex_count = vertices.len();
@@ -1300,6 +1383,7 @@ impl BerryCodeApp {
             node_parents: vec![],
             node_transforms: vec![],
             anim_clips: vec![],
+            edge_colors,
         })
     }
 
@@ -1698,8 +1782,12 @@ impl BerryCodeApp {
                         );
                     }
 
-                    // Draw edges (limit for performance)
-                    let edge_color = egui::Color32::from_rgb(100, 180, 255);
+                    // Draw edges (limit for performance).
+                    // Importers with semantic info (DXF layer-name → colour)
+                    // populate `data.edge_colors`; otherwise fall back to
+                    // uniform light-blue.
+                    let default_edge_color = egui::Color32::from_rgb(100, 180, 255);
+                    let use_per_edge = data.edge_colors.len() == data.edges.len();
                     let max_edges = 50000;
                     let step = if data.edges.len() > max_edges {
                         data.edges.len() / max_edges
@@ -1717,7 +1805,13 @@ impl BerryCodeApp {
 
                             // Clip to rect
                             if rect.contains(p0) || rect.contains(p1) {
-                                painter.line_segment([p0, p1], egui::Stroke::new(0.5, edge_color));
+                                let color = if use_per_edge {
+                                    let c = data.edge_colors[idx];
+                                    egui::Color32::from_rgba_premultiplied(c[0], c[1], c[2], c[3])
+                                } else {
+                                    default_edge_color
+                                };
+                                painter.line_segment([p0, p1], egui::Stroke::new(0.5, color));
                             }
                         }
                     }
@@ -1830,8 +1924,49 @@ mod tests {
             2,
             "3DFACE should yield 2 triangles (split quad)"
         );
-        // Bounds should bracket the rectangle (0,0)–(10,6).
+
+        // After Phase B auto-prep:
+        //   * sample.dxf has no $INSUNITS → scale = 1.0
+        //   * Z-up → Y-up swap: (x,y,z) → (x, z, -y)
+        //   * Original X stays;
+        //     original Y (0..6) → world Z (0..-6);
+        //     original Z (0..1, only the 3DFACE) → world Y (0..1).
         assert!(data.bounds_min[0] <= 0.0 && data.bounds_max[0] >= 10.0);
-        assert!(data.bounds_min[1] <= 0.0 && data.bounds_max[1] >= 6.0);
+        assert!(
+            data.bounds_min[1] >= -0.01 && data.bounds_max[1] >= 1.0,
+            "expected Y bounds 0..1 after axis swap, got {}..{}",
+            data.bounds_min[1],
+            data.bounds_max[1]
+        );
+        assert!(
+            data.bounds_min[2] <= -6.0 && data.bounds_max[2] >= 0.0,
+            "expected Z bounds -6..0 after axis swap, got {}..{}",
+            data.bounds_min[2],
+            data.bounds_max[2]
+        );
+
+        // edge_colors must be populated 1:1 with edges (Phase B
+        // contract for the DXF importer).
+        assert_eq!(
+            data.edge_colors.len(),
+            data.edges.len(),
+            "edge_colors should be parallel to edges"
+        );
+    }
+
+    #[test]
+    fn layer_name_to_color_inference() {
+        // English vocabulary
+        assert_ne!(layer_name_to_color("Wall-Exterior"), [200, 200, 210, 255]);
+        assert_ne!(layer_name_to_color("GLASS-WINDOW"), [200, 200, 210, 255]);
+        assert_ne!(layer_name_to_color("Floor-Slab-1"), [200, 200, 210, 255]);
+        // Japanese vocabulary
+        assert_ne!(layer_name_to_color("外壁"), [200, 200, 210, 255]);
+        assert_ne!(layer_name_to_color("ガラス窓"), [200, 200, 210, 255]);
+        // Default fallback
+        assert_eq!(layer_name_to_color("0"), [200, 200, 210, 255]);
+        assert_eq!(layer_name_to_color("Random-Layer"), [200, 200, 210, 255]);
+        // Glass should be semi-transparent (alpha < 255) per Phase B contract
+        assert!(layer_name_to_color("Glass-Curtain")[3] < 255);
     }
 }
