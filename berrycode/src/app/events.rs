@@ -1061,6 +1061,7 @@ impl BerryCodeApp {
                         stage: "Update".into(),
                         position: [100.0, 100.0],
                         dependencies: vec![],
+                        order: 0,
                     });
                     // Test code scanning
                     let scanned =

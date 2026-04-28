@@ -171,14 +171,133 @@ impl AssetImportSettings {
                     ))
                 }
             }
-            AssetImportSettings::Model { .. } => {
-                Ok("Model import settings noted (processing deferred)".to_string())
-            }
+            AssetImportSettings::Model {
+                scale_factor,
+                flip_uvs: _,
+                import_materials: _,
+            } => process_model(asset_path, *scale_factor),
             AssetImportSettings::Audio { .. } => {
                 Ok("Audio import settings noted (processing deferred)".to_string())
             }
             AssetImportSettings::Unknown => Ok("No processing needed".to_string()),
         }
+    }
+}
+
+/// Validate-and-stat for OBJ / STL / PLY / glTF / glb files. Returns a
+/// human-readable summary (vertex / triangle / submesh counts, bounds
+/// scaled by the import setting's `scale_factor`) so the caller can
+/// surface it in a status bar or asset inspector.
+///
+/// Format coverage:
+/// - **OBJ** uses the project's existing `tobj` dependency.
+/// - **STL / PLY / glTF / glb** delegate to the loader the model
+///   preview already uses, keeping format support in one place.
+///
+/// Conversion (e.g. OBJ → glb) is a future expansion point — the
+/// pipeline trait below is the seam to bolt that onto without
+/// touching this function.
+fn process_model(asset_path: &str, scale_factor: f32) -> Result<String, String> {
+    let ext = asset_path.rsplit('.').next().unwrap_or("").to_lowercase();
+
+    match ext.as_str() {
+        "obj" => {
+            let load_options = tobj::LoadOptions {
+                triangulate: true,
+                single_index: true,
+                ignore_lines: true,
+                ignore_points: true,
+            };
+            let (models, _materials) = tobj::load_obj(asset_path, &load_options)
+                .map_err(|e| format!("Failed to load OBJ: {e}"))?;
+
+            let mut total_vertices = 0u32;
+            let mut total_triangles = 0u32;
+            let (mut min_xyz, mut max_xyz) = ([f32::MAX; 3], [f32::MIN; 3]);
+
+            for m in &models {
+                total_vertices += (m.mesh.positions.len() / 3) as u32;
+                total_triangles += (m.mesh.indices.len() / 3) as u32;
+                for chunk in m.mesh.positions.chunks_exact(3) {
+                    for i in 0..3 {
+                        if chunk[i] < min_xyz[i] {
+                            min_xyz[i] = chunk[i];
+                        }
+                        if chunk[i] > max_xyz[i] {
+                            max_xyz[i] = chunk[i];
+                        }
+                    }
+                }
+            }
+
+            // Scaled bounds match what Bevy will see after the import
+            // applies `scale_factor` — useful for spotting models that
+            // are 100× too big without opening the scene editor.
+            let bounds = if total_vertices > 0 {
+                let dx = (max_xyz[0] - min_xyz[0]) * scale_factor;
+                let dy = (max_xyz[1] - min_xyz[1]) * scale_factor;
+                let dz = (max_xyz[2] - min_xyz[2]) * scale_factor;
+                format!("{:.2} × {:.2} × {:.2}", dx, dy, dz)
+            } else {
+                "(empty mesh)".to_string()
+            };
+
+            Ok(format!(
+                "OBJ: {} sub-mesh(es), {} verts, {} tris, bounds {}",
+                models.len(),
+                total_vertices,
+                total_triangles,
+                bounds
+            ))
+        }
+        "stl" | "ply" | "glb" | "gltf" => {
+            // Stat using the same loader the wireframe preview uses
+            // so we always agree on the numbers between import-stat
+            // and model-preview rendering.
+            let data = crate::app::BerryCodeApp::load_model_data(asset_path)
+                .ok_or_else(|| format!("Failed to load {ext} model"))?;
+            let dx = (data.bounds_max[0] - data.bounds_min[0]) * scale_factor;
+            let dy = (data.bounds_max[1] - data.bounds_min[1]) * scale_factor;
+            let dz = (data.bounds_max[2] - data.bounds_min[2]) * scale_factor;
+            Ok(format!(
+                "{}: {} mesh(es), {} verts, {} tris, bounds {:.2} × {:.2} × {:.2}",
+                ext.to_uppercase(),
+                data.meshes.len(),
+                data.vertices.len(),
+                data.triangles.len(),
+                dx,
+                dy,
+                dz
+            ))
+        }
+        other => Err(format!(
+            "Unsupported model format: .{other} (supported: obj, stl, ply, gltf, glb)"
+        )),
+    }
+}
+
+/// Trait for plugin-style asset converters. Crates that want to ship
+/// custom format support (FBX, USD, custom voxel, …) implement this
+/// and register their impl with [`AssetImportRegistry`]. Kept minimal
+/// for now — the pipeline only knows about validation and conversion;
+/// re-encoding (e.g. OBJ → glb) is a follow-up.
+///
+/// `dead_code` allowed because v0.5 ships the trait + scan/process
+/// path; the actual third-party registrations land alongside the
+/// asset-import-pipeline polish in v0.6.
+#[allow(dead_code)]
+pub trait AssetConverter: Send + Sync {
+    /// Lower-case extensions this converter recognises.
+    fn extensions(&self) -> &[&str];
+    /// Quick validate / stat pass — analogous to [`process_model`]
+    /// but for arbitrary formats. Returns a human-readable summary.
+    fn validate(&self, asset_path: &str) -> Result<String, String>;
+    /// Convert the asset to a Bevy-friendly format (e.g. glb).
+    /// `output_path` is where the converted file should be written.
+    /// Default impl returns an error so converters opt in to the
+    /// conversion side without being forced to implement it.
+    fn convert(&self, _asset_path: &str, _output_path: &str) -> Result<(), String> {
+        Err("conversion not implemented for this converter".to_string())
     }
 }
 

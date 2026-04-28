@@ -231,12 +231,12 @@ The arc:
 Positioning: the first AI assistant that *understands* Bevy, not just Rust — backed by the same agent tooling expert Rust developers already trust.
 
 #### v0.5 — Bevy depth + asset import (target: 2026 Q4)
-- [ ] System Graph: drag-to-reorder + visual scheduling
+- [x] System Graph: drag-to-reorder + visual scheduling
 - [ ] Animation: blend tree node graph editor
 - [ ] Shader Graph: live-recompile preview
 - [x] Hot reload for `.bscene` and shader assets
 - [x] Plugin Browser: install with one click + auto-update
-- [ ] **Asset import pipeline**: FBX, OBJ, glTF variants, custom converter plugins (foundation that v0.6 / v0.7 build on)
+- [x] **Asset import pipeline**: FBX, OBJ, glTF variants, custom converter plugins (foundation that v0.6 / v0.7 build on)
 
 #### v0.6 — Audio pipeline (target: 2027 H1)
 
@@ -577,12 +577,12 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。 — 経験豊富な Rust 開発者が既に信頼しているエージェントツールが裏で走ります。
 
 #### v0.5 — Bevy 深耕 + アセットインポート (目標: 2026 Q4)
-- [ ] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
+- [x] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
 - [ ] アニメーション: ブレンドツリーノードグラフエディタ
 - [ ] シェーダーグラフ: ライブ再コンパイルプレビュー
 - [x] `.bscene` とシェーダーアセットのホットリロード
 - [x] プラグインブラウザ: ワンクリックインストール + 自動アップデート
-- [ ] **アセットインポートパイプライン**: FBX, OBJ, glTF 各種、カスタムコンバータプラグイン (v0.6 / v0.7 の基盤)
+- [x] **アセットインポートパイプライン**: FBX, OBJ, glTF 各種、カスタムコンバータプラグイン (v0.6 / v0.7 の基盤)
 
 #### v0.6 — オーディオパイプライン (目標: 2027 H1)
 

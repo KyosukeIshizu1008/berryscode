@@ -19,6 +19,11 @@ pub struct SystemNode {
     pub position: [f32; 2],
     /// Names of systems this system depends on (runs after them).
     pub dependencies: Vec<String>,
+    /// Manual ordering index within the system's `stage`. Lower runs
+    /// first. Mirrored into `.before()` chains when codegen exports
+    /// the schedule. v0.5 / drag-to-reorder.
+    #[serde(default)]
+    pub order: u32,
 }
 
 impl Default for SystemNode {
@@ -28,6 +33,7 @@ impl Default for SystemNode {
             stage: "Update".into(),
             position: [100.0, 100.0],
             dependencies: Vec::new(),
+            order: 0,
         }
     }
 }
@@ -36,6 +42,25 @@ impl Default for SystemNode {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SystemGraph {
     pub systems: Vec<SystemNode>,
+}
+
+/// Which view of the system graph the window currently shows. Persisted
+/// implicitly through `BerryCodeApp::system_graph_view`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemGraphView {
+    /// Free-form DAG canvas with `.before()` / `.after()` arrows.
+    Dag,
+    /// Per-stage ordered list with drag-to-reorder rows. The list
+    /// translates the explicit `order` field on each node into
+    /// vertical position, so this view is the simplest answer to
+    /// "which system runs first in Update?". v0.5.
+    List,
+}
+
+impl Default for SystemGraphView {
+    fn default() -> Self {
+        Self::Dag
+    }
 }
 
 /// Scan source code text for `add_systems(Schedule, system_fn)` patterns.
@@ -101,6 +126,19 @@ impl BerryCodeApp {
             .default_size([700.0, 500.0])
             .resizable(true)
             .show(ctx, |ui| {
+                // View toggle (v0.5: DAG canvas vs ordered list)
+                ui.horizontal(|ui| {
+                    let dag = self.system_graph_view == SystemGraphView::Dag;
+                    let list = self.system_graph_view == SystemGraphView::List;
+                    if ui.selectable_label(dag, "Graph").clicked() {
+                        self.system_graph_view = SystemGraphView::Dag;
+                    }
+                    if ui.selectable_label(list, "List").clicked() {
+                        self.system_graph_view = SystemGraphView::List;
+                    }
+                });
+                ui.separator();
+
                 // Toolbar
                 ui.horizontal(|ui| {
                     if ui.button("+ System").clicked() {
@@ -113,6 +151,7 @@ impl BerryCodeApp {
                                 100.0 + (count as f32 / 4.0).floor() * 80.0,
                             ],
                             dependencies: Vec::new(),
+                            order: count as u32,
                         });
                     }
                     if ui.button("Scan Code").clicked() {
@@ -139,6 +178,17 @@ impl BerryCodeApp {
                 });
 
                 ui.separator();
+
+                // ── List view: per-stage drag-to-reorder rows ──
+                // v0.5 — answers "which system runs first inside
+                // Update?" without making the user trace arrows on
+                // the canvas. The drag uses an explicit "↑ / ↓"
+                // pair instead of an HTML5-style drag handle so the
+                // intent is unambiguous in egui.
+                if self.system_graph_view == SystemGraphView::List {
+                    self.render_system_list(ui);
+                    return;
+                }
 
                 // Canvas area
                 let (response, painter) = ui.allocate_painter(
@@ -229,6 +279,107 @@ impl BerryCodeApp {
         self.system_graph_open = open;
     }
 
+    /// Render the per-stage ordered list view. Each stage gets its own
+    /// header; rows under the stage are drawn in execution order
+    /// (sorted by `SystemNode::order`) with ↑ / ↓ buttons to swap with
+    /// the previous / next sibling. Sibling-swap is what produces the
+    /// drag-to-reorder behaviour for v0.5; a true mouse-drag handle
+    /// can layer on later without changing the data model.
+    fn render_system_list(&mut self, ui: &mut egui::Ui) {
+        // Group system *indices* (not clones) per stage so we can
+        // mutate `self.system_graph.systems[i].order` directly when
+        // the user clicks ↑ / ↓.
+        let mut by_stage: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, sys) in self.system_graph.systems.iter().enumerate() {
+            by_stage.entry(sys.stage.clone()).or_default().push(i);
+        }
+        for indices in by_stage.values_mut() {
+            indices.sort_by_key(|&i| self.system_graph.systems[i].order);
+        }
+
+        // Pending swap so we don't mutate `self.system_graph.systems`
+        // mid-iteration (rust borrow checker).
+        let mut swap: Option<(usize, usize)> = None;
+
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for (stage, indices) in &by_stage {
+                ui.add_space(6.0);
+                let color = stage_color(stage);
+                ui.horizontal(|ui| {
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, 2.0, color);
+                    ui.label(egui::RichText::new(stage).strong().size(13.0));
+                    ui.label(
+                        egui::RichText::new(format!("({} systems)", indices.len()))
+                            .size(11.0)
+                            .color(egui::Color32::from_gray(150)),
+                    );
+                });
+
+                for (row_idx, &sys_idx) in indices.iter().enumerate() {
+                    let sys = &self.system_graph.systems[sys_idx];
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_rgb(34, 36, 42))
+                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 64, 72)))
+                        .corner_radius(egui::CornerRadius::same(4))
+                        .inner_margin(egui::Margin::same(6))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(format!("{}.", row_idx + 1))
+                                        .color(egui::Color32::from_gray(120))
+                                        .monospace(),
+                                );
+                                ui.label(egui::RichText::new(&sys.name).monospace().strong());
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        let last = row_idx + 1 == indices.len();
+                                        let first = row_idx == 0;
+                                        // Buttons appear in screen
+                                        // order ↑ then ↓ thanks to
+                                        // right-to-left placement
+                                        // (last placed = leftmost).
+                                        if ui.add_enabled(!last, egui::Button::new("↓")).clicked()
+                                        {
+                                            swap = Some((sys_idx, indices[row_idx + 1]));
+                                        }
+                                        if ui.add_enabled(!first, egui::Button::new("↑")).clicked()
+                                        {
+                                            swap = Some((sys_idx, indices[row_idx - 1]));
+                                        }
+                                    },
+                                );
+                            });
+                        });
+                }
+            }
+            if self.system_graph.systems.is_empty() {
+                ui.add_space(40.0);
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        egui::RichText::new(
+                            "No systems yet — click \"Scan Code\" or \"+ System\" above.",
+                        )
+                        .color(egui::Color32::from_gray(150)),
+                    );
+                });
+            }
+        });
+
+        if let Some((a, b)) = swap {
+            // Swap the `order` field — doing it via the explicit
+            // index keeps `Vec<SystemNode>` insertion order untouched
+            // (which the codegen output relies on for diff stability).
+            let order_a = self.system_graph.systems[a].order;
+            let order_b = self.system_graph.systems[b].order;
+            self.system_graph.systems[a].order = order_b;
+            self.system_graph.systems[b].order = order_a;
+        }
+    }
+
     /// Scan the project for add_systems calls and populate the system graph.
     fn scan_systems_from_project(&mut self) {
         let root = self.root_path.clone();
@@ -262,6 +413,7 @@ impl BerryCodeApp {
                         60.0 + (count as f32 / 4.0).floor() * 70.0,
                     ],
                     dependencies: Vec::new(),
+                    order: count as u32,
                 });
                 count += 1;
             }
@@ -310,12 +462,14 @@ mod tests {
                     stage: "Update".into(),
                     position: [100.0, 200.0],
                     dependencies: vec![],
+                    order: 0,
                 },
                 SystemNode {
                     name: "collision".into(),
                     stage: "Update".into(),
                     position: [300.0, 200.0],
                     dependencies: vec!["movement".into()],
+                    order: 1,
                 },
             ],
         };

@@ -691,6 +691,9 @@ pub struct BerryCodeApp {
     // === Bevy System Graph ===
     pub(crate) system_graph_open: bool,
     pub(crate) system_graph: scene_editor::system_graph::SystemGraph,
+    /// Currently active view in the System Graph window. Toggled by
+    /// the Dag / List buttons in the toolbar. v0.5 / drag-to-reorder.
+    pub(crate) system_graph_view: scene_editor::system_graph::SystemGraphView,
 
     // === Bevy Event Monitor ===
     pub(crate) event_monitor_open: bool,
@@ -1765,6 +1768,7 @@ impl BerryCodeApp {
 
             system_graph_open: false,
             system_graph: scene_editor::system_graph::SystemGraph::default(),
+            system_graph_view: scene_editor::system_graph::SystemGraphView::default(),
 
             event_monitor_open: false,
             event_log: Vec::new(),
