@@ -8,6 +8,7 @@ pub enum ProjectTemplate {
     Empty2D,
     Empty3D,
     Walker3D,
+    WalkableArchitecture,
     Plugin,
 }
 
@@ -16,6 +17,7 @@ impl ProjectTemplate {
         ProjectTemplate::Empty2D,
         ProjectTemplate::Empty3D,
         ProjectTemplate::Walker3D,
+        ProjectTemplate::WalkableArchitecture,
         ProjectTemplate::Plugin,
     ];
 
@@ -24,6 +26,7 @@ impl ProjectTemplate {
             ProjectTemplate::Empty2D => "Empty 2D",
             ProjectTemplate::Empty3D => "Empty 3D",
             ProjectTemplate::Walker3D => "3D Walker (FPS controller)",
+            ProjectTemplate::WalkableArchitecture => "Walkable Architecture (FPS + colliders + day/night)",
             ProjectTemplate::Plugin => "Plugin",
         }
     }
@@ -33,6 +36,9 @@ impl ProjectTemplate {
             ProjectTemplate::Empty2D => "Minimal 2D project with Camera2d",
             ProjectTemplate::Empty3D => "Minimal 3D project with Camera3d, light and a cube",
             ProjectTemplate::Walker3D => "First-person walker in a 3D world (WASD + mouse look)",
+            ProjectTemplate::WalkableArchitecture => {
+                "FPS walkthrough with auto-generated AABB colliders and day/night toggle (T) — drop your CAD-imported GLB into assets/ and walk it"
+            }
             ProjectTemplate::Plugin => "A reusable Bevy Plugin",
         }
     }
@@ -194,8 +200,14 @@ impl BerryCodeApp {
         );
         fs::write(root.join("Cargo.toml"), cargo_toml)?;
 
-        // Copy fox.glb asset for Walker3D template
-        if matches!(template, ProjectTemplate::Walker3D) {
+        // Copy fox.glb asset for Walker3D / WalkableArchitecture templates.
+        // WalkableArchitecture uses fox.glb as a placeholder "drop your own
+        // GLB here" sample — the player can walk around and bump into it
+        // out of the box.
+        if matches!(
+            template,
+            ProjectTemplate::Walker3D | ProjectTemplate::WalkableArchitecture
+        ) {
             let fox_bytes = include_bytes!("../../assets/_preview/fox.glb");
             let _ = fs::write(root.join("assets/fox.glb"), fox_bytes);
         }
@@ -226,6 +238,52 @@ impl BerryCodeApp {
 #[cfg(test)]
 pub fn template_main_rs_for_test(template: ProjectTemplate) -> String {
     template_main_rs(template)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn walkable_architecture_template_body_has_phase_c_features() {
+        let body = template_main_rs(ProjectTemplate::WalkableArchitecture);
+        // FPS controller carryovers
+        assert!(body.contains("MOUSE_SENSITIVITY"), "expected mouse-look constant");
+        assert!(body.contains("KeyCode::KeyW"), "expected WASD movement");
+        // Phase C: AABB collider type + collision system
+        assert!(body.contains("struct AutoCollider"), "expected AutoCollider component");
+        assert!(
+            body.contains("player_movement_with_collision"),
+            "expected collision-aware movement system"
+        );
+        assert!(
+            body.contains("player_aabb_overlaps_any"),
+            "expected AABB overlap helper"
+        );
+        // Phase C: day / night cycle
+        assert!(body.contains("enum DayPhase"), "expected DayPhase resource");
+        assert!(
+            body.contains("KeyCode::KeyT"),
+            "expected T key for day/night toggle"
+        );
+        assert!(
+            body.contains("DayPhase::Dusk") && body.contains("DayPhase::Night"),
+            "expected three-phase cycle"
+        );
+        // Sky preset hint — ClearColor changes per phase
+        assert!(
+            body.contains("ClearColor"),
+            "expected per-phase sky / clear-colour preset"
+        );
+    }
+
+    #[test]
+    fn walkable_architecture_listed_in_template_all() {
+        assert!(
+            ProjectTemplate::ALL.contains(&ProjectTemplate::WalkableArchitecture),
+            "WalkableArchitecture must appear in ProjectTemplate::ALL so the dialog renders it"
+        );
+    }
 }
 
 fn template_main_rs(template: ProjectTemplate) -> String {
@@ -494,6 +552,407 @@ fn apply_gravity(time: Res<Time>, mut player_q: Query<(&mut Transform, &mut Play
         player.velocity_y = 0.0;
         player.on_ground = true;
     }
+}
+"#.to_string()
+        }
+        ProjectTemplate::WalkableArchitecture => {
+            r#"//! Walkable Architecture - FPS walkthrough with auto-generated AABB
+//! colliders and a day/night cycle, ready for an architecture / archviz
+//! scene.
+//!
+//! Drop your CAD-imported GLB into `assets/` and reference it from
+//! `setup_world`. Static spawns get an `AutoCollider` automatically; the
+//! collision system pushes the player out of overlapping AABBs each frame.
+//!
+//! Controls:
+//!   WASD     - Move
+//!   Mouse    - Look
+//!   Space    - Jump
+//!   Shift    - Sprint
+//!   T        - Cycle day / dusk / night
+//!   Esc      - Release / grab cursor
+
+use bevy::prelude::*;
+use bevy::input::mouse::MouseMotion;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use bevy::remote::{RemotePlugin, http::RemoteHttpPlugin};
+
+mod scenes;
+mod components;
+mod systems;
+mod events;
+
+const PLAYER_SPEED: f32 = 4.5;
+const RUN_MULTIPLIER: f32 = 2.0;
+const MOUSE_SENSITIVITY: f32 = 0.002;
+const GRAVITY: f32 = -25.0;
+const JUMP_VELOCITY: f32 = 7.0;
+const PLAYER_HEIGHT: f32 = 1.7;
+const PLAYER_RADIUS: f32 = 0.35;
+
+#[derive(Component)]
+struct Player {
+    yaw: f32,
+    pitch: f32,
+    velocity_y: f32,
+    on_ground: bool,
+}
+
+/// Axis-aligned bounding box collider in world space. Phase C uses these
+/// for static-mesh collision; rotated / animated colliders are out of
+/// scope. Co-spawn with any static mesh that should block the player.
+#[derive(Component, Clone, Copy)]
+struct AutoCollider {
+    min: Vec3,
+    max: Vec3,
+}
+
+impl AutoCollider {
+    /// Construct an AutoCollider for a cuboid spawned at `centre` with
+    /// `size`, matching `Cuboid::new(size.x, size.y, size.z)` exactly.
+    fn cuboid(centre: Vec3, size: Vec3) -> Self {
+        let half = size * 0.5;
+        Self { min: centre - half, max: centre + half }
+    }
+}
+
+#[derive(Component)]
+struct Sun;
+
+#[derive(Resource, Clone, Copy, PartialEq, Eq)]
+enum DayPhase {
+    Day,
+    Dusk,
+    Night,
+}
+
+impl DayPhase {
+    fn next(self) -> Self {
+        match self {
+            DayPhase::Day => DayPhase::Dusk,
+            DayPhase::Dusk => DayPhase::Night,
+            DayPhase::Night => DayPhase::Day,
+        }
+    }
+}
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(RemotePlugin::default())
+        .add_plugins(RemoteHttpPlugin::default())
+        .add_plugins(scenes::ScenesPlugin)
+        .insert_resource(DayPhase::Day)
+        .insert_resource(ClearColor(Color::srgb(0.6, 0.75, 0.9)))
+        .insert_resource(AmbientLight { color: Color::WHITE, brightness: 200.0, affects_lightmapped_meshes: false })
+        .add_systems(Startup, (setup_world, setup_player, grab_cursor, apply_day_night.after(setup_world)))
+        .add_systems(Update, (
+            mouse_look,
+            player_movement_with_collision,
+            apply_gravity_with_ground,
+            toggle_cursor_grab,
+            cycle_day_night,
+            apply_day_night,
+        ))
+        .run();
+}
+
+fn setup_world(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    // Sun (intensity / colour driven later by `apply_day_night`)
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 12000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -1.0, 0.5, 0.0)),
+        Sun,
+    ));
+
+    // Ground plane (large) - non-colliding (gravity handles vertical)
+    let ground_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.4, 0.42, 0.38),
+        perceptual_roughness: 0.95,
+        ..default()
+    });
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(200.0, 200.0))),
+        MeshMaterial3d(ground_mat),
+        Name::new("Ground"),
+    ));
+
+    // Architectural primitives. Each cuboid co-spawns an AutoCollider so
+    // the collision system blocks the player. Rotate / extend these to
+    // shape your floor plan.
+    let wall_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.85, 0.82, 0.78),
+        perceptual_roughness: 0.85,
+        ..default()
+    });
+    let glass_mat = materials.add(StandardMaterial {
+        base_color: Color::srgba(0.5, 0.75, 0.9, 0.6),
+        alpha_mode: AlphaMode::Blend,
+        perceptual_roughness: 0.05,
+        metallic: 0.1,
+        ..default()
+    });
+    let floor_mat = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.55, 0.4, 0.3),
+        perceptual_roughness: 0.7,
+        ..default()
+    });
+
+    // Outer walls (10 m square room)
+    let walls = [
+        // (centre, size, material, name)
+        (Vec3::new(0.0, 1.5, -5.0), Vec3::new(10.0, 3.0, 0.2), wall_mat.clone(), "Wall N"),
+        (Vec3::new(0.0, 1.5,  5.0), Vec3::new(10.0, 3.0, 0.2), wall_mat.clone(), "Wall S"),
+        (Vec3::new(-5.0, 1.5, 0.0), Vec3::new(0.2, 3.0, 10.0), wall_mat.clone(), "Wall W"),
+        (Vec3::new( 5.0, 1.5, 0.0), Vec3::new(0.2, 3.0, 6.0),  wall_mat.clone(), "Wall E"),
+    ];
+    for (centre, size, mat, name) in walls {
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
+            MeshMaterial3d(mat),
+            Transform::from_translation(centre),
+            AutoCollider::cuboid(centre, size),
+            Name::new(name.to_string()),
+        ));
+    }
+
+    // Glass curtain wall on the east side — visible but still solid for
+    // the player (architectural typical: you can see through but not
+    // walk through).
+    let glass_centre = Vec3::new(5.0, 1.5, -2.5);
+    let glass_size = Vec3::new(0.1, 3.0, 4.0);
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(glass_size.x, glass_size.y, glass_size.z))),
+        MeshMaterial3d(glass_mat),
+        Transform::from_translation(glass_centre),
+        AutoCollider::cuboid(glass_centre, glass_size),
+        Name::new("Glass curtain"),
+    ));
+
+    // Interior partition with a doorway gap (two short walls)
+    let partition_a = (Vec3::new(-1.5, 1.5, 1.0), Vec3::new(7.0, 3.0, 0.15));
+    let partition_b = (Vec3::new( 3.5, 1.5, 1.0), Vec3::new(2.0, 3.0, 0.15));
+    for (centre, size) in [partition_a, partition_b] {
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
+            MeshMaterial3d(wall_mat.clone()),
+            Transform::from_translation(centre),
+            AutoCollider::cuboid(centre, size),
+            Name::new("Partition"),
+        ));
+    }
+
+    // Floor strip (visual only, sits flush with ground — no collider)
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(8.0, 0.02, 8.0))),
+        MeshMaterial3d(floor_mat),
+        Transform::from_xyz(0.0, 0.01, 0.0),
+        Name::new("Interior floor"),
+    ));
+
+    // Decorative fox.glb dropped in the room (no collider — placeholder
+    // for whatever GLB / DXF you import). Replace this with your own
+    // asset and add an AutoCollider co-spawn for collision.
+    commands.spawn((
+        SceneRoot(asset_server.load("fox.glb#Scene0")),
+        Transform::from_xyz(0.0, 0.0, -3.0).with_scale(Vec3::splat(0.02)),
+        Name::new("Fox (decorative)"),
+    ));
+}
+
+fn setup_player(mut commands: Commands) {
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(0.0, PLAYER_HEIGHT, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Player {
+            yaw: 0.0,
+            pitch: 0.0,
+            velocity_y: 0.0,
+            on_ground: true,
+        },
+    ));
+}
+
+fn grab_cursor(mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+    if let Ok(mut opts) = cursor.single_mut() {
+        opts.grab_mode = CursorGrabMode::Locked;
+        opts.visible = false;
+    }
+}
+
+fn toggle_cursor_grab(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
+) {
+    if keys.just_pressed(KeyCode::Escape) {
+        if let Ok(mut opts) = cursor.single_mut() {
+            let grabbed = opts.grab_mode != CursorGrabMode::None;
+            opts.grab_mode = if grabbed { CursorGrabMode::None } else { CursorGrabMode::Locked };
+            opts.visible = grabbed;
+        }
+    }
+}
+
+fn mouse_look(
+    mut motion_events: MessageReader<MouseMotion>,
+    mut player_q: Query<(&mut Transform, &mut Player)>,
+    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
+) {
+    let Ok(opts) = cursor.single() else { return; };
+    if opts.grab_mode == CursorGrabMode::None {
+        motion_events.clear();
+        return;
+    }
+    let mut delta = Vec2::ZERO;
+    for ev in motion_events.read() {
+        delta += ev.delta;
+    }
+    if let Ok((mut transform, mut player)) = player_q.single_mut() {
+        player.yaw -= delta.x * MOUSE_SENSITIVITY;
+        player.pitch -= delta.y * MOUSE_SENSITIVITY;
+        player.pitch = player.pitch.clamp(-1.5, 1.5);
+        transform.rotation = Quat::from_axis_angle(Vec3::Y, player.yaw)
+            * Quat::from_axis_angle(Vec3::X, player.pitch);
+    }
+}
+
+/// Move the player WASD-style, applying horizontal collision against
+/// every `AutoCollider` AABB. Each axis is tested independently so the
+/// player slides along walls instead of catching at corners.
+fn player_movement_with_collision(
+    keys: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut player_q: Query<(&mut Transform, &Player)>,
+    colliders: Query<&AutoCollider>,
+) {
+    let Ok((mut transform, player)) = player_q.single_mut() else { return; };
+
+    let forward = Vec3::new(player.yaw.sin(), 0.0, player.yaw.cos()) * -1.0;
+    let right = Vec3::new(player.yaw.cos(), 0.0, -player.yaw.sin());
+    let mut direction = Vec3::ZERO;
+    if keys.pressed(KeyCode::KeyW) { direction += forward; }
+    if keys.pressed(KeyCode::KeyS) { direction -= forward; }
+    if keys.pressed(KeyCode::KeyD) { direction += right; }
+    if keys.pressed(KeyCode::KeyA) { direction -= right; }
+    if direction.length_squared() > 0.0 {
+        direction = direction.normalize();
+    }
+    let speed = if keys.pressed(KeyCode::ShiftLeft) {
+        PLAYER_SPEED * RUN_MULTIPLIER
+    } else {
+        PLAYER_SPEED
+    };
+    let step = direction * speed * time.delta_secs();
+    if step.length_squared() <= 0.0 {
+        return;
+    }
+
+    let pos = transform.translation;
+
+    // Try X then Z so the player slides instead of stopping dead at a
+    // corner. Vertical (Y) is handled by gravity.
+    let mut new_pos = pos;
+    let try_x = Vec3::new(pos.x + step.x, pos.y, pos.z);
+    if !player_aabb_overlaps_any(try_x, &colliders) {
+        new_pos.x = try_x.x;
+    }
+    let try_z = Vec3::new(new_pos.x, new_pos.y, pos.z + step.z);
+    if !player_aabb_overlaps_any(try_z, &colliders) {
+        new_pos.z = try_z.z;
+    }
+    transform.translation = new_pos;
+}
+
+fn player_aabb_overlaps_any(centre: Vec3, colliders: &Query<&AutoCollider>) -> bool {
+    let half = Vec3::new(PLAYER_RADIUS, PLAYER_HEIGHT * 0.5, PLAYER_RADIUS);
+    let p_min = centre - half;
+    let p_max = centre + half;
+    for c in colliders.iter() {
+        if p_min.x < c.max.x && p_max.x > c.min.x
+            && p_min.y < c.max.y && p_max.y > c.min.y
+            && p_min.z < c.max.z && p_max.z > c.min.z
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn apply_gravity_with_ground(
+    keys: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut player_q: Query<(&mut Transform, &mut Player)>,
+) {
+    let Ok((mut transform, mut player)) = player_q.single_mut() else { return; };
+    if keys.just_pressed(KeyCode::Space) && player.on_ground {
+        player.velocity_y = JUMP_VELOCITY;
+        player.on_ground = false;
+    }
+    player.velocity_y += GRAVITY * time.delta_secs();
+    transform.translation.y += player.velocity_y * time.delta_secs();
+    if transform.translation.y <= PLAYER_HEIGHT {
+        transform.translation.y = PLAYER_HEIGHT;
+        player.velocity_y = 0.0;
+        player.on_ground = true;
+    }
+}
+
+fn cycle_day_night(keys: Res<ButtonInput<KeyCode>>, mut phase: ResMut<DayPhase>) {
+    if keys.just_pressed(KeyCode::KeyT) {
+        *phase = phase.next();
+    }
+}
+
+/// Apply lighting / sky preset matching `DayPhase`. Driven both at
+/// startup and on each `T` press; idempotent so re-running is cheap.
+fn apply_day_night(
+    phase: Res<DayPhase>,
+    mut sun_q: Query<(&mut DirectionalLight, &mut Transform), With<Sun>>,
+    mut clear: ResMut<ClearColor>,
+    mut ambient: ResMut<AmbientLight>,
+) {
+    if !phase.is_changed() {
+        return;
+    }
+    let (illum, sun_color, sky, ambient_b, sun_rot) = match *phase {
+        DayPhase::Day => (
+            12000.0,
+            Color::srgb(1.0, 0.97, 0.92),
+            Color::srgb(0.6, 0.75, 0.9),
+            300.0,
+            Quat::from_euler(EulerRot::XYZ, -1.1, 0.5, 0.0),
+        ),
+        DayPhase::Dusk => (
+            5000.0,
+            Color::srgb(1.0, 0.7, 0.4),
+            Color::srgb(0.55, 0.42, 0.45),
+            150.0,
+            Quat::from_euler(EulerRot::XYZ, -0.25, 0.5, 0.0),
+        ),
+        DayPhase::Night => (
+            300.0,
+            Color::srgb(0.4, 0.5, 0.85),
+            Color::srgb(0.04, 0.05, 0.1),
+            40.0,
+            Quat::from_euler(EulerRot::XYZ, 0.6, 0.3, 0.0),
+        ),
+    };
+    if let Ok((mut light, mut t)) = sun_q.single_mut() {
+        light.illuminance = illum;
+        light.color = sun_color;
+        t.rotation = sun_rot;
+    }
+    *clear = ClearColor(sky);
+    ambient.brightness = ambient_b;
 }
 "#.to_string()
         }
