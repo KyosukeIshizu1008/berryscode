@@ -29,6 +29,13 @@ Thumbs.db
 *.wasm
 *.js.map
 
+# Release artifacts (uploaded to GitHub Releases instead of being tracked)
+/BerryCode-*.dmg
+/BerryCode.app/
+
+# Claude Code per-session files
+.claude/
+
 # Dependencies
 node_modules/
 
