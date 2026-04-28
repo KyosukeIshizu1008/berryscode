@@ -11,6 +11,205 @@ pub struct CrateResult {
     pub downloads: u64,
 }
 
+/// One dependency from the project's `Cargo.toml`, alongside what
+/// `crates.io` reports as the latest published version. Populated by
+/// [`scan_installed_plugins`] + [`refresh_latest_versions`]. Drives the
+/// "Installed Plugins" section of the browser, where outdated entries
+/// surface an Update button. v0.5 / Plugin Browser auto-update.
+#[derive(Debug, Clone)]
+pub struct InstalledPlugin {
+    pub name: String,
+    /// Version string as it appears in `Cargo.toml` (e.g. `"0.18"` or
+    /// `"0.18.1"`). May include a leading `^` / `~` etc.
+    pub current_version: String,
+    /// Latest version reported by crates.io, or `None` if we haven't
+    /// fetched it yet (or the fetch failed). Compared against
+    /// `current_version` to drive the Update button.
+    pub latest_version: Option<String>,
+}
+
+/// Scan `<root>/Cargo.toml` for `[dependencies]` and return one
+/// [`InstalledPlugin`] per entry. We don't filter to "Bevy plugins"
+/// here — surfacing all deps is more useful than guessing, and the
+/// Bevy ones float to the top of the list naturally because their
+/// names start with `bevy_`. Both `name = "x"` and the table form
+/// (`name = { version = "x", … }`) are handled.
+pub fn scan_installed_plugins(root: &str) -> Vec<InstalledPlugin> {
+    let cargo_path = format!("{}/Cargo.toml", root);
+    let content = match std::fs::read_to_string(&cargo_path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let parsed: toml::Value = match toml::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+
+    let deps = parsed.get("dependencies").and_then(|d| d.as_table());
+    let Some(deps) = deps else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::with_capacity(deps.len());
+    for (name, value) in deps {
+        let current = match value {
+            toml::Value::String(s) => s.clone(),
+            toml::Value::Table(t) => t
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            _ => continue,
+        };
+        // Skip path / git deps that don't have a version string at all
+        // — crates.io has nothing to compare them to, and rendering
+        // them with "?" alongside real deps is just noise.
+        if current.is_empty() {
+            continue;
+        }
+        out.push(InstalledPlugin {
+            name: name.clone(),
+            current_version: current,
+            latest_version: None,
+        });
+    }
+    // Bevy and bevy_* plugins float to the top, alphabetical within
+    // each group. Makes the section scannable for the most common
+    // "is my Bevy ecosystem up to date?" question.
+    out.sort_by(|a, b| {
+        let a_bevy = a.name == "bevy" || a.name.starts_with("bevy_");
+        let b_bevy = b.name == "bevy" || b.name.starts_with("bevy_");
+        b_bevy.cmp(&a_bevy).then_with(|| a.name.cmp(&b.name))
+    });
+    out
+}
+
+/// Fetch the latest published version of `crate_name` from crates.io.
+/// Uses the same `curl` shell-out pattern as [`search_bevy_crates`] so
+/// we don't fight with reqwest's blocking-vs-async story here. Returns
+/// `None` on any error (no network, crate not found, parse failure).
+pub fn fetch_latest_version(crate_name: &str) -> Option<String> {
+    let url = format!("https://crates.io/api/v1/crates/{}", crate_name);
+    let output = std::process::Command::new("curl")
+        .args(["-s", "-H", "User-Agent: BerryCode-Editor", &url])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+    json.get("crate")
+        .and_then(|c| c.get("max_stable_version"))
+        .or_else(|| json.get("crate").and_then(|c| c.get("newest_version")))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Refresh `latest_version` on every entry by fetching from crates.io.
+/// Synchronous: blocks the caller for ~200ms × N. The browser only
+/// calls this when the user clicks Refresh, so the freeze is on a
+/// user-initiated action instead of every frame.
+pub fn refresh_latest_versions(plugins: &mut [InstalledPlugin]) {
+    for p in plugins {
+        p.latest_version = fetch_latest_version(&p.name);
+    }
+}
+
+/// Numeric compare of dotted version strings. `"0.18.1"` > `"0.18"`,
+/// `"1.0"` > `"0.99"`. Strips a leading `^`, `~`, `>=`, etc. so
+/// requirement specifiers in `Cargo.toml` compare cleanly against
+/// crates.io's plain version strings. Falls back to lexicographic
+/// compare for genuinely weird inputs (pre-release tags etc.).
+pub fn is_outdated(current: &str, latest: &str) -> bool {
+    fn normalize(s: &str) -> Vec<u32> {
+        s.trim_start_matches(|c: char| !c.is_ascii_digit())
+            .split(|c: char| !c.is_ascii_digit())
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| s.parse::<u32>().ok())
+            .collect()
+    }
+    let c = normalize(current);
+    let l = normalize(latest);
+    if c.is_empty() || l.is_empty() {
+        return current != latest;
+    }
+    // Pad to equal length with zeros so "1.0" vs "1.0.1" compares
+    // correctly as 1.0.0 < 1.0.1.
+    let n = c.len().max(l.len());
+    let mut c = c;
+    let mut l = l;
+    c.resize(n, 0);
+    l.resize(n, 0);
+    l > c
+}
+
+/// Rewrite the version string for `crate_name` in `Cargo.toml` to
+/// `new_version`. Handles both shorthand (`name = "0.1"`) and table
+/// form (`name = { version = "0.1", … }`). Returns `Err` with a human
+/// message when the dep can't be located.
+pub fn update_crate_in_cargo_toml(
+    root: &str,
+    crate_name: &str,
+    new_version: &str,
+) -> Result<(), String> {
+    let cargo_path = format!("{}/Cargo.toml", root);
+    let content = std::fs::read_to_string(&cargo_path).map_err(|e| e.to_string())?;
+
+    // Walk the file line-by-line and rewrite the first line that
+    // starts with `<crate_name> =` inside the [dependencies] section.
+    // toml-edit would preserve formatting more faithfully, but we
+    // already match the existing add path's "find a line, splice it"
+    // approach for symmetry and to avoid a new dependency.
+    let mut out = String::with_capacity(content.len());
+    let mut in_deps = false;
+    let mut found = false;
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('[') {
+            in_deps = trimmed == "[dependencies]";
+        }
+        if in_deps && !found && line.split('=').next().map(|s| s.trim()) == Some(crate_name) {
+            // Two cases:
+            //   1) `name = "x"`            → replace the quoted scalar.
+            //   2) `name = { version = "x", … }` → replace the version field.
+            if let Some(rewritten) = rewrite_version_line(line, new_version) {
+                out.push_str(&rewritten);
+                out.push('\n');
+                found = true;
+                continue;
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if !found {
+        return Err(format!(
+            "Couldn't find `{}` under [dependencies] — manual edit required",
+            crate_name
+        ));
+    }
+    std::fs::write(&cargo_path, out).map_err(|e| e.to_string())
+}
+
+fn rewrite_version_line(line: &str, new_version: &str) -> Option<String> {
+    // Find the first quoted string; that's the version in both
+    // shorthand and table-form lines we care about (the table form's
+    // `version = "x"` is the first quoted string on that line if the
+    // table is single-line, which is the common case).
+    let bytes = line.as_bytes();
+    let q1 = bytes.iter().position(|&b| b == b'"')?;
+    let q2 = bytes[q1 + 1..]
+        .iter()
+        .position(|&b| b == b'"')
+        .map(|p| q1 + 1 + p)?;
+    let mut out = String::with_capacity(line.len() + 8);
+    out.push_str(&line[..q1 + 1]);
+    out.push_str(new_version);
+    out.push_str(&line[q2..]);
+    Some(out)
+}
+
 /// Search crates.io for Bevy plugins (uses curl since reqwest may not have blocking)
 pub fn search_bevy_crates(query: &str) -> Vec<CrateResult> {
     let url = format!(
@@ -97,16 +296,140 @@ pub fn add_crate_to_cargo_toml(root: &str, crate_name: &str, version: &str) -> R
 impl BerryCodeApp {
     pub(crate) fn render_plugin_browser(&mut self, ctx: &egui::Context) {
         if !self.plugin_browser_open {
+            // Window closed; clear the loaded flag so the next open
+            // re-scans Cargo.toml. Cheap and avoids stale "installed"
+            // lists when the user edits deps externally.
+            if self.installed_plugins_loaded {
+                self.installed_plugins.clear();
+                self.installed_plugins_loaded = false;
+            }
             return;
         }
         let mut open = self.plugin_browser_open;
 
+        // First render after open: scan Cargo.toml so the user sees
+        // their deps without having to click Refresh. Latest-version
+        // fetch stays a manual action because it hits the network.
+        if !self.installed_plugins_loaded {
+            self.installed_plugins = scan_installed_plugins(&self.root_path);
+            self.installed_plugins_loaded = true;
+        }
+
         egui::Window::new("Bevy Plugin Browser")
             .open(&mut open)
-            .default_size([600.0, 400.0])
+            .default_size([600.0, 500.0])
             .show(ctx, |ui| {
+                // ── Installed Plugins (auto-update) ──
+                ui.heading("Installed");
                 ui.horizontal(|ui| {
-                    ui.label("Search crates.io:");
+                    ui.label(format!(
+                        "{} dep{} from Cargo.toml",
+                        self.installed_plugins.len(),
+                        if self.installed_plugins.len() == 1 {
+                            ""
+                        } else {
+                            "s"
+                        }
+                    ));
+                    if ui.button("Refresh").clicked() {
+                        // Re-scan first in case Cargo.toml changed,
+                        // then fetch latest versions for every entry.
+                        self.installed_plugins = scan_installed_plugins(&self.root_path);
+                        refresh_latest_versions(&mut self.installed_plugins);
+                        self.status_message = format!(
+                            "Checked {} dependencies for updates",
+                            self.installed_plugins.len()
+                        );
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                    }
+                });
+
+                let mut update_request: Option<(String, String)> = None;
+                egui::ScrollArea::vertical()
+                    .id_salt("plugin_browser_installed_scroll")
+                    .max_height(180.0)
+                    .show(ui, |ui| {
+                        if self.installed_plugins.is_empty() {
+                            ui.label(
+                                egui::RichText::new("No dependencies found in Cargo.toml.")
+                                    .color(egui::Color32::from_gray(160)),
+                            );
+                        }
+                        for plugin in &self.installed_plugins {
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.strong(&plugin.name);
+                                    ui.label(format!("v{}", plugin.current_version));
+                                    match plugin.latest_version.as_ref() {
+                                        Some(latest)
+                                            if is_outdated(&plugin.current_version, latest) =>
+                                        {
+                                            ui.label(
+                                                egui::RichText::new(format!("→ v{}", latest))
+                                                    .color(egui::Color32::from_rgb(120, 220, 140))
+                                                    .strong(),
+                                            );
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    if ui
+                                                        .button(format!("Update to {}", latest))
+                                                        .clicked()
+                                                    {
+                                                        update_request = Some((
+                                                            plugin.name.clone(),
+                                                            latest.clone(),
+                                                        ));
+                                                    }
+                                                },
+                                            );
+                                        }
+                                        Some(_) => {
+                                            ui.label(
+                                                egui::RichText::new("up to date")
+                                                    .color(egui::Color32::from_gray(140))
+                                                    .size(11.0),
+                                            );
+                                        }
+                                        None => {
+                                            ui.label(
+                                                egui::RichText::new("(unknown — click Refresh)")
+                                                    .color(egui::Color32::from_gray(140))
+                                                    .size(11.0),
+                                            );
+                                        }
+                                    }
+                                });
+                            });
+                        }
+                    });
+
+                if let Some((name, version)) = update_request {
+                    match update_crate_in_cargo_toml(&self.root_path, &name, &version) {
+                        Ok(_) => {
+                            self.status_message =
+                                format!("Updated {} to v{} in Cargo.toml", name, version);
+                            self.status_message_timestamp = Some(std::time::Instant::now());
+                            // Re-scan immediately so the row reflects
+                            // the new on-disk state without waiting
+                            // for another Refresh.
+                            self.installed_plugins = scan_installed_plugins(&self.root_path);
+                        }
+                        Err(e) => {
+                            self.status_message = format!("Update failed: {}", e);
+                            self.status_message_timestamp = Some(std::time::Instant::now());
+                        }
+                    }
+                }
+
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(4.0);
+
+                // ── Search crates.io for new plugins ──
+                ui.heading("Search");
+                ui.horizontal(|ui| {
+                    ui.label("crates.io:");
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut self.plugin_search_query)
                             .hint_text("e.g. rapier, hanabi, ui...")

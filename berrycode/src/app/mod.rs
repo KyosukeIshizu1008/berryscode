@@ -709,6 +709,16 @@ pub struct BerryCodeApp {
     pub(crate) plugin_browser_open: bool,
     pub(crate) plugin_search_query: String,
     pub(crate) plugin_search_results: Vec<scene_editor::plugin_browser::CrateResult>,
+    /// Dependencies parsed out of the project's `Cargo.toml`, with
+    /// their crates.io "latest" version filled in on Refresh. Drives
+    /// the Plugin Browser's auto-update section. v0.5.
+    pub(crate) installed_plugins: Vec<scene_editor::plugin_browser::InstalledPlugin>,
+    /// Tracks whether `installed_plugins` has been populated for the
+    /// currently open browser session. Reset to false when the
+    /// browser closes; the first render after open kicks off a scan
+    /// so the user doesn't have to click Refresh just to see the
+    /// list of installed deps.
+    pub(crate) installed_plugins_loaded: bool,
 
     // === Bevy Version Management ===
     pub(crate) bevy_version: Option<String>,
@@ -1759,6 +1769,8 @@ impl BerryCodeApp {
             state_graph: scene_editor::state_editor::StateGraph::default_game_states(),
 
             plugin_browser_open: false,
+            installed_plugins: Vec::new(),
+            installed_plugins_loaded: false,
             plugin_search_query: String::new(),
             plugin_search_results: Vec::new(),
 
