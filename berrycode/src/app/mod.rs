@@ -331,6 +331,11 @@ pub struct BerryCodeApp {
     /// Set true when Cmd+L is pressed; the AI chat panel claims focus on
     /// its input field on the next render and clears the flag. v0.4.5 / 2A.
     pub(crate) ai_chat_focus_pending: bool,
+    /// Edits proposed by the active coding agent (Claude Code / Codex)
+    /// awaiting human Approve / Reject. Populated from
+    /// `AiChatResponse::PendingEdit` in `poll_ai_responses` and
+    /// rendered as cards inside the AI chat panel. v0.4.5 / Phase D.
+    pub(crate) pending_agent_edits: Vec<types::PendingAgentEdit>,
 
     // === Settings ===
     pub(crate) show_settings: bool,
@@ -1402,6 +1407,7 @@ impl BerryCodeApp {
             ai_current_response: String::new(),
             chat_attachment: None,
             ai_chat_focus_pending: false,
+            pending_agent_edits: Vec::new(),
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
             ui_language: UiLanguage::English,

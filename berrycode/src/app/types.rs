@@ -382,6 +382,27 @@ pub enum AiChatResponse {
     SessionStarted(String), // Session ID
     ChatChunk(String),      // Streaming chat response chunk
     ChatStreamCompleted,    // Stream finished
+    /// Coding-agent (Claude Code / Codex) wants to apply an edit. The
+    /// chat panel queues this in `pending_agent_edits` and renders a
+    /// per-edit Approve / Reject card so a human still gates whether
+    /// the on-disk file changes. v0.4.5 / Phase D.
+    PendingEdit {
+        path: std::path::PathBuf,
+        before: Option<String>,
+        after: String,
+    },
+}
+
+/// One agent-proposed edit waiting on a human Approve / Reject. Lives
+/// on `BerryCodeApp::pending_agent_edits` until the user decides.
+#[derive(Debug, Clone)]
+pub struct PendingAgentEdit {
+    pub path: std::path::PathBuf,
+    /// `None` when the agent is creating a new file (`before` would
+    /// be the empty string anyway, but `Option` makes the "new file"
+    /// case visually distinct in the diff view).
+    pub before: Option<String>,
+    pub after: String,
 }
 
 /// Simplified LSP diagnostic

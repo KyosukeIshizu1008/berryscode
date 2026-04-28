@@ -70,6 +70,12 @@ impl BerryCodeApp {
 
                 // ── Layout: input pinned to bottom, scroll fills rest ──
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    // ── Pending agent edits (Phase D) ─────────────────
+                    // Sit just above the input so the user can decide
+                    // whether to apply each proposal before the next
+                    // turn. Drained as the user clicks Approve / Reject.
+                    self.render_pending_agent_edits(ui);
+
                     // ── Input area ────────────────────────────────────
                     egui::Frame::NONE
                         .fill(PANEL_BG)
@@ -979,11 +985,26 @@ impl BerryCodeApp {
                     crate::agent::AgentEvent::ToolUse { tool, .. } => {
                         let _ = tx.send(AiChatResponse::ChatChunk(format!("\n`[{}]`\n", tool)));
                     }
-                    crate::agent::AgentEvent::Edit { path, .. } => {
+                    crate::agent::AgentEvent::Edit {
+                        path,
+                        before,
+                        after,
+                    } => {
+                        // Echo a short header in the chat stream so the
+                        // user knows an edit was proposed even if they've
+                        // scrolled away from the pending-edits cards…
                         let _ = tx.send(AiChatResponse::ChatChunk(format!(
                             "\n**📝 Edit proposed:** `{}`\n",
                             path.display()
                         )));
+                        // …and queue the structured payload for the
+                        // diff card. `poll_ai_responses` pushes it into
+                        // `app.pending_agent_edits` on the main thread.
+                        let _ = tx.send(AiChatResponse::PendingEdit {
+                            path,
+                            before,
+                            after,
+                        });
                     }
                     crate::agent::AgentEvent::Error(msg) => {
                         let _ = tx.send(AiChatResponse::ChatChunk(format!("\n⚠️ {}\n", msg)));
@@ -1007,6 +1028,147 @@ impl BerryCodeApp {
                 }
             }
         });
+    }
+
+    /// Render the queue of edits proposed by the active coding agent,
+    /// each as a small card with file path, a unified-style colourised
+    /// diff, and Approve / Reject buttons. Rendered just above the
+    /// chat input so the human stays in the loop on every disk write.
+    /// v0.4.5 / Phase D.
+    pub(crate) fn render_pending_agent_edits(&mut self, ui: &mut egui::Ui) {
+        if self.pending_agent_edits.is_empty() {
+            return;
+        }
+
+        // We may mutate `self.editor_tabs` while resolving an Approve;
+        // drain decisions into local lists then act after the loop.
+        let mut approve: Option<usize> = None;
+        let mut reject: Option<usize> = None;
+
+        // Take ownership for the render pass so we don't double-borrow
+        // `self`. Push everything back in the rejected-only case.
+        let edits = std::mem::take(&mut self.pending_agent_edits);
+
+        egui::Frame::NONE
+            .fill(egui::Color32::from_rgb(28, 30, 36))
+            .inner_margin(egui::Margin {
+                left: 12,
+                right: 12,
+                top: 8,
+                bottom: 4,
+            })
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(format!(
+                        "📝 {} pending edit{} from agent",
+                        edits.len(),
+                        if edits.len() == 1 { "" } else { "s" }
+                    ))
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(180, 200, 255))
+                    .strong(),
+                );
+                ui.add_space(4.0);
+
+                for (idx, edit) in edits.iter().enumerate() {
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_rgb(34, 36, 44))
+                        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 64, 72)))
+                        .corner_radius(egui::CornerRadius::same(4))
+                        .inner_margin(egui::Margin::same(8))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(format!("📄 {}", edit.path.display()))
+                                        .size(12.0)
+                                        .color(egui::Color32::from_rgb(220, 220, 220))
+                                        .family(egui::FontFamily::Monospace),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .button(
+                                                egui::RichText::new("✗ Reject")
+                                                    .color(egui::Color32::from_rgb(220, 120, 120)),
+                                            )
+                                            .clicked()
+                                        {
+                                            reject = Some(idx);
+                                        }
+                                        if ui
+                                            .button(
+                                                egui::RichText::new("✓ Approve")
+                                                    .color(egui::Color32::from_rgb(120, 220, 140))
+                                                    .strong(),
+                                            )
+                                            .clicked()
+                                        {
+                                            approve = Some(idx);
+                                        }
+                                    },
+                                );
+                            });
+                            ui.add_space(4.0);
+                            // Compact unified diff. Caps at 200 lines
+                            // total so the card stays scannable for big
+                            // edits — full diff lives on disk after
+                            // approve.
+                            render_simple_unified_diff(
+                                ui,
+                                edit.before.as_deref().unwrap_or(""),
+                                &edit.after,
+                                200,
+                            );
+                        });
+                    ui.add_space(4.0);
+                }
+            });
+
+        // Restore the queue so any non-clicked entries persist.
+        self.pending_agent_edits = edits;
+
+        if let Some(idx) = approve {
+            // Take the edit out and apply it. `try_apply_edit` writes
+            // the file and reloads any open buffer pointing at it.
+            let edit = self.pending_agent_edits.remove(idx);
+            self.try_apply_edit(&edit);
+        } else if let Some(idx) = reject {
+            self.pending_agent_edits.remove(idx);
+        }
+    }
+
+    /// Apply one approved agent edit to disk + reload any matching
+    /// editor tab. Status messages report success / failure.
+    pub(crate) fn try_apply_edit(&mut self, edit: &super::types::PendingAgentEdit) {
+        // Make sure the parent dir exists (agent might be creating a
+        // brand-new file in a not-yet-created directory).
+        if let Some(parent) = edit.path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match std::fs::write(&edit.path, &edit.after) {
+            Ok(()) => {
+                self.status_message = format!("✅ Applied agent edit: {}", edit.path.display());
+                self.status_message_timestamp = Some(std::time::Instant::now());
+                // Reload the buffer for any open tab pointing at this
+                // file so the editor shows the new contents instead of
+                // a stale copy.
+                let path_str = edit.path.to_string_lossy().to_string();
+                for tab in self.editor_tabs.iter_mut() {
+                    if tab.file_path == path_str {
+                        if let Ok(content) = std::fs::read_to_string(&edit.path) {
+                            tab.buffer = crate::buffer::TextBuffer::from_str(&content);
+                            tab.text_cache = content;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                self.status_message =
+                    format!("⚠️ Failed to apply edit ({}): {}", edit.path.display(), e);
+                self.status_message_timestamp = Some(std::time::Instant::now());
+            }
+        }
     }
 
     pub(crate) fn poll_ai_responses(&mut self) {
@@ -1057,8 +1219,118 @@ impl BerryCodeApp {
                         self.ai_streaming = false;
                         self.ai_streaming_message = None;
                     }
+                    AiChatResponse::PendingEdit {
+                        path,
+                        before,
+                        after,
+                    } => {
+                        // Coalesce repeat proposals on the same path:
+                        // if the agent revises a still-pending edit,
+                        // we'd rather show the latest single card than
+                        // stack duplicates.
+                        if let Some(existing) =
+                            self.pending_agent_edits.iter_mut().find(|e| e.path == path)
+                        {
+                            existing.before = before;
+                            existing.after = after;
+                        } else {
+                            self.pending_agent_edits
+                                .push(super::types::PendingAgentEdit {
+                                    path,
+                                    before,
+                                    after,
+                                });
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/// Compact unified-diff renderer for the pending-edit cards. Computes
+/// a line-level LCS-style diff between `before` and `after` and emits
+/// monospace coloured rows so additions / removals stand out at a
+/// glance. Capped at `max_lines` total to keep large edits readable;
+/// the full text is still applied on Approve.
+fn render_simple_unified_diff(ui: &mut egui::Ui, before: &str, after: &str, max_lines: usize) {
+    let before_lines: Vec<&str> = before.lines().collect();
+    let after_lines: Vec<&str> = after.lines().collect();
+
+    // Greedy line-pair walk: if lines match, emit a context row;
+    // otherwise emit "removed" for `before` then "added" for `after`.
+    // Good enough for the common single-block-of-changes case the
+    // agents emit; a real LCS can come later.
+    let mut bi = 0;
+    let mut ai = 0;
+    let mut emitted = 0;
+    let font = egui::FontId::new(12.0, egui::FontFamily::Monospace);
+
+    while (bi < before_lines.len() || ai < after_lines.len()) && emitted < max_lines {
+        match (before_lines.get(bi), after_lines.get(ai)) {
+            (Some(b), Some(a)) if b == a => {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!(" {}", b))
+                            .font(font.clone())
+                            .color(egui::Color32::from_rgb(150, 155, 165)),
+                    );
+                });
+                bi += 1;
+                ai += 1;
+            }
+            (Some(b), _) if !after_lines.contains(b) => {
+                ui.horizontal(|ui| {
+                    let line = ui.painter().clone();
+                    let rect = ui
+                        .allocate_response(
+                            egui::vec2(ui.available_width(), 18.0),
+                            egui::Sense::hover(),
+                        )
+                        .rect;
+                    line.rect_filled(rect, 0.0, egui::Color32::from_rgb(60, 28, 28));
+                    line.text(
+                        rect.left_top() + egui::vec2(4.0, 2.0),
+                        egui::Align2::LEFT_TOP,
+                        format!("-{}", b),
+                        font.clone(),
+                        egui::Color32::from_rgb(255, 180, 180),
+                    );
+                });
+                bi += 1;
+            }
+            (_, Some(a)) => {
+                ui.horizontal(|ui| {
+                    let line = ui.painter().clone();
+                    let rect = ui
+                        .allocate_response(
+                            egui::vec2(ui.available_width(), 18.0),
+                            egui::Sense::hover(),
+                        )
+                        .rect;
+                    line.rect_filled(rect, 0.0, egui::Color32::from_rgb(28, 60, 32));
+                    line.text(
+                        rect.left_top() + egui::vec2(4.0, 2.0),
+                        egui::Align2::LEFT_TOP,
+                        format!("+{}", a),
+                        font.clone(),
+                        egui::Color32::from_rgb(180, 255, 180),
+                    );
+                });
+                ai += 1;
+            }
+            _ => break,
+        }
+        emitted += 1;
+    }
+
+    let remaining = before_lines.len().saturating_sub(bi) + after_lines.len().saturating_sub(ai);
+    if remaining > 0 {
+        ui.label(
+            egui::RichText::new(format!("… {} more line(s) elided", remaining))
+                .size(11.0)
+                .color(egui::Color32::from_rgb(140, 145, 160))
+                .italics(),
+        );
     }
 }
