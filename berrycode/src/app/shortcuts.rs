@@ -605,6 +605,29 @@ impl BerryCodeApp {
                     );
                     self.status_message_timestamp = Some(std::time::Instant::now());
                 }
+                crate::app::asset_watcher::AssetEvent::AudioChanged(p) => {
+                    // If the active preview points at the changed
+                    // file, re-decode the peak buffer so the
+                    // waveform reflects the new content next frame.
+                    // Phase F / v0.6.
+                    let path_str = p.to_string_lossy().to_string();
+                    if self
+                        .audio_preview
+                        .loaded_path
+                        .as_ref()
+                        .map(|q| q.to_string_lossy() == path_str)
+                        .unwrap_or(false)
+                    {
+                        self.audio_preview.open(p.clone());
+                    }
+                    self.status_message = format!(
+                        "Audio changed: {} (Bevy will auto-reload)",
+                        p.file_name()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default()
+                    );
+                    self.status_message_timestamp = Some(std::time::Instant::now());
+                }
             }
         }
     }

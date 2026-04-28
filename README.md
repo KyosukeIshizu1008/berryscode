@@ -244,11 +244,11 @@ Positioning: the first AI assistant that *understands* Bevy, not just Rust — b
 > open-source FMOD / Wwise alternative tuned for Bevy.
 
 - [x] **Asset preview**: in-IDE waveform display + scrubbing for any audio file (WAV in v0.6.0; mp3 / ogg / flac via symphonia in v0.6.1)
-- [ ] **Event-driven editor**: define one-shots, loops, ducking, and parameter-driven layers
-- [ ] **Spatial audio**: visualise 3D source placement / attenuation curves on top of the Scene Editor viewport
-- [ ] **Music graph**: BGM transitions, stinger / cue triggers, vertical re-mixing
+- [x] **Event-driven editor**: define one-shots, loops, ducking, and parameter-driven layers (data + UI; `events.fire()` runtime in v0.6.1)
+- [x] **Spatial audio**: visualise 3D source placement / attenuation curves on top of the Scene Editor viewport (component + inspector + attenuation curves; SpatialAudioSink runtime in v0.6.1)
+- [x] **Music graph**: BGM transitions, stinger / cue triggers, vertical re-mixing (data + node-graph editor; crossfade runtime in v0.6.1)
 - [x] **SFX randomiser**: pitch / volume / variation tables to avoid repetitive sound (data + inspector; runtime spawn in v0.6.1)
-- [ ] **Hot reload**: edit a sound and hear it in the running game without restart
+- [x] **Hot reload**: edit a sound and hear it in the running game without restart (file watcher + preview re-decode; Bevy asset reload in v0.6.1)
 
 #### v0.7 — Architecture → game pipeline (target: 2027 H2)
 
@@ -590,11 +590,11 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 > Bevy 向けに最適化された OSS の FMOD / Wwise 代替。
 
 - [x] **アセットプレビュー**: あらゆる音声ファイルの波形表示 + IDE 内スクラブ再生(v0.6.0 は WAV のみ、symphonia 経由の mp3 / ogg / flac は v0.6.1)
-- [ ] **イベント駆動エディタ**: ワンショット、ループ、ダッキング、パラメータ駆動レイヤーの定義
-- [ ] **空間オーディオ**: シーンエディタビューポートに 3D 音源・減衰カーブを重ねて可視化
-- [ ] **ミュージックグラフ**: BGM トランジション、スティンガー、垂直リミックス
+- [x] **イベント駆動エディタ**: ワンショット、ループ、ダッキング、パラメータ駆動レイヤーの定義(データ + UI、`events.fire()` ランタイムは v0.6.1)
+- [x] **空間オーディオ**: シーンエディタビューポートに 3D 音源・減衰カーブを重ねて可視化(コンポーネント + インスペクタ + 減衰カーブ、SpatialAudioSink ランタイムは v0.6.1)
+- [x] **ミュージックグラフ**: BGM トランジション、スティンガー、垂直リミックス(データ + ノードエディタ、クロスフェードランタイムは v0.6.1)
 - [x] **SFX ランダマイザ**: ピッチ・音量・バリエーションテーブルで効果音の繰り返し感解消(データ + インスペクタは実装、ランタイム生成は v0.6.1)
-- [ ] **ホットリロード**: 音を編集すると実行中ゲームに即反映
+- [x] **ホットリロード**: 音を編集すると実行中ゲームに即反映(ファイル監視 + プレビュー再デコード、Bevy アセットリロードは v0.6.1)
 
 #### v0.7 — 建築 → ゲーム パイプライン (目標: 2027 H2)
 

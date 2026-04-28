@@ -13,5 +13,8 @@
 //! and arrive in v0.6 phases C–F.
 
 pub mod decode;
+pub mod events;
+pub mod music_graph;
 pub mod preview;
 pub mod sfx;
+pub mod spatial;

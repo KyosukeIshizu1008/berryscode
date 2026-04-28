@@ -27,6 +27,11 @@ pub enum AssetEvent {
     SceneChanged(PathBuf),
     /// Shader source (`.wgsl` / `.glsl` / `.vert` / `.frag`) was modified.
     ShaderChanged(PathBuf),
+    /// Audio source (`.wav` / `.ogg` / `.mp3` / `.flac`) was modified.
+    /// v0.6 / Phase F. The handler re-runs the waveform decode for the
+    /// active preview and asks Bevy's asset server to reload any sink
+    /// pointing at the same path.
+    AudioChanged(PathBuf),
 }
 
 /// Background filesystem watcher. The recommended watcher impl is
@@ -144,7 +149,9 @@ impl AssetWatcher {
             match rx.try_recv() {
                 Ok(ev) => {
                     let path = match &ev {
-                        AssetEvent::SceneChanged(p) | AssetEvent::ShaderChanged(p) => p.clone(),
+                        AssetEvent::SceneChanged(p)
+                        | AssetEvent::ShaderChanged(p)
+                        | AssetEvent::AudioChanged(p) => p.clone(),
                     };
                     let recent = self
                         .last_event_at
@@ -190,6 +197,7 @@ fn classify(path: &Path) -> Option<AssetEvent> {
             }
         }
         "wgsl" | "glsl" | "vert" | "frag" => Some(AssetEvent::ShaderChanged(path.to_path_buf())),
+        "wav" | "ogg" | "mp3" | "flac" => Some(AssetEvent::AudioChanged(path.to_path_buf())),
         _ => None,
     }
 }

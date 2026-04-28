@@ -723,6 +723,13 @@ pub struct BerryCodeApp {
     pub(crate) asset_watcher: asset_watcher::AssetWatcher,
     /// Audio preview panel state (waveform + scrub). v0.6 / Phase A.
     pub(crate) audio_preview: audio::preview::AudioPreviewState,
+    /// Audio event registry (Phase C). Edited via the
+    /// `Audio Events` floating window.
+    pub(crate) audio_events: audio::events::AudioEventRegistry,
+    pub(crate) audio_events_window_open: bool,
+    /// Music graph (Phase D). Edited via the `Music Graph` window.
+    pub(crate) music_graph: audio::music_graph::MusicGraph,
+    pub(crate) music_graph_window_open: bool,
     /// Path of the scene currently loaded into `scene_model`, if any.
     /// Set by `load_scene`; consumed by the asset watcher poll loop
     /// to decide whether a `.bscene` change on disk should trigger a
@@ -1790,6 +1797,10 @@ impl BerryCodeApp {
             asset_watcher: asset_watcher::AssetWatcher::default(),
             current_scene_path: None,
             audio_preview: audio::preview::AudioPreviewState::new(),
+            audio_events: audio::events::AudioEventRegistry::default(),
+            audio_events_window_open: false,
+            music_graph: audio::music_graph::MusicGraph::default(),
+            music_graph_window_open: false,
             plugin_search_query: String::new(),
             plugin_search_results: Vec::new(),
 
@@ -2461,6 +2472,12 @@ pub fn berry_ui_system(
 
         // Bevy-specific: System Execution Graph.
         app.render_system_graph(ctx);
+
+        // v0.6 audio editors. Both render only when their open
+        // flags are set, so the cost when nothing is showing is a
+        // single `if` per frame.
+        app.render_audio_events_editor(ctx);
+        app.render_music_graph_editor(ctx);
 
         // Bevy-specific: Event Monitor.
         app.render_event_monitor(ctx);
