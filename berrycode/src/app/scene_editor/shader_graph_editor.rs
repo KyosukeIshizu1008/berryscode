@@ -47,6 +47,22 @@ impl BerryCodeApp {
                             self.status_message_timestamp = Some(std::time::Instant::now());
                         }
                     }
+                    // v0.5: Compile button → emits a real .wgsl file
+                    // into `assets/shaders/`. The asset watcher picks
+                    // it up immediately and Bevy's runtime asset
+                    // reload swaps the shader on the live material.
+                    if ui.button("Compile → WGSL").clicked() {
+                        match write_wgsl_to_assets(graph, &self.root_path) {
+                            Ok(path) => {
+                                self.status_message = format!("WGSL written: {}", path);
+                                self.status_message_timestamp = Some(std::time::Instant::now());
+                            }
+                            Err(e) => {
+                                self.status_message = format!("Compile failed: {}", e);
+                                self.status_message_timestamp = Some(std::time::Instant::now());
+                            }
+                        }
+                    }
                 });
 
                 ui.separator();

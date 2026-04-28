@@ -563,6 +563,20 @@ impl BerryCodeApp {
                             }
                             ui.separator();
                             ui.label("Speed:");
+
+                            // The BlendTree node-graph editor (v0.5):
+                            // a compact panel that lets the user pick
+                            // the blend type (1D / 2D variants), the
+                            // driving parameter(s), and edit each
+                            // child's clip + threshold / position +
+                            // time-scale. Children of children (nested
+                            // blend trees) aren't editable here yet —
+                            // they show as `BlendTree(<name>)` and
+                            // become a follow-up.
+                            // (Closing of the inner `ui.horizontal`
+                            // happens later; this comment is just
+                            // ahead of the secondary section we add
+                            // below.)
                             ui.add(
                                 egui::DragValue::new(&mut controller.states[si].speed)
                                     .speed(0.05)
@@ -570,6 +584,138 @@ impl BerryCodeApp {
                             );
                             ui.checkbox(&mut controller.states[si].looped, "Loop");
                         });
+
+                        // ── BlendTree child editor (v0.5) ──
+                        // Only renders when the active state's motion
+                        // is a BlendTree. Edits children in place.
+                        if let Motion::BlendTree(bt) = &mut controller.states[si].motion {
+                            ui.add_space(4.0);
+                            ui.separator();
+                            ui.horizontal(|ui| {
+                                ui.label("Blend type:");
+                                egui::ComboBox::from_id_salt("blend_tree_type")
+                                    .selected_text(match bt.blend_type {
+                                        BlendType::Simple1D => "1D",
+                                        BlendType::SimpleDirectional2D => "2D Simple Directional",
+                                        BlendType::FreeformDirectional2D => {
+                                            "2D Freeform Directional"
+                                        }
+                                        BlendType::FreeformCartesian2D => "2D Freeform Cartesian",
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        for (variant, label) in [
+                                            (BlendType::Simple1D, "1D"),
+                                            (
+                                                BlendType::SimpleDirectional2D,
+                                                "2D Simple Directional",
+                                            ),
+                                            (
+                                                BlendType::FreeformDirectional2D,
+                                                "2D Freeform Directional",
+                                            ),
+                                            (
+                                                BlendType::FreeformCartesian2D,
+                                                "2D Freeform Cartesian",
+                                            ),
+                                        ] {
+                                            ui.selectable_value(&mut bt.blend_type, variant, label);
+                                        }
+                                    });
+                                ui.separator();
+                                ui.label("Param X:");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut bt.parameter_x)
+                                        .desired_width(80.0)
+                                        .hint_text("speed"),
+                                );
+                                if !matches!(bt.blend_type, BlendType::Simple1D) {
+                                    ui.label("Param Y:");
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut bt.parameter_y)
+                                            .desired_width(80.0)
+                                            .hint_text("direction"),
+                                    );
+                                }
+                            });
+                            ui.add_space(2.0);
+
+                            // Children grid — one row per child motion.
+                            let mut remove: Option<usize> = None;
+                            let is_2d = !matches!(bt.blend_type, BlendType::Simple1D);
+                            egui::Grid::new("blend_tree_children")
+                                .striped(true)
+                                .num_columns(if is_2d { 5 } else { 4 })
+                                .show(ui, |ui| {
+                                    ui.label(egui::RichText::new("Clip").strong());
+                                    if is_2d {
+                                        ui.label(egui::RichText::new("X").strong());
+                                        ui.label(egui::RichText::new("Y").strong());
+                                    } else {
+                                        ui.label(egui::RichText::new("Threshold").strong());
+                                    }
+                                    ui.label(egui::RichText::new("Speed").strong());
+                                    ui.label("");
+                                    ui.end_row();
+
+                                    for (ci, child) in bt.children.iter_mut().enumerate() {
+                                        // Allow editing the child's clip name when it's a Clip;
+                                        // nested BlendTrees only show their name (recursive edit
+                                        // is a v0.6 polish item).
+                                        match &mut child.motion {
+                                            Motion::Clip { clip_name } => {
+                                                ui.add(
+                                                    egui::TextEdit::singleline(clip_name)
+                                                        .desired_width(120.0)
+                                                        .hint_text("clip"),
+                                                );
+                                            }
+                                            Motion::BlendTree(inner) => {
+                                                ui.label(format!("BlendTree({})", inner.name));
+                                            }
+                                        }
+                                        if is_2d {
+                                            ui.add(
+                                                egui::DragValue::new(&mut child.position[0])
+                                                    .speed(0.05),
+                                            );
+                                            ui.add(
+                                                egui::DragValue::new(&mut child.position[1])
+                                                    .speed(0.05),
+                                            );
+                                        } else {
+                                            ui.add(
+                                                egui::DragValue::new(&mut child.threshold)
+                                                    .speed(0.05),
+                                            );
+                                        }
+                                        ui.add(
+                                            egui::DragValue::new(&mut child.time_scale)
+                                                .speed(0.05)
+                                                .range(0.01..=10.0),
+                                        );
+                                        if ui.button("✕").clicked() {
+                                            remove = Some(ci);
+                                        }
+                                        ui.end_row();
+                                    }
+                                });
+
+                            if let Some(idx) = remove {
+                                bt.children.remove(idx);
+                            }
+
+                            ui.add_space(2.0);
+                            if ui.button("+ Child").clicked() {
+                                bt.children.push(BlendTreeChild {
+                                    motion: Motion::Clip {
+                                        clip_name: String::new(),
+                                    },
+                                    threshold: 0.0,
+                                    position: [0.0, 0.0],
+                                    time_scale: 1.0,
+                                });
+                            }
+                        }
                     }
                 } else if let Some(ti) = self.animator_selected_transition {
                     if ti < controller.transitions.len() {

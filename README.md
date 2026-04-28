@@ -232,8 +232,8 @@ Positioning: the first AI assistant that *understands* Bevy, not just Rust — b
 
 #### v0.5 — Bevy depth + asset import (target: 2026 Q4)
 - [x] System Graph: drag-to-reorder + visual scheduling
-- [ ] Animation: blend tree node graph editor
-- [ ] Shader Graph: live-recompile preview
+- [x] Animation: blend tree node graph editor
+- [x] Shader Graph: live-recompile preview
 - [x] Hot reload for `.bscene` and shader assets
 - [x] Plugin Browser: install with one click + auto-update
 - [x] **Asset import pipeline**: FBX, OBJ, glTF variants, custom converter plugins (foundation that v0.6 / v0.7 build on)
@@ -578,8 +578,8 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 
 #### v0.5 — Bevy 深耕 + アセットインポート (目標: 2026 Q4)
 - [x] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
-- [ ] アニメーション: ブレンドツリーノードグラフエディタ
-- [ ] シェーダーグラフ: ライブ再コンパイルプレビュー
+- [x] アニメーション: ブレンドツリーノードグラフエディタ
+- [x] シェーダーグラフ: ライブ再コンパイルプレビュー
 - [x] `.bscene` とシェーダーアセットのホットリロード
 - [x] プラグインブラウザ: ワンクリックインストール + 自動アップデート
 - [x] **アセットインポートパイプライン**: FBX, OBJ, glTF 各種、カスタムコンバータプラグイン (v0.6 / v0.7 の基盤)
