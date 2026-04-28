@@ -86,6 +86,86 @@ impl BerryCodeApp {
                             bottom: 12,
                         })
                         .show(ui, |ui| {
+                            // ── Chat / Agent mode toggle (above input)
+                            // Sits *outside* the rounded INPUT_BG box so
+                            // the toggle isn't visually trapped inside
+                            // the same frame as the textarea.
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                let chat = self.ai_chat_mode
+                                    == super::types::AIChatMode::Chat;
+                                let agent = self.ai_chat_mode
+                                    == super::types::AIChatMode::Autonomous;
+                                if ui.selectable_label(chat, "Chat").clicked() {
+                                    self.ai_chat_mode = super::types::AIChatMode::Chat;
+                                }
+                                if ui.selectable_label(agent, "Agent").clicked() {
+                                    self.ai_chat_mode = super::types::AIChatMode::Autonomous;
+                                }
+                                if agent {
+                                    let claude_installed =
+                                        crate::agent::CodingAgent::check_installed(
+                                            &crate::agent::claude::ClaudeCodeAgent::new(),
+                                        );
+                                    let codex_installed =
+                                        crate::agent::CodingAgent::check_installed(
+                                            &crate::agent::codex::CodexAgent::new(),
+                                        );
+                                    let mut backend =
+                                        self.ai_settings.agent_backend.clone();
+                                    egui::ComboBox::from_id_salt("agent_backend_picker")
+                                        .selected_text(match backend.as_str() {
+                                            "codex" => "Codex",
+                                            _ => "Claude Code",
+                                        })
+                                        .show_ui(ui, |ui| {
+                                            ui.selectable_value(
+                                                &mut backend,
+                                                "claude".to_string(),
+                                                "Claude Code",
+                                            );
+                                            ui.selectable_value(
+                                                &mut backend,
+                                                "codex".to_string(),
+                                                "Codex",
+                                            );
+                                        });
+                                    if backend != self.ai_settings.agent_backend {
+                                        self.ai_settings.agent_backend = backend.clone();
+                                        self.ai_settings.save();
+                                    }
+                                    let (installed, install_hint) = match backend.as_str() {
+                                        "codex" => (
+                                            codex_installed,
+                                            "codex not on PATH — `npm i -g @openai/codex`",
+                                        ),
+                                        _ => (
+                                            claude_installed,
+                                            "claude not on PATH — `npm i -g @anthropic-ai/claude-code`",
+                                        ),
+                                    };
+                                    match installed {
+                                        Some(v) => {
+                                            ui.label(
+                                                egui::RichText::new(v)
+                                                    .size(11.0)
+                                                    .color(TEXT_DIM),
+                                            );
+                                        }
+                                        None => {
+                                            ui.label(
+                                                egui::RichText::new(install_hint)
+                                                    .size(11.0)
+                                                    .color(egui::Color32::from_rgb(
+                                                        220, 120, 120,
+                                                    )),
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                            ui.add_space(6.0);
+
                             let input_id = egui::Id::new("chat_input");
                             let input_focused = ui.memory(|m| m.has_focus(input_id));
                             let border_color = if input_focused {
@@ -164,99 +244,6 @@ impl BerryCodeApp {
                                         self.ai_chat_focus_pending = false;
                                         response.request_focus();
                                     }
-
-                                    ui.add_space(4.0);
-
-                                    // Chat / Agent mode toggle. In Agent
-                                    // mode the prompt drives an external
-                                    // coding agent (Claude Code) instead
-                                    // of a chat-shaped Provider call.
-                                    ui.horizontal(|ui| {
-                                        ui.spacing_mut().item_spacing.x = 4.0;
-                                        let chat = self.ai_chat_mode
-                                            == super::types::AIChatMode::Chat;
-                                        let agent = self.ai_chat_mode
-                                            == super::types::AIChatMode::Autonomous;
-                                        if ui.selectable_label(chat, "💬 Chat").clicked() {
-                                            self.ai_chat_mode =
-                                                super::types::AIChatMode::Chat;
-                                        }
-                                        if ui.selectable_label(agent, "🤖 Agent").clicked() {
-                                            self.ai_chat_mode =
-                                                super::types::AIChatMode::Autonomous;
-                                        }
-                                        if agent {
-                                            // Backend picker. Both
-                                            // CLIs share `CodingAgent`,
-                                            // so picking just swaps the
-                                            // box at run time.
-                                            let claude_installed =
-                                                crate::agent::CodingAgent::check_installed(
-                                                    &crate::agent::claude::ClaudeCodeAgent::new(),
-                                                );
-                                            let codex_installed =
-                                                crate::agent::CodingAgent::check_installed(
-                                                    &crate::agent::codex::CodexAgent::new(),
-                                                );
-                                            let mut backend =
-                                                self.ai_settings.agent_backend.clone();
-                                            egui::ComboBox::from_id_salt("agent_backend_picker")
-                                                .selected_text(match backend.as_str() {
-                                                    "codex" => "Codex",
-                                                    _ => "Claude Code",
-                                                })
-                                                .show_ui(ui, |ui| {
-                                                    ui.selectable_value(
-                                                        &mut backend,
-                                                        "claude".to_string(),
-                                                        "Claude Code",
-                                                    );
-                                                    ui.selectable_value(
-                                                        &mut backend,
-                                                        "codex".to_string(),
-                                                        "Codex",
-                                                    );
-                                                });
-                                            if backend != self.ai_settings.agent_backend {
-                                                self.ai_settings.agent_backend = backend.clone();
-                                                self.ai_settings.save();
-                                            }
-                                            // Inline install hint for
-                                            // the currently-selected
-                                            // backend so the user knows
-                                            // up front whether sending
-                                            // will work.
-                                            let (installed, install_hint) =
-                                                match backend.as_str() {
-                                                    "codex" => (
-                                                        codex_installed,
-                                                        "codex not on PATH — `npm i -g @openai/codex` or `brew install --cask codex`",
-                                                    ),
-                                                    _ => (
-                                                        claude_installed,
-                                                        "claude not on PATH — `npm i -g @anthropic-ai/claude-code`",
-                                                    ),
-                                                };
-                                            match installed {
-                                                Some(v) => {
-                                                    ui.label(
-                                                        egui::RichText::new(v)
-                                                            .size(11.0)
-                                                            .color(TEXT_DIM),
-                                                    );
-                                                }
-                                                None => {
-                                                    ui.label(
-                                                        egui::RichText::new(install_hint)
-                                                            .size(11.0)
-                                                            .color(egui::Color32::from_rgb(
-                                                                220, 120, 120,
-                                                            )),
-                                                    );
-                                                }
-                                            }
-                                        }
-                                    });
 
                                     ui.add_space(2.0);
 
@@ -887,10 +874,10 @@ impl BerryCodeApp {
                     if let Some(tx) = &tx {
                         let hint = match &e {
                             crate::ai::ProviderError::MissingKey(p) => format!(
-                                "⚠️ No API key configured for {}.\nAdd one in Settings → AI Providers.",
+                                "!No API key configured for {}.\nAdd one in Settings → AI Providers.",
                                 p
                             ),
-                            other => format!("⚠️ AI error: {}", other),
+                            other => format!("!AI error: {}", other),
                         };
                         let _ = tx.send(AiChatResponse::ChatChunk(hint));
                         let _ = tx.send(AiChatResponse::ChatStreamCompleted);
@@ -960,7 +947,7 @@ impl BerryCodeApp {
                 Err(e) => {
                     if let Some(tx) = &tx {
                         let _ = tx.send(AiChatResponse::ChatChunk(format!(
-                            "⚠️ Agent failed to start: {}\n\
+                            "!Agent failed to start: {}\n\
                                  Install Claude Code with `brew install anthropic/claude/claude` \
                                  or `npm install -g @anthropic-ai/claude-code` and re-run.",
                             e
@@ -994,7 +981,7 @@ impl BerryCodeApp {
                         // user knows an edit was proposed even if they've
                         // scrolled away from the pending-edits cards…
                         let _ = tx.send(AiChatResponse::ChatChunk(format!(
-                            "\n**📝 Edit proposed:** `{}`\n",
+                            "\n**[Edit]Edit proposed:** `{}`\n",
                             path.display()
                         )));
                         // …and queue the structured payload for the
@@ -1007,7 +994,7 @@ impl BerryCodeApp {
                         });
                     }
                     crate::agent::AgentEvent::Error(msg) => {
-                        let _ = tx.send(AiChatResponse::ChatChunk(format!("\n⚠️ {}\n", msg)));
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!("\n!{}\n", msg)));
                     }
                     crate::agent::AgentEvent::Done { success, usage } => {
                         if let Some(usage) = usage {
@@ -1019,7 +1006,7 @@ impl BerryCodeApp {
                         }
                         if !success {
                             let _ = tx.send(AiChatResponse::ChatChunk(
-                                "\n⚠️ Agent run finished with errors.\n".to_string(),
+                                "\n!Agent run finished with errors.\n".to_string(),
                             ));
                         }
                         let _ = tx.send(AiChatResponse::ChatStreamCompleted);
@@ -1060,7 +1047,7 @@ impl BerryCodeApp {
             .show(ui, |ui| {
                 ui.label(
                     egui::RichText::new(format!(
-                        "📝 {} pending edit{} from agent",
+                        "[Edit]{} pending edit{} from agent",
                         edits.len(),
                         if edits.len() == 1 { "" } else { "s" }
                     ))
@@ -1079,7 +1066,7 @@ impl BerryCodeApp {
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(
-                                    egui::RichText::new(format!("📄 {}", edit.path.display()))
+                                    egui::RichText::new(format!("{}", edit.path.display()))
                                         .size(12.0)
                                         .color(egui::Color32::from_rgb(220, 220, 220))
                                         .family(egui::FontFamily::Monospace),
@@ -1089,7 +1076,7 @@ impl BerryCodeApp {
                                     |ui| {
                                         if ui
                                             .button(
-                                                egui::RichText::new("✗ Reject")
+                                                egui::RichText::new("Reject")
                                                     .color(egui::Color32::from_rgb(220, 120, 120)),
                                             )
                                             .clicked()
@@ -1098,7 +1085,7 @@ impl BerryCodeApp {
                                         }
                                         if ui
                                             .button(
-                                                egui::RichText::new("✓ Approve")
+                                                egui::RichText::new("Approve")
                                                     .color(egui::Color32::from_rgb(120, 220, 140))
                                                     .strong(),
                                             )
@@ -1148,7 +1135,7 @@ impl BerryCodeApp {
         }
         match std::fs::write(&edit.path, &edit.after) {
             Ok(()) => {
-                self.status_message = format!("✅ Applied agent edit: {}", edit.path.display());
+                self.status_message = format!("Applied agent edit: {}", edit.path.display());
                 self.status_message_timestamp = Some(std::time::Instant::now());
                 // Reload the buffer for any open tab pointing at this
                 // file so the editor shows the new contents instead of
@@ -1165,7 +1152,7 @@ impl BerryCodeApp {
             }
             Err(e) => {
                 self.status_message =
-                    format!("⚠️ Failed to apply edit ({}): {}", edit.path.display(), e);
+                    format!("!Failed to apply edit ({}): {}", edit.path.display(), e);
                 self.status_message_timestamp = Some(std::time::Instant::now());
             }
         }
@@ -1189,7 +1176,7 @@ impl BerryCodeApp {
                         if let Some(streaming_msg) = &mut self.ai_streaming_message {
                             streaming_msg.push_str(&chunk);
                             tracing::info!(
-                                "📝 Accumulated message: {} chars total",
+                                "[Edit]Accumulated message: {} chars total",
                                 streaming_msg.len()
                             );
                         } else {
