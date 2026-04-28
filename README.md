@@ -199,7 +199,7 @@ The arc:
 - [ ] GPU PBR preview for GLB/GLTF models ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
 - [x] In-progress IME preedit display in source code editor
 - [x] LSP: completion details (signature help, parameter hints)
-- [ ] Scene Editor: prefab nested overrides
+- [ ] Scene Editor: prefab nested overrides ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10))
 - [x] Settings UI for keybindings and theme
 
 #### v0.4.5 — AI integration (target: 2026 Q4 / mid)
@@ -536,7 +536,7 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 - [ ] GLB/GLTF モデルの GPU PBR プレビュー ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1))
 - [x] ソースコードエディタでの IME preedit 表示
 - [x] LSP: 補完詳細（シグネチャヘルプ、パラメータヒント）
-- [ ] シーンエディタ: プレハブのネストオーバーライド
+- [ ] シーンエディタ: プレハブのネストオーバーライド ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10))
 - [x] キーバインド・テーマの設定 UI
 
 #### v0.4.5 — AI 統合 (目標: 2026 Q4 / 中盤)
