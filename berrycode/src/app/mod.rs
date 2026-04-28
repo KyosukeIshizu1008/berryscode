@@ -12,6 +12,7 @@ use tokio::sync::mpsc;
 mod ai_chat;
 pub(crate) mod ansi;
 mod asset_browser;
+mod asset_watcher;
 mod cargo_completion;
 mod code_actions;
 mod custom_snippets;
@@ -713,6 +714,14 @@ pub struct BerryCodeApp {
     /// their crates.io "latest" version filled in on Refresh. Drives
     /// the Plugin Browser's auto-update section. v0.5.
     pub(crate) installed_plugins: Vec<scene_editor::plugin_browser::InstalledPlugin>,
+
+    /// Filesystem watcher for `.bscene` / shader hot reload. v0.5.
+    pub(crate) asset_watcher: asset_watcher::AssetWatcher,
+    /// Path of the scene currently loaded into `scene_model`, if any.
+    /// Set by `load_scene`; consumed by the asset watcher poll loop
+    /// to decide whether a `.bscene` change on disk should trigger a
+    /// live reload (only if it matches the active scene). v0.5.
+    pub(crate) current_scene_path: Option<String>,
     /// Tracks whether `installed_plugins` has been populated for the
     /// currently open browser session. Reset to false when the
     /// browser closes; the first render after open kicks off a scan
@@ -1771,6 +1780,8 @@ impl BerryCodeApp {
             plugin_browser_open: false,
             installed_plugins: Vec::new(),
             installed_plugins_loaded: false,
+            asset_watcher: asset_watcher::AssetWatcher::default(),
+            current_scene_path: None,
             plugin_search_query: String::new(),
             plugin_search_results: Vec::new(),
 
@@ -2226,6 +2237,7 @@ pub fn berry_ui_system(
 
         // Poll AI responses (non-blocking)
         app.poll_ai_responses();
+        app.poll_asset_watcher();
 
         // Poll file watcher events (non-blocking)
         app.poll_file_watcher_events();

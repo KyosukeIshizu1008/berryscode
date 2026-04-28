@@ -547,6 +547,10 @@ impl BerryCodeApp {
                 self.scene_model = scene;
                 self.scene_needs_sync = true;
                 self.active_panel = ActivePanel::SceneEditor;
+                // Remember which file we're showing so the asset
+                // watcher can decide whether an on-disk change should
+                // trigger a live reload (v0.5 hot-reload).
+                self.current_scene_path = Some(path.to_string());
                 self.status_message = format!("Scene loaded: {}", path);
                 self.status_message_timestamp = Some(std::time::Instant::now());
                 tracing::info!("📂 Scene loaded: {}", path);
@@ -555,6 +559,52 @@ impl BerryCodeApp {
                 self.status_message = format!("Load failed: {}", e);
                 self.status_message_timestamp = Some(std::time::Instant::now());
                 tracing::error!("❌ Scene load failed: {:#}", e);
+            }
+        }
+    }
+
+    /// Drain pending events from the asset watcher and react. Live-
+    /// reload the active scene when its `.bscene` file changes on
+    /// disk; surface a status message for shader changes (Bevy's own
+    /// asset hot-reload picks them up — we just confirm we noticed).
+    /// Called once per frame from `berry_ui_system`.
+    pub(crate) fn poll_asset_watcher(&mut self) {
+        // Make sure the watcher is rooted at the current project. This
+        // is idempotent and handles the "user opened a different
+        // project" case for free.
+        let root = std::path::PathBuf::from(self.root_path.clone());
+        if root.is_dir() {
+            self.asset_watcher.ensure_watching(&root);
+        }
+
+        let events = self.asset_watcher.drain();
+        for event in events {
+            match event {
+                crate::app::asset_watcher::AssetEvent::SceneChanged(p) => {
+                    let path_str = p.to_string_lossy().to_string();
+                    // Only auto-reload if it's the scene the user is
+                    // currently viewing — silently re-parsing every
+                    // .bscene in the project would be surprising.
+                    if self.current_scene_path.as_deref() == Some(path_str.as_str()) {
+                        tracing::info!("Hot-reload: re-parsing active scene {}", path_str);
+                        // Re-use `load_scene` so the status message
+                        // and panel-switch behaviour stay consistent
+                        // with manual loads.
+                        self.load_scene(&path_str);
+                    } else {
+                        self.status_message = format!("Scene file changed: {}", path_str);
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                    }
+                }
+                crate::app::asset_watcher::AssetEvent::ShaderChanged(p) => {
+                    self.status_message = format!(
+                        "Shader changed: {} (Bevy will auto-reload)",
+                        p.file_name()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default()
+                    );
+                    self.status_message_timestamp = Some(std::time::Instant::now());
+                }
             }
         }
     }
