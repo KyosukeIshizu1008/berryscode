@@ -420,6 +420,16 @@ impl BerryCodeApp {
     pub(crate) fn open_file_from_path(&mut self, file_path: &str) {
         tracing::info!("📄 Opening file: {}", file_path);
 
+        // Audio files (currently `.wav`; mp3/ogg/flac arrive in v0.6.1
+        // alongside symphonia) populate the audio preview panel rather
+        // than opening a text tab. v0.6 / Phase A.
+        if file_path.to_lowercase().ends_with(".wav") {
+            self.audio_preview.open(std::path::PathBuf::from(file_path));
+            self.status_message = format!("Audio loaded: {}", file_path);
+            self.status_message_timestamp = Some(std::time::Instant::now());
+            return;
+        }
+
         // Prefab files (.bprefab) are instantiated into the current scene at
         // the origin and the Scene Editor is brought to focus.
         if file_path.ends_with(".bprefab") {

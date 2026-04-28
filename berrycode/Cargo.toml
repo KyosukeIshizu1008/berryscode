@@ -99,6 +99,13 @@ base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "ico"] }
 resvg = "0.44"
 
+# ===== Audio decode for waveform preview (v0.6 Phase A) =====
+# WAV-only for the first cut; ogg/mp3/flac via symphonia is a v0.6.1
+# follow-up. `hound` is a tiny pure-Rust decoder so it pulls almost
+# no extra build cost beyond what `bevy_audio`'s wav feature already
+# fetches.
+hound = "3"
+
 # ===== 3D Model Preview (GLTF/GLB, OBJ, STL, PLY) =====
 gltf = "1.4"
 tobj = "4.0"       # OBJ parser

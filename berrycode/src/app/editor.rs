@@ -22,6 +22,15 @@ impl BerryCodeApp {
                 let _full_panel_rect = ui.max_rect();
 
                 if self.editor_tabs.is_empty() {
+                    // Audio preview panel takes precedence over the
+                    // empty-state placeholder so opening a `.wav`
+                    // from the file tree shows the waveform without
+                    // first creating a fake text tab. v0.6 / A.
+                    if self.audio_preview.loaded_path.is_some() {
+                        ui.add_space(8.0);
+                        self.render_audio_preview(ui);
+                        return;
+                    }
                     // No file open - show placeholder
                     ui.vertical_centered(|ui| {
                         ui.add_space(100.0);

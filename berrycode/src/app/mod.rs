@@ -13,6 +13,7 @@ mod ai_chat;
 pub(crate) mod ansi;
 mod asset_browser;
 mod asset_watcher;
+mod audio;
 mod cargo_completion;
 mod code_actions;
 mod custom_snippets;
@@ -720,6 +721,8 @@ pub struct BerryCodeApp {
 
     /// Filesystem watcher for `.bscene` / shader hot reload. v0.5.
     pub(crate) asset_watcher: asset_watcher::AssetWatcher,
+    /// Audio preview panel state (waveform + scrub). v0.6 / Phase A.
+    pub(crate) audio_preview: audio::preview::AudioPreviewState,
     /// Path of the scene currently loaded into `scene_model`, if any.
     /// Set by `load_scene`; consumed by the asset watcher poll loop
     /// to decide whether a `.bscene` change on disk should trigger a
@@ -1786,6 +1789,7 @@ impl BerryCodeApp {
             installed_plugins_loaded: false,
             asset_watcher: asset_watcher::AssetWatcher::default(),
             current_scene_path: None,
+            audio_preview: audio::preview::AudioPreviewState::new(),
             plugin_search_query: String::new(),
             plugin_search_results: Vec::new(),
 

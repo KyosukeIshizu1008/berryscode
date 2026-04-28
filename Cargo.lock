@@ -481,6 +481,7 @@ dependencies = [
  "git2",
  "glob",
  "gltf",
+ "hound",
  "ignore",
  "image",
  "indexmap",
