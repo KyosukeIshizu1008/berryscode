@@ -147,6 +147,18 @@ impl BerryCodeApp {
                                         .frame(false);
                                     let response = ui.add(text_edit);
 
+                                    // Cmd+L from anywhere drops focus into
+                                    // the AI chat input. The flag is raised
+                                    // by the global shortcut handler in
+                                    // `mod.rs`; we consume it here so the
+                                    // very next frame has the cursor in the
+                                    // ai_input box even if another widget
+                                    // currently owns focus.
+                                    if self.ai_chat_focus_pending {
+                                        self.ai_chat_focus_pending = false;
+                                        response.request_focus();
+                                    }
+
                                     ui.add_space(4.0);
 
                                     // Send button row
@@ -749,6 +761,12 @@ impl BerryCodeApp {
 
             match provider.complete(req).await {
                 Ok(resp) => {
+                    // Record usage for the Cost & Limits panel. Best-effort:
+                    // a missing or unwriteable `~/.berrycode/ai_usage.json`
+                    // must never break the chat reply that already landed.
+                    if let Some(usage) = resp.usage {
+                        crate::ai::usage::record(ai.chat_provider, &ai.chat_model, &usage);
+                    }
                     if let Some(tx) = &tx {
                         let _ = tx.send(AiChatResponse::ChatChunk(resp.text));
                         let _ = tx.send(AiChatResponse::ChatStreamCompleted);

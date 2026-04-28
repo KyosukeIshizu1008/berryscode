@@ -82,6 +82,9 @@ impl Provider for OllamaProvider {
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0) as u32,
             completion_tokens: json.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            // Ollama runs locally — no API-level prompt cache to expose.
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
         });
 
         Ok(CompletionResponse { text, usage })

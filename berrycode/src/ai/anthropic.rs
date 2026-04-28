@@ -3,12 +3,18 @@
 //! <https://api.anthropic.com/v1/messages>.
 
 use super::{
-    ChatMessage, CompletionRequest, CompletionResponse, Provider, ProviderError, ProviderKind,
-    TokenUsage,
+    CompletionRequest, CompletionResponse, Provider, ProviderError, ProviderKind, TokenUsage,
 };
 
 const API_BASE: &str = "https://api.anthropic.com/v1";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
+
+/// Roughly when prompt-caching starts paying off. Anthropic charges a
+/// 25% premium on cached writes, so for very short prompts we'd lose
+/// money; the break-even is around 1,024 tokens (~4,000 chars). We
+/// gate on character length as a cheap proxy — exact tokenisation
+/// happens server-side anyway.
+const CACHE_MIN_CHARS: usize = 4_000;
 
 pub struct AnthropicProvider {
     api_key: String,
@@ -43,12 +49,36 @@ impl Provider for AnthropicProvider {
 
         // Anthropic separates the system prompt from `messages` and
         // restricts roles to `user` / `assistant`.
-        let messages: Vec<serde_json::Value> = request
+        //
+        // Prompt caching: when a system prompt or the first user message
+        // is long enough to be worth the 25% write surcharge, mark its
+        // last content block with `cache_control: {type: "ephemeral"}`.
+        // Subsequent requests that share the same prefix get billed at
+        // the (much cheaper) cached read rate. The cache lives ~5 min
+        // and is keyed by the entire prefix up to the marker.
+        let mut messages: Vec<serde_json::Value> = Vec::with_capacity(request.messages.len());
+        for (idx, m) in request
             .messages
             .iter()
             .filter(|m| m.role != "system")
-            .map(|m: &ChatMessage| serde_json::json!({ "role": m.role, "content": m.content }))
-            .collect();
+            .enumerate()
+        {
+            // Cache the first user message when it's substantial — that's
+            // typically where bulky context (file dumps, scene JSON, RAG
+            // chunks) gets injected.
+            if idx == 0 && m.role == "user" && m.content.len() >= CACHE_MIN_CHARS {
+                messages.push(serde_json::json!({
+                    "role": m.role,
+                    "content": [{
+                        "type": "text",
+                        "text": m.content,
+                        "cache_control": { "type": "ephemeral" },
+                    }],
+                }));
+            } else {
+                messages.push(serde_json::json!({ "role": m.role, "content": m.content }));
+            }
+        }
 
         let mut body = serde_json::json!({
             "model": request.model,
@@ -57,7 +87,17 @@ impl Provider for AnthropicProvider {
             "messages": messages,
         });
         if let Some(system) = request.system.as_ref() {
-            body["system"] = serde_json::Value::String(system.clone());
+            // Cache long system prompts — these are the most common
+            // beneficiaries (Bevy doc RAG, agent-mode toolset prompts).
+            if system.len() >= CACHE_MIN_CHARS {
+                body["system"] = serde_json::json!([{
+                    "type": "text",
+                    "text": system,
+                    "cache_control": { "type": "ephemeral" },
+                }]);
+            } else {
+                body["system"] = serde_json::Value::String(system.clone());
+            }
         }
 
         let resp = self
@@ -105,9 +145,21 @@ impl Provider for AnthropicProvider {
             })
             .unwrap_or_default();
 
+        // Anthropic reports cache hits / writes in the `usage` block.
+        // `input_tokens` is the *non-cached* portion only — total billed
+        // input is input_tokens + cache_creation + cache_read, with the
+        // last two priced differently. The Cost panel uses these fields.
         let usage = json.get("usage").map(|u| TokenUsage {
             prompt_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
             completion_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            cache_read_tokens: u
+                .get("cache_read_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32,
+            cache_write_tokens: u
+                .get("cache_creation_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32,
         });
 
         Ok(CompletionResponse { text, usage })

@@ -8,7 +8,7 @@
 use super::ProviderKind;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AiSettings {
     pub anthropic_api_key: String,
     pub openai_api_key: String,
@@ -26,6 +26,14 @@ pub struct AiSettings {
     /// Whether AI features are enabled at all. Lets users keep keys on
     /// disk but disable the assistant temporarily.
     pub enabled: bool,
+
+    /// Soft monthly spending cap in USD. The Cost panel surfaces a
+    /// warning once this is exceeded; we don't actively block requests
+    /// because hard cut-offs in the middle of an answer would hurt
+    /// more than over-spending by a few dollars. `0.0` = no cap.
+    /// `#[serde(default)]` keeps existing `ai.json` files loadable.
+    #[serde(default)]
+    pub monthly_cap_usd: f32,
 }
 
 impl Default for AiSettings {
@@ -39,6 +47,7 @@ impl Default for AiSettings {
             completion_provider: ProviderKind::Anthropic,
             completion_model: "claude-haiku-4-5".to_string(),
             enabled: true,
+            monthly_cap_usd: 0.0,
         }
     }
 }

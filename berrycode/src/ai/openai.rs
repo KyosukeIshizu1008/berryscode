@@ -93,6 +93,11 @@ impl Provider for OpenAiProvider {
                 .get("completion_tokens")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0) as u32,
+            // OpenAI doesn't expose prompt-cache stats yet (they auto-cache
+            // server-side without surfacing the split). Keep these zero so
+            // the Cost panel still renders correctly across providers.
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
         });
 
         Ok(CompletionResponse { text, usage })

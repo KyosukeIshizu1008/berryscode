@@ -208,15 +208,15 @@ The arc:
 > code-savvy models, plus the Bevy-specific context that no general IDE
 > can provide.
 
-- [ ] **Provider plug-in layer**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5), OpenAI (GPT-5 / GPT-5 Codex), Ollama / llama.cpp (local), with prompt caching where supported
-- [ ] **Bring-your-own-key UI**: per-provider keys + model selection in Settings; never round-trip through a hosted backend
+- [x] **Provider plug-in layer**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5), OpenAI (GPT-5 / GPT-5 Codex), Ollama / llama.cpp (local), with prompt caching where supported
+- [x] **Bring-your-own-key UI**: per-provider keys + model selection in Settings; never round-trip through a hosted backend
 - [ ] **Inline / Tab completion**: ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
-- [ ] **Chat sidebar (`Cmd+L`)**: conversational assistant with `@file` / `@symbol` / `@scene` attachments
+- [ ] **Chat sidebar (`Cmd+L`)**: conversational assistant with `@file` / `@symbol` / `@scene` attachments — `Cmd+L` shortcut shipped in v0.4.3, attachments still pending
 - [ ] **Agent mode**: autonomous loop that can edit files, run `cargo` / `git`, and surface a diff for human approval
 - [ ] **Apply diff**: one-click application of model-suggested edits with three-way merge against the current buffer
 - [ ] **Bevy doc RAG**: auto-attach the relevant Bevy 0.18 docs / examples to every prompt — answers stay version-correct
 - [ ] **ECS-aware completion**: typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
-- [ ] **Cost / token panel**: per-conversation usage + monthly cap so users never get surprise bills
+- [x] **Cost / token panel**: per-conversation usage + monthly cap so users never get surprise bills
 
 Positioning: the first AI assistant that *understands* Bevy, not just Rust.
 
@@ -544,15 +544,15 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 > _AI ネイティブ、Bevy 対応。_ 主要なコード対応モデルに自前のAPI キーで
 > 接続でき、汎用 IDE には真似できない Bevy 固有のコンテキストを提供。
 
-- [ ] **プロバイダプラグイン層**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5)、OpenAI (GPT-5 / GPT-5 Codex)、Ollama / llama.cpp (ローカル)、対応モデルではプロンプトキャッシュ利用
-- [ ] **BYOK (Bring Your Own Key) UI**: プロバイダごとの API キー + モデル選択を Settings から設定、ホスト型バックエンド経由なし
+- [x] **プロバイダプラグイン層**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5)、OpenAI (GPT-5 / GPT-5 Codex)、Ollama / llama.cpp (ローカル)、対応モデルではプロンプトキャッシュ利用
+- [x] **BYOK (Bring Your Own Key) UI**: プロバイダごとの API キー + モデル選択を Settings から設定、ホスト型バックエンド経由なし
 - [ ] **インライン / Tab 補完**: ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
-- [ ] **チャットサイドバー (`Cmd+L`)**: `@file` / `@symbol` / `@scene` 添付付き会話アシスタント
+- [ ] **チャットサイドバー (`Cmd+L`)**: `@file` / `@symbol` / `@scene` 添付付き会話アシスタント — `Cmd+L` ショートカットは v0.4.3 で実装済み、添付はまだ
 - [ ] **エージェントモード**: ファイル編集・`cargo` / `git` 実行を自律ループで行い、差分を人間の承認に出す
 - [ ] **Apply diff**: モデル提案の編集をワンクリックで現在のバッファに 3-way マージ適用
 - [ ] **Bevy ドキュメント RAG**: 各プロンプトに Bevy 0.18 のドキュメント・例を自動添付、バージョン整合性を保つ
 - [ ] **ECS 対応補完**: `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
-- [ ] **コスト / トークンパネル**: 会話ごとの使用量 + 月次キャップで予期せぬ請求を回避
+- [x] **コスト / トークンパネル**: 会話ごとの使用量 + 月次キャップで予期せぬ請求を回避
 
 ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。
 

@@ -4,6 +4,7 @@ use super::syntax_colors;
 use super::ui_colors;
 use super::BerryCodeApp;
 use crate::app::i18n::t;
+use chrono::Datelike;
 
 impl BerryCodeApp {
     /// RustRover-style Settings Panel
@@ -95,6 +96,12 @@ impl BerryCodeApp {
                             &mut self.active_settings_tab,
                             super::types::SettingsTab::AiProviders,
                             "AI Providers",
+                        );
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::AiUsage,
+                            "AI Usage & Cost",
                         );
 
                         ui.add_space(12.0);
@@ -260,6 +267,9 @@ impl BerryCodeApp {
                         }
                         super::types::SettingsTab::AiProviders => {
                             self.render_ai_providers_settings(ui);
+                        }
+                        super::types::SettingsTab::AiUsage => {
+                            self.render_ai_usage_settings(ui);
                         }
                     });
             });
@@ -717,6 +727,175 @@ impl BerryCodeApp {
 
                 if ui.button("Close").clicked() {
                     self.show_theme_editor = false;
+                }
+            });
+    }
+
+    /// AI Usage & Cost settings tab — reads `~/.berrycode/ai_usage.json`
+    /// and shows today / month rollups plus an estimated USD figure
+    /// based on `crate::ai::usage::estimate_cost`. The numbers are
+    /// best-effort: the authoritative bill is always whatever the
+    /// provider charges, so this tab is for self-monitoring, not
+    /// reconciliation.
+    pub(crate) fn render_ai_usage_settings(&mut self, ui: &mut egui::Ui) {
+        let records = crate::ai::usage::load();
+
+        ui.heading(self.tr("AI Usage & Cost"));
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "Token counts and estimated cost based on the model list \
+                 prices baked into BerryCode. Local models (Ollama / \
+                 llama.cpp) report tokens but are billed at $0.",
+            )
+            .color(egui::Color32::from_rgb(140, 145, 160)),
+        );
+        ui.add_space(12.0);
+
+        // Window boundaries for "today" (from local-midnight UTC) and
+        // "this month" (from the 1st at 00:00 UTC). A single timezone
+        // for both rollups keeps the math simple; if the user is on the
+        // last day of the month at 23:00 local their "today" can briefly
+        // exceed "this month" — that's a known acceptable wart.
+        let now = chrono::Utc::now();
+        let today_start = now
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map(|n| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(n, chrono::Utc))
+            .unwrap_or(now);
+        let month_start = now
+            .date_naive()
+            .with_day(1)
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .map(|n| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(n, chrono::Utc))
+            .unwrap_or(now);
+        let far_future = now + chrono::Duration::days(1);
+
+        let today = crate::ai::usage::totals_between(&records, today_start, far_future);
+        let month = crate::ai::usage::totals_between(&records, month_start, far_future);
+
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_min_width(220.0);
+                Self::render_usage_card(ui, "Today", &today);
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_min_width(220.0);
+                Self::render_usage_card(ui, "This month", &month);
+            });
+        });
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        // Soft cap. Just a number stored alongside the API keys; we
+        // surface it here for visibility but don't actively block
+        // requests yet — that needs a UX call (toast? hard stop?) we'll
+        // settle in v0.4.6.
+        ui.horizontal(|ui| {
+            ui.label("Monthly soft cap (USD):");
+            ui.add(
+                egui::DragValue::new(&mut self.ai_settings.monthly_cap_usd)
+                    .speed(1.0)
+                    .range(0.0..=10_000.0)
+                    .prefix("$"),
+            );
+            if month.cost_usd > self.ai_settings.monthly_cap_usd
+                && self.ai_settings.monthly_cap_usd > 0.0
+            {
+                ui.label(
+                    egui::RichText::new("over cap")
+                        .color(egui::Color32::from_rgb(220, 120, 120))
+                        .strong(),
+                );
+            }
+        });
+        ui.label(
+            egui::RichText::new(
+                "Cap is informational for now — BerryCode warns you here \
+                 but doesn't block requests automatically.",
+            )
+            .size(11.0)
+            .color(egui::Color32::from_rgb(140, 145, 160)),
+        );
+
+        ui.add_space(16.0);
+        ui.separator();
+        ui.add_space(8.0);
+        ui.collapsing("Recent requests", |ui| {
+            if records.is_empty() {
+                ui.label("No requests recorded yet. Send a chat message to populate this list.");
+                return;
+            }
+            egui::Grid::new("ai_usage_recent")
+                .striped(true)
+                .num_columns(5)
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new("Time").strong());
+                    ui.label(egui::RichText::new("Model").strong());
+                    ui.label(egui::RichText::new("In").strong());
+                    ui.label(egui::RichText::new("Out").strong());
+                    ui.label(egui::RichText::new("USD").strong());
+                    ui.end_row();
+                    // Show the last 30 records, newest first.
+                    for r in records.iter().rev().take(30) {
+                        ui.label(r.timestamp.split('T').next().unwrap_or(&r.timestamp));
+                        ui.label(&r.model);
+                        ui.label(format!("{}", r.prompt_tokens));
+                        ui.label(format!("{}", r.completion_tokens));
+                        ui.label(format!("${:.4}", r.cost_usd));
+                        ui.end_row();
+                    }
+                });
+        });
+    }
+
+    /// One stat card used in the AI Usage tab. Mirrors the layout of the
+    /// Today / Month columns so they read at a glance.
+    fn render_usage_card(ui: &mut egui::Ui, title: &str, t: &crate::ai::usage::UsageTotals) {
+        egui::Frame::NONE
+            .fill(egui::Color32::from_rgb(34, 36, 42))
+            .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 64, 72)))
+            .corner_radius(egui::CornerRadius::same(4))
+            .inner_margin(egui::Margin::same(12))
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(title)
+                        .strong()
+                        .size(13.0)
+                        .color(egui::Color32::from_rgb(200, 205, 220)),
+                );
+                ui.add_space(6.0);
+                ui.label(
+                    egui::RichText::new(format!("${:.2}", t.cost_usd))
+                        .size(22.0)
+                        .color(egui::Color32::WHITE),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(format!("{} requests", t.requests))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(140, 145, 160)),
+                );
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} in / {} out tokens",
+                        t.prompt_tokens, t.completion_tokens
+                    ))
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(140, 145, 160)),
+                );
+                if t.cache_read_tokens > 0 || t.cache_write_tokens > 0 {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "cache: {} read / {} write",
+                            t.cache_read_tokens, t.cache_write_tokens
+                        ))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(120, 160, 140)),
+                    );
                 }
             });
     }

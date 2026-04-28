@@ -328,6 +328,9 @@ pub struct BerryCodeApp {
     pub(crate) ai_streaming: bool,
     pub(crate) ai_current_response: String,
     pub(crate) chat_attachment: Option<String>,
+    /// Set true when Cmd+L is pressed; the AI chat panel claims focus on
+    /// its input field on the next render and clears the flag. v0.4.5 / 2A.
+    pub(crate) ai_chat_focus_pending: bool,
 
     // === Settings ===
     pub(crate) show_settings: bool,
@@ -1398,6 +1401,7 @@ impl BerryCodeApp {
             ai_streaming: false,
             ai_current_response: String::new(),
             chat_attachment: None,
+            ai_chat_focus_pending: false,
             show_settings: false,
             active_settings_tab: SettingsTab::EditorColor,
             ui_language: UiLanguage::English,
@@ -2153,6 +2157,13 @@ pub fn berry_ui_system(
                 }
                 if i.key_pressed(egui::Key::Num6) {
                     app.active_panel = types::ActivePanel::SceneEditor;
+                }
+                // Cmd+L → focus the AI chat input. Roadmap v0.4.5 / 2A.
+                // We just raise a flag; `render_ai_chat_panel` claims focus
+                // on the next render so the keystroke isn't swallowed by
+                // whichever widget happens to be focused right now.
+                if i.key_pressed(egui::Key::L) {
+                    app.ai_chat_focus_pending = true;
                 }
             }
         });

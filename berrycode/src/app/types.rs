@@ -124,6 +124,9 @@ pub enum SettingsTab {
     GitHub,
     /// AI providers: BYOK API keys + model selection (v0.4.5).
     AiProviders,
+    /// AI usage & cost: per-day / per-month token counts, estimated
+    /// USD spend, and a soft monthly cap (v0.4.5).
+    AiUsage,
 }
 
 /// Top-level visual theme preset. Each variant maps to a full

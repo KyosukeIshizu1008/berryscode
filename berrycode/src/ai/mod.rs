@@ -15,6 +15,7 @@
 //! 1 stabilises we'll switch the chat panel to call this layer instead.
 
 pub mod settings;
+pub mod usage;
 
 pub mod anthropic;
 pub mod ollama;
@@ -57,15 +58,26 @@ impl CompletionRequest {
 #[derive(Debug, Clone, Default)]
 pub struct CompletionResponse {
     pub text: String,
-    /// Optional usage stats (prompt / completion tokens) when the
-    /// provider returns them. Used by the cost panel in Phase 5.
+    /// Optional usage stats (prompt / completion / cached tokens) when
+    /// the provider returns them. Consumed by the Cost & Limits panel
+    /// in `app::settings`.
     pub usage: Option<TokenUsage>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TokenUsage {
+    /// Input tokens billed at the standard input rate.
     pub prompt_tokens: u32,
+    /// Output tokens.
     pub completion_tokens: u32,
+    /// Input tokens served from prompt cache (Anthropic-only for now).
+    /// Billed at ~10% of `prompt_tokens` rate. Counted separately so the
+    /// Cost panel can surface the savings.
+    pub cache_read_tokens: u32,
+    /// Input tokens written to the cache (Anthropic-only). Charged at a
+    /// 25% premium over the standard input rate, but pays off after ~2
+    /// re-reads. Reported so users can audit cache effectiveness.
+    pub cache_write_tokens: u32,
 }
 
 /// Identifies which underlying API a configuration entry talks to. The
