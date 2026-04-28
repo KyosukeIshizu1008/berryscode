@@ -205,20 +205,30 @@ The arc:
 #### v0.4.5 — AI integration (target: 2026 Q4 / mid)
 
 > _AI-native, Bevy-aware._ Bring-your-own-key support for the major
-> code-savvy models, plus the Bevy-specific context that no general IDE
-> can provide.
+> code-savvy models for chat, plus subprocess integration with **Codex
+> CLI** and **Claude Code** for the heavyweight agent / apply-diff
+> features — leveraging mature external tools instead of
+> reimplementing the autonomous loop in Rust.
+
+**Chat surface (BYOK, in-process)**
 
 - [x] **Provider plug-in layer**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5), OpenAI (GPT-5 / GPT-5 Codex), Ollama / llama.cpp (local), with prompt caching where supported
 - [x] **Bring-your-own-key UI**: per-provider keys + model selection in Settings; never round-trip through a hosted backend
-- [ ] **Inline / Tab completion**: ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
-- [ ] **Chat sidebar (`Cmd+L`)**: conversational assistant with `@file` / `@symbol` / `@scene` attachments — `Cmd+L` shortcut shipped in v0.4.3, attachments still pending
-- [ ] **Agent mode**: autonomous loop that can edit files, run `cargo` / `git`, and surface a diff for human approval
-- [ ] **Apply diff**: one-click application of model-suggested edits with three-way merge against the current buffer
-- [ ] **Bevy doc RAG**: auto-attach the relevant Bevy 0.18 docs / examples to every prompt — answers stay version-correct
-- [ ] **ECS-aware completion**: typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
 - [x] **Cost / token panel**: per-conversation usage + monthly cap so users never get surprise bills
+- [x] **Chat sidebar (`Cmd+L`)** — `Cmd+L` shortcut focuses the chat input from anywhere
+- [ ] **Chat attachments**: `@file` / `@symbol` / `@scene` to inject project context
+- [ ] **Inline / Tab completion**: ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
 
-Positioning: the first AI assistant that *understands* Bevy, not just Rust.
+**Agent surface (subprocess, both CLIs)**
+
+- [x] **Agent mode (Claude Code)**: spawn `claude --print --output-format=stream-json` with the project root as `--add-dir`; stream the JSON-Lines event channel into the chat panel; auto-record token usage in the cost log
+- [x] **Agent mode (Codex CLI)**: equivalent path via `codex exec --json --cd <cwd> --full-auto`; backend picker in the chat panel lets users pick per task
+- [x] **Apply diff**: agent edit proposals (`Edit` / `Write` / `MultiEdit` tool invocations) surface as Approve / Reject cards above the chat input; approving writes the file and reloads any open editor tab
+- [ ] **3-way merge**: apply edits cleanly when the buffer has been modified since the agent read it
+- [ ] **Bevy doc RAG**: auto-attach the relevant Bevy 0.18 docs / examples to chat prompts (in-process); agent runs already see the project source tree directly through `--add-dir`
+- [ ] **ECS-aware completion**: typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
+
+Positioning: the first AI assistant that *understands* Bevy, not just Rust — backed by the same agent tooling expert Rust developers already trust.
 
 #### v0.5 — Bevy depth + asset import (target: 2026 Q4)
 - [ ] System Graph: drag-to-reorder + visual scheduling
@@ -541,20 +551,30 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 
 #### v0.4.5 — AI 統合 (目標: 2026 Q4 / 中盤)
 
-> _AI ネイティブ、Bevy 対応。_ 主要なコード対応モデルに自前のAPI キーで
-> 接続でき、汎用 IDE には真似できない Bevy 固有のコンテキストを提供。
+> _AI ネイティブ、Bevy 対応。_ チャットは BYOK で主要モデル直叩き、
+> 重量級のエージェント / Apply diff は **Codex CLI** と **Claude Code**
+> を subprocess 経由で統合 — 自律ループを Rust で再実装するのではなく、
+> 既に成熟した外部ツールを活用します。
+
+**チャット面(BYOK、プロセス内)**
 
 - [x] **プロバイダプラグイン層**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5)、OpenAI (GPT-5 / GPT-5 Codex)、Ollama / llama.cpp (ローカル)、対応モデルではプロンプトキャッシュ利用
 - [x] **BYOK (Bring Your Own Key) UI**: プロバイダごとの API キー + モデル選択を Settings から設定、ホスト型バックエンド経由なし
-- [ ] **インライン / Tab 補完**: ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
-- [ ] **チャットサイドバー (`Cmd+L`)**: `@file` / `@symbol` / `@scene` 添付付き会話アシスタント — `Cmd+L` ショートカットは v0.4.3 で実装済み、添付はまだ
-- [ ] **エージェントモード**: ファイル編集・`cargo` / `git` 実行を自律ループで行い、差分を人間の承認に出す
-- [ ] **Apply diff**: モデル提案の編集をワンクリックで現在のバッファに 3-way マージ適用
-- [ ] **Bevy ドキュメント RAG**: 各プロンプトに Bevy 0.18 のドキュメント・例を自動添付、バージョン整合性を保つ
-- [ ] **ECS 対応補完**: `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
 - [x] **コスト / トークンパネル**: 会話ごとの使用量 + 月次キャップで予期せぬ請求を回避
+- [x] **チャットサイドバー (`Cmd+L`)**: 任意の場所からチャット入力欄にフォーカス
+- [ ] **チャット添付**: `@file` / `@symbol` / `@scene` でプロジェクトコンテキストを注入
+- [ ] **インライン / Tab 補完**: ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
 
-ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。
+**エージェント面(subprocess、両 CLI 対応)**
+
+- [x] **エージェントモード (Claude Code)**: `claude --print --output-format=stream-json` をプロジェクトルートを `--add-dir` で渡して spawn、JSON Lines イベントをチャットパネルにストリーム、トークン使用量を自動記録
+- [x] **エージェントモード (Codex CLI)**: `codex exec --json --cd <cwd> --full-auto` で同等動作、チャットパネル内のバックエンドピッカーでタスクごとに切替可能
+- [x] **Apply diff**: エージェントの編集提案 (`Edit` / `Write` / `MultiEdit` ツール呼び出し) はチャット入力上にカードで Approve / Reject 表示、承認するとファイル書き込み + 開いている編集タブを自動リロード
+- [ ] **3-way merge**: エージェントが読んだ後にバッファが変更されていてもクリーンに適用
+- [ ] **Bevy ドキュメント RAG**: チャットに Bevy 0.18 のドキュメント・例を自動添付(プロセス内)。エージェント実行は `--add-dir` 経由でプロジェクトソースを直接読める
+- [ ] **ECS 対応補完**: `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
+
+ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。 — 経験豊富な Rust 開発者が既に信頼しているエージェントツールが裏で走ります。
 
 #### v0.5 — Bevy 深耕 + アセットインポート (目標: 2026 Q4)
 - [ ] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
