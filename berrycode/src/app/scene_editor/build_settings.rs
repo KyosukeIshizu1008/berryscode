@@ -23,12 +23,17 @@ pub struct SceneEntry {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Platform {
     MacOS,
     Windows,
     Linux,
     Web,
+    IosDevice,
+    IosSimulator,
+    Android,
+    VisionOs,
+    Quest,
 }
 
 impl Platform {
@@ -37,14 +42,62 @@ impl Platform {
         Platform::Windows,
         Platform::Linux,
         Platform::Web,
+        Platform::IosDevice,
+        Platform::IosSimulator,
+        Platform::Android,
+        Platform::VisionOs,
+        Platform::Quest,
     ];
+
+    /// Desktop + Web — the targets the existing `execute_build` path handles.
+    /// Mobile / XR variants build through the `app::mobile` packagers (Phase E).
+    pub const DESKTOP_AND_WEB: &'static [Platform] = &[
+        Platform::MacOS,
+        Platform::Windows,
+        Platform::Linux,
+        Platform::Web,
+    ];
+
     pub fn label(&self) -> &'static str {
         match self {
             Platform::MacOS => "macOS",
             Platform::Windows => "Windows",
             Platform::Linux => "Linux",
             Platform::Web => "Web (WASM)",
+            Platform::IosDevice => "iOS Device",
+            Platform::IosSimulator => "iOS Simulator",
+            Platform::Android => "Android",
+            Platform::VisionOs => "visionOS",
+            Platform::Quest => "Meta Quest",
         }
+    }
+
+    pub fn is_mobile(&self) -> bool {
+        matches!(
+            self,
+            Platform::IosDevice
+                | Platform::IosSimulator
+                | Platform::Android
+                | Platform::VisionOs
+                | Platform::Quest
+        )
+    }
+
+    /// Apple toolchain family — uses Xcode + codesigning.
+    /// API surface for the Phase E packagers; unused until then.
+    #[allow(dead_code)]
+    pub fn is_apple_mobile(&self) -> bool {
+        matches!(
+            self,
+            Platform::IosDevice | Platform::IosSimulator | Platform::VisionOs
+        )
+    }
+
+    /// Android toolchain family — uses SDK + NDK + gradle / keystore.
+    /// API surface for the Phase E packagers; unused until then.
+    #[allow(dead_code)]
+    pub fn is_android_family(&self) -> bool {
+        matches!(self, Platform::Android | Platform::Quest)
     }
 }
 
@@ -184,6 +237,14 @@ pub fn get_target_triple(platform: Platform) -> &'static str {
         Platform::Windows => "x86_64-pc-windows-msvc",
         Platform::Linux => "x86_64-unknown-linux-gnu",
         Platform::Web => "wasm32-unknown-unknown",
+        Platform::IosDevice => "aarch64-apple-ios",
+        Platform::IosSimulator => "aarch64-apple-ios-sim",
+        // 64-bit ARM is the only Android triple we ship by default; armv7 / x86_64
+        // simulator / x86 are added by Phase E's per-project ABI configuration.
+        Platform::Android => "aarch64-linux-android",
+        Platform::VisionOs => "aarch64-apple-visionos",
+        // Quest runs the Android target; the OpenXR loader is layered on top in Phase F.
+        Platform::Quest => "aarch64-linux-android",
     }
 }
 
@@ -216,6 +277,18 @@ pub fn execute_build(
     root_path: &str,
     settings: &BuildSettings,
 ) -> Result<(std::process::Child, std::sync::mpsc::Receiver<String>), String> {
+    // Mobile / XR targets need IPA / AAB packaging that this plain
+    // `cargo build` shell-out can't produce. Phase E (v0.8.x) replaces this
+    // dispatch with the per-platform packagers; until then refuse early
+    // with a clear message so the user understands why nothing happens.
+    if settings.target_platform.is_mobile() {
+        return Err(format!(
+            "{} builds are routed through the Mobile Toolchain panel — \
+             the desktop pipeline doesn't package IPA / AAB / OpenXR yet.",
+            settings.target_platform.label()
+        ));
+    }
+
     let triple = settings.target_platform.target_triple();
     let mut cmd = std::process::Command::new("cargo");
     cmd.arg("build")
@@ -278,13 +351,17 @@ impl BerryCodeApp {
                 ui.heading("Build Configuration");
                 ui.separator();
 
-                // Platform
+                // Platform — desktop / web only here; mobile / XR are
+                // dispatched through the Mobile Toolchain panel (Phase A) and
+                // the Run / Ship pipelines (Phases B / E). Showing them in this
+                // legacy dropdown would silently fall through to a broken
+                // `cargo build --target …` shell-out.
                 ui.horizontal(|ui| {
                     ui.label("Target Platform:");
                     egui::ComboBox::from_id_salt("build_platform")
                         .selected_text(self.build_settings.target_platform.label())
                         .show_ui(ui, |ui| {
-                            for &p in Platform::ALL {
+                            for &p in Platform::DESKTOP_AND_WEB {
                                 ui.selectable_value(
                                     &mut self.build_settings.target_platform,
                                     p,
@@ -569,6 +646,49 @@ mod tests {
             "x86_64-unknown-linux-gnu"
         );
         assert_eq!(get_target_triple(Platform::Web), "wasm32-unknown-unknown");
+        assert_eq!(get_target_triple(Platform::IosDevice), "aarch64-apple-ios");
+        assert_eq!(
+            get_target_triple(Platform::IosSimulator),
+            "aarch64-apple-ios-sim"
+        );
+        assert_eq!(
+            get_target_triple(Platform::Android),
+            "aarch64-linux-android"
+        );
+        assert_eq!(
+            get_target_triple(Platform::VisionOs),
+            "aarch64-apple-visionos"
+        );
+        assert_eq!(get_target_triple(Platform::Quest), "aarch64-linux-android");
+    }
+
+    #[test]
+    fn mobile_is_classified() {
+        assert!(Platform::IosDevice.is_mobile());
+        assert!(Platform::Android.is_mobile());
+        assert!(Platform::Quest.is_mobile());
+        assert!(!Platform::MacOS.is_mobile());
+
+        assert!(Platform::IosDevice.is_apple_mobile());
+        assert!(Platform::VisionOs.is_apple_mobile());
+        assert!(!Platform::Android.is_apple_mobile());
+
+        assert!(Platform::Android.is_android_family());
+        assert!(Platform::Quest.is_android_family());
+        assert!(!Platform::IosDevice.is_android_family());
+    }
+
+    #[test]
+    fn execute_build_rejects_mobile() {
+        let bs = BuildSettings {
+            target_platform: Platform::Android,
+            ..BuildSettings::default()
+        };
+        let err = execute_build(".", &bs).unwrap_err();
+        assert!(
+            err.contains("Mobile Toolchain"),
+            "expected guard message, got: {err}"
+        );
     }
 
     #[test]

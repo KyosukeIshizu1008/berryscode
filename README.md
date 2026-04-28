@@ -282,8 +282,19 @@ Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Dat
 > cargo-mobile + Xcode + Android Studio + SDK juggling with a single
 > integrated workflow.
 
-- [ ] **Toolchain setup**: one-click iOS / Android targets, auto-detect missing SDK / NDK / simulators, manage signing certs & keystores from the IDE
-- [ ] **Deploy & run**: one-click deploy to device or simulator, unified log / crashtrace console, **WiFi hot reload** for asset edits
+**Landed on `main` (Phases A + B partial — internal preview)**
+
+- [x] **Toolchain detection** — Mobile Toolchain panel probes Xcode (`xcode-select` + `xcrun simctl`), Android SDK / NDK / `adb` (auto-discovers `$ANDROID_HOME` and the macOS / Linux / Windows install conventions), and `rustup` for the iOS / Android / visionOS triples. Lazy probes for codesign identities (`security find-identity`) and `adb devices -l` are gated behind explicit Refresh buttons. Snapshot persists to `~/Library/Application Support/berrycode/toolchain.ron` so cold starts skip the probe.
+- [x] **`Platform` extension** — `IosDevice` / `IosSimulator` / `Android` / `VisionOs` / `Quest` variants with the right target triples; the legacy desktop Build Settings dropdown stays scoped to desktop / web so mobile targets can't fall through to a broken `cargo build` shell-out.
+- [x] **Mobile run dispatch** — pick a probed simulator or `adb` device, point at a pre-built `.app` / `.apk`, click Run; the runner chains `simctl boot/install/launch --console-pty` (iOS Sim), `devicectl device install/process launch --console` (iOS Device), or `adb install -r → am start -W → adb logcat --pid=$(pidof)` (Android) into one tracked subprocess. Drop kills the child to avoid orphaned simulators after IDE quit.
+- [x] **Unified log console** — severity classifier handles adb logcat priority letters (`E/Tag(pid):`), Apple unified-log markers (`<Error>` / `<Warning>`), tracing / RUST_LOG keywords, and **Bevy / Rust panic detection** as a dedicated severity. 6-colour stream rendering with stick-to-bottom in the same panel.
+
+**Deferred to v0.8.x**
+
+- [ ] **WiFi hot reload** — mDNS-discovered TCP socket so asset edits flow to the running device build without rebuild; ships with a small `berrycode_hot_reload` device-side Bevy plugin
+- [ ] **iOS Device probing** — `xcrun devicectl list devices` so attached real iOS / visionOS hardware shows up in the target dropdown (the dispatch path is already wired)
+- [ ] **Signing UI** — pick certs from `security find-identity`, attach a provisioning profile, manage Android keystores via `keyring` (currently the panel only *displays* identities; selection lives in Phase E)
+- [ ] **One-click target install** — `rustup target add` from the toolchain panel rather than just suggesting the command
 - [ ] **Mobile-aware editor**: visual touch-input editor (virtual joysticks, tap zones, gestures), safe-area / notch / orientation-aware layouts, mobile UI templates, auto texture compression (ASTC / ETC2), mobile LOD presets
 - [ ] **Performance**: integrated GPU profiler (Metal frame capture / RenderDoc Android), frame-budget visualisation, battery-cost estimator, lifecycle (Background / Foreground / Lock) test harness
 - [ ] **Ship**: IPA / AAB build & signing inside the IDE, App Store Connect / Play Console upload helper, TestFlight & internal-test QR generator
@@ -641,8 +652,19 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 > cargo-mobile + Xcode + Android Studio + 各種 SDK の往復を、
 > 1つの統合ワークフローに置き換える。
 
-- [ ] **ツールチェーンセットアップ**: iOS / Android ターゲットのワンクリック追加、不足 SDK / NDK / シミュレータの自動検知、署名証明書 & keystore を IDE 内管理
-- [ ] **デプロイ・実行**: 実機・シミュレータへのワンクリックデプロイ、ログ・クラッシュトレース統合コンソール、**アセット変更の WiFi ホットリロード**
+**`main` ブランチに着地済み (Phase A + Phase B 部分 — 内部プレビュー)**
+
+- [x] **ツールチェーン検出** — Mobile Toolchain パネルが Xcode (`xcode-select` + `xcrun simctl`)、Android SDK / NDK / `adb` (`$ANDROID_HOME` および macOS / Linux / Windows のインストール慣例パスを自動探索)、`rustup` の iOS / Android / visionOS triple をプローブ。codesign identities (`security find-identity`) と `adb devices -l` は明示的な Refresh ボタンの遅延プローブ。スナップショットは `~/Library/Application Support/berrycode/toolchain.ron` に永続化されコールド起動時のプローブをスキップ
+- [x] **`Platform` 拡張** — `IosDevice` / `IosSimulator` / `Android` / `VisionOs` / `Quest` バリアントを正しい target triple 付きで追加。既存のデスクトップ Build Settings ドロップダウンはデスクトップ / Web に絞ってあるので、モバイルターゲットが壊れた `cargo build` shell-out にフォールスルーすることはない
+- [x] **モバイル run dispatch** — プローブされたシミュレータか `adb` デバイスを選び、ビルド済みの `.app` / `.apk` を指して Run をクリックすると、`simctl boot/install/launch --console-pty` (iOS Sim) / `devicectl device install/process launch --console` (iOS Device) / `adb install -r → am start -W → adb logcat --pid=$(pidof)` (Android) を 1 つの追跡可能なサブプロセスにチェーン。Drop で確実に kill されるので IDE 終了後にシミュレータが孤児化しない
+- [x] **統合ログコンソール** — 重要度分類器が adb logcat 優先度 (`E/Tag(pid):`)、Apple unified-log マーカ (`<Error>` / `<Warning>`)、tracing / RUST_LOG キーワード、そして **Bevy / Rust パニック検出** を独立した重要度として処理。同じパネル内で 6 色 + stick-to-bottom のストリーム表示
+
+**v0.8.x に繰越**
+
+- [ ] **WiFi ホットリロード** — mDNS で発見される TCP ソケットでアセット変更を再ビルド無しに動作中のデバイスへ流す。小さな `berrycode_hot_reload` デバイス側 Bevy プラグインも同梱
+- [ ] **iOS 実機プローブ** — `xcrun devicectl list devices` で接続中の iOS / visionOS 実機がターゲット dropdown に出るように (dispatch パスは既に通している)
+- [ ] **署名 UI** — `security find-identity` から証明書を選択、provisioning profile を紐付け、Android keystore は `keyring` クレート経由で管理 (現在パネルは識別子を *表示* するのみ。選択は Phase E)
+- [ ] **ターゲットのワンクリックインストール** — コマンドを表示するだけでなくパネルから直接 `rustup target add` を実行
 - [ ] **モバイル対応エディタ**: タッチ入力ビジュアルエディタ (仮想ジョイスティック、タップゾーン、ジェスチャー)、セーフエリア / ノッチ / 縦横回転対応レイアウト、モバイル UI テンプレート、テクスチャ自動圧縮 (ASTC / ETC2)、モバイル LOD プリセット
 - [ ] **パフォーマンス**: GPU プロファイラ統合 (Metal frame capture / RenderDoc Android)、フレーム予算可視化、バッテリー消費見積もり、ライフサイクル (Background / Foreground / Lock) テストハーネス
 - [ ] **公開**: IPA / AAB ビルド・署名を IDE 内で完結、App Store Connect / Play Console アップロード補助、TestFlight / 内部テスト用 QR 生成

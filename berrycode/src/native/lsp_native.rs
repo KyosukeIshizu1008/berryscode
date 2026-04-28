@@ -29,8 +29,23 @@ pub struct NativeLspClient {
 
 struct LspServer {
     process: Child,
-    stdin: ChildStdin,
+    /// `Option` so `Drop` can `take()` it to close the pipe before killing
+    /// the process. Most LSP servers (including rust-analyzer) exit
+    /// cleanly on stdin EOF, which avoids the orphaned-process pile-up
+    /// we saw across BerryCode sessions.
+    stdin: Option<ChildStdin>,
     message_id: u64,
+}
+
+impl LspServer {
+    fn write_message(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        let stdin = self
+            .stdin
+            .as_mut()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::BrokenPipe, "stdin closed"))?;
+        stdin.write_all(bytes)?;
+        stdin.flush()
+    }
 }
 
 /// Helper: convert a file path to a file:// URI using lsp_types::Url
@@ -138,7 +153,7 @@ impl NativeLspClient {
 
         let server = Arc::new(RwLock::new(LspServer {
             process,
-            stdin,
+            stdin: Some(stdin),
             message_id: 0,
         }));
 
@@ -453,10 +468,8 @@ impl NativeLspClient {
         // Send request
         {
             let mut srv = server.write().await;
-            srv.stdin
-                .write_all(message.as_bytes())
+            srv.write_message(message.as_bytes())
                 .context("Failed to write to LSP server")?;
-            srv.stdin.flush()?;
         }
 
         // Wait for response with timeout
@@ -487,10 +500,8 @@ impl NativeLspClient {
         let message = format!("Content-Length: {}\r\n\r\n{}", content.len(), content);
 
         let mut srv = server.write().await;
-        srv.stdin
-            .write_all(message.as_bytes())
+        srv.write_message(message.as_bytes())
             .context("Failed to write notification to LSP server")?;
-        srv.stdin.flush()?;
 
         Ok(())
     }
@@ -1146,11 +1157,83 @@ impl NativeLspClient {
         tracing::info!("All LSP servers shutdown");
         Ok(())
     }
+
+    /// Shutdown all servers with a hard time bound. Used by `BerryCodeApp::drop`
+    /// so that an unresponsive rust-analyzer can never block the editor's
+    /// quit path. If the graceful shutdown doesn't complete in `timeout`,
+    /// falls back to `force_kill_all_sync()` which bypasses the async
+    /// runtime entirely. Either way every spawned server process is dead
+    /// (or being reaped) by the time this returns.
+    pub async fn shutdown_all_with_timeout(&self, timeout: std::time::Duration) {
+        match tokio::time::timeout(timeout, self.shutdown_all()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                tracing::warn!("LSP shutdown returned error, force-killing: {}", e);
+                // `force_kill_all_sync` uses `blocking_write` which panics
+                // if called from inside the runtime worker. `block_in_place`
+                // hands the worker thread to blocking work and rotates the
+                // remaining tasks onto other threads. Production uses the
+                // default multi-thread runtime, so this is supported.
+                tokio::task::block_in_place(|| self.force_kill_all_sync());
+            }
+            Err(_) => {
+                tracing::warn!(
+                    "LSP shutdown_all exceeded {:?}, force-killing all servers",
+                    timeout
+                );
+                tokio::task::block_in_place(|| self.force_kill_all_sync());
+            }
+        }
+    }
+
+    /// Synchronous, runtime-free fallback. Closes stdin (sends EOF — most
+    /// LSP servers exit cleanly on their own from this) and then sends
+    /// `process.kill()` for any that haven't exited. Uses tokio's
+    /// `blocking_write` so it can run from inside a regular `Drop` impl
+    /// without needing a live tokio context.
+    pub fn force_kill_all_sync(&self) {
+        let mut servers = self.servers.blocking_write();
+        for (lang, server_arc) in servers.drain() {
+            // RwLock blocking_write — same deal: we're synchronous here.
+            let mut srv = server_arc.blocking_write();
+            // Drop stdin first so well-behaved servers exit on their own.
+            srv.stdin.take();
+            // Then SIGKILL anyone still hanging around.
+            let _ = srv.process.kill();
+            // `wait()` reaps the zombie; ignore errors so a process that
+            // already exited via stdin EOF doesn't fail the loop.
+            let _ = srv.process.wait();
+            tracing::info!("LSP {} force-killed during shutdown", lang);
+        }
+    }
 }
 
 impl Drop for LspServer {
     fn drop(&mut self) {
+        // Two-phase shutdown so we don't leave orphaned children:
+        //   1. Drop stdin → server sees EOF and (typically) exits cleanly
+        //   2. Try a brief wait, then SIGKILL whatever survives
+        // `wait()` at the end reaps the zombie so the OS process table
+        // doesn't grow across long sessions.
+        self.stdin.take();
+
+        // Poll for cooperative exit for up to ~100ms. Most language
+        // servers (rust-analyzer included) exit in < 50ms on stdin EOF.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(100);
+        loop {
+            match self.process.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => {
+                    if std::time::Instant::now() >= deadline {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(_) => break,
+            }
+        }
         let _ = self.process.kill();
+        let _ = self.process.wait();
     }
 }
 
@@ -1186,5 +1269,128 @@ mod tests {
         assert_eq!(detect_language_id("/foo/bar.ts"), "typescript");
         assert_eq!(detect_language_id("/foo/bar.py"), "python");
         assert_eq!(detect_language_id("/foo/bar.txt"), "plaintext");
+    }
+
+    // ─── Process-leak regression suite ────────────────────────────────
+    //
+    // These tests reproduce the "13 orphaned rust-analyzer processes"
+    // failure we observed in production: a wedged LSP server that ignores
+    // shutdown requests must not block the editor's quit path, and the
+    // child must always be reaped before we return.
+
+    /// Spawn a placeholder long-running child as a stand-in for an
+    /// LSP server. We point at `/bin/sleep` so the OS has to actually
+    /// kill the PID — `cat` would exit on stdin EOF and falsely pass
+    /// the kill-fallback assertion.
+    fn spawn_stub_server() -> Result<LspServer> {
+        let mut process = Command::new("/bin/sleep")
+            .arg("60")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .context("spawn stub")?;
+        let stdin = process.stdin.take().context("no stdin")?;
+        Ok(LspServer {
+            process,
+            stdin: Some(stdin),
+            message_id: 0,
+        })
+    }
+
+    #[cfg(unix)]
+    fn process_alive(pid: u32) -> bool {
+        // Signal 0 doesn't deliver anything; it just probes whether the
+        // PID is reachable. Shell-out (rather than `libc::kill`) so this
+        // test compiles without adding a new dev-dependency.
+        std::process::Command::new("kill")
+            .args(["-0", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lsp_server_drop_kills_uncooperative_child() {
+        let server = spawn_stub_server().expect("spawn");
+        let pid = server.process.id();
+        assert!(process_alive(pid), "stub should be alive");
+        drop(server);
+        // Drop spends up to ~100ms polling for cooperative exit, then
+        // SIGKILLs and waits — by the time it returns the PID must be
+        // unreachable. We give the kernel a generous extra margin to
+        // reap before asserting, since the wait happens inside Drop.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(
+            !process_alive(pid),
+            "child {pid} survived LspServer::drop — orphan would accumulate"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn force_kill_all_sync_terminates_uncooperative_servers() {
+        let (client, _rx) = NativeLspClient::new();
+        let mut pids = Vec::new();
+        // Two stubs in different "language" slots so we exercise the
+        // drain loop, not just a single entry.
+        for lang in ["rust", "typescript"] {
+            let server = spawn_stub_server().expect("spawn");
+            pids.push(server.process.id());
+            client
+                .servers
+                .blocking_write()
+                .insert(lang.into(), Arc::new(RwLock::new(server)));
+        }
+        for &pid in &pids {
+            assert!(process_alive(pid), "{pid} must start alive");
+        }
+        client.force_kill_all_sync();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        for &pid in &pids {
+            assert!(
+                !process_alive(pid),
+                "{pid} survived force_kill_all_sync — would orphan"
+            );
+        }
+        // And the registry must be empty so a re-init doesn't see ghosts.
+        assert!(client.servers.blocking_read().is_empty());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shutdown_all_with_timeout_falls_back_to_force_kill() {
+        // Server intentionally never responds to shutdown / exit. The
+        // graceful path inside `shutdown_all` would block on the 30s
+        // request timeout per server; the wrapper must give up at
+        // `timeout` and force-kill instead, all in well under that.
+        let (client, _rx) = NativeLspClient::new();
+        let server = spawn_stub_server().expect("spawn");
+        let pid = server.process.id();
+        client
+            .servers
+            .write()
+            .await
+            .insert("rust".into(), Arc::new(RwLock::new(server)));
+
+        let started = std::time::Instant::now();
+        client
+            .shutdown_all_with_timeout(std::time::Duration::from_millis(200))
+            .await;
+        let elapsed = started.elapsed();
+
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "shutdown_all_with_timeout took {:?} — fallback didn't fire",
+            elapsed
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(
+            !process_alive(pid),
+            "{pid} survived timeout fallback — orphan path is back"
+        );
     }
 }

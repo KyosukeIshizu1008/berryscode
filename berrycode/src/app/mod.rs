@@ -36,6 +36,8 @@ pub(crate) mod live_collab;
 mod lsp;
 mod macro_expand;
 mod minimap;
+pub(crate) mod mobile;
+pub(crate) mod mobile_toolchain;
 mod model_preview;
 pub(crate) mod new_project;
 pub(crate) mod package_manager;
@@ -750,6 +752,10 @@ pub struct BerryCodeApp {
     pub(crate) package_manager: package_manager::PackageManagerState,
     /// Receiver for async crates.io search results
     pub(crate) package_manager_search_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
+
+    // === Mobile Toolchain (v0.8 Phase A) ===
+    pub(crate) mobile_toolchain_open: bool,
+    pub(crate) mobile_toolchain: mobile_toolchain::MobileToolchainState,
     // === Texture Importer ===
 
     // === Audio Mixer ===
@@ -1809,6 +1815,9 @@ impl BerryCodeApp {
             package_manager_open: false,
             package_manager: package_manager::PackageManagerState::default(),
             package_manager_search_rx: None,
+
+            mobile_toolchain_open: false,
+            mobile_toolchain: mobile_toolchain::MobileToolchainState::from_cache_or_default(),
         };
 
         // === Test Mode CLI: --test-mode ===
@@ -2264,6 +2273,10 @@ pub fn berry_ui_system(
         // Poll run process output (non-blocking)
         app.poll_run_output();
 
+        // Poll mobile run session (v0.8 Phase B) — drains the spawned
+        // simctl/devicectl/adb pipe into the panel's log stream.
+        app.mobile_toolchain.poll_run();
+
         // Poll ECS Inspector async results (non-blocking)
         app.poll_ecs_inspector();
 
@@ -2460,6 +2473,9 @@ pub fn berry_ui_system(
 
         // floating package manager window.
         app.render_package_manager_window(ctx);
+
+        // floating mobile toolchain window (v0.8 Phase A).
+        app.render_mobile_toolchain_window(ctx);
 
         // floating scene merge panel.
         app.render_merge_panel(ctx);
@@ -2800,10 +2816,16 @@ impl Drop for BerryCodeApp {
             let _ = child.kill();
             let _ = child.wait();
         }
-        // Shutdown LSP client
+        // Shutdown LSP client. Hard 2-second cap so an unresponsive
+        // rust-analyzer (mid-indexing, RPC pipeline stalled, …) can't
+        // wedge the quit path — without this the spawn pile-up we saw
+        // accumulate to 13 orphaned processes happens any time the
+        // graceful path stalls. `shutdown_all_with_timeout` falls back
+        // to a synchronous force-kill if the async path exceeds the
+        // budget.
         if let Some(client) = self.lsp_native_client.take() {
             let rt = self.lsp_runtime.clone();
-            let _ = rt.block_on(client.shutdown_all());
+            rt.block_on(client.shutdown_all_with_timeout(std::time::Duration::from_secs(2)));
         }
         // Shutdown file watcher
         self.file_watcher = None;

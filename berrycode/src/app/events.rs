@@ -26,7 +26,16 @@ impl BerryCodeApp {
                         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                             let is_asset_ext = matches!(
                                 ext,
-                                "png" | "jpg" | "jpeg" | "glb" | "gltf" | "dxf" | "ifc" | "wav" | "ogg" | "mp3"
+                                "png"
+                                    | "jpg"
+                                    | "jpeg"
+                                    | "glb"
+                                    | "gltf"
+                                    | "dxf"
+                                    | "ifc"
+                                    | "wav"
+                                    | "ogg"
+                                    | "mp3"
                             );
                             let in_assets_dir = path.to_string_lossy().contains("/assets/");
                             if is_asset_ext && in_assets_dir {

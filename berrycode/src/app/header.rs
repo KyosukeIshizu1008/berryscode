@@ -194,6 +194,23 @@ impl BerryCodeApp {
                     {
                         self.package_manager_open = !self.package_manager_open;
                     }
+
+                    ui.add_space(4.0);
+
+                    // Mobile Toolchain button (v0.8 Phase A)
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(self.tr("Mobile"))
+                                    .size(12.0)
+                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                            )
+                            .frame(false),
+                        )
+                        .clicked()
+                    {
+                        self.mobile_toolchain_open = !self.mobile_toolchain_open;
+                    }
                 });
             });
     }

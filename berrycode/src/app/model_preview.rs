@@ -1096,7 +1096,7 @@ impl BerryCodeApp {
                 node_parents: vec![],
                 node_transforms: vec![],
                 anim_clips: vec![],
-            edge_colors: vec![],
+                edge_colors: vec![],
             })
         } else {
             // Standard PLY (non-Gaussian Splatting)
@@ -1202,7 +1202,7 @@ impl BerryCodeApp {
                 node_parents: vec![],
                 node_transforms: vec![],
                 anim_clips: vec![],
-            edge_colors: vec![],
+                edge_colors: vec![],
             })
         }
     }
@@ -1337,8 +1337,7 @@ impl BerryCodeApp {
                     });
                     // DXF degenerate quads collapse the fourth corner onto the third.
                     if p3 != p2 {
-                        let i3 =
-                            push_vertex(p3, &mut vertices, &mut bounds_min, &mut bounds_max);
+                        let i3 = push_vertex(p3, &mut vertices, &mut bounds_min, &mut bounds_max);
                         edges.push((i2, i3));
                         edges.push((i3, i0));
                         edge_colors.push(layer_color);
@@ -1485,8 +1484,7 @@ impl BerryCodeApp {
                 if let Some(p) = parse_ifc_cartesian_point(body) {
                     points.insert(id, p);
                 }
-            } else if body_upper.starts_with("IFCPOLYLINE")
-                || body_upper.starts_with("IFCPOLYLOOP")
+            } else if body_upper.starts_with("IFCPOLYLINE") || body_upper.starts_with("IFCPOLYLOOP")
             {
                 if let Some(refs) = parse_ifc_ref_list(body) {
                     polylines.push(refs);
@@ -1499,7 +1497,7 @@ impl BerryCodeApp {
         }
 
         let scale: f32 = 1.0; // IFC defaults to metres; per-file unit
-                               // detection lives in v0.7.x.
+                              // detection lives in v0.7.x.
         let wall_color = layer_name_to_color("Wall");
 
         let mut vertices: Vec<[f32; 3]> = Vec::new();
@@ -2186,13 +2184,17 @@ mod tests {
             eprintln!("skipping: sample.ifc not present at {}", path);
             return;
         }
-        let data = BerryCodeApp::load_model_data(path)
-            .expect("load_model_data returned None for IFC");
+        let data =
+            BerryCodeApp::load_model_data(path).expect("load_model_data returned None for IFC");
 
         // 6 polylines: 2 closed rectangles (5 points each → 4 edges)
         // and 4 vertical lines (2 points each → 1 edge each).
         // Total: 4+4+4 = 12 edges.
-        assert_eq!(data.edges.len(), 12, "expected 12 edges from sample IFC box");
+        assert_eq!(
+            data.edges.len(),
+            12,
+            "expected 12 edges from sample IFC box"
+        );
 
         // After Z-up → Y-up swap on the 10×6×3 box:
         //   X stays 0..10

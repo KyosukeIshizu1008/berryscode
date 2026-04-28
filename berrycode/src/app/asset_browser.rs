@@ -505,8 +505,10 @@ impl BerryCodeApp {
         };
 
         let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
-        let is_model =
-            matches!(ext.as_str(), "glb" | "gltf" | "obj" | "stl" | "ply" | "dxf" | "ifc");
+        let is_model = matches!(
+            ext.as_str(),
+            "glb" | "gltf" | "obj" | "stl" | "ply" | "dxf" | "ifc"
+        );
 
         if !is_model {
             // Non-model: show basic info

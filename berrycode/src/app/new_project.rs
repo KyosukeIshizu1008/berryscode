@@ -26,7 +26,9 @@ impl ProjectTemplate {
             ProjectTemplate::Empty2D => "Empty 2D",
             ProjectTemplate::Empty3D => "Empty 3D",
             ProjectTemplate::Walker3D => "3D Walker (FPS controller)",
-            ProjectTemplate::WalkableArchitecture => "Walkable Architecture (FPS + colliders + day/night)",
+            ProjectTemplate::WalkableArchitecture => {
+                "Walkable Architecture (FPS + colliders + day/night)"
+            }
             ProjectTemplate::Plugin => "Plugin",
         }
     }
@@ -248,10 +250,16 @@ mod tests {
     fn walkable_architecture_template_body_has_phase_c_features() {
         let body = template_main_rs(ProjectTemplate::WalkableArchitecture);
         // FPS controller carryovers
-        assert!(body.contains("MOUSE_SENSITIVITY"), "expected mouse-look constant");
+        assert!(
+            body.contains("MOUSE_SENSITIVITY"),
+            "expected mouse-look constant"
+        );
         assert!(body.contains("KeyCode::KeyW"), "expected WASD movement");
         // Phase C: AABB collider type + collision system
-        assert!(body.contains("struct AutoCollider"), "expected AutoCollider component");
+        assert!(
+            body.contains("struct AutoCollider"),
+            "expected AutoCollider component"
+        );
         assert!(
             body.contains("player_movement_with_collision"),
             "expected collision-aware movement system"
