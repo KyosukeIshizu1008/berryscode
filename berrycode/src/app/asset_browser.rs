@@ -145,7 +145,7 @@ impl BerryCodeApp {
                     size_bytes: asset.size_bytes,
                     is_scene_asset: matches!(
                         ext.as_str(),
-                        "glb" | "gltf" | "obj" | "stl" | "ply" | "bprefab"
+                        "glb" | "gltf" | "obj" | "stl" | "ply" | "dxf" | "bprefab"
                     ),
                 }
             })
@@ -505,7 +505,7 @@ impl BerryCodeApp {
         };
 
         let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
-        let is_model = matches!(ext.as_str(), "glb" | "gltf" | "obj" | "stl" | "ply");
+        let is_model = matches!(ext.as_str(), "glb" | "gltf" | "obj" | "stl" | "ply" | "dxf");
 
         if !is_model {
             // Non-model: show basic info

@@ -40,7 +40,7 @@ fn is_droppable_asset(filename: &str) -> bool {
     let lower = filename.to_lowercase();
     matches!(
         super::utils::get_extension(&lower).as_str(),
-        "glb" | "gltf" | "obj" | "stl" | "ply" | "bprefab"
+        "glb" | "gltf" | "obj" | "stl" | "ply" | "dxf" | "bprefab"
     )
 }
 

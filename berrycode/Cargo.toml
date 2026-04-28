@@ -106,9 +106,10 @@ resvg = "0.44"
 # fetches.
 hound = "3"
 
-# ===== 3D Model Preview (GLTF/GLB, OBJ, STL, PLY) =====
+# ===== 3D Model Preview (GLTF/GLB, OBJ, STL, PLY, DXF) =====
 gltf = "1.4"
 tobj = "4.0"       # OBJ parser
+dxf = "0.5"        # DXF parser (CAD interchange — v0.7 Phase A)
 
 # ===== Clipboard =====
 arboard = "3.4"

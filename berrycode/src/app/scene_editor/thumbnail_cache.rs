@@ -111,7 +111,7 @@ impl ThumbnailCache {
 
     /// Returns true if the given file extension is a supported 3D model format.
     pub fn is_model_extension(ext: &str) -> bool {
-        matches!(ext, "glb" | "gltf" | "obj" | "stl" | "ply")
+        matches!(ext, "glb" | "gltf" | "obj" | "stl" | "ply" | "dxf")
     }
 
     /// Returns true if the given file extension is a supported image format.

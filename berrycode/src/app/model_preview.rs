@@ -198,7 +198,7 @@ fn draw_ellipse(
 }
 
 impl BerryCodeApp {
-    /// Load and parse a 3D model file (GLTF/GLB, OBJ, STL, PLY)
+    /// Load and parse a 3D model file (GLTF/GLB, OBJ, STL, PLY, DXF)
     pub(crate) fn load_model_data(file_path: &str) -> Option<ModelPreviewData> {
         let ext = file_path.rsplit('.').next()?.to_lowercase();
         match ext.as_str() {
@@ -206,6 +206,7 @@ impl BerryCodeApp {
             "obj" => Self::load_obj(file_path),
             "stl" => Self::load_stl(file_path),
             "ply" => Self::load_ply(file_path),
+            "dxf" => Self::load_dxf(file_path),
             _ => None,
         }
     }
@@ -1091,6 +1092,217 @@ impl BerryCodeApp {
         }
     }
 
+    /// Load and parse a DXF file (CAD interchange format).
+    ///
+    /// Phase A scope: LINE, LWPOLYLINE, POLYLINE, 3DFACE, CIRCLE, ARC.
+    /// Curves (CIRCLE / ARC) are tessellated into 32 segments. Output is a
+    /// wireframe edge list — most architecture / civil DXFs are 2D plan
+    /// views, so triangulating closed polylines is left to a later phase.
+    /// 3DFACE entities do contribute one triangle (or two for quads).
+    fn load_dxf(file_path: &str) -> Option<ModelPreviewData> {
+        let drawing = dxf::Drawing::load_file(file_path).ok()?;
+
+        let mut vertices: Vec<[f32; 3]> = Vec::new();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        let mut triangles: Vec<TriFace> = Vec::new();
+        let mut bounds_min = [f32::MAX; 3];
+        let mut bounds_max = [f32::MIN; 3];
+
+        let push_vertex =
+            |v: [f32; 3], vs: &mut Vec<[f32; 3]>, bmin: &mut [f32; 3], bmax: &mut [f32; 3]| {
+                for j in 0..3 {
+                    bmin[j] = bmin[j].min(v[j]);
+                    bmax[j] = bmax[j].max(v[j]);
+                }
+                vs.push(v);
+                vs.len() - 1
+            };
+
+        const ARC_SEGMENTS: usize = 32;
+        let face_color = [220u8, 220u8, 220u8, 255u8];
+
+        for entity in drawing.entities() {
+            use dxf::entities::EntityType;
+            match &entity.specific {
+                EntityType::Line(line) => {
+                    let a = [line.p1.x as f32, line.p1.y as f32, line.p1.z as f32];
+                    let b = [line.p2.x as f32, line.p2.y as f32, line.p2.z as f32];
+                    let i0 = push_vertex(a, &mut vertices, &mut bounds_min, &mut bounds_max);
+                    let i1 = push_vertex(b, &mut vertices, &mut bounds_min, &mut bounds_max);
+                    edges.push((i0, i1));
+                }
+                EntityType::LwPolyline(poly) => {
+                    let mut idxs: Vec<usize> = Vec::with_capacity(poly.vertices.len());
+                    // LWPOLYLINE is 2D by spec — Z is implicit (use 0). The
+                    // entity-level "elevation" lives on the common `Entity`
+                    // record in some DXF dialects, but is omitted in the
+                    // ixmilia/dxf-rust 0.5 API; treating these as flat is
+                    // correct for typical architecture/civil plan exports.
+                    for v in &poly.vertices {
+                        let p = [v.x as f32, v.y as f32, 0.0];
+                        idxs.push(push_vertex(
+                            p,
+                            &mut vertices,
+                            &mut bounds_min,
+                            &mut bounds_max,
+                        ));
+                    }
+                    for win in idxs.windows(2) {
+                        edges.push((win[0], win[1]));
+                    }
+                    // Bit-1 of `flags` = closed polyline
+                    if (poly.flags & 1) != 0 && idxs.len() >= 3 {
+                        edges.push((*idxs.last().unwrap(), idxs[0]));
+                    }
+                }
+                EntityType::Polyline(poly) => {
+                    let pts: Vec<[f32; 3]> = poly
+                        .vertices()
+                        .map(|v| [v.location.x as f32, v.location.y as f32, v.location.z as f32])
+                        .collect();
+                    let mut idxs: Vec<usize> = Vec::with_capacity(pts.len());
+                    for p in pts {
+                        idxs.push(push_vertex(
+                            p,
+                            &mut vertices,
+                            &mut bounds_min,
+                            &mut bounds_max,
+                        ));
+                    }
+                    for win in idxs.windows(2) {
+                        edges.push((win[0], win[1]));
+                    }
+                    if poly.get_is_closed() && idxs.len() >= 3 {
+                        edges.push((*idxs.last().unwrap(), idxs[0]));
+                    }
+                }
+                EntityType::Face3D(f) => {
+                    let p0 = [
+                        f.first_corner.x as f32,
+                        f.first_corner.y as f32,
+                        f.first_corner.z as f32,
+                    ];
+                    let p1 = [
+                        f.second_corner.x as f32,
+                        f.second_corner.y as f32,
+                        f.second_corner.z as f32,
+                    ];
+                    let p2 = [
+                        f.third_corner.x as f32,
+                        f.third_corner.y as f32,
+                        f.third_corner.z as f32,
+                    ];
+                    let p3 = [
+                        f.fourth_corner.x as f32,
+                        f.fourth_corner.y as f32,
+                        f.fourth_corner.z as f32,
+                    ];
+                    let i0 = push_vertex(p0, &mut vertices, &mut bounds_min, &mut bounds_max);
+                    let i1 = push_vertex(p1, &mut vertices, &mut bounds_min, &mut bounds_max);
+                    let i2 = push_vertex(p2, &mut vertices, &mut bounds_min, &mut bounds_max);
+                    edges.push((i0, i1));
+                    edges.push((i1, i2));
+                    triangles.push(TriFace {
+                        idx: [i0, i1, i2],
+                        color: face_color,
+                    });
+                    // DXF degenerate quads collapse the fourth corner onto the third.
+                    if p3 != p2 {
+                        let i3 = push_vertex(p3, &mut vertices, &mut bounds_min, &mut bounds_max);
+                        edges.push((i2, i3));
+                        edges.push((i3, i0));
+                        triangles.push(TriFace {
+                            idx: [i0, i2, i3],
+                            color: face_color,
+                        });
+                    } else {
+                        edges.push((i2, i0));
+                    }
+                }
+                EntityType::Circle(c) => {
+                    let cx = c.center.x as f32;
+                    let cy = c.center.y as f32;
+                    let cz = c.center.z as f32;
+                    let r = c.radius as f32;
+                    let mut prev_idx: Option<usize> = None;
+                    let mut first_idx: Option<usize> = None;
+                    for i in 0..ARC_SEGMENTS {
+                        let t = (i as f32 / ARC_SEGMENTS as f32) * std::f32::consts::TAU;
+                        let p = [cx + r * t.cos(), cy + r * t.sin(), cz];
+                        let idx =
+                            push_vertex(p, &mut vertices, &mut bounds_min, &mut bounds_max);
+                        if let Some(prev) = prev_idx {
+                            edges.push((prev, idx));
+                        } else {
+                            first_idx = Some(idx);
+                        }
+                        prev_idx = Some(idx);
+                    }
+                    if let (Some(prev), Some(first)) = (prev_idx, first_idx) {
+                        edges.push((prev, first));
+                    }
+                }
+                EntityType::Arc(a) => {
+                    let cx = a.center.x as f32;
+                    let cy = a.center.y as f32;
+                    let cz = a.center.z as f32;
+                    let r = a.radius as f32;
+                    // DXF angles are degrees; sweep counter-clockwise from start to end.
+                    let s = (a.start_angle as f32).to_radians();
+                    let mut e = (a.end_angle as f32).to_radians();
+                    if e < s {
+                        e += std::f32::consts::TAU;
+                    }
+                    let mut prev_idx: Option<usize> = None;
+                    for i in 0..=ARC_SEGMENTS {
+                        let t = s + (e - s) * (i as f32 / ARC_SEGMENTS as f32);
+                        let p = [cx + r * t.cos(), cy + r * t.sin(), cz];
+                        let idx =
+                            push_vertex(p, &mut vertices, &mut bounds_min, &mut bounds_max);
+                        if let Some(prev) = prev_idx {
+                            edges.push((prev, idx));
+                        }
+                        prev_idx = Some(idx);
+                    }
+                }
+                _ => {
+                    // Unsupported entity types (3DSOLID, INSERT, SPLINE, TEXT, …)
+                    // are silently skipped in Phase A.
+                }
+            }
+        }
+
+        if vertices.is_empty() {
+            return None;
+        }
+
+        let triangle_count = triangles.len();
+        let vertex_count = vertices.len();
+
+        Some(ModelPreviewData {
+            meshes: vec![MeshInfo {
+                name: "DXF".to_string(),
+                vertex_count,
+                triangle_count,
+            }],
+            materials_count: 0,
+            animations_count: 0,
+            nodes_count: 1,
+            vertices,
+            edges,
+            triangles,
+            bounds_min,
+            bounds_max,
+            splats: Vec::new(),
+            skin_vertices: vec![],
+            joint_node_indices: vec![],
+            inverse_bind_matrices: vec![],
+            node_parents: vec![],
+            node_transforms: vec![],
+            anim_clips: vec![],
+        })
+    }
+
     /// Render 3D model preview
     pub(crate) fn render_model_preview(&mut self, ui: &mut egui::Ui) {
         let tab = &mut self.editor_tabs[self.active_tab_idx];
@@ -1584,9 +1796,42 @@ impl BerryCodeApp {
                     ui.add_space(50.0);
                     ui.heading("Cannot load 3D model");
                     ui.label(&tab.file_path);
-                    ui.label("Supported formats: GLTF, GLB, OBJ, STL, PLY");
+                    ui.label("Supported formats: GLTF, GLB, OBJ, STL, PLY, DXF");
                 });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn load_dxf_parses_sample_entities() {
+        let path = "/Users/Kyosuke/Test6/assets/sample.dxf";
+        if !std::path::Path::new(path).exists() {
+            eprintln!("skipping: sample.dxf not present at {}", path);
+            return;
+        }
+        let data =
+            BerryCodeApp::load_model_data(path).expect("load_model_data returned None for DXF");
+
+        // 4 LINEs (8 verts) + CIRCLE (32 verts) + ARC (33 verts) + LWPOLYLINE (4 verts) +
+        // 3DFACE (4 verts) = 81 vertices total.
+        assert!(
+            data.vertices.len() >= 70,
+            "expected ~81 vertices, got {}",
+            data.vertices.len()
+        );
+        assert!(!data.edges.is_empty(), "expected edges from DXF entities");
+        assert_eq!(
+            data.triangles.len(),
+            2,
+            "3DFACE should yield 2 triangles (split quad)"
+        );
+        // Bounds should bracket the rectangle (0,0)–(10,6).
+        assert!(data.bounds_min[0] <= 0.0 && data.bounds_max[0] >= 10.0);
+        assert!(data.bounds_min[1] <= 0.0 && data.bounds_max[1] >= 6.0);
     }
 }
