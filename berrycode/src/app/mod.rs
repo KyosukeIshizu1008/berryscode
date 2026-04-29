@@ -326,7 +326,6 @@ pub struct BerryCodeApp {
     pub(crate) ai_streaming_message: Option<String>,
 
     // AI Chat Panel State
-    pub(crate) ai_chat_mode: AIChatMode,
     pub(crate) ai_messages: Vec<AiChatMessage>,
     pub(crate) ai_input: String,
     pub(crate) ai_streaming: bool,
@@ -1438,7 +1437,6 @@ impl BerryCodeApp {
             ai_response_tx: Some(ai_tx),
             ai_response_rx: Some(ai_rx),
             ai_streaming_message: None,
-            ai_chat_mode: AIChatMode::Chat,
             ai_messages: Vec::new(),
             ai_input: String::new(),
             ai_streaming: false,

@@ -86,81 +86,78 @@ impl BerryCodeApp {
                             bottom: 12,
                         })
                         .show(ui, |ui| {
-                            // ── Chat / Agent mode toggle (above input)
-                            // Sits *outside* the rounded INPUT_BG box so
-                            // the toggle isn't visually trapped inside
-                            // the same frame as the textarea.
+                            // ── Agent backend picker (above input)
+                            // Chat / Agent toggle was retired with the
+                            // shift to a single Native-agent flow — all
+                            // requests now go through the agent loop,
+                            // which makes the model's `read_file` /
+                            // tool calls transparent in the chat panel.
                             ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 4.0;
-                                let chat = self.ai_chat_mode
-                                    == super::types::AIChatMode::Chat;
-                                let agent = self.ai_chat_mode
-                                    == super::types::AIChatMode::Autonomous;
-                                if ui.selectable_label(chat, "Chat").clicked() {
-                                    self.ai_chat_mode = super::types::AIChatMode::Chat;
-                                }
-                                if ui.selectable_label(agent, "Agent").clicked() {
-                                    self.ai_chat_mode = super::types::AIChatMode::Autonomous;
-                                }
-                                if agent {
-                                    let claude_installed =
-                                        crate::agent::CodingAgent::check_installed(
-                                            &crate::agent::claude::ClaudeCodeAgent::new(),
+                                ui.spacing_mut().item_spacing.x = 6.0;
+                                let claude_installed =
+                                    crate::agent::CodingAgent::check_installed(
+                                        &crate::agent::claude::ClaudeCodeAgent::new(),
+                                    );
+                                let codex_installed =
+                                    crate::agent::CodingAgent::check_installed(
+                                        &crate::agent::codex::CodexAgent::new(),
+                                    );
+                                let mut backend = self.ai_settings.agent_backend.clone();
+                                ui.label(
+                                    egui::RichText::new("Agent:")
+                                        .size(11.0)
+                                        .color(TEXT_DIM),
+                                );
+                                egui::ComboBox::from_id_salt("agent_backend_picker")
+                                    .selected_text(match backend.as_str() {
+                                        "codex" => "Codex",
+                                        "claude" => "Claude Code",
+                                        _ => "Native",
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        ui.selectable_value(
+                                            &mut backend,
+                                            "native".to_string(),
+                                            "Native (in-process)",
                                         );
-                                    let codex_installed =
-                                        crate::agent::CodingAgent::check_installed(
-                                            &crate::agent::codex::CodexAgent::new(),
+                                        ui.selectable_value(
+                                            &mut backend,
+                                            "claude".to_string(),
+                                            "Claude Code",
                                         );
-                                    let mut backend =
-                                        self.ai_settings.agent_backend.clone();
-                                    egui::ComboBox::from_id_salt("agent_backend_picker")
-                                        .selected_text(match backend.as_str() {
-                                            "codex" => "Codex",
-                                            _ => "Claude Code",
-                                        })
-                                        .show_ui(ui, |ui| {
-                                            ui.selectable_value(
-                                                &mut backend,
-                                                "claude".to_string(),
-                                                "Claude Code",
-                                            );
-                                            ui.selectable_value(
-                                                &mut backend,
-                                                "codex".to_string(),
-                                                "Codex",
-                                            );
-                                        });
-                                    if backend != self.ai_settings.agent_backend {
-                                        self.ai_settings.agent_backend = backend.clone();
-                                        self.ai_settings.save();
+                                        ui.selectable_value(
+                                            &mut backend,
+                                            "codex".to_string(),
+                                            "Codex",
+                                        );
+                                    });
+                                if backend != self.ai_settings.agent_backend {
+                                    self.ai_settings.agent_backend = backend.clone();
+                                    self.ai_settings.save();
+                                }
+                                let (installed, install_hint) = match backend.as_str() {
+                                    "native" => (Some("ready".to_string()), ""),
+                                    "codex" => (
+                                        codex_installed,
+                                        "codex not on PATH — `npm i -g @openai/codex`",
+                                    ),
+                                    _ => (
+                                        claude_installed,
+                                        "claude not on PATH — `npm i -g @anthropic-ai/claude-code`",
+                                    ),
+                                };
+                                match installed {
+                                    Some(v) => {
+                                        ui.label(
+                                            egui::RichText::new(v).size(11.0).color(TEXT_DIM),
+                                        );
                                     }
-                                    let (installed, install_hint) = match backend.as_str() {
-                                        "codex" => (
-                                            codex_installed,
-                                            "codex not on PATH — `npm i -g @openai/codex`",
-                                        ),
-                                        _ => (
-                                            claude_installed,
-                                            "claude not on PATH — `npm i -g @anthropic-ai/claude-code`",
-                                        ),
-                                    };
-                                    match installed {
-                                        Some(v) => {
-                                            ui.label(
-                                                egui::RichText::new(v)
-                                                    .size(11.0)
-                                                    .color(TEXT_DIM),
-                                            );
-                                        }
-                                        None => {
-                                            ui.label(
-                                                egui::RichText::new(install_hint)
-                                                    .size(11.0)
-                                                    .color(egui::Color32::from_rgb(
-                                                        220, 120, 120,
-                                                    )),
-                                            );
-                                        }
+                                    None => {
+                                        ui.label(
+                                            egui::RichText::new(install_hint)
+                                                .size(11.0)
+                                                .color(egui::Color32::from_rgb(220, 120, 120)),
+                                        );
                                     }
                                 }
                             });
@@ -363,14 +360,16 @@ impl BerryCodeApp {
                                     });
                                 } else {
                                     ui.add_space(16.0);
-                                    let messages: Vec<(String, bool)> = self
-                                        .ai_messages
-                                        .iter()
-                                        .map(|m| (m.content.clone(), m.is_user))
-                                        .collect();
-
-                                    for (content, is_user) in &messages {
-                                        if *is_user {
+                                    // Iterate by reference; each message
+                                    // can be 1-10 KB and cloning the
+                                    // whole list every frame (60+ fps)
+                                    // showed up as visible stutter once
+                                    // a few long agent responses had
+                                    // landed.
+                                    for msg in &self.ai_messages {
+                                        let content = &msg.content;
+                                        let is_user = msg.is_user;
+                                        if is_user {
                                             let avail = ui.available_width();
                                             ui.horizontal(|ui| {
                                                 let bubble_max = 300.0_f32;
@@ -416,7 +415,7 @@ impl BerryCodeApp {
                                                     );
                                                     ui.add_space(2.0);
                                                     ui.set_max_width(380.0);
-                                                    Self::render_markdown(ui, content);
+                                                    Self::render_message_body(ui, content);
                                                 });
                                             });
                                         }
@@ -439,7 +438,7 @@ impl BerryCodeApp {
                                             let visible =
                                                 strip_thinking_blocks(&self.ai_current_response);
                                             if !visible.is_empty() {
-                                                Self::render_markdown(ui, &visible);
+                                                Self::render_message_body(ui, &visible);
                                             }
                                             ui.add_space(6.0);
                                             ui.horizontal(|ui| {
@@ -465,6 +464,110 @@ impl BerryCodeApp {
     #[allow(dead_code)]
     pub(crate) fn render_berrycode_ai_chat(&mut self, ui: &mut egui::Ui) {
         ui.label("AI Chat - Use right panel instead.");
+    }
+
+    /// Render a chat message body that may interleave assistant text
+    /// with native-agent tool calls. Tool calls arrive as
+    /// `<<BERRY_TOOL>>name|args<<END>>` sentinels (see
+    /// [`Self::send_agent_message`]); we split on those, draw a styled
+    /// pill in their place, and run the surrounding text through the
+    /// normal markdown renderer so code fences / links / bold still
+    /// work.
+    pub(crate) fn render_message_body(ui: &mut egui::Ui, content: &str) {
+        const OPEN: &str = "<<BERRY_TOOL>>";
+        const CLOSE: &str = "<<END>>";
+        let mut rest = content;
+        // Group consecutive same-tool calls into a single pill — the
+        // model often fans out 5+ `list_files` / `read_file` calls in
+        // a row, and stacking those vertically swamps the panel. Args
+        // are kept as a list so the pill can show all paths inline,
+        // separated by `·`.
+        let mut pending: Option<(String, Vec<String>)> = None;
+        let flush =
+            |ui: &mut egui::Ui, pending: &mut Option<(String, Vec<String>)>| {
+                if let Some((tool, args)) = pending.take() {
+                    Self::render_tool_pill(ui, &tool, &args);
+                }
+            };
+        while let Some(start) = rest.find(OPEN) {
+            let head = &rest[..start];
+            if !head.trim().is_empty() {
+                flush(ui, &mut pending);
+                Self::render_markdown(ui, head);
+            }
+            let after_open = &rest[start + OPEN.len()..];
+            let Some(end) = after_open.find(CLOSE) else {
+                flush(ui, &mut pending);
+                Self::render_markdown(ui, &rest[start..]);
+                return;
+            };
+            let payload = &after_open[..end];
+            let (tool, args) = payload.split_once('|').unwrap_or((payload, ""));
+            match pending.as_mut() {
+                Some((prev_tool, list)) if prev_tool == tool => {
+                    list.push(args.to_string());
+                }
+                _ => {
+                    flush(ui, &mut pending);
+                    pending = Some((tool.to_string(), vec![args.to_string()]));
+                }
+            }
+            rest = &after_open[end + CLOSE.len()..];
+        }
+        flush(ui, &mut pending);
+        if !rest.is_empty() {
+            Self::render_markdown(ui, rest);
+        }
+    }
+
+    /// One Claude-Code-style tool-call pill. Color-coded by tool
+    /// type (read=blue / write=amber / list=teal / bash=green); when
+    /// a single pill carries multiple args (because consecutive same-
+    /// tool calls were grouped) they're joined inline with `·`.
+    fn render_tool_pill(ui: &mut egui::Ui, tool: &str, args: &[String]) {
+        let (icon, accent) = match tool {
+            "read_file" => ("📄", egui::Color32::from_rgb(126, 168, 255)), // blue
+            "write_file" => ("✏", egui::Color32::from_rgb(248, 196, 96)),  // amber
+            "list_files" => ("📁", egui::Color32::from_rgb(101, 214, 204)), // teal
+            "run_bash" => ("▸", egui::Color32::from_rgb(144, 212, 160)),   // green
+            _ => ("🔧", egui::Color32::from_rgb(170, 175, 190)),
+        };
+        let bg =
+            egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 22);
+        let stroke =
+            egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 60);
+
+        let joined_args = args
+            .iter()
+            .filter(|a| !a.is_empty())
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(" · ");
+
+        ui.horizontal_wrapped(|ui| {
+            egui::Frame::NONE
+                .fill(bg)
+                .stroke(egui::Stroke::new(1.0, stroke))
+                .corner_radius(egui::CornerRadius::same(5))
+                .inner_margin(egui::Margin::symmetric(8, 3))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(icon).size(11.0).color(accent));
+                        ui.label(
+                            egui::RichText::new(tool).size(11.0).monospace().color(accent),
+                        );
+                        if !joined_args.is_empty() {
+                            ui.label(
+                                egui::RichText::new(joined_args)
+                                    .size(11.0)
+                                    .monospace()
+                                    .color(egui::Color32::from_rgb(170, 175, 190)),
+                            );
+                        }
+                    });
+                });
+        });
+        ui.add_space(2.0);
     }
 
     /// Simple markdown renderer for AI chat responses
@@ -764,127 +867,18 @@ impl BerryCodeApp {
         });
     }
 
-    /// Send a message to the AI via REST
+    /// Entry point from the chat panel's send button / Enter key. The
+    /// dual Chat / Agent surface was retired — every prompt now flows
+    /// through the agent loop ([`Self::send_agent_message`]), which
+    /// covers chat-style Q&A through `read_file` plus actual editing
+    /// through `write_file`. Kept as a thin wrapper so the input UI
+    /// doesn't need to know which underlying path runs.
     pub(crate) fn send_ai_message(&mut self) {
         let message = self.ai_input.trim().to_string();
         if message.is_empty() {
             return;
         }
-
-        // In Autonomous mode the prompt is dispatched to an external
-        // coding agent (Claude Code today, Codex once installed) via
-        // the `agent` module rather than the chat-shaped Provider
-        // layer. The two paths intentionally share `ai_messages` /
-        // `ai_response_tx` / `ai_streaming` so the rendering side
-        // doesn't need to know which mode produced a chunk.
-        if self.ai_chat_mode == super::types::AIChatMode::Autonomous {
-            self.send_agent_message(message);
-            return;
-        }
-
-        // Add user message to chat history
-        self.ai_messages.push(AiChatMessage {
-            content: message.clone(),
-            is_user: true,
-        });
-
-        // Clear input
-        self.ai_input.clear();
-
-        // Set streaming state
-        self.ai_streaming = true;
-        self.ai_current_response.clear();
-        self.ai_streaming_message = Some(String::new());
-
-        let tx = self.ai_response_tx.clone();
-
-        // BYOK provider layer (v0.4.5). Build a Provider trait object from
-        // the user's saved settings and call it directly, no proxy.
-        let ai = self.ai_settings.clone();
-        if !ai.enabled {
-            if let Some(tx) = &tx {
-                let _ = tx.send(AiChatResponse::ChatChunk(
-                    "AI assistant is disabled. Enable it in Settings → AI Providers.".to_string(),
-                ));
-                let _ = tx.send(AiChatResponse::ChatStreamCompleted);
-            }
-            return;
-        }
-
-        // Convert the existing UI history (`is_user: bool`) into the
-        // provider-neutral role/content shape.
-        let history: Vec<crate::ai::ChatMessage> = self
-            .ai_messages
-            .iter()
-            .map(|m| crate::ai::ChatMessage {
-                role: if m.is_user { "user" } else { "assistant" }.to_string(),
-                content: m.content.clone(),
-            })
-            .collect();
-
-        tracing::info!(
-            "📤 Sending chat via {:?} / {}",
-            ai.chat_provider,
-            ai.chat_model
-        );
-
-        self.lsp_runtime.spawn(async move {
-            let provider: Box<dyn crate::ai::Provider> = match ai.chat_provider {
-                crate::ai::ProviderKind::Anthropic => Box::new(
-                    crate::ai::anthropic::AnthropicProvider::new(ai.anthropic_api_key.clone()),
-                ),
-                crate::ai::ProviderKind::OpenAi => Box::new(
-                    crate::ai::openai::OpenAiProvider::new(ai.openai_api_key.clone()),
-                ),
-                crate::ai::ProviderKind::Ollama => Box::new(
-                    crate::ai::ollama::OllamaProvider::new(ai.ollama_endpoint.clone()),
-                ),
-            };
-
-            let mut messages = history;
-            messages.push(crate::ai::ChatMessage {
-                role: "user".to_string(),
-                content: message,
-            });
-
-            let mut req = crate::ai::CompletionRequest::new(ai.chat_model.clone(), messages);
-            req.system = Some(
-                "You are BerryCode's built-in assistant for Bevy / Rust game development. \
-                 Prefer concise, code-first answers and cite the Bevy 0.18 API when relevant."
-                    .to_string(),
-            );
-            req.max_tokens = 2048;
-            req.temperature = 0.3;
-
-            match provider.complete(req).await {
-                Ok(resp) => {
-                    // Record usage for the Cost & Limits panel. Best-effort:
-                    // a missing or unwriteable `~/.berrycode/ai_usage.json`
-                    // must never break the chat reply that already landed.
-                    if let Some(usage) = resp.usage {
-                        crate::ai::usage::record(ai.chat_provider, &ai.chat_model, &usage);
-                    }
-                    if let Some(tx) = &tx {
-                        let _ = tx.send(AiChatResponse::ChatChunk(resp.text));
-                        let _ = tx.send(AiChatResponse::ChatStreamCompleted);
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("❌ AI provider error: {}", e);
-                    if let Some(tx) = &tx {
-                        let hint = match &e {
-                            crate::ai::ProviderError::MissingKey(p) => format!(
-                                "!No API key configured for {}.\nAdd one in Settings → AI Providers.",
-                                p
-                            ),
-                            other => format!("!AI error: {}", other),
-                        };
-                        let _ = tx.send(AiChatResponse::ChatChunk(hint));
-                        let _ = tx.send(AiChatResponse::ChatStreamCompleted);
-                    }
-                }
-            }
-        });
+        self.send_agent_message(message);
     }
 
     /// Autonomous-mode counterpart to [`send_ai_message`]. Spawns an
@@ -911,7 +905,7 @@ impl BerryCodeApp {
         let cwd = std::path::PathBuf::from(self.root_path.clone());
 
         // Pull model + budget from BYOK settings; pick the agent
-        // backend off `agent_backend` ("claude" / "codex").
+        // backend off `agent_backend` ("native" / "claude" / "codex").
         let model = Some(self.ai_settings.chat_model.clone());
         let max_budget = if self.ai_settings.monthly_cap_usd > 0.0 {
             Some(self.ai_settings.monthly_cap_usd)
@@ -919,14 +913,36 @@ impl BerryCodeApp {
             None
         };
         let backend = self.ai_settings.agent_backend.clone();
-        let provider_kind_for_usage = if backend == "codex" {
-            crate::ai::ProviderKind::OpenAi
-        } else {
-            crate::ai::ProviderKind::Anthropic
+        let provider_kind_for_usage = match backend.as_str() {
+            "codex" | "native" => crate::ai::ProviderKind::OpenAi,
+            _ => crate::ai::ProviderKind::Anthropic,
         };
+        let ai_settings_for_native = self.ai_settings.clone();
+
+        // Resolve `@<path>` references on the main thread (cheap fs
+        // reads). Inlining these via `append_system_prompt` saves the
+        // model a tool round-trip per attached file. Bundled with the
+        // Bevy 0.18 cheatsheet (#14 MVP).
+        let attached = collect_attached_files(&message, &self.root_path);
+        let mut extra_system = String::from(
+            "You are running inside BerryCode, a native Bevy IDE. \
+             Prefer Bevy 0.18 idioms, propose small focused edits, \
+             and explain your plan before applying changes.",
+        );
+        extra_system.push_str(BEVY_018_CHEATSHEET);
+        if !attached.is_empty() {
+            extra_system
+                .push_str("\n\n## Attached files (referenced via @ in the user message)\n");
+            for (path, content) in &attached {
+                extra_system.push_str(&format!("\n### {}\n```\n{}\n```\n", path, content));
+            }
+        }
 
         self.lsp_runtime.spawn(async move {
             let agent: Box<dyn crate::agent::CodingAgent> = match backend.as_str() {
+                "native" => Box::new(crate::agent::native::NativeAgent::new(
+                    ai_settings_for_native,
+                )),
                 "codex" => Box::new(crate::agent::codex::CodexAgent::new()),
                 _ => Box::new(crate::agent::claude::ClaudeCodeAgent::new()),
             };
@@ -934,12 +950,7 @@ impl BerryCodeApp {
                 model,
                 max_budget_usd: max_budget,
                 additional_dirs: Vec::new(),
-                append_system_prompt: Some(
-                    "You are running inside BerryCode, a native Bevy IDE. \
-                     Prefer Bevy 0.18 idioms, propose small focused edits, \
-                     and explain your plan before applying changes."
-                        .to_string(),
-                ),
+                append_system_prompt: Some(extra_system),
             };
 
             let mut session = match agent.run(&message, &cwd, opts).await {
@@ -969,8 +980,37 @@ impl BerryCodeApp {
                     | crate::agent::AgentEvent::Output(text) => {
                         let _ = tx.send(AiChatResponse::ChatChunk(text));
                     }
-                    crate::agent::AgentEvent::ToolUse { tool, .. } => {
-                        let _ = tx.send(AiChatResponse::ChatChunk(format!("\n`[{}]`\n", tool)));
+                    crate::agent::AgentEvent::ToolUse { tool, input } => {
+                        // Encode tool calls as a sentinel so the chat
+                        // renderer can substitute a styled pill instead
+                        // of dropping the call into the markdown stream
+                        // as `[tool]` text. Format: leading + trailing
+                        // newlines keep the pill on its own line; the
+                        // payload is `<tool>|<arg-summary>` so the
+                        // renderer doesn't need to re-parse JSON.
+                        let summary = match tool.as_str() {
+                            "read_file" | "write_file" | "list_files" => input
+                                .get("path")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            "run_bash" => {
+                                let cmd = input
+                                    .get("command")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("");
+                                if cmd.len() > 60 {
+                                    format!("{}…", &cmd[..60])
+                                } else {
+                                    cmd.to_string()
+                                }
+                            }
+                            _ => String::new(),
+                        };
+                        let _ = tx.send(AiChatResponse::ChatChunk(format!(
+                            "\n<<BERRY_TOOL>>{}|{}<<END>>\n",
+                            tool, summary
+                        )));
                     }
                     crate::agent::AgentEvent::Edit {
                         path,
@@ -1127,12 +1167,34 @@ impl BerryCodeApp {
 
     /// Apply one approved agent edit to disk + reload any matching
     /// editor tab. Status messages report success / failure.
+    ///
+    /// 3-way safety check (#13): when the agent recorded a `before`
+    /// snapshot, refuse to overwrite if the on-disk content has
+    /// drifted from that snapshot — the user has edited the file
+    /// since the agent read it, and a blind write would silently
+    /// destroy their changes. We push the edit back into the pending
+    /// queue so they can re-review or Reject. This is a guard, not a
+    /// real merge — the proper line-level merge lives behind issue
+    /// #13 once we wire in `diffy` / `similar`'s patch primitives.
     pub(crate) fn try_apply_edit(&mut self, edit: &super::types::PendingAgentEdit) {
-        // Make sure the parent dir exists (agent might be creating a
-        // brand-new file in a not-yet-created directory).
         if let Some(parent) = edit.path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
+
+        if let Some(base) = edit.before.as_deref() {
+            let current = std::fs::read_to_string(&edit.path).unwrap_or_default();
+            if current != base {
+                self.status_message = format!(
+                    "!Skipped agent edit ({}): file changed since the agent read it. \
+                     Reject and re-ask, or apply manually.",
+                    edit.path.display()
+                );
+                self.status_message_timestamp = Some(std::time::Instant::now());
+                self.pending_agent_edits.push(edit.clone());
+                return;
+            }
+        }
+
         match std::fs::write(&edit.path, &edit.after) {
             Ok(()) => {
                 self.status_message = format!("Applied agent edit: {}", edit.path.display());
@@ -1169,16 +1231,18 @@ impl BerryCodeApp {
                         self.status_message_timestamp = Some(std::time::Instant::now());
                     }
                     AiChatResponse::ChatChunk(chunk) => {
-                        tracing::info!("🎨 UI received chunk: {} chars", chunk.len());
+                        // Streaming chunks arrive 1-token at a time during
+                        // a Native-agent response — info-level logging
+                        // here used to spam ~100 lines per answer and
+                        // showed up as visible stutter in the chat panel.
+                        // Demoted to trace; flip with `RUST_LOG=trace`
+                        // if you need to debug streaming.
+                        tracing::trace!("UI chunk: {} chars", chunk.len());
 
                         self.ai_current_response.push_str(&chunk);
 
                         if let Some(streaming_msg) = &mut self.ai_streaming_message {
                             streaming_msg.push_str(&chunk);
-                            tracing::info!(
-                                "[Edit]Accumulated message: {} chars total",
-                                streaming_msg.len()
-                            );
                         } else {
                             self.ai_streaming_message = Some(String::new());
                             if let Some(streaming_msg) = &mut self.ai_streaming_message {
@@ -1237,6 +1301,66 @@ impl BerryCodeApp {
 
 /// Compact unified-diff renderer for the pending-edit cards. Computes
 /// a line-level LCS-style diff between `before` and `after` and emits
+/// Bevy 0.18 cheatsheet injected into the chat system prompt (#14
+/// MVP). Pre-RAG fallback: a static set of API reminders covering the
+/// pieces the model gets wrong most often (0.18 renamed
+/// `ImagePlugin::default_nearest()`, dropped `App::add_state`, moved
+/// `bevy::input::mouse` → `bevy::input::mouse`, etc.). Build-time
+/// indexing of the real Bevy docs is the v1 of issue #14.
+const BEVY_018_CHEATSHEET: &str = "
+
+## Bevy 0.18 reminders
+- App entry: `App::new().add_plugins(DefaultPlugins).run();`
+- Spawn 3D: `commands.spawn((Mesh3d(mesh), MeshMaterial3d(material), Transform::from_xyz(...)))`. `PbrBundle` is gone — use the component tuple form.
+- Camera 3D: `commands.spawn((Camera3d::default(), Transform::from_xyz(...).looking_at(Vec3::ZERO, Vec3::Y)))`.
+- States: `app.init_state::<S>()` + `OnEnter(S::Variant)` schedules; the older `app.add_state::<S>()` is removed.
+- Events: `MessageReader<E>` / `MessageWriter<E>` (renamed from `EventReader` / `EventWriter` in 0.18).
+- Asset load: `asset_server.load::<Mesh>(\"path\")`; loaded handles are `Handle<T>`, attached as components.
+- Camera 2D + UI: `Camera2d` (no bundle) + `Node` for UI roots; flexbox layout via `Node` fields.
+- ECS queries: `Query<&T>` for read, `Query<&mut T>` for write, `Query<Entity, With<T>>` for filtering. `Single<...>` resolves to one entity (replaces the old `single_mut()` ergonomics in some places).
+- Time delta: `time.delta_secs()` (was `delta_seconds()`).
+- Color literals: `Color::srgb(r, g, b)` / `Color::srgba(r, g, b, a)`; `Color::rgb` is gone.
+";
+
+/// Resolve `@<path>` references in a chat message — read each file
+/// against `root_path` and return `(rel_path, content)` pairs to
+/// inject into the system prompt. Skips files larger than 200 KB
+/// individually or 1 MB in aggregate; capped at 10 files.
+fn collect_attached_files(message: &str, root_path: &str) -> Vec<(String, String)> {
+    use std::path::PathBuf;
+    const MAX_PER_FILE: usize = 200 * 1024;
+    const MAX_TOTAL: usize = 1024 * 1024;
+    const MAX_COUNT: usize = 10;
+
+    let root = PathBuf::from(root_path);
+    let mut files: Vec<(String, String)> = Vec::new();
+    let mut total = 0usize;
+
+    for tok in message.split_whitespace() {
+        if files.len() >= MAX_COUNT {
+            break;
+        }
+        let Some(rest) = tok.strip_prefix('@') else {
+            continue;
+        };
+        let path_str = rest.trim_end_matches(|c: char| ".,;:!?)".contains(c));
+        if path_str.is_empty() {
+            continue;
+        }
+        let path = root.join(path_str);
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        if bytes.len() > MAX_PER_FILE || total + bytes.len() > MAX_TOTAL {
+            continue;
+        }
+        let content = String::from_utf8_lossy(&bytes).into_owned();
+        total += content.len();
+        files.push((path_str.to_string(), content));
+    }
+    files
+}
+
 /// monospace coloured rows so additions / removals stand out at a
 /// glance. Capped at `max_lines` total to keep large edits readable;
 /// the full text is still applied on Approve.

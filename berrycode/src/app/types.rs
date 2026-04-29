@@ -491,14 +491,6 @@ pub(crate) struct PendingGotoDefinition {
     pub original_text: String,
 }
 
-/// AI Chat mode
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum AIChatMode {
-    Chat,       // 対話式（通常のチャット）
-    Autonomous, // 自動実行モード（dangerously-skip-permissions）
-}
-
 /// Peek definition inline view
 #[derive(Debug, Clone)]
 pub struct PeekDefinition {
