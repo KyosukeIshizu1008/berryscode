@@ -223,11 +223,10 @@ The dual Chat / Agent surface was retired in favour of a single agent-loop UI: e
 - [x] **Agent backend (Claude Code)**: spawn `claude --print --output-format=stream-json`; selectable as fallback when `claude` is on `PATH`
 - [x] **Agent backend (Codex CLI)**: equivalent path via `codex exec --json --cd <cwd> --full-auto`; selectable as fallback when `codex` is on `PATH`
 - [x] **Apply diff**: agent edit proposals surface as Approve / Reject cards above the chat input; approving writes the file and reloads any open editor tab
-- [~] **Chat attachments**: `@file` MVP shipped (path-based, file contents auto-inlined into the agent's system prompt; max 10 files / 200 KB each / 1 MB aggregate). `@symbol` / `@scene` and autocomplete popup deferred.
-- [~] **3-way merge ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13))** — conflict guard shipped (Apply refuses to overwrite if the file changed since the agent read it). Real line-level merge still pending.
-- [~] **Bevy doc cheatsheet ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14))** — static 0.18 idiom reminder injected into every chat system prompt. Real RAG (embedded index) still pending.
-- [ ] **Inline / Tab completion** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
-- [ ] **ECS-aware completion** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
+- [x] **Chat attachments (MVP)**: `@file` shipped — path-based, file contents auto-inlined into the agent's system prompt; max 10 files / 200 KB each / 1 MB aggregate. `@symbol` / `@scene` deferred to v0.10.5.
+- [x] **3-way merge guard**: Apply refuses to overwrite if the file changed on disk since the agent's read snapshot. Full line-level merge tracked in [#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13) (v0.10.5).
+- [x] **Bevy 0.18 cheatsheet**: static idiom reminder injected into every system prompt. Real embedded-RAG tracked in [#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14) (v0.10.5).
+- [→ v0.10.5] Inline / Tab completion ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)) + ECS-aware completion ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)) deferred — both lean on infrastructure from v0.10 (Game Data Inspector / DB panel) so they're better tackled after that lands.
 - [~] **Release-blocking end-to-end verification with real provider tokens** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11)) — OpenAI (incl. Azure Responses API) chat round-trip ✓, Native agent + streaming + Apply diff ✓, Cmd+L focus / Cost panel cache rows / Approve-Reject wiring all code-verified ✓. **Still pending live tests:** Anthropic key round-trip, Ollama (`ollama serve`) round-trip, AI Usage tab visual check.
 
 Positioning: the first AI assistant that *understands* Bevy, not just Rust — backed by the same agent tooling expert Rust developers already trust.
@@ -328,6 +327,18 @@ Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Dat
 - [ ] **Migrations**: track schema changes alongside save-file compatibility so old saves don't silently break
 
 Positioning: not a DataGrip clone — a game-data debugger that ships in the same IDE as the Scene Editor and ECS Inspector.
+
+#### v0.10.5 — AI completion (carryover from v0.4.5)
+
+> _Pick up where v0.4.5 left off._ The four AI features that didn't make
+> the v0.4.5 cut — inline / Tab completion, real 3-way merge, indexed
+> Bevy doc RAG, and ECS-aware completion — slot in here so they can
+> lean on the DB panel and ECS plumbing built in v0.10.
+
+- [ ] **Inline / Tab completion** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
+- [ ] **3-way merge** ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13)): real line-level merge for the conflict cases the v0.4.5 guard refuses to overwrite
+- [ ] **Bevy doc RAG** ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14)): embedded vector index of Bevy 0.18 docs / examples, retrieved at chat-send time
+- [ ] **ECS-aware completion** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
 
 #### v0.11 — Testing & QA (target: 2029 H2)
 
@@ -594,11 +605,10 @@ Chat / Agent の二段構えは廃止し、すべてのプロンプトをエー�
 - [x] **エージェントバックエンド (Claude Code)**: `PATH` に `claude` があれば fallback として選択可能
 - [x] **エージェントバックエンド (Codex CLI)**: `PATH` に `codex` があれば fallback として選択可能
 - [x] **Apply diff**: エージェントの編集提案を Approve / Reject カード表示、承認するとファイル書き込み + 開いている編集タブを自動リロード
-- [~] **チャット添付**: `@file` MVP 実装済み(パス指定、ファイル内容をエージェントの system prompt に自動 inline、最大 10 件 / 1 件 200 KB / 合計 1 MB 制限)。`@symbol` / `@scene` と autocomplete popup は今後
-- [~] **3-way merge ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13))**: 衝突ガード実装済み(Apply 時にファイルが変更されていれば上書きを拒否)。本物の行レベル merge は未対応
-- [~] **Bevy doc cheatsheet ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14))**: 静的な Bevy 0.18 idiom リマインダーを system prompt に注入。本物の RAG (埋め込みインデックス) は未対応
-- [ ] **インライン / Tab 補完** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
-- [ ] **ECS 対応補完** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
+- [x] **チャット添付 (MVP)**: `@file` 実装済み(パス指定、ファイル内容をエージェントの system prompt に自動 inline、最大 10 件 / 1 件 200 KB / 合計 1 MB 制限)。`@symbol` / `@scene` は v0.10.5 へ
+- [x] **3-way merge ガード**: Apply 時にファイルが変更されていれば上書きを拒否。本物の行レベル merge は [#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13)(v0.10.5)で対応
+- [x] **Bevy 0.18 cheatsheet**: 静的な idiom リマインダーを system prompt に注入。本物の埋め込み RAG は [#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14)(v0.10.5)
+- [→ v0.10.5] Inline / Tab 補完 ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)) + ECS 対応補完 ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)) を v0.10(DB パネル / Game Data Inspector)実装後に持ち越し。両方とも v0.10 のインフラに依存させる方が筋が良いため
 - [~] **リリースブロッカー: 実プロバイダ鍵での E2E 検証** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11)) — OpenAI (Azure Responses API 含む) 往復 ✓、Native + ストリーミング + Apply diff ✓、Cmd+L / Cost パネル / Approve-Reject の配線はコード上確認済 ✓。**残ライブ検証:** Anthropic 鍵での往復、Ollama (`ollama serve`) での往復、AI Usage タブ目視
 
 ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。 — 経験豊富な Rust 開発者が既に信頼しているエージェントツールが裏で走ります。
@@ -699,6 +709,19 @@ Chat / Agent の二段構えは廃止し、すべてのプロンプトをエー�
 - [ ] **マイグレーション**: スキーマ変更を save 互換と一緒に追跡し、古い save が静かに壊れない
 
 ポジショニング: DataGrip のクローンではなく、Scene Editor / ECS Inspector と同じ IDE に同梱されるゲームデータデバッガ。
+
+#### v0.10.5 — AI 補完(v0.4.5 からの繰り越し)
+
+> _v0.4.5 の続き。_ v0.4.5 に乗せきれなかった 4 つの AI 機能 ——
+> インライン / Tab 補完、本物の 3-way merge、埋め込みインデックス
+> 版の Bevy doc RAG、ECS 対応補完 —— をここで回収。v0.10 (DB パネル)
+> と ECS 周りのインフラに乗せる前提なので、後ろにずらした方が筋が
+> 良い。
+
+- [ ] **インライン / Tab 補完** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
+- [ ] **3-way merge** ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13)): v0.4.5 の衝突ガードが上書きを拒否したケースを行レベルでマージ
+- [ ] **Bevy doc RAG** ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14)): Bevy 0.18 ドキュメント・例の埋め込みベクトルインデックス、チャット送信時に retrieve
+- [ ] **ECS 対応補完** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): `commands.spawn(` で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
 
 #### v0.11 — テスト & QA (目標: 2029 H2)
 
