@@ -447,10 +447,7 @@ impl BerryCodeApp {
                             .family(egui::FontFamily::Name("codicon".into()))
                             .color(egui::Color32::from_rgb(255, 198, 109)),
                     );
-                    ui.colored_label(
-                        egui::Color32::from_rgb(255, 198, 109),
-                        tag_name,
-                    );
+                    ui.colored_label(egui::Color32::from_rgb(255, 198, 109), tag_name);
                 }
             });
         }

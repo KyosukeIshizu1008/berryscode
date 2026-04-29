@@ -327,9 +327,7 @@ impl BerryCodeApp {
                 .desired_rows(4)
                 .desired_width(f32::INFINITY),
         );
-        let cmd_enter = ui.input(|i| {
-            i.modifiers.command && i.key_pressed(egui::Key::Enter)
-        });
+        let cmd_enter = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter));
         ui.horizontal(|ui| {
             if primary_button(ui, "Run (⌘↩)").clicked() || (response.has_focus() && cmd_enter) {
                 self.database.run_query();
@@ -355,17 +353,9 @@ impl BerryCodeApp {
     }
 }
 
-fn render_result_grid(
-    ui: &mut egui::Ui,
-    id: &str,
-    cols: &[String],
-    rows: &[Vec<String>],
-) {
+fn render_result_grid(ui: &mut egui::Ui, id: &str, cols: &[String], rows: &[Vec<String>]) {
     if cols.is_empty() {
-        ui.label(
-            egui::RichText::new("(no result)")
-                .color(egui::Color32::from_gray(150)),
-        );
+        ui.label(egui::RichText::new("(no result)").color(egui::Color32::from_gray(150)));
         return;
     }
     egui::ScrollArea::both()

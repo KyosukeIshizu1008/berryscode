@@ -321,18 +321,15 @@ impl BerryCodeApp {
                         // their own EM padding, but SVG paths fill the
                         // viewBox edge-to-edge, so 1.0 is small.
                         let svg_tex = match panel.variant {
-                            ActivePanel::SceneEditor => {
-                                self.scene_view_icon_texture(ctx, icon_size as u32)
-                                    .map(|t| (t, 1.15_f32))
-                            }
-                            ActivePanel::Database => {
-                                self.database_icon_texture(ctx, icon_size as u32)
-                                    .map(|t| (t, 1.15_f32))
-                            }
-                            ActivePanel::Docker => {
-                                self.docker_icon_texture(ctx, icon_size as u32)
-                                    .map(|t| (t, 1.15_f32))
-                            }
+                            ActivePanel::SceneEditor => self
+                                .scene_view_icon_texture(ctx, icon_size as u32)
+                                .map(|t| (t, 1.15_f32)),
+                            ActivePanel::Database => self
+                                .database_icon_texture(ctx, icon_size as u32)
+                                .map(|t| (t, 1.15_f32)),
+                            ActivePanel::Docker => self
+                                .docker_icon_texture(ctx, icon_size as u32)
+                                .map(|t| (t, 1.15_f32)),
                             _ => None,
                         };
                         if let Some((tex, scale)) = svg_tex {

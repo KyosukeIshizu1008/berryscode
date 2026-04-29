@@ -118,11 +118,7 @@ pub fn button_with_icon(ui: &mut egui::Ui, glyph: &str, label: &str) -> egui::Re
 }
 
 /// Primary (accent-blue) variant of [`button_with_icon`].
-pub fn primary_button_with_icon(
-    ui: &mut egui::Ui,
-    glyph: &str,
-    label: &str,
-) -> egui::Response {
+pub fn primary_button_with_icon(ui: &mut egui::Ui, glyph: &str, label: &str) -> egui::Response {
     let job = icon_label_job(ui, glyph, label, true);
     primary_button(ui, job)
 }
