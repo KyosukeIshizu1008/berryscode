@@ -3,6 +3,16 @@
 use super::model::*;
 use crate::app::BerryCodeApp;
 
+/// VSCode-style flat icon button: no frame at rest, subtle hover background,
+/// fixed compact size so the four header actions read as a tidy strip
+/// instead of chunky `[ ^ ][ v ][ C ][ x ]` chiclets.
+fn icon_button(ui: &mut egui::Ui, glyph: &str, tooltip: &str) -> egui::Response {
+    let btn = egui::Button::new(egui::RichText::new(glyph).size(13.0))
+        .frame(false)
+        .min_size(egui::vec2(20.0, 20.0));
+    ui.add(btn).on_hover_text(tooltip)
+}
+
 /// Play an audio file using the platform's native player.
 fn play_audio_file(path: &str) {
     let _result = {
@@ -361,24 +371,32 @@ impl BerryCodeApp {
             for (idx, component) in entity.components.iter_mut().enumerate() {
                 ui.group(|ui| {
                     // Header row: component label + reorder/remove buttons.
+                    // VSCode-style flat icon buttons (no frame, subtle hover).
                     ui.horizontal(|ui| {
                         ui.strong(component.label());
-                        ui.add_enabled_ui(idx > 0, |ui| {
-                            if ui.small_button("^").clicked() {
-                                move_up_idx = Some(idx);
-                            }
-                        });
-                        ui.add_enabled_ui(idx + 1 < component_count, |ui| {
-                            if ui.small_button("v").clicked() {
-                                move_down_idx = Some(idx);
-                            }
-                        });
-                        if ui.small_button("C").on_hover_text("Copy component").clicked() {
-                            add_component_copy = Some(component.clone());
-                        }
-                        if ui.small_button("x").clicked() {
-                            component_to_remove = Some(idx);
-                        }
+                        ui.add_space(4.0);
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                ui.spacing_mut().item_spacing.x = 2.0;
+                                if icon_button(ui, "\u{2715}", "Remove component").clicked() {
+                                    component_to_remove = Some(idx);
+                                }
+                                if icon_button(ui, "\u{2398}", "Copy component").clicked() {
+                                    add_component_copy = Some(component.clone());
+                                }
+                                ui.add_enabled_ui(idx + 1 < component_count, |ui| {
+                                    if icon_button(ui, "\u{25BE}", "Move down").clicked() {
+                                        move_down_idx = Some(idx);
+                                    }
+                                });
+                                ui.add_enabled_ui(idx > 0, |ui| {
+                                    if icon_button(ui, "\u{25B4}", "Move up").clicked() {
+                                        move_up_idx = Some(idx);
+                                    }
+                                });
+                            },
+                        );
                     });
 
                     match component {
@@ -1915,26 +1933,49 @@ impl BerryCodeApp {
 
             ui.separator();
 
-            // Delete button
+            // Delete button — VSCode-style danger button (flat, full-width,
+            // muted red text, subtle border).
             if ui
-                .add(egui::Button::new(
-                    egui::RichText::new("Delete Entity")
-                        .color(egui::Color32::from_rgb(255, 120, 120)),
-                ))
+                .add_sized(
+                    [ui.available_width(), 24.0],
+                    egui::Button::new(
+                        egui::RichText::new("\u{1F5D1}  Delete Entity")
+                            .color(egui::Color32::from_rgb(244, 135, 113)),
+                    )
+                    .fill(egui::Color32::TRANSPARENT)
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        egui::Color32::from_rgb(80, 50, 50),
+                    )),
+                )
                 .clicked()
             {
                 delete_requested = true;
             }
 
-            // Add Component searchable dropdown
-            ui.separator();
-            ui.label("Add Component:");
+            // Add Component searchable dropdown — VSCode-style flat primary
+            // button (full-width, accent-tinted on hover via egui defaults).
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new("Add Component")
+                    .color(crate::app::component_colors::TEXT_DIM)
+                    .size(11.0),
+            );
+            let add_btn_label = if self.add_component_popup_open {
+                "\u{2715}  Cancel"
+            } else {
+                "+  Add Component\u{2026}"
+            };
             if ui
-                .button(if self.add_component_popup_open {
-                    "Cancel"
-                } else {
-                    "Add Component..."
-                })
+                .add_sized(
+                    [ui.available_width(), 24.0],
+                    egui::Button::new(egui::RichText::new(add_btn_label).size(12.0))
+                        .fill(crate::app::component_colors::BUTTON_BG)
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            crate::app::ui_colors::BORDER,
+                        )),
+                )
                 .clicked()
             {
                 self.add_component_popup_open = !self.add_component_popup_open;

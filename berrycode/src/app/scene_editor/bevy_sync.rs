@@ -668,7 +668,15 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = DefaultHasher::new();
     scene.entities.len().hash(&mut hasher);
-    for (id, e) in &scene.entities {
+    // `scene.entities` is a `HashMap`, whose iteration order is unstable
+    // across `clone()` calls (the cloned table can reorder buckets). Without
+    // sorting, the hash flips spuriously every time a tab switch / play-mode
+    // snapshot / hot-reload clones `scene_model`, which fires a full
+    // despawn+respawn of every entity (and reloads any GLB scenes from disk)
+    // about once a second. Sort by id so the hash is content-addressed.
+    let mut sorted: Vec<(&u64, &SceneEntity)> = scene.entities.iter().collect();
+    sorted.sort_by_key(|(id, _)| **id);
+    for (id, e) in sorted {
         id.hash(&mut hasher);
         e.name.hash(&mut hasher);
         e.enabled.hash(&mut hasher);

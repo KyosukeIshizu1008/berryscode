@@ -75,9 +75,23 @@ impl Plugin for BerryCodePlugin {
                 26.0 / 255.0,
                 28.0 / 255.0,
             )))
+            // Reactive update mode: when focused, redraw on input / window
+            // events / explicit `request_repaint` calls, otherwise sleep up
+            // to `wait`. Continuous mode kept the entire editor pegged at
+            // 60fps even when nothing was happening — every per-frame poll
+            // (LSP, file watcher, BRP, asset watcher, …) ran ~60×/sec for
+            // no benefit. Panels that need animation (Scene View, terminal
+            // cursor blink, profiler graph, model preview drag) already
+            // call `ctx.request_repaint()` so they stay live; everything
+            // else now idles cleanly.
             .insert_resource(WinitSettings {
-                focused_mode: UpdateMode::Continuous,
-                unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(100)),
+                focused_mode: UpdateMode::Reactive {
+                    wait: Duration::from_secs(1),
+                    react_to_device_events: true,
+                    react_to_user_events: true,
+                    react_to_window_events: true,
+                },
+                unfocused_mode: UpdateMode::reactive_low_power(Duration::from_millis(500)),
             })
             .insert_non_send_resource(BerryCodeApp::new())
             .init_resource::<ModelPreviewScene>()

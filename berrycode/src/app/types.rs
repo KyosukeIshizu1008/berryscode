@@ -111,6 +111,8 @@ pub enum ActivePanel {
     EcsInspector,
     BevyTemplates,
     SceneEditor,
+    Database,
+    Docker,
 }
 
 /// Settings Tab Categories (RustRover Style)

@@ -989,9 +989,14 @@ impl BerryCodeApp {
                 }
             });
 
-        // Keep the scene view repainting so particles animate even when no
-        // input is happening.
-        ui.ctx().request_repaint();
+        // Keep the scene view repainting only when something is actually
+        // animating: live particles, or play mode (which ticks physics).
+        // The previous unconditional repaint kept the editor at 60fps even
+        // when staring at a static scene — a real cost now that the rest
+        // of the app is in Reactive update mode.
+        if self.particle_preview.has_live_particles() || self.play_mode.is_active() {
+            ui.ctx().request_repaint();
+        }
 
         // tick simplified physics during play mode.
         if self.play_mode == super::play_mode::PlayModeState::Playing {

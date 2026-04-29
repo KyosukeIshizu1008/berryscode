@@ -183,6 +183,16 @@ const MAIN_PANELS: &[SidebarPanel] = &[
         icon: "\u{eb44}", // codicon-layout
         _name: "Scene Editor",
     },
+    SidebarPanel {
+        variant: ActivePanel::Database,
+        icon: "\u{eacd}", // codicon-database
+        _name: "Database",
+    },
+    SidebarPanel {
+        variant: ActivePanel::Docker,
+        icon: "\u{eb24}", // codicon-server-environment (Docker stand-in)
+        _name: "Docker",
+    },
 ];
 
 /// Action chosen in the close confirmation dialog
@@ -259,6 +269,11 @@ pub struct BerryCodeApp {
     pub(crate) git_status: Vec<native::git::GitStatus>,
     pub(crate) git_commit_message: String,
     pub(crate) git_initialized: bool,
+    /// Last time the per-frame poll block ran. We throttle the I/O-heavy
+    /// poll fan-out (file watcher, asset watcher, cargo check, etc.) to
+    /// ~50ms so typing latency stays low but background channels aren't
+    /// drained 60×/sec for nothing.
+    pub(crate) last_poll_tick: Option<std::time::Instant>,
     pub(crate) git_active_tab: GitTab,
     pub(crate) git_history_state: GitHistoryState,
     pub(crate) git_branch_state: GitBranchState,
@@ -1428,6 +1443,7 @@ impl BerryCodeApp {
             git_status: Vec::new(),
             git_commit_message: String::new(),
             git_initialized: false,
+            last_poll_tick: None,
             git_active_tab: GitTab::Status,
             git_history_state: GitHistoryState::default(),
             git_branch_state: GitBranchState::default(),
@@ -2318,51 +2334,43 @@ pub fn berry_ui_system(
             tracing::info!("Git repository initialized for {}", app.root_path);
         }
 
-        // Poll LSP responses (non-blocking)
+        // Latency-sensitive polls (run every frame): LSP completions and
+        // streaming process output drive what the user sees while typing /
+        // watching a build, so a 50ms gap would feel sluggish.
         app.poll_lsp_responses();
-
-        // Poll inlay hints (periodic, throttled)
-        app.poll_inlay_hints();
-
-        // Poll test runner results (non-blocking)
-        app.poll_test_results();
-
-        // Poll DAP events (non-blocking)
-        app.poll_dap_events();
-
-        // Poll remote development responses
-        app.poll_remote_responses();
-
-        // Poll collaboration state
-        app.poll_collab();
-
-        // Poll AI responses (non-blocking)
         app.poll_ai_responses();
-        app.poll_asset_watcher();
-
-        // Poll file watcher events (non-blocking)
-        app.poll_file_watcher_events();
-
-        // Poll run process output (non-blocking)
         app.poll_run_output();
 
-        // Poll mobile run session (v0.8 Phase B) — drains the spawned
-        // simctl/devicectl/adb pipe into the panel's log stream.
-        app.mobile_toolchain.poll_run();
-
-        // Poll ECS Inspector async results (non-blocking)
-        app.poll_ecs_inspector();
+        // Throttled polls: I/O-heavy or rarely-updating channels. Running
+        // these on every frame means up to 11 syscalls / try_recvs per
+        // tick (file watcher, asset watcher, cargo check, etc.). Polling
+        // at 20Hz is well below human perception for these signals and
+        // keeps idle CPU near zero in Reactive update mode.
+        let now = std::time::Instant::now();
+        let throttle_due = app
+            .last_poll_tick
+            .map(|t| now.duration_since(t) >= std::time::Duration::from_millis(50))
+            .unwrap_or(true);
+        if throttle_due {
+            app.last_poll_tick = Some(now);
+            app.poll_inlay_hints();
+            app.poll_test_results();
+            app.poll_dap_events();
+            app.poll_remote_responses();
+            app.poll_collab();
+            app.poll_asset_watcher();
+            app.poll_file_watcher_events();
+            // Mobile run session — drains spawned simctl/devicectl/adb pipes.
+            app.mobile_toolchain.poll_run();
+            app.poll_ecs_inspector();
+            app.poll_cargo_check();
+            app.poll_test_commands();
+        }
 
         // Keep repainting while a game process is running
         if app.run_process.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
-
-        // Poll cargo check results (non-blocking)
-        app.poll_cargo_check();
-
-        // Poll test mode commands (non-blocking)
-        app.poll_test_commands();
 
         // Handle keyboard shortcuts
         app.handle_editor_shortcuts(ctx);

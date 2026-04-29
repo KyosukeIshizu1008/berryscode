@@ -29,7 +29,10 @@ impl BerryCodeApp {
         }
 
         let file_path = tab.file_path.clone();
-        let total_lines = tab.buffer.to_string().lines().count() as u32;
+        // Avoid `tab.buffer.to_string().lines().count()` — that allocated
+        // the whole file as a String every second just to count lines.
+        // Ropey's `len_lines()` is O(1).
+        let total_lines = tab.buffer.len_lines() as u32;
 
         let client = match &self.lsp_native_client {
             Some(c) => std::sync::Arc::clone(c),

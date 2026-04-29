@@ -99,6 +99,12 @@ impl ParticlePreview {
         }
     }
 
+    /// True if any emitter currently has live particles. Used by the Scene
+    /// View to decide whether it needs to keep requesting repaints.
+    pub fn has_live_particles(&self) -> bool {
+        self.emitters.values().any(|r| !r.particles.is_empty())
+    }
+
     /// Iterate live particles for an entity along with the emitter's params, so
     /// the renderer can compute per-particle color/size based on age.
     pub fn for_each_particle<F: FnMut(Vec3, f32, &ComponentData)>(
