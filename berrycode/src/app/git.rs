@@ -1,6 +1,8 @@
 //! Git panel rendering and operations
 
-use super::component_colors;
+use super::button_style::{
+    button_with_icon, glyph, icon_button, primary_button, primary_button_with_icon,
+};
 use super::types::GitTab;
 use super::ui_colors;
 use super::BerryCodeApp;
@@ -52,10 +54,6 @@ impl BerryCodeApp {
 
     /// Render Status tab (VS Code style)
     fn render_git_status_tab(&mut self, ui: &mut egui::Ui) {
-        let btn_text = component_colors::BUTTON_TEXT;
-        let btn_bg = component_colors::BUTTON_BG;
-        let accent = component_colors::ACCENT;
-
         // Branch + refresh
         ui.horizontal(|ui| {
             ui.label(
@@ -64,14 +62,7 @@ impl BerryCodeApp {
                     .color(egui::Color32::from_rgb(180, 180, 180)),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(
-                        egui::Button::new(egui::RichText::new("↻").size(13.0).color(btn_text))
-                            .frame(false),
-                    )
-                    .on_hover_text(self.tr("Refresh"))
-                    .clicked()
-                {
+                if icon_button(ui, glyph::REFRESH, &self.tr("Refresh").to_string()).clicked() {
                     self.refresh_git_status();
                 }
             });
@@ -89,29 +80,12 @@ impl BerryCodeApp {
 
         ui.add_space(4.0);
 
-        // Commit + Stage All buttons (VS Code flat style)
+        // Commit (primary) + Stage All (default)
         ui.horizontal(|ui| {
-            let commit_btn = egui::Button::new(
-                egui::RichText::new(self.tr("Commit"))
-                    .size(11.0)
-                    .color(egui::Color32::WHITE),
-            )
-            .fill(accent)
-            .corner_radius(3)
-            .min_size(egui::vec2(70.0, 22.0));
-            if ui.add(commit_btn).clicked() {
+            if primary_button(ui, self.tr("Commit")).clicked() {
                 self.perform_git_commit();
             }
-
-            let stage_btn = egui::Button::new(
-                egui::RichText::new(self.tr("Stage All"))
-                    .size(11.0)
-                    .color(btn_text),
-            )
-            .fill(btn_bg)
-            .corner_radius(3)
-            .min_size(egui::vec2(70.0, 22.0));
-            if ui.add(stage_btn).clicked() {
+            if ui.button(self.tr("Stage All")).clicked() {
                 self.perform_git_stage_all();
             }
         });
@@ -290,7 +264,7 @@ impl BerryCodeApp {
     /// Render History tab (commit graph)
     fn render_git_history_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
+            if button_with_icon(ui, glyph::REFRESH, self.tr("Refresh")).clicked() {
                 self.refresh_git_history();
             }
 
@@ -449,14 +423,7 @@ impl BerryCodeApp {
                     egui::Color32::from_rgb(180, 180, 180)
                 };
 
-                if ui
-                    .add(egui::Button::new(&commit_message).fill(if is_selected {
-                        egui::Color32::from_rgb(60, 60, 80)
-                    } else {
-                        egui::Color32::TRANSPARENT
-                    }))
-                    .clicked()
-                {
+                if ui.selectable_label(is_selected, &commit_message).clicked() {
                     self.git_history_state.selected_commit_id = Some(commit_id.clone());
                     // Load commit details
                     if let Ok(detail) = native::git::get_commit_detail(&self.root_path, &commit_id)
@@ -475,9 +442,14 @@ impl BerryCodeApp {
                     );
                 }
                 for tag_name in &node.tag_names {
+                    ui.label(
+                        egui::RichText::new(" \u{ea66}")
+                            .family(egui::FontFamily::Name("codicon".into()))
+                            .color(egui::Color32::from_rgb(255, 198, 109)),
+                    );
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 198, 109),
-                        format!(" 🏷{}", tag_name),
+                        tag_name,
                     );
                 }
             });
@@ -509,15 +481,22 @@ impl BerryCodeApp {
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for file in &detail.changed_files {
+                    // Codicon diff- glyphs match the rest of the panel
+                    // (Status tab, file tree) and stay in style with the
+                    // refactored buttons.
                     let (icon, color) = match file.status.as_str() {
-                        "added" => ("➕", egui::Color32::from_rgb(106, 180, 89)),
-                        "modified" => ("📝", egui::Color32::from_rgb(255, 198, 109)),
-                        "deleted" => ("🗑️", egui::Color32::from_rgb(255, 100, 100)),
-                        _ => ("❓", egui::Color32::GRAY),
+                        "added" => ("\u{eadc}", egui::Color32::from_rgb(106, 180, 89)),
+                        "modified" => ("\u{eade}", egui::Color32::from_rgb(255, 198, 109)),
+                        "deleted" => ("\u{eadf}", egui::Color32::from_rgb(255, 100, 100)),
+                        _ => ("\u{ea76}", egui::Color32::GRAY), // question
                     };
 
                     ui.horizontal(|ui| {
-                        ui.colored_label(color, icon);
+                        ui.label(
+                            egui::RichText::new(icon)
+                                .family(egui::FontFamily::Name("codicon".into()))
+                                .color(color),
+                        );
                         ui.label(&file.path);
                         ui.colored_label(egui::Color32::GREEN, format!("+{}", file.additions));
                         ui.colored_label(egui::Color32::RED, format!("-{}", file.deletions));
@@ -532,7 +511,7 @@ impl BerryCodeApp {
     /// Render Branches tab
     fn render_git_branches_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
+            if button_with_icon(ui, glyph::REFRESH, self.tr("Refresh")).clicked() {
                 self.refresh_git_branches();
             }
         });
@@ -543,7 +522,8 @@ impl BerryCodeApp {
         ui.horizontal(|ui| {
             ui.label("New branch:");
             ui.text_edit_singleline(&mut self.git_branch_state.new_branch_name);
-            if ui.button("➕ Create").clicked() && !self.git_branch_state.new_branch_name.is_empty()
+            if primary_button_with_icon(ui, glyph::ADD, "Create").clicked()
+                && !self.git_branch_state.new_branch_name.is_empty()
             {
                 self.perform_create_branch();
             }
@@ -598,7 +578,11 @@ impl BerryCodeApp {
             let remote_branches = self.git_branch_state.remote_branches.clone();
             for branch in &remote_branches {
                 ui.horizontal(|ui| {
-                    ui.colored_label(egui::Color32::from_rgb(100, 181, 246), "📡");
+                    ui.label(
+                        egui::RichText::new("\u{eb3a}")
+                            .family(egui::FontFamily::Name("codicon".into()))
+                            .color(egui::Color32::from_rgb(100, 181, 246)),
+                    );
                     ui.label(&branch.name);
                 });
             }
@@ -608,7 +592,7 @@ impl BerryCodeApp {
     /// Render Remotes tab
     fn render_git_remotes_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
+            if button_with_icon(ui, glyph::REFRESH, self.tr("Refresh")).clicked() {
                 self.refresh_git_remotes();
             }
         });
@@ -630,7 +614,9 @@ impl BerryCodeApp {
                     .desired_width(ui.available_width() - 40.0),
             );
         });
-        if ui.button("➕ Add").clicked() && !self.git_remote_state.new_remote_name.is_empty() {
+        if primary_button_with_icon(ui, glyph::ADD, "Add").clicked()
+            && !self.git_remote_state.new_remote_name.is_empty()
+        {
             self.perform_add_remote();
         }
 
@@ -671,7 +657,7 @@ impl BerryCodeApp {
     /// Render Tags tab
     fn render_git_tags_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
+            if button_with_icon(ui, glyph::REFRESH, self.tr("Refresh")).clicked() {
                 self.refresh_git_tags();
             }
         });
@@ -692,7 +678,9 @@ impl BerryCodeApp {
             });
         }
 
-        if ui.button("➕ Create Tag").clicked() && !self.git_tag_state.new_tag_name.is_empty() {
+        if primary_button_with_icon(ui, glyph::ADD, "Create Tag").clicked()
+            && !self.git_tag_state.new_tag_name.is_empty()
+        {
             self.perform_create_tag();
         }
 
@@ -708,7 +696,11 @@ impl BerryCodeApp {
                 let tags = self.git_tag_state.tags.clone();
                 for tag in &tags {
                     ui.horizontal(|ui| {
-                        ui.colored_label(egui::Color32::from_rgb(255, 198, 109), "🏷");
+                        ui.label(
+                            egui::RichText::new("\u{ea66}")
+                                .family(egui::FontFamily::Name("codicon".into()))
+                                .color(egui::Color32::from_rgb(255, 198, 109)),
+                        );
                         ui.label(&tag.name);
 
                         if tag.message.is_some() {
@@ -733,7 +725,7 @@ impl BerryCodeApp {
     /// Render Stash tab
     fn render_git_stash_tab(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            if ui.button(format!("🔄 {}", self.tr("Refresh"))).clicked() {
+            if button_with_icon(ui, glyph::REFRESH, self.tr("Refresh")).clicked() {
                 self.refresh_git_stashes();
             }
         });
@@ -750,7 +742,7 @@ impl BerryCodeApp {
             );
         });
 
-        if ui.button("💾 Save Stash").clicked() {
+        if primary_button_with_icon(ui, glyph::SAVE, "Save Stash").clicked() {
             self.perform_stash_save();
         }
 
@@ -823,7 +815,14 @@ impl BerryCodeApp {
                     .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
-                ui.heading("📊 Commit Graph");
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new("\u{eb03}")
+                            .family(egui::FontFamily::Name("codicon".into()))
+                            .size(18.0),
+                    );
+                    ui.heading("Commit Graph");
+                });
                 ui.separator();
 
                 // Render commit graph (reuse existing logic from History tab)
@@ -852,7 +851,12 @@ impl BerryCodeApp {
 
                     // Header with file path and status
                     ui.horizontal(|ui| {
-                        ui.heading(format!("📝 Diff: {}", file_path));
+                        ui.label(
+                            egui::RichText::new("\u{ea73}")
+                                .family(egui::FontFamily::Name("codicon".into()))
+                                .size(18.0),
+                        );
+                        ui.heading(format!("Diff: {}", file_path));
                         let status_color = match diff.status.as_str() {
                             "added" => egui::Color32::from_rgb(100, 255, 100),
                             "deleted" => egui::Color32::from_rgb(255, 100, 100),
@@ -969,7 +973,13 @@ impl BerryCodeApp {
                     // No diff selected
                     ui.vertical_centered(|ui| {
                         ui.add_space(100.0);
-                        ui.label("📝 Select a file to view diff");
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new("\u{ea73}")
+                                    .family(egui::FontFamily::Name("codicon".into())),
+                            );
+                            ui.label("Select a file to view diff");
+                        });
                     });
                 }
             });

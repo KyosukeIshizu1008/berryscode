@@ -12,6 +12,7 @@ use tokio::sync::mpsc;
 mod ai_chat;
 pub(crate) mod ansi;
 mod asset_browser;
+mod button_style;
 mod asset_watcher;
 mod audio;
 mod cargo_completion;
@@ -809,18 +810,18 @@ impl BerryCodeApp {
         let mut style = egui::Style::default();
         let mut visuals = egui::Visuals::dark();
 
-        // === Colors ===
-        let bg_dark = egui::Color32::from_rgb(30, 31, 34); // main background
-        let bg_panel = egui::Color32::from_rgb(43, 45, 48); // sidebar/panel
-        let bg_input = egui::Color32::from_rgb(50, 52, 56); // input fields
-        let bg_hover = egui::Color32::from_rgb(55, 57, 61); // hover state
-        let bg_active = egui::Color32::from_rgb(65, 68, 74); // active/pressed
+        // === Colors === (VS Code Dark+ inspired)
+        let bg_dark = egui::Color32::from_rgb(30, 30, 30); // editor.background #1E1E1E
+        let bg_panel = egui::Color32::from_rgb(58, 61, 65); // button.secondaryBackground #3A3D41
+        let bg_input = egui::Color32::from_rgb(60, 60, 60); // input.background #3C3C3C
+        let bg_hover = egui::Color32::from_rgb(69, 73, 78); // button.secondaryHoverBackground #45494E
+        let bg_active = egui::Color32::from_rgb(45, 47, 50); // pressed (slightly darker than rest)
                                                              // Selection bg uses RGBA with alpha so the underlying text remains
                                                              // legible during IME preedit (egui paints selection over the glyphs).
                                                              // Premultiplied alpha: ~30% opacity = (rgb * 0.3, alpha 76).
         let bg_selected = egui::Color32::from_rgba_premultiplied(20, 40, 70, 130);
-        let border = egui::Color32::from_rgb(60, 63, 68); // borders
-        let border_focus = egui::Color32::from_rgb(75, 110, 175); // focused border (accent)
+        let border = egui::Color32::from_rgba_premultiplied(0, 0, 0, 0); // VS Code: no borders by default
+        let border_focus = egui::Color32::from_rgb(0, 127, 212); // VS Code focusBorder #007FD4
         let text = egui::Color32::from_rgb(205, 207, 213); // primary text
         let _text_dim = egui::Color32::from_rgb(140, 143, 150); // secondary text
 
@@ -860,30 +861,30 @@ impl BerryCodeApp {
         visuals.widgets.noninteractive.bg_stroke =
             egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
         visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
-        visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(2);
 
         // Inactive (buttons, checkboxes at rest)
         visuals.widgets.inactive.bg_fill = bg_panel;
         visuals.widgets.inactive.weak_bg_fill = bg_panel;
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, border);
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::NONE;
         visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text);
-        visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(2);
         visuals.widgets.inactive.expansion = 0.0;
 
         // Hovered
         visuals.widgets.hovered.bg_fill = bg_hover;
         visuals.widgets.hovered.weak_bg_fill = bg_hover;
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, border_focus);
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::NONE;
         visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-        visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
-        visuals.widgets.hovered.expansion = 1.0;
+        visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(2);
+        visuals.widgets.hovered.expansion = 0.0;
 
         // Active (pressed)
         visuals.widgets.active.bg_fill = bg_active;
         visuals.widgets.active.weak_bg_fill = bg_active;
-        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.5, border_focus);
+        visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, border_focus);
         visuals.widgets.active.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-        visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.active.corner_radius = egui::CornerRadius::same(2);
         visuals.widgets.active.expansion = 0.0;
 
         // Open (combo boxes, menus open state)
@@ -891,7 +892,7 @@ impl BerryCodeApp {
         visuals.widgets.open.weak_bg_fill = bg_active;
         visuals.widgets.open.bg_stroke = egui::Stroke::new(1.0, border_focus);
         visuals.widgets.open.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-        visuals.widgets.open.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.open.corner_radius = egui::CornerRadius::same(2);
 
         // Popup shadow
         visuals.popup_shadow = egui::epaint::Shadow {
@@ -912,7 +913,7 @@ impl BerryCodeApp {
 
         // === Spacing ===
         style.spacing.item_spacing = egui::vec2(8.0, 6.0); // more breathing room
-        style.spacing.button_padding = egui::vec2(14.0, 6.0); // wider, taller buttons
+        style.spacing.button_padding = egui::vec2(8.0, 3.0); // VS Code: compact
         style.spacing.window_margin = egui::Margin::same(12); // window inner padding
         style.spacing.menu_margin = egui::Margin::same(8);
         style.spacing.indent = 18.0; // tree indent
@@ -943,7 +944,7 @@ impl BerryCodeApp {
             .insert(egui::TextStyle::Small, FontId::proportional(12.0));
         style
             .text_styles
-            .insert(egui::TextStyle::Button, FontId::proportional(14.0));
+            .insert(egui::TextStyle::Button, FontId::proportional(13.0));
         style
             .text_styles
             .insert(egui::TextStyle::Monospace, FontId::monospace(14.0));

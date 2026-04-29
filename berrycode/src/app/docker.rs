@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 
+use super::button_style::icon_button;
 use super::ui_colors;
 use super::BerryCodeApp;
 
@@ -355,16 +356,16 @@ impl BerryCodeApp {
                         ui.label(if c.ports.is_empty() { "—" } else { c.ports.as_str() });
                         ui.horizontal(|ui| {
                             if running {
-                                if ui.small_button("⏹").on_hover_text("Stop").clicked() {
+                                if icon_button(ui, "\u{ead7}", "Stop").clicked() {
                                     self.docker.stop(&c.id);
                                 }
-                                if ui.small_button("⟲").on_hover_text("Restart").clicked() {
+                                if icon_button(ui, "\u{ead2}", "Restart").clicked() {
                                     self.docker.restart(&c.id);
                                 }
-                            } else if ui.small_button("▶").on_hover_text("Start").clicked() {
+                            } else if icon_button(ui, "\u{eb2c}", "Start").clicked() {
                                 self.docker.start(&c.id);
                             }
-                            if ui.small_button("🗑").on_hover_text("Remove").clicked() {
+                            if icon_button(ui, "\u{ea81}", "Remove").clicked() {
                                 self.docker.remove(&c.id);
                             }
                         });

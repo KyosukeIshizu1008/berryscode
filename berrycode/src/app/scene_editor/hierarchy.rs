@@ -2,6 +2,7 @@
 //! drag-and-drop reparenting, right-click context menu, and inline rename.
 
 use super::model::*;
+use crate::app::button_style::{button_with_icon, glyph, icon_button, primary_button};
 use crate::app::BerryCodeApp;
 
 impl BerryCodeApp {
@@ -126,15 +127,12 @@ impl BerryCodeApp {
                         if label_resp.clicked() && i != self.active_scene_tab {
                             switch_to = Some(i);
                         }
-                        // Always show × so the user can close any tab.
-                        // The close handler below makes sure the panel
-                        // never ends up with zero tabs (it injects a
-                        // fresh blank one if you close the last).
-                        let close_btn = egui::Button::new(
-                            egui::RichText::new("×").size(12.0).color(text_color),
-                        )
-                        .frame(false);
-                        if ui.add(close_btn).on_hover_text("Close scene").clicked() {
+                        // Always show close so the user can close any
+                        // tab. The close handler below makes sure the
+                        // panel never ends up with zero tabs (it
+                        // injects a fresh blank one if you close the
+                        // last).
+                        if icon_button(ui, glyph::CLOSE, "Close scene").clicked() {
                             close_tab = Some(i);
                         }
                     });
@@ -322,8 +320,8 @@ impl BerryCodeApp {
             });
             // Filename label retired — the tab strip + the modified
             // dot inside each tab already convey the same info.
-            ui.menu_button("+ Add Entity", |ui| {
-                if ui.button("+ Cube").clicked() {
+            ui.menu_button("Add Entity", |ui| {
+                if ui.button("Cube").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Cube".into(),
@@ -338,7 +336,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Sphere").clicked() {
+                if ui.button("Sphere").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Sphere".into(),
@@ -353,7 +351,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Plane").clicked() {
+                if ui.button("Plane").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Plane".into(),
@@ -368,7 +366,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Light").clicked() {
+                if ui.button("Light").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Light".into(),
@@ -378,12 +376,12 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Camera").clicked() {
+                if ui.button("Camera").clicked() {
                     self.scene_snapshot();
                     self.scene_model
                         .add_entity("Camera".into(), vec![ComponentData::Camera]);
                 }
-                if ui.button("+ SpotLight").clicked() {
+                if ui.button("SpotLight").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Spot Light".into(),
@@ -396,7 +394,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ DirLight").clicked() {
+                if ui.button("DirLight").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Directional Light".into(),
@@ -407,7 +405,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Audio Source").clicked() {
+                if ui.button("Audio Source").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Audio Source".into(),
@@ -419,12 +417,12 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Audio Listener").clicked() {
+                if ui.button("Audio Listener").clicked() {
                     self.scene_snapshot();
                     self.scene_model
                         .add_entity("Audio Listener".into(), vec![ComponentData::AudioListener]);
                 }
-                if ui.button("+ Rigidbody").clicked() {
+                if ui.button("Rigidbody").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Rigidbody".into(),
@@ -443,7 +441,7 @@ impl BerryCodeApp {
                         ],
                     );
                 }
-                if ui.button("+ UI Text").clicked() {
+                if ui.button("UI Text").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "UI Text".into(),
@@ -454,7 +452,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ UI Button").clicked() {
+                if ui.button("UI Button").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "UI Button".into(),
@@ -464,7 +462,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ UI Image").clicked() {
+                if ui.button("UI Image").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "UI Image".into(),
@@ -474,7 +472,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Particle Emitter").clicked() {
+                if ui.button("Particle Emitter").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Particle Emitter".into(),
@@ -492,7 +490,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Animation").clicked() {
+                if ui.button("Animation").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Animated Object".into(),
@@ -514,7 +512,7 @@ impl BerryCodeApp {
                         ],
                     );
                 }
-                if ui.button("+ Custom Script").clicked() {
+                if ui.button("Custom Script").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Script Entity".into(),
@@ -525,7 +523,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Skybox").clicked() {
+                if ui.button("Skybox").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Skybox".into(),
@@ -534,7 +532,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Animator").clicked() {
+                if ui.button("Animator").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Animated".into(),
@@ -543,14 +541,14 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ LOD Group").clicked() {
+                if ui.button("LOD Group").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "LOD Group".into(),
                         vec![ComponentData::LodGroup { levels: vec![] }],
                     );
                 }
-                if ui.button("+ Spline").clicked() {
+                if ui.button("Spline").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Spline".into(),
@@ -560,7 +558,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Terrain").clicked() {
+                if ui.button("Terrain").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Terrain".into(),
@@ -572,7 +570,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Skinned Mesh").clicked() {
+                if ui.button("Skinned Mesh").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Skinned Mesh".into(),
@@ -582,7 +580,7 @@ impl BerryCodeApp {
                         }],
                     );
                 }
-                if ui.button("+ Visual Script").clicked() {
+                if ui.button("Visual Script").clicked() {
                     self.scene_snapshot();
                     self.scene_model.add_entity(
                         "Visual Script".into(),
@@ -623,8 +621,7 @@ impl BerryCodeApp {
                                     .file_name()
                                     .map(|s| s.to_string_lossy().to_string())
                                     .unwrap_or_default();
-                                let display = format!("\u{ea7b} {}", file_name); // codicon symbol-file
-                                if ui.button(&display).clicked() {
+                                if button_with_icon(ui, "\u{ea7b}", &file_name).clicked() {
                                     let path_str = path.to_string_lossy().to_string();
                                     let entity_name = path
                                         .file_stem()
@@ -658,8 +655,7 @@ impl BerryCodeApp {
                                     .file_name()
                                     .map(|s| s.to_string_lossy().to_string())
                                     .unwrap_or_default();
-                                let display = format!("\u{eb61} {}", file_name); // codicon symbol-class
-                                if ui.button(&display).clicked() {
+                                if button_with_icon(ui, "\u{eb61}", &file_name).clicked() {
                                     let path_str = path.to_string_lossy().to_string();
                                     self.scene_snapshot();
                                     self.instantiate_prefab_from_path(&path_str);
@@ -702,7 +698,7 @@ impl BerryCodeApp {
                     let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
                     ui.horizontal(|ui| {
-                        if ui.button("Create").clicked() || enter {
+                        if primary_button(ui, "Create").clicked() || enter {
                             commit_new_scene = Some(buf.clone());
                         }
                         if ui.button("Cancel").clicked() || escape {
@@ -774,7 +770,9 @@ impl BerryCodeApp {
                     .hint_text("name…")
                     .desired_width(f32::INFINITY),
             );
-            if !self.hierarchy_filter.is_empty() && ui.small_button("x").clicked() {
+            if !self.hierarchy_filter.is_empty()
+                && icon_button(ui, glyph::CLOSE, "Clear filter").clicked()
+            {
                 self.hierarchy_filter.clear();
             }
         });
