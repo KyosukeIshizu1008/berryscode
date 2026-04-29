@@ -30,15 +30,55 @@
 
 pub mod claude;
 pub mod codex;
+pub mod native;
 
 use std::path::{Path, PathBuf};
 use tokio::process::Child;
 use tokio::sync::mpsc;
 
+/// Look for a CLI binary that ships inside the BerryCode distribution
+/// (currently `codex`, bundled via `scripts/build-release.sh` so end
+/// users don't have to run `npm i -g …` themselves).
+///
+/// Falls back to `None` in two cases the caller should treat as "use
+/// `PATH` lookup":
+///   - we're running from `cargo run` / `cargo install`, not a packaged
+///     bundle — the bundled binary doesn't exist yet.
+///   - the requested binary isn't one we ship (e.g. `claude`, which is
+///     proprietary and can only be acquired via npm).
+pub fn bundled_binary_path(binary_name: &str) -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?;
+
+    // macOS .app layout: `<bundle>/Contents/MacOS/berrycode` →
+    // `<bundle>/Contents/Resources/bin/<binary>`.
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(macos_dir) = exe_dir.parent() {
+            let candidate = macos_dir.join("Resources").join("bin").join(binary_name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    // Linux / Windows fallback: sibling `bin/` next to the main binary
+    // (matches the layout the release script produces for tarballs).
+    let candidate = exe_dir.join("bin").join(binary_name);
+    if candidate.is_file() {
+        return Some(candidate);
+    }
+
+    None
+}
+
 /// Identifies one of the supported coding-agent backends. Used in
 /// settings persistence and surfaced in the agent picker dropdown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum AgentId {
+    /// In-process Responses-API agent loop. No external CLI required;
+    /// uses the chat provider settings (model + key + endpoint).
+    Native,
     /// Anthropic's Claude Code CLI (`claude` binary).
     ClaudeCode,
     /// OpenAI's Codex CLI (`codex` binary).
@@ -48,6 +88,7 @@ pub enum AgentId {
 impl AgentId {
     pub fn label(&self) -> &'static str {
         match self {
+            Self::Native => "Native (in-process)",
             Self::ClaudeCode => "Claude Code",
             Self::Codex => "Codex",
         }
@@ -145,6 +186,17 @@ impl AgentSession {
         }
     }
 
+    /// Subprocess-less variant for the [`native`] backend, which runs
+    /// its agent loop on the tokio runtime instead of spawning a CLI.
+    /// Cancellation just drops the receiver; the spawned task observes
+    /// the channel closure and exits on its own.
+    pub fn new_native(events: mpsc::UnboundedReceiver<AgentEvent>) -> Self {
+        Self {
+            events,
+            child: None,
+        }
+    }
+
     /// Try to terminate the child gracefully. Idempotent.
     pub fn cancel(&mut self) {
         if let Some(mut child) = self.child.take() {
@@ -170,6 +222,17 @@ pub trait CodingAgent: Send + Sync {
     /// impls can override to use a different probe.
     fn binary_name(&self) -> &'static str;
 
+    /// Resolved path to the CLI: a bundled copy in the .app/tarball
+    /// when present, otherwise the bare binary name (`Command::new`
+    /// resolves it via `PATH`). This is what concrete impls should
+    /// pass to `Command::new`, not `binary_name` directly.
+    fn binary_path(&self) -> std::ffi::OsString {
+        if let Some(p) = bundled_binary_path(self.binary_name()) {
+            return p.into_os_string();
+        }
+        self.binary_name().into()
+    }
+
     /// Best-effort version detection. Returns the trimmed first line
     /// of `<binary> --version` stdout, or `None` if the binary isn't
     /// installed or fails to launch. Implementations should not block
@@ -177,7 +240,7 @@ pub trait CodingAgent: Send + Sync {
     fn check_installed(&self) -> Option<String> {
         // Synchronous probe so the Settings UI can call it from a
         // render closure without an async runtime.
-        let output = std::process::Command::new(self.binary_name())
+        let output = std::process::Command::new(self.binary_path())
             .arg("--version")
             .output()
             .ok()?;

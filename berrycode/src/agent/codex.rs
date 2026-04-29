@@ -65,7 +65,7 @@ impl CodingAgent for CodexAgent {
         // `codex exec` is the non-interactive subcommand; everything
         // else here just shapes a single one-shot run that the IDE
         // can stream back to the user.
-        let mut cmd = Command::new(BINARY);
+        let mut cmd = Command::new(self.binary_path());
         cmd.current_dir(cwd)
             .arg("exec")
             .arg("--json")

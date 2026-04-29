@@ -47,7 +47,10 @@ pub struct AiSettings {
 }
 
 fn default_agent_backend() -> String {
-    "claude".to_string()
+    // Native is the default — runs in-process via Responses API tool
+    // calling, no external CLI install required. Claude Code / Codex
+    // remain selectable for users who already have those CLIs.
+    "native".to_string()
 }
 
 impl Default for AiSettings {
