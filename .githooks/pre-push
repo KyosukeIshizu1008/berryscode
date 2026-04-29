@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Pre-push hook: run rustfmt in --check mode against the same command
+# the Linux CI job uses (.github/workflows/tests.yml). Aborts the push
+# if any file needs formatting, so unformatted code never reaches CI.
+#
+# To enable: `git config core.hooksPath .githooks` (committed in
+# CLAUDE.md as the per-clone setup step).
+
+set -e
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "pre-push: cargo not on PATH — skipping fmt check" >&2
+  exit 0
+fi
+
+if ! cargo fmt --all -- --check >/dev/null 2>&1; then
+  echo
+  echo "❌ pre-push: rustfmt check failed."
+  echo "   The Linux CI job runs the same check (cargo fmt --all -- --check)"
+  echo "   and would reject this push. Fix it locally:"
+  echo
+  echo "       cargo fmt --all"
+  echo "       git add -u && git commit --amend --no-edit"
+  echo "       git push"
+  echo
+  exit 1
+fi
+
+exit 0

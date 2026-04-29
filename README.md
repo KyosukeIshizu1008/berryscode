@@ -185,6 +185,12 @@ cargo run --bin berrycode               # terminal 2
 
 **Prerequisites**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
 
+After cloning, enable the rustfmt pre-push hook so the Linux CI fmt check can't reject your push:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ### Roadmap
 
 BerryCode is in active development. The next milestones in priority order:
