@@ -205,29 +205,30 @@ The arc:
 #### v0.4.5 — AI integration (target: 2026 Q4 / mid)
 
 > _AI-native, Bevy-aware._ Bring-your-own-key support for the major
-> code-savvy models for chat, plus subprocess integration with **Codex
-> CLI** and **Claude Code** for the heavyweight agent / apply-diff
-> features — leveraging mature external tools instead of
-> reimplementing the autonomous loop in Rust.
+> code-savvy models for chat, plus a built-in **Native agent** that
+> runs the Responses-API tool-calling loop in-process — no `npm`
+> install or external CLI required for end users. **Codex CLI** and
+> **Claude Code** remain selectable as drop-in subprocess backends for
+> users who already have them on `PATH`.
 
-**Chat surface (BYOK, in-process)**
+**Single-mode chat panel (agent-loop only)**
 
-- [x] **Provider plug-in layer**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5), OpenAI (GPT-5 / GPT-5 Codex), Ollama / llama.cpp (local), with prompt caching where supported
-- [x] **Bring-your-own-key UI**: per-provider keys + model selection in Settings; never round-trip through a hosted backend
+The dual Chat / Agent surface was retired in favour of a single agent-loop UI: every prompt flows through the agent, which transparently uses `read_file` for Q&A and `write_file` for edits. The Provider plug-in layer is still in the codebase for future inline-completion use.
+
+- [x] **Provider plug-in layer**: Anthropic, OpenAI (incl. Azure Responses API), Ollama, with prompt caching where supported. Currently consumed by the Native agent backend; chat-shaped direct calls retired.
+- [x] **Bring-your-own-key UI**: per-provider keys + model selection in Settings, env-var fallback (`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ANTHROPIC_API_KEY`); never round-trips through a hosted backend
 - [x] **Cost / token panel**: per-conversation usage + monthly cap so users never get surprise bills
-- [x] **Chat sidebar (`Cmd+L`)** — `Cmd+L` shortcut focuses the chat input from anywhere
-- [ ] **Chat attachments**: `@file` / `@symbol` / `@scene` to inject project context
-- [ ] **Inline / Tab completion**: ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
-
-**Agent surface (subprocess, both CLIs)**
-
-- [x] **Agent mode (Claude Code)**: spawn `claude --print --output-format=stream-json` with the project root as `--add-dir`; stream the JSON-Lines event channel into the chat panel; auto-record token usage in the cost log
-- [x] **Agent mode (Codex CLI)**: equivalent path via `codex exec --json --cd <cwd> --full-auto`; backend picker in the chat panel lets users pick per task
-- [x] **Apply diff**: agent edit proposals (`Edit` / `Write` / `MultiEdit` tool invocations) surface as Approve / Reject cards above the chat input; approving writes the file and reloads any open editor tab
-- [ ] **3-way merge**: apply edits cleanly when the buffer has been modified since the agent read it
-- [ ] **Bevy doc RAG**: auto-attach the relevant Bevy 0.18 docs / examples to chat prompts (in-process); agent runs already see the project source tree directly through `--add-dir`
-- [ ] **ECS-aware completion**: typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
-- [ ] **Release-blocking end-to-end verification with real provider tokens** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11) — Anthropic / OpenAI / Ollama chat round-trip, Cmd+L focus, cost panel cache rows, Agent mode Approve / Reject; tag + .dmg + GitHub Release blocked on this)
+- [x] **Chat sidebar (`Cmd+L`)** — focuses the chat input from anywhere
+- [x] **Native agent (default)**: in-process Responses-API tool-calling loop — `read_file` / `write_file` / `list_files` / `run_bash` — streamed live to the chat panel; reuses the chat provider settings; no `npm` install required for end users
+- [x] **Agent backend (Claude Code)**: spawn `claude --print --output-format=stream-json`; selectable as fallback when `claude` is on `PATH`
+- [x] **Agent backend (Codex CLI)**: equivalent path via `codex exec --json --cd <cwd> --full-auto`; selectable as fallback when `codex` is on `PATH`
+- [x] **Apply diff**: agent edit proposals surface as Approve / Reject cards above the chat input; approving writes the file and reloads any open editor tab
+- [~] **Chat attachments**: `@file` MVP shipped (path-based, file contents auto-inlined into the agent's system prompt; max 10 files / 200 KB each / 1 MB aggregate). `@symbol` / `@scene` and autocomplete popup deferred.
+- [~] **3-way merge ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13))** — conflict guard shipped (Apply refuses to overwrite if the file changed since the agent read it). Real line-level merge still pending.
+- [~] **Bevy doc cheatsheet ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14))** — static 0.18 idiom reminder injected into every chat system prompt. Real RAG (embedded index) still pending.
+- [ ] **Inline / Tab completion** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
+- [ ] **ECS-aware completion** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
+- [~] **Release-blocking end-to-end verification with real provider tokens** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11)) — OpenAI (incl. Azure Responses API) chat round-trip ✓, Native agent + streaming + Apply diff ✓, Cmd+L focus / Cost panel cache rows / Approve-Reject wiring all code-verified ✓. **Still pending live tests:** Anthropic key round-trip, Ollama (`ollama serve`) round-trip, AI Usage tab visual check.
 
 Positioning: the first AI assistant that *understands* Bevy, not just Rust — backed by the same agent tooling expert Rust developers already trust.
 
@@ -576,28 +577,29 @@ BerryCode は活発に開発中です。優先順位順の今後のマイルス�
 #### v0.4.5 — AI 統合 (目標: 2026 Q4 / 中盤)
 
 > _AI ネイティブ、Bevy 対応。_ チャットは BYOK で主要モデル直叩き、
-> 重量級のエージェント / Apply diff は **Codex CLI** と **Claude Code**
-> を subprocess 経由で統合 — 自律ループを Rust で再実装するのではなく、
-> 既に成熟した外部ツールを活用します。
+> エージェントは **Native** バックエンドが Responses API の tool
+> calling ループをプロセス内で実行(`npm install` 不要)。**Codex
+> CLI** と **Claude Code** も `PATH` にあれば subprocess バックエンド
+> として選択可能。
 
-**チャット面(BYOK、プロセス内)**
+**シングルモード チャットパネル(エージェントループのみ)**
 
-- [x] **プロバイダプラグイン層**: Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5)、OpenAI (GPT-5 / GPT-5 Codex)、Ollama / llama.cpp (ローカル)、対応モデルではプロンプトキャッシュ利用
-- [x] **BYOK (Bring Your Own Key) UI**: プロバイダごとの API キー + モデル選択を Settings から設定、ホスト型バックエンド経由なし
+Chat / Agent の二段構えは廃止し、すべてのプロンプトをエージェントループ経由に一本化。質問は `read_file` で取りに行き、編集は `write_file` で行う。Provider プラグイン層はインライン補完用に存置。
+
+- [x] **プロバイダプラグイン層**: Anthropic、OpenAI(Azure Responses API 含む)、Ollama、対応モデルではプロンプトキャッシュ利用。現状は Native エージェントから利用、直叩きパスは廃止
+- [x] **BYOK UI**: プロバイダごとの API キー + モデル選択、env 変数フォールバック (`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ANTHROPIC_API_KEY`) — ホスト型バックエンド経由なし
 - [x] **コスト / トークンパネル**: 会話ごとの使用量 + 月次キャップで予期せぬ請求を回避
 - [x] **チャットサイドバー (`Cmd+L`)**: 任意の場所からチャット入力欄にフォーカス
-- [ ] **チャット添付**: `@file` / `@symbol` / `@scene` でプロジェクトコンテキストを注入
-- [ ] **インライン / Tab 補完**: ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
-
-**エージェント面(subprocess、両 CLI 対応)**
-
-- [x] **エージェントモード (Claude Code)**: `claude --print --output-format=stream-json` をプロジェクトルートを `--add-dir` で渡して spawn、JSON Lines イベントをチャットパネルにストリーム、トークン使用量を自動記録
-- [x] **エージェントモード (Codex CLI)**: `codex exec --json --cd <cwd> --full-auto` で同等動作、チャットパネル内のバックエンドピッカーでタスクごとに切替可能
-- [x] **Apply diff**: エージェントの編集提案 (`Edit` / `Write` / `MultiEdit` ツール呼び出し) はチャット入力上にカードで Approve / Reject 表示、承認するとファイル書き込み + 開いている編集タブを自動リロード
-- [ ] **3-way merge**: エージェントが読んだ後にバッファが変更されていてもクリーンに適用
-- [ ] **Bevy ドキュメント RAG**: チャットに Bevy 0.18 のドキュメント・例を自動添付(プロセス内)。エージェント実行は `--add-dir` 経由でプロジェクトソースを直接読める
-- [ ] **ECS 対応補完**: `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
-- [ ] **リリースブロッカー: 実プロバイダ鍵での E2E 検証** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11) — Anthropic / OpenAI / Ollama でチャット往復、Cmd+L フォーカス、Cost パネルのキャッシュ行、Agent モードの Approve / Reject。タグ + .dmg + GitHub Release はこの検証完了待ち)
+- [x] **Native エージェント (デフォルト)**: Responses API の tool calling ループをプロセス内実行 — `read_file` / `write_file` / `list_files` / `run_bash`、ストリーミングで反映、エンドユーザーは `npm install` 不要
+- [x] **エージェントバックエンド (Claude Code)**: `PATH` に `claude` があれば fallback として選択可能
+- [x] **エージェントバックエンド (Codex CLI)**: `PATH` に `codex` があれば fallback として選択可能
+- [x] **Apply diff**: エージェントの編集提案を Approve / Reject カード表示、承認するとファイル書き込み + 開いている編集タブを自動リロード
+- [~] **チャット添付**: `@file` MVP 実装済み(パス指定、ファイル内容をエージェントの system prompt に自動 inline、最大 10 件 / 1 件 200 KB / 合計 1 MB 制限)。`@symbol` / `@scene` と autocomplete popup は今後
+- [~] **3-way merge ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13))**: 衝突ガード実装済み(Apply 時にファイルが変更されていれば上書きを拒否)。本物の行レベル merge は未対応
+- [~] **Bevy doc cheatsheet ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14))**: 静的な Bevy 0.18 idiom リマインダーを system prompt に注入。本物の RAG (埋め込みインデックス) は未対応
+- [ ] **インライン / Tab 補完** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
+- [ ] **ECS 対応補完** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): `commands.spawn(` 入力で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
+- [~] **リリースブロッカー: 実プロバイダ鍵での E2E 検証** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11)) — OpenAI (Azure Responses API 含む) 往復 ✓、Native + ストリーミング + Apply diff ✓、Cmd+L / Cost パネル / Approve-Reject の配線はコード上確認済 ✓。**残ライブ検証:** Anthropic 鍵での往復、Ollama (`ollama serve`) での往復、AI Usage タブ目視
 
 ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。 — 経験豊富な Rust 開発者が既に信頼しているエージェントツールが裏で走ります。
 
