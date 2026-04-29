@@ -23,8 +23,14 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub fn new(api_key: impl Into<String>) -> Self {
+        // Env wins, Settings is the fallback — single source of truth.
+        let api_key = std::env::var("ANTHROPIC_API_KEY")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| api_key.into());
+
         Self {
-            api_key: api_key.into(),
+            api_key,
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(120))
                 .build()

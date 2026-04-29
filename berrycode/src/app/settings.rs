@@ -319,37 +319,65 @@ impl BerryCodeApp {
         );
 
         // ── Anthropic ────────────────────────────────────────────
+        let anthropic_env = std::env::var("ANTHROPIC_API_KEY")
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
         setting_card(
             ui,
             "Anthropic (Claude)",
             Some("API key from https://console.anthropic.com/settings/keys."),
             |ui| {
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.ai_settings.anthropic_api_key)
-                        .password(true)
-                        .desired_width(420.0)
-                        .hint_text("sk-ant-…"),
-                );
-                if resp.changed() {
-                    dirty = true;
+                if anthropic_env {
+                    // Env always wins at runtime; show that and lock the
+                    // field so users don't think they need to paste a key.
+                    ui.label(
+                        egui::RichText::new("Using ANTHROPIC_API_KEY from environment")
+                            .color(egui::Color32::from_rgb(120, 200, 140)),
+                    );
+                } else {
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(&mut self.ai_settings.anthropic_api_key)
+                            .password(true)
+                            .desired_width(420.0)
+                            .hint_text("sk-ant-…"),
+                    );
+                    if resp.changed() {
+                        dirty = true;
+                    }
                 }
             },
         );
 
         // ── OpenAI ───────────────────────────────────────────────
+        let openai_env = std::env::var("OPENAI_API_KEY")
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
+        let openai_base = std::env::var("OPENAI_BASE_URL").unwrap_or_default();
+        let openai_subtitle = if openai_base.is_empty() {
+            "API key from https://platform.openai.com/api-keys.".to_string()
+        } else {
+            format!("Endpoint override: {}", openai_base)
+        };
         setting_card(
             ui,
             "OpenAI (GPT / Codex)",
-            Some("API key from https://platform.openai.com/api-keys."),
+            Some(openai_subtitle.as_str()),
             |ui| {
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.ai_settings.openai_api_key)
-                        .password(true)
-                        .desired_width(420.0)
-                        .hint_text("sk-…"),
-                );
-                if resp.changed() {
-                    dirty = true;
+                if openai_env {
+                    ui.label(
+                        egui::RichText::new("Using OPENAI_API_KEY from environment")
+                            .color(egui::Color32::from_rgb(120, 200, 140)),
+                    );
+                } else {
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(&mut self.ai_settings.openai_api_key)
+                            .password(true)
+                            .desired_width(420.0)
+                            .hint_text("sk-…"),
+                    );
+                    if resp.changed() {
+                        dirty = true;
+                    }
                 }
             },
         );
@@ -414,9 +442,21 @@ impl BerryCodeApp {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label("Model:");
+                    // Free-text input: Azure OpenAI deployments and other
+                    // proxy setups use arbitrary names that won't appear
+                    // in the preset list. The dropdown next to it stays
+                    // as a quick-pick of the well-known public models.
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(&mut self.ai_settings.chat_model)
+                            .desired_width(220.0)
+                            .hint_text("model / deployment"),
+                    );
+                    if resp.changed() {
+                        dirty = true;
+                    }
                     let models = AiSettings::chat_models_for(self.ai_settings.chat_provider);
                     egui::ComboBox::from_id_salt("ai_chat_model")
-                        .selected_text(self.ai_settings.chat_model.clone())
+                        .selected_text("Presets")
                         .show_ui(ui, |ui| {
                             for model in models {
                                 if ui
@@ -463,10 +503,18 @@ impl BerryCodeApp {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label("Model:");
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(&mut self.ai_settings.completion_model)
+                            .desired_width(220.0)
+                            .hint_text("model / deployment"),
+                    );
+                    if resp.changed() {
+                        dirty = true;
+                    }
                     let models =
                         AiSettings::completion_models_for(self.ai_settings.completion_provider);
                     egui::ComboBox::from_id_salt("ai_completion_model")
-                        .selected_text(self.ai_settings.completion_model.clone())
+                        .selected_text("Presets")
                         .show_ui(ui, |ui| {
                             for model in models {
                                 if ui
