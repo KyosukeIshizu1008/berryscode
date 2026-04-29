@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use rusqlite::Connection;
 
+use super::button_style::{button_with_icon, glyph, primary_button, primary_button_with_icon};
 use super::ui_colors;
 use super::BerryCodeApp;
 
@@ -183,7 +184,7 @@ impl BerryCodeApp {
         ui.add_space(6.0);
 
         ui.horizontal(|ui| {
-            if ui.button("Open .db…").clicked() {
+            if primary_button_with_icon(ui, glyph::FOLDER_OPENED, "Open .db…").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("SQLite", &["db", "sqlite", "sqlite3"])
                     .add_filter("All files", &["*"])
@@ -249,7 +250,7 @@ impl BerryCodeApp {
 
         ui.label(egui::RichText::new("Tables").small());
         ui.add_space(2.0);
-        if ui.small_button("Refresh").clicked() {
+        if button_with_icon(ui, glyph::REFRESH, "Refresh").clicked() {
             self.database.refresh_tables();
         }
         ui.add_space(2.0);
@@ -304,7 +305,7 @@ impl BerryCodeApp {
                     .small()
                     .color(egui::Color32::from_gray(150)),
             );
-            if ui.small_button("Reload").clicked() {
+            if button_with_icon(ui, glyph::REFRESH, "Reload").clicked() {
                 self.database.load_preview(&table);
             }
         });
@@ -326,14 +327,12 @@ impl BerryCodeApp {
                 .desired_rows(4)
                 .desired_width(f32::INFINITY),
         );
-        let cmd_enter = ui.input(|i| {
-            i.modifiers.command && i.key_pressed(egui::Key::Enter)
-        });
+        let cmd_enter = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter));
         ui.horizontal(|ui| {
-            if ui.button("Run (⌘↩)").clicked() || (response.has_focus() && cmd_enter) {
+            if primary_button(ui, "Run (⌘↩)").clicked() || (response.has_focus() && cmd_enter) {
                 self.database.run_query();
             }
-            if ui.button("Clear").clicked() {
+            if button_with_icon(ui, glyph::CLEAR_ALL, "Clear").clicked() {
                 self.database.query_input.clear();
                 self.database.query_columns.clear();
                 self.database.query_rows.clear();
@@ -354,17 +353,9 @@ impl BerryCodeApp {
     }
 }
 
-fn render_result_grid(
-    ui: &mut egui::Ui,
-    id: &str,
-    cols: &[String],
-    rows: &[Vec<String>],
-) {
+fn render_result_grid(ui: &mut egui::Ui, id: &str, cols: &[String], rows: &[Vec<String>]) {
     if cols.is_empty() {
-        ui.label(
-            egui::RichText::new("(no result)")
-                .color(egui::Color32::from_gray(150)),
-        );
+        ui.label(egui::RichText::new("(no result)").color(egui::Color32::from_gray(150)));
         return;
     }
     egui::ScrollArea::both()

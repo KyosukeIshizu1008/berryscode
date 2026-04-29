@@ -1943,10 +1943,7 @@ impl BerryCodeApp {
                             .color(egui::Color32::from_rgb(244, 135, 113)),
                     )
                     .fill(egui::Color32::TRANSPARENT)
-                    .stroke(egui::Stroke::new(
-                        1.0,
-                        egui::Color32::from_rgb(80, 50, 50),
-                    )),
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 50, 50))),
                 )
                 .clicked()
             {
@@ -1971,10 +1968,7 @@ impl BerryCodeApp {
                     [ui.available_width(), 24.0],
                     egui::Button::new(egui::RichText::new(add_btn_label).size(12.0))
                         .fill(crate::app::component_colors::BUTTON_BG)
-                        .stroke(egui::Stroke::new(
-                            1.0,
-                            crate::app::ui_colors::BORDER,
-                        )),
+                        .stroke(egui::Stroke::new(1.0, crate::app::ui_colors::BORDER)),
                 )
                 .clicked()
             {

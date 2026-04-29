@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 
+use super::button_style::icon_button;
 use super::ui_colors;
 use super::BerryCodeApp;
 
@@ -248,7 +249,10 @@ impl BerryCodeApp {
                     .small()
                     .color(egui::Color32::from_gray(180)),
             );
-            ui.hyperlink_to("docker.com/products/docker-desktop", "https://www.docker.com/products/docker-desktop/");
+            ui.hyperlink_to(
+                "docker.com/products/docker-desktop",
+                "https://www.docker.com/products/docker-desktop/",
+            );
             if ui.small_button("Re-check").clicked() {
                 self.docker.cli_available = None;
             }
@@ -257,9 +261,27 @@ impl BerryCodeApp {
 
         // Tab strip — pill-style like Docker Desktop's left rail items.
         ui.vertical(|ui| {
-            tab_link(ui, &mut self.docker.active_tab, DockerTab::Containers, "🟢 Containers", self.docker.containers.len());
-            tab_link(ui, &mut self.docker.active_tab, DockerTab::Images, "🖼  Images", self.docker.images.len());
-            tab_link(ui, &mut self.docker.active_tab, DockerTab::Volumes, "💾 Volumes", self.docker.volumes.len());
+            tab_link(
+                ui,
+                &mut self.docker.active_tab,
+                DockerTab::Containers,
+                "🟢 Containers",
+                self.docker.containers.len(),
+            );
+            tab_link(
+                ui,
+                &mut self.docker.active_tab,
+                DockerTab::Images,
+                "🖼  Images",
+                self.docker.images.len(),
+            );
+            tab_link(
+                ui,
+                &mut self.docker.active_tab,
+                DockerTab::Volumes,
+                "💾 Volumes",
+                self.docker.volumes.len(),
+            );
         });
 
         ui.add_space(8.0);
@@ -314,10 +336,7 @@ impl BerryCodeApp {
     fn render_docker_containers(&mut self, ui: &mut egui::Ui) {
         if self.docker.containers.is_empty() {
             ui.add_space(8.0);
-            ui.label(
-                egui::RichText::new("No containers.")
-                    .color(egui::Color32::from_gray(150)),
-            );
+            ui.label(egui::RichText::new("No containers.").color(egui::Color32::from_gray(150)));
             return;
         }
 
@@ -325,152 +344,175 @@ impl BerryCodeApp {
         let containers: Vec<Container> = self.docker.containers.clone();
         let selected = self.docker.selected_container.clone();
 
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            egui::Grid::new("docker_containers_grid")
-                .num_columns(6)
-                .striped(true)
-                .min_col_width(50.0)
-                .show(ui, |ui| {
-                    ui.label(egui::RichText::new("").strong());
-                    ui.label(egui::RichText::new("Name").strong().color(ui_colors::TEXT_DEFAULT));
-                    ui.label(egui::RichText::new("Image").strong().color(ui_colors::TEXT_DEFAULT));
-                    ui.label(egui::RichText::new("Status").strong().color(ui_colors::TEXT_DEFAULT));
-                    ui.label(egui::RichText::new("Ports").strong().color(ui_colors::TEXT_DEFAULT));
-                    ui.label(egui::RichText::new("Actions").strong().color(ui_colors::TEXT_DEFAULT));
-                    ui.end_row();
-
-                    for c in &containers {
-                        let running = c.state.eq_ignore_ascii_case("running")
-                            || c.status.starts_with("Up");
-                        let dot = if running { "🟢" } else { "⚪" };
-                        ui.label(dot);
-
-                        let is_selected = selected.as_deref() == Some(c.id.as_str());
-                        if ui.selectable_label(is_selected, &c.names).clicked() {
-                            self.docker.selected_container = Some(c.id.clone());
-                            self.docker.fetch_logs(&c.id);
-                        }
-                        ui.label(&c.image);
-                        ui.label(&c.status);
-                        ui.label(if c.ports.is_empty() { "—" } else { c.ports.as_str() });
-                        ui.horizontal(|ui| {
-                            if running {
-                                if ui.small_button("⏹").on_hover_text("Stop").clicked() {
-                                    self.docker.stop(&c.id);
-                                }
-                                if ui.small_button("⟲").on_hover_text("Restart").clicked() {
-                                    self.docker.restart(&c.id);
-                                }
-                            } else if ui.small_button("▶").on_hover_text("Start").clicked() {
-                                self.docker.start(&c.id);
-                            }
-                            if ui.small_button("🗑").on_hover_text("Remove").clicked() {
-                                self.docker.remove(&c.id);
-                            }
-                        });
-                        ui.end_row();
-                    }
-                });
-
-            // Logs panel for the selected container.
-            if let Some(id) = self.docker.selected_container.clone() {
-                ui.add_space(8.0);
-                ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(format!("Logs — {}", short_id(&id)))
-                            .strong(),
-                    );
-                    if ui.small_button("Reload").clicked() {
-                        self.docker.fetch_logs(&id);
-                    }
-                });
-                ui.add_space(4.0);
-                egui::ScrollArea::both()
-                    .max_height(220.0)
-                    .auto_shrink([false, false])
-                    .stick_to_bottom(true)
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                egui::Grid::new("docker_containers_grid")
+                    .num_columns(6)
+                    .striped(true)
+                    .min_col_width(50.0)
                     .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(&mut self.docker.selected_logs.as_str())
-                                .code_editor()
-                                .desired_width(f32::INFINITY)
-                                .desired_rows(12),
+                        ui.label(egui::RichText::new("").strong());
+                        ui.label(
+                            egui::RichText::new("Name")
+                                .strong()
+                                .color(ui_colors::TEXT_DEFAULT),
                         );
+                        ui.label(
+                            egui::RichText::new("Image")
+                                .strong()
+                                .color(ui_colors::TEXT_DEFAULT),
+                        );
+                        ui.label(
+                            egui::RichText::new("Status")
+                                .strong()
+                                .color(ui_colors::TEXT_DEFAULT),
+                        );
+                        ui.label(
+                            egui::RichText::new("Ports")
+                                .strong()
+                                .color(ui_colors::TEXT_DEFAULT),
+                        );
+                        ui.label(
+                            egui::RichText::new("Actions")
+                                .strong()
+                                .color(ui_colors::TEXT_DEFAULT),
+                        );
+                        ui.end_row();
+
+                        for c in &containers {
+                            let running = c.state.eq_ignore_ascii_case("running")
+                                || c.status.starts_with("Up");
+                            let dot = if running { "🟢" } else { "⚪" };
+                            ui.label(dot);
+
+                            let is_selected = selected.as_deref() == Some(c.id.as_str());
+                            if ui.selectable_label(is_selected, &c.names).clicked() {
+                                self.docker.selected_container = Some(c.id.clone());
+                                self.docker.fetch_logs(&c.id);
+                            }
+                            ui.label(&c.image);
+                            ui.label(&c.status);
+                            ui.label(if c.ports.is_empty() {
+                                "—"
+                            } else {
+                                c.ports.as_str()
+                            });
+                            ui.horizontal(|ui| {
+                                if running {
+                                    if icon_button(ui, "\u{ead7}", "Stop").clicked() {
+                                        self.docker.stop(&c.id);
+                                    }
+                                    if icon_button(ui, "\u{ead2}", "Restart").clicked() {
+                                        self.docker.restart(&c.id);
+                                    }
+                                } else if icon_button(ui, "\u{eb2c}", "Start").clicked() {
+                                    self.docker.start(&c.id);
+                                }
+                                if icon_button(ui, "\u{ea81}", "Remove").clicked() {
+                                    self.docker.remove(&c.id);
+                                }
+                            });
+                            ui.end_row();
+                        }
                     });
-            }
-        });
+
+                // Logs panel for the selected container.
+                if let Some(id) = self.docker.selected_container.clone() {
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(format!("Logs — {}", short_id(&id))).strong());
+                        if ui.small_button("Reload").clicked() {
+                            self.docker.fetch_logs(&id);
+                        }
+                    });
+                    ui.add_space(4.0);
+                    egui::ScrollArea::both()
+                        .max_height(220.0)
+                        .auto_shrink([false, false])
+                        .stick_to_bottom(true)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut self.docker.selected_logs.as_str())
+                                    .code_editor()
+                                    .desired_width(f32::INFINITY)
+                                    .desired_rows(12),
+                            );
+                        });
+                }
+            });
     }
 
     fn render_docker_images(&mut self, ui: &mut egui::Ui) {
         if self.docker.images.is_empty() {
             ui.add_space(8.0);
-            ui.label(
-                egui::RichText::new("No images.")
-                    .color(egui::Color32::from_gray(150)),
-            );
+            ui.label(egui::RichText::new("No images.").color(egui::Color32::from_gray(150)));
             return;
         }
         let images: Vec<Image> = self.docker.images.clone();
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            egui::Grid::new("docker_images_grid")
-                .num_columns(4)
-                .striped(true)
-                .min_col_width(60.0)
-                .show(ui, |ui| {
-                    for c in ["Repository", "Tag", "Size", "Created"] {
-                        ui.label(egui::RichText::new(c).strong().color(ui_colors::TEXT_DEFAULT));
-                    }
-                    ui.end_row();
-                    for img in &images {
-                        ui.label(&img.repository);
-                        ui.label(&img.tag);
-                        ui.label(&img.size);
-                        ui.label(&img.created);
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                egui::Grid::new("docker_images_grid")
+                    .num_columns(4)
+                    .striped(true)
+                    .min_col_width(60.0)
+                    .show(ui, |ui| {
+                        for c in ["Repository", "Tag", "Size", "Created"] {
+                            ui.label(
+                                egui::RichText::new(c)
+                                    .strong()
+                                    .color(ui_colors::TEXT_DEFAULT),
+                            );
+                        }
                         ui.end_row();
-                    }
-                });
-        });
+                        for img in &images {
+                            ui.label(&img.repository);
+                            ui.label(&img.tag);
+                            ui.label(&img.size);
+                            ui.label(&img.created);
+                            ui.end_row();
+                        }
+                    });
+            });
     }
 
     fn render_docker_volumes(&mut self, ui: &mut egui::Ui) {
         if self.docker.volumes.is_empty() {
             ui.add_space(8.0);
-            ui.label(
-                egui::RichText::new("No volumes.")
-                    .color(egui::Color32::from_gray(150)),
-            );
+            ui.label(egui::RichText::new("No volumes.").color(egui::Color32::from_gray(150)));
             return;
         }
         let volumes: Vec<Volume> = self.docker.volumes.clone();
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            egui::Grid::new("docker_volumes_grid")
-                .num_columns(3)
-                .striped(true)
-                .min_col_width(60.0)
-                .show(ui, |ui| {
-                    for c in ["Name", "Driver", "Mountpoint"] {
-                        ui.label(egui::RichText::new(c).strong().color(ui_colors::TEXT_DEFAULT));
-                    }
-                    ui.end_row();
-                    for v in &volumes {
-                        ui.label(&v.name);
-                        ui.label(&v.driver);
-                        ui.label(&v.mountpoint);
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                egui::Grid::new("docker_volumes_grid")
+                    .num_columns(3)
+                    .striped(true)
+                    .min_col_width(60.0)
+                    .show(ui, |ui| {
+                        for c in ["Name", "Driver", "Mountpoint"] {
+                            ui.label(
+                                egui::RichText::new(c)
+                                    .strong()
+                                    .color(ui_colors::TEXT_DEFAULT),
+                            );
+                        }
                         ui.end_row();
-                    }
-                });
-        });
+                        for v in &volumes {
+                            ui.label(&v.name);
+                            ui.label(&v.driver);
+                            ui.label(&v.mountpoint);
+                            ui.end_row();
+                        }
+                    });
+            });
     }
 }
 
-fn tab_link(
-    ui: &mut egui::Ui,
-    current: &mut DockerTab,
-    tab: DockerTab,
-    label: &str,
-    count: usize,
-) {
+fn tab_link(ui: &mut egui::Ui, current: &mut DockerTab, tab: DockerTab, label: &str, count: usize) {
     let text = if count > 0 {
         format!("{label}  ({count})")
     } else {
