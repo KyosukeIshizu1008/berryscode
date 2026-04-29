@@ -25,6 +25,10 @@ use notify::{RecursiveMode, Watcher};
 pub enum AssetEvent {
     /// `.bscene` or `.scn.ron` file was modified.
     SceneChanged(PathBuf),
+    /// `.bscene` or `.scn.ron` file was removed. The Hierarchy panel
+    /// uses this to drop any open tab pointing at that path so a
+    /// stale, no-longer-on-disk scene can't keep editing.
+    SceneRemoved(PathBuf),
     /// Shader source (`.wgsl` / `.glsl` / `.vert` / `.frag`) was modified.
     ShaderChanged(PathBuf),
     /// Audio source (`.wav` / `.ogg` / `.mp3` / `.flac`) was modified.
@@ -97,14 +101,20 @@ impl AssetWatcher {
                 let Ok(event) = res else {
                     return;
                 };
-                if !matches!(
+                let is_remove = matches!(event.kind, notify::EventKind::Remove(_));
+                let is_change = matches!(
                     event.kind,
                     notify::EventKind::Modify(_) | notify::EventKind::Create(_)
-                ) {
+                );
+                if !is_change && !is_remove {
                     return;
                 }
                 for path in event.paths {
-                    if let Some(typed) = classify(&path) {
+                    if is_remove {
+                        if let Some(typed) = classify_removal(&path) {
+                            let _ = tx.send(typed);
+                        }
+                    } else if let Some(typed) = classify(&path) {
                         let _ = tx.send(typed);
                     }
                 }
@@ -150,6 +160,7 @@ impl AssetWatcher {
                 Ok(ev) => {
                     let path = match &ev {
                         AssetEvent::SceneChanged(p)
+                        | AssetEvent::SceneRemoved(p)
                         | AssetEvent::ShaderChanged(p)
                         | AssetEvent::AudioChanged(p) => p.clone(),
                     };
@@ -198,6 +209,25 @@ fn classify(path: &Path) -> Option<AssetEvent> {
         }
         "wgsl" | "glsl" | "vert" | "frag" => Some(AssetEvent::ShaderChanged(path.to_path_buf())),
         "wav" | "ogg" | "mp3" | "flac" => Some(AssetEvent::AudioChanged(path.to_path_buf())),
+        _ => None,
+    }
+}
+
+/// Variant of [`classify`] for `Remove` events. We currently only
+/// surface scene removals — shaders / audio reload via Bevy's own
+/// asset server, which already tolerates the file going away.
+fn classify_removal(path: &Path) -> Option<AssetEvent> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    match ext.as_str() {
+        "bscene" => Some(AssetEvent::SceneRemoved(path.to_path_buf())),
+        "ron" => {
+            let s = path.to_string_lossy();
+            if s.ends_with(".scn.ron") {
+                Some(AssetEvent::SceneRemoved(path.to_path_buf()))
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }

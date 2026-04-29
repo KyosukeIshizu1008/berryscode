@@ -106,11 +106,32 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
     code.push_str("//! To modify, edit in BerryCode's Scene Editor and re-save.\n\n");
     code.push_str("use bevy::prelude::*;\n\n");
 
+    let any_enabled = scene.entities.values().any(|e| e.enabled);
+    let needs_asset_server = scene.entities.values().any(|e| {
+        e.enabled
+            && e.components.iter().any(|c| {
+                matches!(
+                    c,
+                    ComponentData::MeshFromFile { .. } | ComponentData::AudioSource { .. }
+                )
+            })
+    });
     code.push_str("pub fn setup_scene(\n");
-    code.push_str("    mut commands: Commands,\n");
-    code.push_str("    mut meshes: ResMut<Assets<Mesh>>,\n");
-    code.push_str("    mut materials: ResMut<Assets<StandardMaterial>>,\n");
-    code.push_str("    asset_server: Res<AssetServer>,\n");
+    if any_enabled {
+        code.push_str("    mut commands: Commands,\n");
+        code.push_str("    mut meshes: ResMut<Assets<Mesh>>,\n");
+        code.push_str("    mut materials: ResMut<Assets<StandardMaterial>>,\n");
+        if needs_asset_server {
+            code.push_str("    asset_server: Res<AssetServer>,\n");
+        } else {
+            code.push_str("    _asset_server: Res<AssetServer>,\n");
+        }
+    } else {
+        code.push_str("    _commands: Commands,\n");
+        code.push_str("    _meshes: ResMut<Assets<Mesh>>,\n");
+        code.push_str("    _materials: ResMut<Assets<StandardMaterial>>,\n");
+        code.push_str("    _asset_server: Res<AssetServer>,\n");
+    }
     code.push_str(") {\n");
 
     for entity in scene.entities.values() {
@@ -673,7 +694,7 @@ pub fn ensure_mod_declaration(mod_rs_path: &str, module_name: &str) -> Result<()
 }
 
 /// Convert a scene name to a valid Rust module name (snake_case).
-fn scene_name_to_module(scene_name: &str) -> String {
+pub fn scene_name_to_module(scene_name: &str) -> String {
     let mut out = String::new();
     for (i, c) in scene_name.chars().enumerate() {
         if c.is_uppercase() && i > 0 {
@@ -712,31 +733,93 @@ pub fn generate_scene_plugin_code_with_root(
 ) -> String {
     let module_name = scene_name_to_module(scene_name);
     let pascal_name = module_to_pascal(&module_name);
-    let plugin_name = format!("{}ScenePlugin", pascal_name);
-    let setup_fn = format!("setup_{}_scene", module_name);
+    // Plugin / setup names track the scene name 1:1 — `<Test>Plugin`
+    // and `setup_test`, not `<Test>ScenePlugin` / `setup_test_scene`.
+    // Keeps the file tree, the Hierarchy tab strip, and the generated
+    // module names all reading the same.
+    let plugin_name = format!("{}Plugin", pascal_name);
+    let setup_fn = format!("setup_{}", module_name);
+    let cleanup_fn = format!("cleanup_{}", module_name);
+    // Per-scene marker component used to despawn this scene's
+    // entities on `OnExit`. Naming is `<Pascal>SceneEntity` — verbose
+    // but unambiguous, since the marker has to be unique across every
+    // scene module that lives in `src/scenes/`.
+    let marker_name = format!("{}SceneEntity", pascal_name);
 
     let mut code = String::new();
     code.push_str("//! Auto-generated scene plugin from BerryCode Scene Editor.\n");
     code.push_str("//! DO NOT EDIT MANUALLY -- changes will be overwritten on next save.\n\n");
-    code.push_str("use bevy::prelude::*;\n\n");
+    code.push_str("use bevy::prelude::*;\n");
+    code.push_str("use super::AppScene;\n\n");
 
-    // Plugin struct
+    // Marker component for cleanup. `dead_code` is allowed because
+    // empty scenes never construct it (setup spawns nothing), but the
+    // Plugin still needs the type to exist for the cleanup query.
+    code.push_str("#[derive(Component)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str(&format!("pub struct {};\n\n", marker_name));
+
+    // Plugin struct — registers OnEnter/OnExit against the AppScene
+    // variant matching this module. Two scenes in the same project
+    // therefore no longer overlap: only the active state's entities
+    // exist at any time. Switch scenes at runtime with
+    // `commands.set_state(AppScene::Other)`.
     code.push_str(&format!("pub struct {};\n\n", plugin_name));
     code.push_str(&format!("impl Plugin for {} {{\n", plugin_name));
     code.push_str("    fn build(&self, app: &mut App) {\n");
     code.push_str(&format!(
-        "        app.add_systems(Startup, {});\n",
-        setup_fn
+        "        app.add_systems(OnEnter(AppScene::{}), {})\n",
+        pascal_name, setup_fn
+    ));
+    code.push_str(&format!(
+        "            .add_systems(OnExit(AppScene::{}), {});\n",
+        pascal_name, cleanup_fn
     ));
     code.push_str("    }\n");
     code.push_str("}\n\n");
 
-    // Setup function (reuses existing generation logic)
+    // Setup function parameters are conditionally `_`-prefixed based
+    // on what the body actually references. The previous heuristic
+    // ("scene has any visible entity → keep all four un-prefixed")
+    // still tripped `unused_variables` for scenes that only contain
+    // primitives like Cube/Sphere — those don't touch
+    // `asset_server`, so it has to be `_asset_server` instead.
+    let visible_entities: Vec<&_> = scene
+        .entities
+        .values()
+        .filter(|e| {
+            e.enabled
+                && !e
+                    .components
+                    .iter()
+                    .any(|c| matches!(c, ComponentData::Camera))
+        })
+        .collect();
+    let scene_has_visible_entities = !visible_entities.is_empty();
+    let needs_asset_server = visible_entities.iter().any(|e| {
+        e.components.iter().any(|c| {
+            matches!(
+                c,
+                ComponentData::MeshFromFile { .. } | ComponentData::AudioSource { .. }
+            )
+        })
+    });
     code.push_str(&format!("fn {}(\n", setup_fn));
-    code.push_str("    mut commands: Commands,\n");
-    code.push_str("    mut meshes: ResMut<Assets<Mesh>>,\n");
-    code.push_str("    mut materials: ResMut<Assets<StandardMaterial>>,\n");
-    code.push_str("    asset_server: Res<AssetServer>,\n");
+    if scene_has_visible_entities {
+        code.push_str("    mut commands: Commands,\n");
+        code.push_str("    mut meshes: ResMut<Assets<Mesh>>,\n");
+        code.push_str("    mut materials: ResMut<Assets<StandardMaterial>>,\n");
+        if needs_asset_server {
+            code.push_str("    asset_server: Res<AssetServer>,\n");
+        } else {
+            code.push_str("    _asset_server: Res<AssetServer>,\n");
+        }
+    } else {
+        code.push_str("    _commands: Commands,\n");
+        code.push_str("    _meshes: ResMut<Assets<Mesh>>,\n");
+        code.push_str("    _materials: ResMut<Assets<StandardMaterial>>,\n");
+        code.push_str("    _asset_server: Res<AssetServer>,\n");
+    }
     code.push_str(") {\n");
 
     for entity in scene.entities.values() {
@@ -882,22 +965,54 @@ pub fn generate_scene_plugin_code_with_root(
             }
         }
 
+        // Marker last so the spawn tuple ends with the per-scene tag
+        // — keeps Transform / Mesh / Material reading naturally and
+        // means the cleanup query (`With<<Pascal>SceneEntity>`) hits
+        // every entity this scene spawned.
+        code.push_str(&format!("        {},\n", marker_name));
         code.push_str(&format!("        Name::new(\"{}\"),\n", entity.name));
         code.push_str("    ));\n\n");
     }
 
+    code.push_str("}\n\n");
+
+    // Cleanup runs on `OnExit(AppScene::<This>)` and despawns every
+    // entity tagged with the per-scene marker. Always emitted even
+    // for empty scenes — the query is just empty at runtime.
+    code.push_str(&format!("fn {}(\n", cleanup_fn));
+    code.push_str("    mut commands: Commands,\n");
+    code.push_str(&format!(
+        "    query: Query<Entity, With<{}>>,\n",
+        marker_name
+    ));
+    code.push_str(") {\n");
+    code.push_str("    for entity in &query {\n");
+    code.push_str("        commands.entity(entity).despawn();\n");
+    code.push_str("    }\n");
     code.push_str("}\n");
     code
 }
 
-/// Scan `src/scenes/` for `*_scene.rs` files and generate a `mod.rs` with ScenesPlugin.
+/// Scan `src/scenes/` for scene plugin files and generate `mod.rs` with
+/// `AppScene` (a `States` enum, one variant per scene) and
+/// `ScenesPlugin`. Picks up any `*.rs` (except `mod.rs`) since scene
+/// files are now named to match their `.bscene` (e.g. `test.rs`).
+///
+/// The alphabetically-first module gets `#[default]`, mirroring the
+/// editor's tab strip which makes that same scene the active tab on
+/// project open. Switch scenes at runtime with
+/// `commands.set_state(AppScene::<Other>)`.
+///
+/// Empty case (no modules): emit a stub `ScenesPlugin` with no
+/// `AppScene` enum, since an empty enum can't derive `Default`. New
+/// projects start in this state and get rewritten on first scene save.
 pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
     let mut modules: Vec<String> = Vec::new();
 
     if let Ok(entries) = std::fs::read_dir(scenes_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with("_scene.rs") && name != "mod.rs" {
+            if name.ends_with(".rs") && name != "mod.rs" {
                 let module = name.strip_suffix(".rs").unwrap_or(&name).to_string();
                 modules.push(module);
             }
@@ -910,9 +1025,31 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
         code.push_str(&format!("pub mod {};\n", m));
     }
     code.push_str("\nuse bevy::prelude::*;\n\n");
+
+    if modules.is_empty() {
+        code.push_str("pub struct ScenesPlugin;\n\n");
+        code.push_str("impl Plugin for ScenesPlugin {\n");
+        code.push_str("    fn build(&self, _app: &mut App) {\n");
+        code.push_str("    }\n");
+        code.push_str("}\n");
+        return code;
+    }
+
+    code.push_str("#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]\n");
+    code.push_str("pub enum AppScene {\n");
+    for (i, m) in modules.iter().enumerate() {
+        let pascal = module_to_pascal(m);
+        if i == 0 {
+            code.push_str("    #[default]\n");
+        }
+        code.push_str(&format!("    {},\n", pascal));
+    }
+    code.push_str("}\n\n");
+
     code.push_str("pub struct ScenesPlugin;\n\n");
     code.push_str("impl Plugin for ScenesPlugin {\n");
     code.push_str("    fn build(&self, app: &mut App) {\n");
+    code.push_str("        app.init_state::<AppScene>();\n");
     for m in &modules {
         let pascal = module_to_pascal(m);
         code.push_str(&format!(
@@ -925,28 +1062,44 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
     code
 }
 
-/// Save scene code in modular structure: `src/scenes/{name}_scene.rs` + update mod.rs.
+/// Save scene code in modular structure: `src/scenes/{name}.rs` + update mod.rs.
+/// Filename matches the `.bscene` stem so the file tree and the
+/// Hierarchy tab strip read the same way (a scene called `test` lives
+/// at `src/scenes/test.rs`, not `test_scene.rs`).
 pub fn save_scene_code_modular(
     scene: &SceneModel,
     scene_path: &str,
     project_root: &str,
 ) -> Result<String, String> {
-    // Derive scene name from path
     let scene_name = std::path::Path::new(scene_path)
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "scene".to_string());
-    let module_name = format!("{}_scene", scene_name_to_module(&scene_name));
+    let module_name = scene_name_to_module(&scene_name);
 
     let scenes_dir = format!("{}/src/scenes", project_root);
     std::fs::create_dir_all(&scenes_dir).map_err(|e| e.to_string())?;
 
-    // Generate and write scene plugin code
     let code = generate_scene_plugin_code_with_root(scene, &scene_name, project_root);
     let rs_path = format!("{}/{}.rs", scenes_dir, module_name);
-    std::fs::write(&rs_path, &code).map_err(|e| e.to_string())?;
+    // Only touch the file when the content actually changes —
+    // `cargo check` keys off mtime, and a no-op rewrite triggers an
+    // unnecessary rebuild + LSP reanalysis.
+    let needs_write = std::fs::read_to_string(&rs_path)
+        .map(|existing| existing != code)
+        .unwrap_or(true);
+    if needs_write {
+        std::fs::write(&rs_path, &code).map_err(|e| e.to_string())?;
+    }
 
-    // Regenerate scenes/mod.rs
+    // Migrate from the old `<name>_scene.rs` convention. If a file
+    // with the legacy suffix still exists, delete it so cargo doesn't
+    // pick up two scene plugins for the same `.bscene`.
+    let legacy_path = format!("{}/{}_scene.rs", scenes_dir, module_name);
+    if std::path::Path::new(&legacy_path).exists() && legacy_path != rs_path {
+        let _ = std::fs::remove_file(&legacy_path);
+    }
+
     let mod_rs = generate_scenes_mod_rs(&scenes_dir);
     std::fs::write(format!("{}/mod.rs", scenes_dir), &mod_rs).map_err(|e| e.to_string())?;
 
@@ -2467,10 +2620,21 @@ bevy = "0.15"
     fn generate_scene_plugin_has_plugin_struct() {
         let scene = SceneModel::new();
         let code = generate_scene_plugin_code(&scene, "game");
-        assert!(code.contains("pub struct GameScenePlugin;"));
-        assert!(code.contains("impl Plugin for GameScenePlugin"));
-        assert!(code.contains("fn setup_game_scene("));
-        assert!(code.contains("add_systems(Startup, setup_game_scene)"));
+        // Plugin / setup names track the scene name 1:1 — no `_scene`
+        // suffix on either, so the file tree, the Hierarchy tab, and
+        // the generated module all read the same.
+        assert!(code.contains("pub struct GamePlugin;"));
+        assert!(code.contains("impl Plugin for GamePlugin"));
+        assert!(code.contains("fn setup_game("));
+        // Scenes are state-driven: setup runs on `OnEnter`, cleanup
+        // (despawning everything tagged with the per-scene marker)
+        // runs on `OnExit`. The old `Startup` registration would
+        // overlap every scene's entities into the same world.
+        assert!(code.contains("OnEnter(AppScene::Game)"));
+        assert!(code.contains("OnExit(AppScene::Game)"));
+        assert!(code.contains("fn cleanup_game("));
+        assert!(code.contains("pub struct GameSceneEntity;"));
+        assert!(code.contains("use super::AppScene;"));
     }
 
     #[test]
@@ -2489,9 +2653,85 @@ bevy = "0.15"
             }],
         );
         let code = generate_scene_plugin_code(&scene, "level1");
-        assert!(code.contains("pub struct Level1ScenePlugin;"));
+        assert!(code.contains("pub struct Level1Plugin;"));
         assert!(code.contains("Cuboid::new(1.000"));
         assert!(code.contains("Name::new(\"TestCube\")"));
+        // With at least one visible entity the params stay un-prefixed
+        // and `mut` so the body can spawn into them without warnings.
+        assert!(code.contains("mut commands: Commands"));
+        assert!(code.contains("mut meshes: ResMut<Assets<Mesh>>"));
+        // Spawned entity must include the per-scene marker so the
+        // OnExit cleanup query picks it up.
+        assert!(code.contains("Level1SceneEntity,"));
+    }
+
+    #[test]
+    fn primitives_only_scene_underscores_asset_server() {
+        // Regression: a scene with only Cube/Sphere/Plane primitives
+        // doesn't reference `asset_server`, so the param must be
+        // `_asset_server` to silence `unused_variables`. `mut commands`
+        // / `mut meshes` / `mut materials` stay un-prefixed because
+        // the spawn calls do use them.
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Cube".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 0.0, 0.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "primitives");
+        assert!(code.contains("_asset_server: Res<AssetServer>"));
+        assert!(!code.contains("    asset_server: Res<AssetServer>"));
+        assert!(code.contains("mut commands: Commands"));
+        assert!(code.contains("mut meshes: ResMut<Assets<Mesh>>"));
+    }
+
+    #[test]
+    fn glb_loading_scene_keeps_asset_server_un_prefixed() {
+        // Sanity check the inverse: a scene with a `MeshFromFile`
+        // entity needs the `asset_server` to actually be in scope
+        // without the leading underscore.
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "fox".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "fox.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code(&scene, "world");
+        assert!(code.contains("    asset_server: Res<AssetServer>"));
+        assert!(!code.contains("_asset_server: Res<AssetServer>"));
+    }
+
+    #[test]
+    fn empty_scene_uses_underscore_prefix_to_avoid_warnings() {
+        // Empty scenes don't reference commands / meshes / materials /
+        // asset_server in `setup_*`, so the codegen must emit
+        // `_`-prefixed names there — otherwise every freshly-`New`'d
+        // scene generates a wave of `unused_variables` / `unused_mut`
+        // warnings on `cargo check` until the user adds an entity.
+        // The cleanup function legitimately uses `mut commands`
+        // (despawn loop), so we scope the assertion to setup only.
+        let scene = SceneModel::new();
+        let code = generate_scene_plugin_code(&scene, "empty");
+        let setup_block = code
+            .split("fn cleanup_")
+            .next()
+            .expect("setup half must exist");
+        assert!(setup_block.contains("_commands: Commands"));
+        assert!(setup_block.contains("_meshes: ResMut<Assets<Mesh>>"));
+        assert!(setup_block.contains("_materials: ResMut<Assets<StandardMaterial>>"));
+        assert!(setup_block.contains("_asset_server: Res<AssetServer>"));
+        assert!(!setup_block.contains("mut commands: Commands"));
+        assert!(!setup_block.contains("mut meshes:"));
     }
 
     #[test]
@@ -2552,20 +2792,39 @@ bevy = "0.15"
 
     #[test]
     fn generate_scenes_mod_rs_aggregates_plugins() {
+        // Scene plugin files now live at `<name>.rs` (no `_scene`
+        // suffix). The scanner picks up every `.rs` except `mod.rs`.
         let tmp = tempfile::tempdir().unwrap();
-        std::fs::write(tmp.path().join("game_scene.rs"), "").unwrap();
-        std::fs::write(tmp.path().join("title_scene.rs"), "").unwrap();
-        std::fs::write(tmp.path().join("mod.rs"), "").unwrap(); // should be ignored
-        std::fs::write(tmp.path().join("helpers.rs"), "").unwrap(); // not a scene
+        std::fs::write(tmp.path().join("game.rs"), "").unwrap();
+        std::fs::write(tmp.path().join("title.rs"), "").unwrap();
+        std::fs::write(tmp.path().join("mod.rs"), "").unwrap(); // ignored
 
         let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
-        assert!(code.contains("pub mod game_scene;"));
-        assert!(code.contains("pub mod title_scene;"));
-        assert!(!code.contains("pub mod helpers;"));
+        assert!(code.contains("pub mod game;"));
+        assert!(code.contains("pub mod title;"));
         assert!(!code.contains("pub mod mod;"));
         assert!(code.contains("pub struct ScenesPlugin;"));
-        assert!(code.contains("game_scene::GameScenePlugin"));
-        assert!(code.contains("title_scene::TitleScenePlugin"));
+        assert!(code.contains("game::GamePlugin"));
+        assert!(code.contains("title::TitlePlugin"));
+        // States-based scene switching: the enum has one variant per
+        // module, and the alphabetically-first one is the default
+        // (matches the editor's "first tab is active" behaviour).
+        assert!(code.contains("pub enum AppScene"));
+        assert!(code.contains("#[default]\n    Game,"));
+        assert!(code.contains("Title,"));
+        assert!(code.contains("init_state::<AppScene>()"));
+    }
+
+    #[test]
+    fn generate_scenes_mod_rs_empty_emits_stub() {
+        // No scene files yet → emit the no-op `ScenesPlugin` stub
+        // without an `AppScene` enum (an empty enum can't derive
+        // `Default`, and there's nothing for the user to switch to).
+        let tmp = tempfile::tempdir().unwrap();
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        assert!(code.contains("pub struct ScenesPlugin;"));
+        assert!(!code.contains("enum AppScene"));
+        assert!(!code.contains("init_state"));
     }
 
     #[test]
@@ -2592,12 +2851,46 @@ bevy = "0.15"
         assert!(result.is_ok());
 
         let rs_path = result.unwrap();
-        assert!(rs_path.contains("game_scene.rs"));
+        // No `_scene` suffix — file matches `.bscene` stem 1:1.
+        assert!(rs_path.ends_with("/game.rs"), "got {}", rs_path);
         assert!(std::path::Path::new(&rs_path).exists());
 
         let mod_rs = std::fs::read_to_string(format!("{}/src/scenes/mod.rs", root)).unwrap();
-        assert!(mod_rs.contains("pub mod game_scene;"));
+        assert!(mod_rs.contains("pub mod game;"));
+        assert!(mod_rs.contains("game::GamePlugin"));
         assert!(mod_rs.contains("ScenesPlugin"));
+        // Single-scene project still gets the AppScene enum so the
+        // generated `<name>.rs` (which `use super::AppScene`) compiles.
+        assert!(mod_rs.contains("enum AppScene"));
+        assert!(mod_rs.contains("#[default]\n    Game,"));
+    }
+
+    #[test]
+    fn save_scene_code_modular_removes_legacy_suffixed_file() {
+        // Existing projects may have `<name>_scene.rs` from before the
+        // naming convention changed; saving the same scene must drop
+        // the legacy file so cargo doesn't see two scene plugins for
+        // the same `.bscene` (which would compile into duplicate
+        // module entries in `mod.rs`).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().to_string_lossy().to_string();
+        let scenes_dir = format!("{}/src/scenes", root);
+        std::fs::create_dir_all(&scenes_dir).unwrap();
+        let legacy = format!("{}/main_scene.rs", scenes_dir);
+        std::fs::write(&legacy, "// stale codegen").unwrap();
+
+        let scene = SceneModel::new();
+        let result = save_scene_code_modular(&scene, "scenes/main.bscene", &root);
+        assert!(result.is_ok());
+
+        let rs_path = result.unwrap();
+        assert!(rs_path.ends_with("/main.rs"));
+        assert!(std::path::Path::new(&rs_path).exists(), "new file written");
+        assert!(
+            !std::path::Path::new(&legacy).exists(),
+            "legacy {} should have been deleted",
+            legacy
+        );
     }
 
     // ===== Bevy 0.18 migration regression tests =====

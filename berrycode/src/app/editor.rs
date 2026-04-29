@@ -1752,6 +1752,27 @@ impl BerryCodeApp {
 
     /// TOML syntax highlighting
     fn toml_highlight_layouter(text: &str) -> egui::text::LayoutJob {
+        // Same per-frame short-circuit cache as the Rust layouter
+        // (see syntax_highlight_layouter for the rationale).
+        use std::cell::RefCell;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        thread_local! {
+            static TOML_LAYOUT_CACHE: RefCell<Option<(u64, egui::text::LayoutJob)>> =
+                const { RefCell::new(None) };
+        }
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        let key = hasher.finish();
+        if let Some(cached) = TOML_LAYOUT_CACHE.with(|c| {
+            let cache = c.borrow();
+            cache
+                .as_ref()
+                .and_then(|(k, j)| (*k == key).then(|| j.clone()))
+        }) {
+            return cached;
+        }
+
         let mut job = egui::text::LayoutJob::default();
         const FONT_SIZE: f32 = 13.0;
         let default_color = ui_colors::TEXT_DEFAULT;
@@ -1865,6 +1886,9 @@ impl BerryCodeApp {
             );
         }
 
+        TOML_LAYOUT_CACHE.with(|c| {
+            *c.borrow_mut() = Some((key, job.clone()));
+        });
         job
     }
 
@@ -1876,6 +1900,37 @@ impl BerryCodeApp {
         highlighter: &SyntaxHighlighter,
         color_theme: &ColorTheme,
     ) -> egui::text::LayoutJob {
+        // egui calls the layouter on every frame regardless of whether
+        // anything changed, so for a 1k-line file we used to re-run
+        // every regex on every scroll tick. Short-circuit when the
+        // input is unchanged: hash text + theme + highlighter
+        // identity, and return a clone of the previously-built job.
+        // The clone is O(n) on segment count but skips the regex pass
+        // (the dominant cost), bringing scroll back to 60 fps.
+        use std::cell::RefCell;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        thread_local! {
+            static LAYOUT_CACHE: RefCell<Option<(u64, egui::text::LayoutJob)>> =
+                const { RefCell::new(None) };
+        }
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        // Theme + highlighter mode change must invalidate the cache;
+        // hash their addresses (cheap, stable for the duration of a
+        // frame, and changes when the user swaps theme / language).
+        (color_theme as *const _ as usize).hash(&mut hasher);
+        (highlighter as *const _ as usize).hash(&mut hasher);
+        let key = hasher.finish();
+        if let Some(cached) = LAYOUT_CACHE.with(|c| {
+            let cache = c.borrow();
+            cache
+                .as_ref()
+                .and_then(|(k, j)| (*k == key).then(|| j.clone()))
+        }) {
+            return cached;
+        }
+
         let mut job = egui::text::LayoutJob::default();
 
         // Font size: 13px for optimal readability
@@ -1975,6 +2030,9 @@ impl BerryCodeApp {
             );
         }
 
+        LAYOUT_CACHE.with(|c| {
+            *c.borrow_mut() = Some((key, job.clone()));
+        });
         job
     }
 }

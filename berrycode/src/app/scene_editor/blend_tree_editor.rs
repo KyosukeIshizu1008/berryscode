@@ -1,5 +1,5 @@
-#![allow(dead_code)]
 //! Visual editor for BlendTree (1D and 2D blend visualization).
+//! Opened from Tools → Blend Tree (Hierarchy panel toolbar).
 
 use super::animator::*;
 use crate::app::BerryCodeApp;
