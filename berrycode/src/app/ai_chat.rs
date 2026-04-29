@@ -94,20 +94,14 @@ impl BerryCodeApp {
                             // tool calls transparent in the chat panel.
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 6.0;
-                                let claude_installed =
-                                    crate::agent::CodingAgent::check_installed(
-                                        &crate::agent::claude::ClaudeCodeAgent::new(),
-                                    );
-                                let codex_installed =
-                                    crate::agent::CodingAgent::check_installed(
-                                        &crate::agent::codex::CodexAgent::new(),
-                                    );
-                                let mut backend = self.ai_settings.agent_backend.clone();
-                                ui.label(
-                                    egui::RichText::new("Agent:")
-                                        .size(11.0)
-                                        .color(TEXT_DIM),
+                                let claude_installed = crate::agent::CodingAgent::check_installed(
+                                    &crate::agent::claude::ClaudeCodeAgent::new(),
                                 );
+                                let codex_installed = crate::agent::CodingAgent::check_installed(
+                                    &crate::agent::codex::CodexAgent::new(),
+                                );
+                                let mut backend = self.ai_settings.agent_backend.clone();
+                                ui.label(egui::RichText::new("Agent:").size(11.0).color(TEXT_DIM));
                                 egui::ComboBox::from_id_salt("agent_backend_picker")
                                     .selected_text(match backend.as_str() {
                                         "codex" => "Codex",
@@ -148,9 +142,7 @@ impl BerryCodeApp {
                                 };
                                 match installed {
                                     Some(v) => {
-                                        ui.label(
-                                            egui::RichText::new(v).size(11.0).color(TEXT_DIM),
-                                        );
+                                        ui.label(egui::RichText::new(v).size(11.0).color(TEXT_DIM));
                                     }
                                     None => {
                                         ui.label(
@@ -483,12 +475,11 @@ impl BerryCodeApp {
         // are kept as a list so the pill can show all paths inline,
         // separated by `·`.
         let mut pending: Option<(String, Vec<String>)> = None;
-        let flush =
-            |ui: &mut egui::Ui, pending: &mut Option<(String, Vec<String>)>| {
-                if let Some((tool, args)) = pending.take() {
-                    Self::render_tool_pill(ui, &tool, &args);
-                }
-            };
+        let flush = |ui: &mut egui::Ui, pending: &mut Option<(String, Vec<String>)>| {
+            if let Some((tool, args)) = pending.take() {
+                Self::render_tool_pill(ui, &tool, &args);
+            }
+        };
         while let Some(start) = rest.find(OPEN) {
             let head = &rest[..start];
             if !head.trim().is_empty() {
@@ -532,10 +523,8 @@ impl BerryCodeApp {
             "run_bash" => ("▸", egui::Color32::from_rgb(144, 212, 160)),   // green
             _ => ("🔧", egui::Color32::from_rgb(170, 175, 190)),
         };
-        let bg =
-            egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 22);
-        let stroke =
-            egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 60);
+        let bg = egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 22);
+        let stroke = egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 60);
 
         let joined_args = args
             .iter()
@@ -554,7 +543,10 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(icon).size(11.0).color(accent));
                         ui.label(
-                            egui::RichText::new(tool).size(11.0).monospace().color(accent),
+                            egui::RichText::new(tool)
+                                .size(11.0)
+                                .monospace()
+                                .color(accent),
                         );
                         if !joined_args.is_empty() {
                             ui.label(
@@ -931,8 +923,7 @@ impl BerryCodeApp {
         );
         extra_system.push_str(BEVY_018_CHEATSHEET);
         if !attached.is_empty() {
-            extra_system
-                .push_str("\n\n## Attached files (referenced via @ in the user message)\n");
+            extra_system.push_str("\n\n## Attached files (referenced via @ in the user message)\n");
             for (path, content) in &attached {
                 extra_system.push_str(&format!("\n### {}\n```\n{}\n```\n", path, content));
             }
@@ -995,10 +986,8 @@ impl BerryCodeApp {
                                 .unwrap_or("")
                                 .to_string(),
                             "run_bash" => {
-                                let cmd = input
-                                    .get("command")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("");
+                                let cmd =
+                                    input.get("command").and_then(|v| v.as_str()).unwrap_or("");
                                 if cmd.len() > 60 {
                                     format!("{}…", &cmd[..60])
                                 } else {

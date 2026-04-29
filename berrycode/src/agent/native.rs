@@ -26,11 +26,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use futures_util::StreamExt;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
 use super::{AgentError, AgentEvent, AgentId, AgentRunOpts, AgentSession, CodingAgent};
-use crate::ai::{ProviderKind, TokenUsage, settings::AiSettings};
+use crate::ai::{settings::AiSettings, ProviderKind, TokenUsage};
 
 const MAX_FILE_BYTES: usize = 200 * 1024;
 /// Hard upper bound on the number of model→tool→model round trips a
@@ -453,10 +453,7 @@ async fn dispatch_tool(
             tools::write_file(cwd, path, contents, tx)
         }
         "list_files" => {
-            let path = args
-                .get("path")
-                .and_then(|v| v.as_str())
-                .unwrap_or(".");
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or(".");
             tools::list_files(cwd, path)
         }
         "run_bash" => {

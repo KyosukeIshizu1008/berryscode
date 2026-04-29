@@ -202,10 +202,7 @@ fn parse_responses_payload(json: &serde_json::Value) -> (String, Option<TokenUsa
 
     let usage = json.get("usage").map(|u| TokenUsage {
         prompt_tokens: u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-        completion_tokens: u
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32,
+        completion_tokens: u.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
         cache_read_tokens: u
             .get("input_tokens_details")
             .and_then(|d| d.get("cached_tokens"))
