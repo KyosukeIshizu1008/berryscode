@@ -17,9 +17,11 @@ mod audio;
 mod cargo_completion;
 mod code_actions;
 mod custom_snippets;
+mod database;
 mod debugger;
 pub(crate) mod demo_capture;
 pub(crate) mod dock;
+mod docker;
 mod ecs_inspector;
 mod editor;
 mod events;
@@ -185,12 +187,12 @@ const MAIN_PANELS: &[SidebarPanel] = &[
     },
     SidebarPanel {
         variant: ActivePanel::Database,
-        icon: "\u{eacd}", // codicon-database
+        icon: "\u{eace}", // codicon-database
         _name: "Database",
     },
     SidebarPanel {
         variant: ActivePanel::Docker,
-        icon: "\u{eb24}", // codicon-server-environment (Docker stand-in)
+        icon: "\u{eb29}", // codicon-package (Docker container metaphor)
         _name: "Docker",
     },
 ];
@@ -239,6 +241,12 @@ pub struct BerryCodeApp {
 
     // === Terminal State (iTerm2-style PTY emulator) ===
     pub(crate) terminal: terminal_emulator::TerminalEmulator,
+
+    // === Database Panel State (SQLite) ===
+    pub(crate) database: database::DatabaseState,
+
+    // === Docker Panel State ===
+    pub(crate) docker: docker::DockerState,
 
     // === Search State ===
     pub(crate) search_query: String,
@@ -656,6 +664,10 @@ pub struct BerryCodeApp {
     /// Cached egui texture for the Scene View activity-bar icon
     /// (rasterised from `assets/icons/scene_view.svg` on first use).
     pub(crate) scene_view_icon: Option<egui::TextureHandle>,
+    /// Cached egui texture for the Database activity-bar icon.
+    pub(crate) database_icon: Option<egui::TextureHandle>,
+    /// Cached egui texture for the Docker activity-bar icon (whale).
+    pub(crate) docker_icon: Option<egui::TextureHandle>,
 
     // === Dockable Tool Panel ===
     pub(crate) tool_panel_open: bool,
@@ -1425,6 +1437,8 @@ impl BerryCodeApp {
                 dirs
             },
             terminal: terminal_emulator::TerminalEmulator::new(&terminal_working_dir),
+            database: database::DatabaseState::default(),
+            docker: docker::DockerState::default(),
             search_query: String::new(),
             search_dialog_open: false,
             search_case_sensitive: false,
@@ -1768,6 +1782,8 @@ impl BerryCodeApp {
             lsp_completion_accept_pending: false,
             ai_settings: crate::ai::settings::AiSettings::load(),
             scene_view_icon: None,
+            database_icon: None,
+            docker_icon: None,
 
             tool_panel_open: false,
             active_tool_tab: dock::ToolTab::Output,
@@ -2449,6 +2465,30 @@ pub fn berry_ui_system(
                 )
                 .show(ctx, |ui| {
                     app.render_ecs_3d_view(ui);
+                });
+        } else if app.active_panel == ActivePanel::Database {
+            // DBeaver-style: sidebar = file/table list, central = preview/query
+            app.render_sidebar(ctx);
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::NONE
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8)),
+                )
+                .show(ctx, |ui| {
+                    app.render_database_central(ui);
+                });
+        } else if app.active_panel == ActivePanel::Docker {
+            // Docker Desktop-style: sidebar = tabs/counts, central = grid + logs
+            app.render_sidebar(ctx);
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::NONE
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(8)),
+                )
+                .show(ctx, |ui| {
+                    app.render_docker_central(ui);
                 });
         } else if app.active_panel == ActivePanel::Settings {
             // Settings spans the full width: skip the (now-empty) sidebar

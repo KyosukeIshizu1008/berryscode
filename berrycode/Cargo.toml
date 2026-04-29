@@ -124,6 +124,11 @@ whoami = "1.5"
 # ===== Native LSP Client =====
 lsp-types = "0.95"
 
+# ===== SQLite (Database panel) =====
+# `bundled` compiles sqlite3 from source — no system library required,
+# so the binary stays self-contained.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
 [features]
 default = []
 vendored-openssl = ["openssl"]

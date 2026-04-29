@@ -48,14 +48,10 @@ impl BerryCodeApp {
                         self.render_scene_hierarchy(ui);
                     }
                     ActivePanel::Database => {
-                        ui.heading("Database");
-                        ui.add_space(8.0);
-                        ui.label("Database panel — coming soon.");
+                        self.render_database_sidebar(ui);
                     }
                     ActivePanel::Docker => {
-                        ui.heading("Docker");
-                        ui.add_space(8.0);
-                        ui.label("Docker panel — coming soon.");
+                        self.render_docker_sidebar(ui);
                     }
                 }
             });

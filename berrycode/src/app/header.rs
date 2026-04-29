@@ -229,19 +229,36 @@ impl BerryCodeApp {
             return Some(tex.clone());
         }
         const SVG_BYTES: &str = include_str!("../../assets/icons/scene_view.svg");
-        let opts = resvg::usvg::Options::default();
-        let tree = resvg::usvg::Tree::from_str(SVG_BYTES, &opts).ok()?;
-        let render_size = size_px.max(8) * 3; // ×3 for hidpi crispness
-        let scale = render_size as f32 / tree.size().width().max(1.0);
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(render_size, render_size)?;
-        let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
-        resvg::render(&tree, transform, &mut pixmap.as_mut());
-        let image = egui::ColorImage::from_rgba_unmultiplied(
-            [render_size as usize, render_size as usize],
-            pixmap.data(),
-        );
-        let handle = ctx.load_texture("scene_view_icon", image, egui::TextureOptions::LINEAR);
+        let handle = rasterise_svg(ctx, "scene_view_icon", SVG_BYTES, size_px)?;
         self.scene_view_icon = Some(handle.clone());
+        Some(handle)
+    }
+
+    pub(crate) fn database_icon_texture(
+        &mut self,
+        ctx: &egui::Context,
+        size_px: u32,
+    ) -> Option<egui::TextureHandle> {
+        if let Some(tex) = &self.database_icon {
+            return Some(tex.clone());
+        }
+        const SVG_BYTES: &str = include_str!("../../assets/icons/database.svg");
+        let handle = rasterise_svg(ctx, "database_icon", SVG_BYTES, size_px)?;
+        self.database_icon = Some(handle.clone());
+        Some(handle)
+    }
+
+    pub(crate) fn docker_icon_texture(
+        &mut self,
+        ctx: &egui::Context,
+        size_px: u32,
+    ) -> Option<egui::TextureHandle> {
+        if let Some(tex) = &self.docker_icon {
+            return Some(tex.clone());
+        }
+        const SVG_BYTES: &str = include_str!("../../assets/icons/whale.svg");
+        let handle = rasterise_svg(ctx, "docker_icon", SVG_BYTES, size_px)?;
+        self.docker_icon = Some(handle.clone());
         Some(handle)
     }
 
@@ -298,37 +315,33 @@ impl BerryCodeApp {
                         } else {
                             icon_inactive
                         };
-                        if panel.variant == ActivePanel::SceneEditor {
-                            // Custom dove SVG (Lucide-style) for the
-                            // Scene View activity-bar entry. Rasterised
-                            // once and cached, then drawn tinted to match
-                            // the active / inactive icon colour.
-                            if let Some(tex) = self.scene_view_icon_texture(ctx, icon_size as u32) {
-                                // Codicon glyphs include their own padding
-                                // inside the EM box; SVG paths fill the
-                                // viewBox edge-to-edge. Scale the bird up
-                                // ~15% so its visual size matches the
-                                // neighbouring text icons.
-                                let visual = icon_size * 1.15;
-                                let img_rect = egui::Rect::from_center_size(
-                                    rect.center(),
-                                    egui::vec2(visual, visual),
-                                );
-                                egui::Image::new(&tex).tint(color).paint_at(ui, img_rect);
-                            } else {
-                                // Fallback to the codicon glyph if SVG
-                                // rasterisation failed for any reason.
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    panel.icon,
-                                    egui::FontId::new(
-                                        icon_size,
-                                        egui::FontFamily::Name("codicon".into()),
-                                    ),
-                                    color,
-                                );
+                        // Custom-SVG icons rasterised once and tinted, vs.
+                        // codicon glyphs drawn from the font. Each SVG entry
+                        // has its own visual scale: codicon glyphs include
+                        // their own EM padding, but SVG paths fill the
+                        // viewBox edge-to-edge, so 1.0 is small.
+                        let svg_tex = match panel.variant {
+                            ActivePanel::SceneEditor => {
+                                self.scene_view_icon_texture(ctx, icon_size as u32)
+                                    .map(|t| (t, 1.15_f32))
                             }
+                            ActivePanel::Database => {
+                                self.database_icon_texture(ctx, icon_size as u32)
+                                    .map(|t| (t, 1.15_f32))
+                            }
+                            ActivePanel::Docker => {
+                                self.docker_icon_texture(ctx, icon_size as u32)
+                                    .map(|t| (t, 1.15_f32))
+                            }
+                            _ => None,
+                        };
+                        if let Some((tex, scale)) = svg_tex {
+                            let visual = icon_size * scale;
+                            let img_rect = egui::Rect::from_center_size(
+                                rect.center(),
+                                egui::vec2(visual, visual),
+                            );
+                            egui::Image::new(&tex).tint(color).paint_at(ui, img_rect);
                         } else {
                             ui.painter().text(
                                 rect.center(),
@@ -386,4 +399,36 @@ impl BerryCodeApp {
                 });
             });
     }
+}
+
+/// Rasterise an embedded SVG to an `egui::TextureHandle`. The SVG is
+/// rendered ×3 the requested pixel size for hidpi crispness, then
+/// scaled down by egui at draw time. Used for the custom activity-bar
+/// icons that aren't part of the codicon glyph set.
+fn rasterise_svg(
+    ctx: &egui::Context,
+    texture_name: &str,
+    svg_bytes: &str,
+    size_px: u32,
+) -> Option<egui::TextureHandle> {
+    // Activity-bar icons are tinted multiplicatively, so the SVG must
+    // rasterise to white. Codicons use `fill="currentColor"` (default
+    // black with no context); Simple-Icons paths declare no fill at
+    // all (also black). Force both to white before parsing.
+    let mut prepared = svg_bytes.replace("currentColor", "#ffffff");
+    if !prepared.contains("fill=") {
+        prepared = prepared.replacen("<svg", "<svg fill=\"#ffffff\"", 1);
+    }
+    let opts = resvg::usvg::Options::default();
+    let tree = resvg::usvg::Tree::from_str(&prepared, &opts).ok()?;
+    let render_size = size_px.max(8) * 3;
+    let scale = render_size as f32 / tree.size().width().max(1.0);
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(render_size, render_size)?;
+    let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+    let image = egui::ColorImage::from_rgba_unmultiplied(
+        [render_size as usize, render_size as usize],
+        pixmap.data(),
+    );
+    Some(ctx.load_texture(texture_name, image, egui::TextureOptions::LINEAR))
 }
