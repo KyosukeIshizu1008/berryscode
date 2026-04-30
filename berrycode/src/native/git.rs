@@ -395,12 +395,30 @@ pub fn get_log(repo_path: impl AsRef<Path>, limit: usize) -> Result<Vec<GitCommi
 pub fn get_diff(repo_path: impl AsRef<Path>, file_path: &str) -> Result<GitDiff> {
     let repo = open_repo(repo_path.as_ref())?;
 
-    // Check if file is untracked (new file)
+    // Detect repos that have been `git init`-ed but never committed.
+    // libgit2 returns UnbornBranch from `repo.head()` in that state, so
+    // the HEAD-tree path further down would crash. Treat every file as
+    // new in that case — there is no baseline to diff against.
+    let is_unborn = match repo.head() {
+        Err(e)
+            if e.class() == git2::ErrorClass::Reference
+                && e.code() == git2::ErrorCode::UnbornBranch =>
+        {
+            true
+        }
+        _ => false,
+    };
+
+    // Check if file is untracked (new file) OR repo has no HEAD yet.
     let full_path = repo_path.as_ref().join(file_path);
     let is_new_file = if full_path.exists() {
-        // Check if file is in the index
-        let index = repo.index()?;
-        index.get_path(Path::new(file_path), 0).is_none()
+        if is_unborn {
+            true
+        } else {
+            // Check if file is in the index
+            let index = repo.index()?;
+            index.get_path(Path::new(file_path), 0).is_none()
+        }
     } else {
         false
     };
