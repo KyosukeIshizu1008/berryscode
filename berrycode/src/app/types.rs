@@ -113,6 +113,7 @@ pub enum ActivePanel {
     SceneEditor,
     Database,
     Docker,
+    OracleBerry,
 }
 
 /// Settings Tab Categories (RustRover Style)

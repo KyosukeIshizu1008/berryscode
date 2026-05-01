@@ -80,21 +80,28 @@ impl BerryCodeApp {
 
                 for tpl in ProjectTemplate::ALL {
                     let selected = self.new_project_template == *tpl;
-                    let response = ui.selectable_label(
-                        selected,
-                        egui::RichText::new(format!("  {}", tpl.label())).strong(),
+                    let mut job = egui::text::LayoutJob::default();
+                    job.append(
+                        tpl.label(),
+                        0.0,
+                        egui::TextFormat {
+                            font_id: egui::FontId::proportional(14.0),
+                            color: egui::Color32::from_rgb(220, 220, 230),
+                            ..Default::default()
+                        },
                     );
-                    if response.clicked() {
+                    job.append(
+                        &format!("\n{}", tpl.description()),
+                        0.0,
+                        egui::TextFormat {
+                            font_id: egui::FontId::proportional(11.0),
+                            color: egui::Color32::from_rgb(150, 150, 150),
+                            ..Default::default()
+                        },
+                    );
+                    if ui.selectable_label(selected, job).clicked() {
                         self.new_project_template = *tpl;
                     }
-                    ui.horizontal(|ui| {
-                        ui.add_space(20.0);
-                        ui.label(
-                            egui::RichText::new(tpl.description())
-                                .size(11.0)
-                                .color(egui::Color32::from_rgb(150, 150, 150)),
-                        );
-                    });
                     ui.add_space(2.0);
                 }
 

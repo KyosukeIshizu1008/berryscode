@@ -43,6 +43,7 @@ pub(crate) mod mobile;
 pub(crate) mod mobile_toolchain;
 mod model_preview;
 pub(crate) mod new_project;
+mod oracleberry;
 pub(crate) mod package_manager;
 mod peek;
 pub(crate) mod plugin_system;
@@ -196,6 +197,11 @@ const MAIN_PANELS: &[SidebarPanel] = &[
         icon: "\u{eb29}", // codicon-package (Docker container metaphor)
         _name: "Docker",
     },
+    SidebarPanel {
+        variant: ActivePanel::OracleBerry,
+        icon: "\u{ec1f}", // codicon-lightbulb-sparkle (placeholder until brand SVG)
+        _name: "OracleBerry",
+    },
 ];
 
 /// Action chosen in the close confirmation dialog
@@ -248,6 +254,9 @@ pub struct BerryCodeApp {
 
     // === Docker Panel State ===
     pub(crate) docker: docker::DockerState,
+
+    // === OracleBerry Panel State ===
+    pub(crate) oracleberry: oracleberry::OracleBerryState,
 
     // === Search State ===
     pub(crate) search_query: String,
@@ -353,6 +362,10 @@ pub struct BerryCodeApp {
     pub(crate) ai_messages: Vec<AiChatMessage>,
     pub(crate) ai_input: String,
     pub(crate) ai_streaming: bool,
+    /// Whether the right-side AI chat panel is collapsed to a thin
+    /// strip. False = full panel visible; true = a 32px strip with an
+    /// expand chevron. Toggled from the panel header.
+    pub(crate) ai_chat_collapsed: bool,
     pub(crate) ai_current_response: String,
     pub(crate) chat_attachment: Option<String>,
     /// Set true when Cmd+L is pressed; the AI chat panel claims focus on
@@ -669,6 +682,8 @@ pub struct BerryCodeApp {
     pub(crate) database_icon: Option<egui::TextureHandle>,
     /// Cached egui texture for the Docker activity-bar icon (whale).
     pub(crate) docker_icon: Option<egui::TextureHandle>,
+    /// Cached egui texture for the OracleBerry activity-bar icon.
+    pub(crate) oracleberry_icon: Option<egui::TextureHandle>,
 
     // === Dockable Tool Panel ===
     pub(crate) tool_panel_open: bool,
@@ -1041,6 +1056,22 @@ impl BerryCodeApp {
         self.editor_tabs.clear();
         self.active_tab_idx = 0;
         self.git_initialized = false;
+
+        // Issue #18: scene editor state from the previous project
+        // bleeds into the new one if we don't reset here. Wipe the
+        // tabs and model; if the new project has `.bscene` files the
+        // bscene auto-load below replaces this Untitled tab anyway.
+        self.scene_tabs.clear();
+        self.scene_tabs
+            .push(scene_editor::scene_tabs::SceneTab::new(
+                scene_editor::model::SceneModel::new(),
+                "Untitled".to_string(),
+            ));
+        self.active_scene_tab = 0;
+        self.scene_model = scene_editor::model::SceneModel::new();
+        self.scene_needs_sync = true;
+        self.primary_selected_id = None;
+        self.current_scene_path = None;
 
         // Start file watcher for new project
         if let Ok(mut watcher) = crate::native::watcher::FileWatcher::new() {
@@ -1440,6 +1471,7 @@ impl BerryCodeApp {
             terminal: terminal_emulator::TerminalEmulator::new(&terminal_working_dir),
             database: database::DatabaseState::default(),
             docker: docker::DockerState::default(),
+            oracleberry: oracleberry::OracleBerryState::default(),
             search_query: String::new(),
             search_dialog_open: false,
             search_case_sensitive: false,
@@ -1513,6 +1545,7 @@ impl BerryCodeApp {
             ai_streaming_message: None,
             ai_messages: Vec::new(),
             ai_input: String::new(),
+            ai_chat_collapsed: false,
             ai_streaming: false,
             ai_current_response: String::new(),
             chat_attachment: None,
@@ -1785,6 +1818,7 @@ impl BerryCodeApp {
             scene_view_icon: None,
             database_icon: None,
             docker_icon: None,
+            oracleberry_icon: None,
 
             tool_panel_open: false,
             active_tool_tab: dock::ToolTab::Output,
@@ -2490,6 +2524,19 @@ pub fn berry_ui_system(
                 )
                 .show(ctx, |ui| {
                     app.render_docker_central(ui);
+                });
+        } else if app.active_panel == ActivePanel::OracleBerry {
+            // AI image generator: sidebar = recent generations,
+            // central = prompt + settings + result canvas
+            app.render_sidebar(ctx);
+            egui::CentralPanel::default()
+                .frame(
+                    egui::Frame::NONE
+                        .fill(ui_colors::EDITOR_BG)
+                        .inner_margin(egui::Margin::same(12)),
+                )
+                .show(ctx, |ui| {
+                    app.render_oracleberry_central(ui);
                 });
         } else if app.active_panel == ActivePanel::Settings {
             // Settings spans the full width: skip the (now-empty) sidebar

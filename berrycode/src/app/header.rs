@@ -262,6 +262,20 @@ impl BerryCodeApp {
         Some(handle)
     }
 
+    pub(crate) fn oracleberry_icon_texture(
+        &mut self,
+        ctx: &egui::Context,
+        size_px: u32,
+    ) -> Option<egui::TextureHandle> {
+        if let Some(tex) = &self.oracleberry_icon {
+            return Some(tex.clone());
+        }
+        const SVG_BYTES: &str = include_str!("../../assets/icons/oracleberry.svg");
+        let handle = rasterise_svg(ctx, "oracleberry_icon", SVG_BYTES, size_px)?;
+        self.oracleberry_icon = Some(handle.clone());
+        Some(handle)
+    }
+
     /// Render Activity Bar (left-most 48px panel with icons)
     pub(crate) fn render_activity_bar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("activity_bar")
@@ -329,6 +343,9 @@ impl BerryCodeApp {
                                 .map(|t| (t, 1.15_f32)),
                             ActivePanel::Docker => self
                                 .docker_icon_texture(ctx, icon_size as u32)
+                                .map(|t| (t, 1.15_f32)),
+                            ActivePanel::OracleBerry => self
+                                .oracleberry_icon_texture(ctx, icon_size as u32)
                                 .map(|t| (t, 1.15_f32)),
                             _ => None,
                         };

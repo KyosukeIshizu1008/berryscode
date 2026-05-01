@@ -8,6 +8,51 @@ impl BerryCodeApp {
     /// Render AI Chat panel (right side of editor)
     #[allow(dead_code)]
     pub(crate) fn render_ai_chat_panel(&mut self, ctx: &egui::Context) {
+        // Accent colors for the chat panel
+        const PANEL_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28); // match editor bg #191A1C
+        const HEADER_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28);
+        const INPUT_BG: egui::Color32 = egui::Color32::from_rgb(28, 29, 34);
+        const USER_BG: egui::Color32 = egui::Color32::from_rgb(45, 55, 95);
+        const ACCENT: egui::Color32 = egui::Color32::from_rgb(99, 139, 255);
+        const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(110, 115, 130);
+        const DIVIDER: egui::Color32 = egui::Color32::from_rgb(35, 37, 45);
+
+        // ── Collapsed state: render a thin 32 px reopen strip ──
+        if self.ai_chat_collapsed {
+            egui::SidePanel::right("ai_chat_panel_v2_collapsed")
+                .exact_width(32.0)
+                .resizable(false)
+                .show_separator_line(true)
+                .frame(egui::Frame::NONE.fill(PANEL_BG).inner_margin(0))
+                .show(ctx, |ui| {
+                    ui.add_space(8.0);
+                    ui.vertical_centered(|ui| {
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new("\u{eab5}") // codicon chevron-left
+                                        .family(egui::FontFamily::Name("codicon".into()))
+                                        .size(16.0)
+                                        .color(egui::Color32::from_rgb(180, 180, 180)),
+                                )
+                                .frame(false),
+                            )
+                            .on_hover_text("Expand AI Chat")
+                            .clicked()
+                        {
+                            self.ai_chat_collapsed = false;
+                        }
+                        ui.add_space(8.0);
+                        ui.label(
+                            egui::RichText::new("AI")
+                                .size(10.0)
+                                .color(egui::Color32::from_rgb(140, 140, 150)),
+                        );
+                    });
+                });
+            return;
+        }
+
         // ── Drag-and-drop image detection ─────────────────────────────
         let dropped: Vec<_> = ctx.input(|i| i.raw.dropped_files.clone());
         for file in &dropped {
@@ -23,15 +68,6 @@ impl BerryCodeApp {
             }
         }
 
-        // Accent colors for the chat panel
-        const PANEL_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28); // match editor bg #191A1C
-        const HEADER_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28);
-        const INPUT_BG: egui::Color32 = egui::Color32::from_rgb(28, 29, 34);
-        const USER_BG: egui::Color32 = egui::Color32::from_rgb(45, 55, 95);
-        const ACCENT: egui::Color32 = egui::Color32::from_rgb(99, 139, 255);
-        const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(110, 115, 130);
-        const DIVIDER: egui::Color32 = egui::Color32::from_rgb(35, 37, 45);
-
         egui::SidePanel::right("ai_chat_panel_v2")
             .default_width(420.0)
             .width_range(200.0..=600.0)
@@ -42,6 +78,23 @@ impl BerryCodeApp {
                 // ── Header ────────────────────
                 ui.horizontal(|ui| {
                     ui.add_space(12.0);
+                    // Collapse toggle (chevron pointing right = collapse)
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("\u{eab6}") // codicon chevron-right
+                                    .family(egui::FontFamily::Name("codicon".into()))
+                                    .size(14.0)
+                                    .color(egui::Color32::from_rgb(160, 160, 170)),
+                            )
+                            .frame(false),
+                        )
+                        .on_hover_text("Collapse")
+                        .clicked()
+                    {
+                        self.ai_chat_collapsed = true;
+                    }
+                    ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new("Berry AI")
                             .size(12.0)

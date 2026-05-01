@@ -53,6 +53,9 @@ impl BerryCodeApp {
                     ActivePanel::Docker => {
                         self.render_docker_sidebar(ui);
                     }
+                    ActivePanel::OracleBerry => {
+                        self.render_oracleberry_sidebar(ui);
+                    }
                 }
             });
     }
