@@ -14,6 +14,13 @@ CLAUDE.md
 *.swo
 *~
 
+# Grant / funding application drafts (private, not for public repo)
+nlnet-application-draft.md
+nlnet-prompts.md
+awesome-foundation-application.md
+futo-grant-application.md
+cloud-credits-applications.md
+
 # OS
 .DS_Store
 Thumbs.db
