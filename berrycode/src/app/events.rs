@@ -9,6 +9,10 @@ impl BerryCodeApp {
         // Deferred scene re-import path: collected inside the watcher loop,
         // processed after the borrow on self.file_watcher is released.
         let mut pending_scene_reimport: Option<(String, String)> = None;
+        // Parent directories whose children need to be reloaded after the
+        // watcher borrow is released. Using a Vec to preserve insertion
+        // order; we dedupe on flush.
+        let mut dirs_to_reload: Vec<String> = Vec::new();
 
         if let Some(watcher) = &mut self.file_watcher {
             while let Some(event) = watcher.try_recv() {
@@ -16,6 +20,9 @@ impl BerryCodeApp {
                     native::watcher::FileEvent::Created(path) => {
                         tracing::debug!("📄 File created: {}", path.display());
                         self.file_tree_load_pending = true;
+                        if let Some(parent) = path.parent() {
+                            dirs_to_reload.push(parent.to_string_lossy().to_string());
+                        }
                     }
                     native::watcher::FileEvent::Modified(path) => {
                         tracing::debug!("File modified: {}", path.display());
@@ -78,6 +85,9 @@ impl BerryCodeApp {
                     native::watcher::FileEvent::Removed(path) => {
                         tracing::debug!("🗑️  File removed: {}", path.display());
                         self.file_tree_load_pending = true;
+                        if let Some(parent) = path.parent() {
+                            dirs_to_reload.push(parent.to_string_lossy().to_string());
+                        }
 
                         let path_str = path.to_string_lossy().to_string();
                         if let Some(tab_idx) = self
@@ -97,6 +107,12 @@ impl BerryCodeApp {
                     native::watcher::FileEvent::Renamed { from, to } => {
                         tracing::debug!("📝 File renamed: {} -> {}", from.display(), to.display());
                         self.file_tree_load_pending = true;
+                        if let Some(parent) = from.parent() {
+                            dirs_to_reload.push(parent.to_string_lossy().to_string());
+                        }
+                        if let Some(parent) = to.parent() {
+                            dirs_to_reload.push(parent.to_string_lossy().to_string());
+                        }
 
                         let from_str = from.to_string_lossy().to_string();
                         let to_str = to.to_string_lossy().to_string();
@@ -109,6 +125,21 @@ impl BerryCodeApp {
                             tracing::info!("📝 Updated tab path: {} -> {}", from_str, to_str);
                         }
                     }
+                }
+            }
+        }
+
+        // Reload only the directories whose contents changed. The
+        // file_tree_cache top-level refresh in `update_file_tree_view`
+        // is gated on `cache.is_empty()`, so once the tree is loaded
+        // it never re-walks the root — we have to push child updates
+        // here per affected directory.
+        if !dirs_to_reload.is_empty() {
+            dirs_to_reload.sort();
+            dirs_to_reload.dedup();
+            for dir in dirs_to_reload {
+                if self.expanded_dirs.contains(&dir) {
+                    self.load_directory_children(&dir);
                 }
             }
         }

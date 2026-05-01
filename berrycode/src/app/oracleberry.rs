@@ -39,14 +39,14 @@ impl OracleBerryTab {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImageProvider {
-    DrawThings,
+    ComfyUI,
     Trellis,
 }
 
 impl ImageProvider {
     pub fn label(self) -> &'static str {
         match self {
-            ImageProvider::DrawThings => "Draw Things",
+            ImageProvider::ComfyUI => "ComfyUI",
             ImageProvider::Trellis => "Trellis (3D)",
         }
     }
@@ -175,13 +175,6 @@ pub enum OracleBerryMessage {
         idx: usize,
         message: String,
     },
-    LoginOk {
-        token: String,
-        username: String,
-    },
-    LoginFailed {
-        message: String,
-    },
 }
 
 pub struct OracleBerryState {
@@ -219,13 +212,6 @@ pub struct OracleBerryState {
     pub history: Vec<GeneratedImage>,
     pub selected: Option<usize>,
 
-    // Auth
-    pub username: String,
-    pub password: String,
-    pub token: Option<String>,
-    pub login_pending: bool,
-    pub login_error: Option<String>,
-
     pub response_tx: mpsc::UnboundedSender<OracleBerryMessage>,
     pub response_rx: Option<mpsc::UnboundedReceiver<OracleBerryMessage>>,
 }
@@ -238,7 +224,7 @@ impl Default for OracleBerryState {
             api_host: DEFAULT_API_HOST.to_string(),
             prompt: String::new(),
             negative_prompt: String::new(),
-            provider: ImageProvider::DrawThings,
+            provider: ImageProvider::ComfyUI,
             size: ImageSize::Square1024,
             num_images: 1,
             steps: 20,
@@ -255,11 +241,6 @@ impl Default for OracleBerryState {
             last_error: None,
             history: Vec::new(),
             selected: None,
-            username: String::new(),
-            password: String::new(),
-            token: None,
-            login_pending: false,
-            login_error: None,
             response_tx: tx,
             response_rx: Some(rx),
         }
@@ -291,7 +272,7 @@ fn validate_and_reserve(state: &mut OracleBerryState) -> Option<usize> {
     state.last_error = None;
     let provider = match state.active_tab {
         OracleBerryTab::Two2Three => ImageProvider::Trellis,
-        _ => ImageProvider::DrawThings,
+        _ => ImageProvider::ComfyUI,
     };
     let prompt_for_history = if state.prompt.trim().is_empty() {
         match state.active_tab {
@@ -326,21 +307,33 @@ fn validate_and_reserve(state: &mut OracleBerryState) -> Option<usize> {
 // ────────────────────────────── Wire types ──────────────────────────────
 
 #[derive(Serialize)]
-struct DtGenerateRequest {
+struct ComfyTxt2ImgRequest {
     prompt: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     negative_prompt: String,
     width: u32,
     height: u32,
     steps: u32,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    init_images: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    strength: Option<f32>,
+    cfg: f32,
+    seed: i64,
+}
+
+#[derive(Serialize)]
+struct ComfyImg2ImgRequest {
+    prompt: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    negative_prompt: String,
+    image_base64: String,
+    width: u32,
+    height: u32,
+    steps: u32,
+    cfg: f32,
+    denoise: f32,
+    seed: i64,
 }
 
 #[derive(Deserialize)]
-struct DtGenerateResponse {
+struct ComfyGenerateResponse {
     images: Vec<String>,
 }
 
@@ -402,29 +395,27 @@ async fn read_resize_b64(path: &PathBuf) -> Result<(String, u32, u32), String> {
 
 async fn do_txt2img(
     host: &str,
-    token: Option<&str>,
     prompt: String,
     negative: String,
     w: u32,
     h: u32,
     steps: u32,
 ) -> Result<Vec<u8>, String> {
-    let req = DtGenerateRequest {
+    let req = ComfyTxt2ImgRequest {
         prompt,
         negative_prompt: negative,
         width: w,
         height: h,
         steps,
-        init_images: Vec::new(),
-        strength: None,
+        cfg: 7.0,
+        seed: -1,
     };
-    let url = format!("http://{host}/api/dt/txt2img");
-    post_dt(&url, token, &req).await
+    let url = format!("http://{host}/api/comfyui/txt2img");
+    post_comfy(&url, &req).await
 }
 
 async fn do_img2img(
     host: &str,
-    token: Option<&str>,
     prompt: String,
     negative: String,
     _w: u32, // ignored — width/height tracked from the source image after resize
@@ -434,30 +425,48 @@ async fn do_img2img(
     strength: f32,
 ) -> Result<Vec<u8>, String> {
     let (init_b64, sw, sh) = read_resize_b64(&source).await?;
-    let req = DtGenerateRequest {
+    let req = ComfyImg2ImgRequest {
         prompt,
         negative_prompt: negative,
+        image_base64: init_b64,
         width: sw,
         height: sh,
         steps,
-        init_images: vec![init_b64],
-        strength: Some(strength),
+        cfg: 7.0,
+        denoise: strength,
+        seed: -1,
     };
-    let url = format!("http://{host}/api/dt/img2img");
-    post_dt(&url, token, &req).await
+    let url = format!("http://{host}/api/comfyui/img2img");
+    post_comfy(&url, &req).await
 }
 
-async fn post_dt(
-    url: &str,
-    token: Option<&str>,
-    body: &DtGenerateRequest,
-) -> Result<Vec<u8>, String> {
-    let client = reqwest::Client::new();
-    let mut req = client.post(url).json(body);
-    if let Some(t) = token {
-        req = req.bearer_auth(t);
+/// Walk reqwest's error source chain so the UI shows the real cause
+/// (timeout, connection refused, etc.) instead of the bland top-level
+/// "error sending request for url (...)" wrapper.
+fn full_error_chain(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut msg = e.to_string();
+    let mut src = e.source();
+    while let Some(s) = src {
+        msg.push_str(" → ");
+        msg.push_str(&s.to_string());
+        src = s.source();
     }
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    msg
+}
+
+async fn post_comfy<T: Serialize>(url: &str, body: &T) -> Result<Vec<u8>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(600))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| full_error_chain(&e))?;
+    tracing::info!("OracleBerry POST → {}", url);
+    let resp = client
+        .post(url)
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| full_error_chain(&e))?;
     if !resp.status().is_success() {
         return Err(format!(
             "HTTP {}: {}",
@@ -465,7 +474,7 @@ async fn post_dt(
             resp.text().await.unwrap_or_default()
         ));
     }
-    let parsed: DtGenerateResponse = resp.json().await.map_err(|e| e.to_string())?;
+    let parsed: ComfyGenerateResponse = resp.json().await.map_err(|e| full_error_chain(&e))?;
     let first = parsed
         .images
         .into_iter()
@@ -476,12 +485,7 @@ async fn post_dt(
         .map_err(|e| format!("Base64 decode: {e}"))
 }
 
-async fn do_trellis(
-    host: &str,
-    token: Option<&str>,
-    source: PathBuf,
-    quality: f32,
-) -> Result<(Vec<u8>, u64), String> {
+async fn do_trellis(host: &str, source: PathBuf, quality: f32) -> Result<(Vec<u8>, u64), String> {
     let (image_b64, _sw, _sh) = read_resize_b64(&source).await?;
     let filename = source
         .file_stem()
@@ -500,11 +504,12 @@ async fn do_trellis(
     };
     let url = format!("http://{host}/api/trellis/generate");
     let client = reqwest::Client::new();
-    let mut http_req = client.post(&url).json(&req);
-    if let Some(t) = token {
-        http_req = http_req.bearer_auth(t);
-    }
-    let resp = http_req.send().await.map_err(|e| e.to_string())?;
+    let resp = client
+        .post(&url)
+        .json(&req)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         return Err(format!(
             "HTTP {}: {}",
@@ -517,18 +522,6 @@ async fn do_trellis(
         .decode(parsed.glb_base64.as_bytes())
         .map_err(|e| format!("Base64 decode: {e}"))?;
     Ok((bytes, parsed.glb_size))
-}
-
-#[derive(Serialize)]
-struct LoginRequest<'a> {
-    username: &'a str,
-    password: &'a str,
-}
-
-#[derive(Deserialize)]
-struct LoginResponse {
-    token: String,
-    username: String,
 }
 
 #[derive(Serialize)]
@@ -545,11 +538,7 @@ struct ChatResponse {
 
 const TRANSLATE_SYSTEM_PROMPT: &str = "You translate user input into a concise English prompt for a Stable Diffusion / FLUX text-to-image model. Output ONLY the translated English text — no quotes, no preamble, no explanation. Keep it short and visual.";
 
-async fn do_translate(
-    host: &str,
-    token: Option<&str>,
-    jp_prompt: String,
-) -> Result<String, String> {
+async fn do_translate(host: &str, jp_prompt: String) -> Result<String, String> {
     let url = format!("http://{host}/chat");
     let body = ChatRequest {
         message: jp_prompt,
@@ -557,11 +546,12 @@ async fn do_translate(
         model: "qwen3.6:35b-a3b-q8_0",
     };
     let client = reqwest::Client::new();
-    let mut req = client.post(&url).json(&body);
-    if let Some(t) = token {
-        req = req.bearer_auth(t);
-    }
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let resp = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
         return Err(format!(
             "HTTP {}: {}",
@@ -606,14 +596,13 @@ fn apply_isolate(mut prompt: String, mut negative: String) -> (String, String) {
 
 async fn prepare_prompt(
     host: &str,
-    token: Option<&str>,
     prompt: String,
     negative: String,
     auto_translate: bool,
     auto_isolate: bool,
 ) -> (String, String) {
     let translated = if auto_translate && needs_translation(&prompt) {
-        match do_translate(host, token, prompt.clone()).await {
+        match do_translate(host, prompt.clone()).await {
             Ok(t) => t,
             Err(_) => prompt,
         }
@@ -625,31 +614,6 @@ async fn prepare_prompt(
     } else {
         (translated, negative)
     }
-}
-
-async fn do_login(host: &str, username: String, password: String) -> Result<LoginResponse, String> {
-    let url = format!("http://{host}/auth/login");
-    let body = LoginRequest {
-        username: &username,
-        password: &password,
-    };
-    let client = reqwest::Client::new();
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!(
-            "HTTP {}: {}",
-            resp.status(),
-            resp.text().await.unwrap_or_default()
-        ));
-    }
-    resp.json::<LoginResponse>()
-        .await
-        .map_err(|e| e.to_string())
 }
 
 impl BerryCodeApp {
@@ -708,17 +672,6 @@ impl BerryCodeApp {
                         item.status = GenerationStatus::Failed(message);
                     }
                 }
-                OracleBerryMessage::LoginOk { token, username } => {
-                    self.oracleberry.token = Some(token);
-                    self.oracleberry.username = username;
-                    self.oracleberry.password.clear();
-                    self.oracleberry.login_pending = false;
-                    self.oracleberry.login_error = None;
-                }
-                OracleBerryMessage::LoginFailed { message } => {
-                    self.oracleberry.login_pending = false;
-                    self.oracleberry.login_error = Some(message);
-                }
             }
         }
     }
@@ -774,33 +727,6 @@ impl BerryCodeApp {
         Ok(dest)
     }
 
-    fn kick_oracleberry_login(&mut self) {
-        let st = &mut self.oracleberry;
-        if st.username.trim().is_empty() || st.password.is_empty() {
-            st.login_error = Some("Username / password required.".into());
-            return;
-        }
-        st.login_error = None;
-        st.login_pending = true;
-        let host = st.api_host.clone();
-        let username = st.username.clone();
-        let password = st.password.clone();
-        let tx = st.response_tx.clone();
-        self.lsp_runtime.spawn(async move {
-            match do_login(&host, username, password).await {
-                Ok(resp) => {
-                    let _ = tx.send(OracleBerryMessage::LoginOk {
-                        token: resp.token,
-                        username: resp.username,
-                    });
-                }
-                Err(e) => {
-                    let _ = tx.send(OracleBerryMessage::LoginFailed { message: e });
-                }
-            }
-        });
-    }
-
     fn kick_oracleberry_request(&mut self, idx: usize) {
         tracing::info!(
             "🎨 OracleBerry kick: tab={:?} host={}",
@@ -809,7 +735,6 @@ impl BerryCodeApp {
         );
         let st = &self.oracleberry;
         let host = st.api_host.clone();
-        let token = st.token.clone();
         let tab = st.active_tab;
         let prompt = st.prompt.clone();
         let negative = st.negative_prompt.clone();
@@ -827,19 +752,11 @@ impl BerryCodeApp {
         let tx = st.response_tx.clone();
 
         self.lsp_runtime.spawn(async move {
-            let token_ref = token.as_deref();
             match tab {
                 OracleBerryTab::Text2Image => {
-                    let (p, n) = prepare_prompt(
-                        &host,
-                        token_ref,
-                        prompt,
-                        negative,
-                        auto_translate,
-                        auto_isolate,
-                    )
-                    .await;
-                    let result = do_txt2img(&host, token_ref, p, n, w, h, steps).await;
+                    let (p, n) =
+                        prepare_prompt(&host, prompt, negative, auto_translate, auto_isolate).await;
+                    let result = do_txt2img(&host, p, n, w, h, steps).await;
                     send_image_result(&tx, idx, result);
                 }
                 OracleBerryTab::Image2Image => {
@@ -850,17 +767,9 @@ impl BerryCodeApp {
                         });
                         return;
                     };
-                    let (p, n) = prepare_prompt(
-                        &host,
-                        token_ref,
-                        prompt,
-                        negative,
-                        auto_translate,
-                        auto_isolate,
-                    )
-                    .await;
-                    let result =
-                        do_img2img(&host, token_ref, p, n, w, h, steps, source, i2i_strength).await;
+                    let (p, n) =
+                        prepare_prompt(&host, prompt, negative, auto_translate, auto_isolate).await;
+                    let result = do_img2img(&host, p, n, w, h, steps, source, i2i_strength).await;
                     send_image_result(&tx, idx, result);
                 }
                 OracleBerryTab::Image2Anime => {
@@ -872,9 +781,7 @@ impl BerryCodeApp {
                         return;
                     };
                     let translated = if auto_translate && needs_translation(&prompt) {
-                        do_translate(&host, token_ref, prompt.clone())
-                            .await
-                            .unwrap_or(prompt)
+                        do_translate(&host, prompt.clone()).await.unwrap_or(prompt)
                     } else {
                         prompt
                     };
@@ -888,18 +795,9 @@ impl BerryCodeApp {
                     } else {
                         (style_prompt, negative)
                     };
-                    let result = do_img2img(
-                        &host,
-                        token_ref,
-                        final_p,
-                        final_n,
-                        w,
-                        h,
-                        steps,
-                        source,
-                        i2a_strength,
-                    )
-                    .await;
+                    let result =
+                        do_img2img(&host, final_p, final_n, w, h, steps, source, i2a_strength)
+                            .await;
                     send_image_result(&tx, idx, result);
                 }
                 OracleBerryTab::Two2Three => {
@@ -910,7 +808,7 @@ impl BerryCodeApp {
                         });
                         return;
                     };
-                    match do_trellis(&host, token_ref, source, three_d_quality).await {
+                    match do_trellis(&host, source, three_d_quality).await {
                         Ok((bytes, size)) => {
                             let path = std::env::temp_dir().join(format!("oracleberry-{idx}.glb"));
                             if let Err(e) = std::fs::write(&path, &bytes) {
@@ -946,55 +844,6 @@ impl BerryCodeApp {
                     .desired_width(f32::INFINITY),
             );
         });
-        ui.add_space(8.0);
-        ui.separator();
-        ui.add_space(4.0);
-
-        // Auth section
-        if self.oracleberry.token.is_some() {
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("Logged in as")
-                        .small()
-                        .color(egui::Color32::from_gray(150)),
-                );
-                ui.label(
-                    egui::RichText::new(&self.oracleberry.username)
-                        .strong()
-                        .color(ui_colors::TEXT_DEFAULT),
-                );
-            });
-            if ui.small_button("Logout").clicked() {
-                self.oracleberry.token = None;
-            }
-        } else {
-            ui.label(egui::RichText::new("Login").small());
-            ui.add(
-                egui::TextEdit::singleline(&mut self.oracleberry.username)
-                    .hint_text("username")
-                    .desired_width(f32::INFINITY),
-            );
-            ui.add(
-                egui::TextEdit::singleline(&mut self.oracleberry.password)
-                    .hint_text("password")
-                    .password(true)
-                    .desired_width(f32::INFINITY),
-            );
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                let label = if self.oracleberry.login_pending {
-                    "Signing in…"
-                } else {
-                    "Sign in"
-                };
-                if primary_button(ui, label).clicked() && !self.oracleberry.login_pending {
-                    self.kick_oracleberry_login();
-                }
-            });
-            if let Some(err) = &self.oracleberry.login_error {
-                ui.colored_label(egui::Color32::from_rgb(220, 90, 90), err);
-            }
-        }
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(4.0);
