@@ -50,6 +50,11 @@ node_modules/
 .berrycode/
 .berrycode.input.history
 
+# Editor-staged preview assets (copied here at runtime by the 3D preview /
+# scene editor so Bevy's AssetServer can resolve them). Regenerated as
+# needed; not source.
+berrycode/assets/_preview/
+
 # Berry API
 berry_api/target/
 
