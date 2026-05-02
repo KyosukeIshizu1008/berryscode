@@ -394,7 +394,15 @@ impl BerryCodeApp {
                     // - Tab / Enter: commit the selected suggestion
                     // - Arrow Up / Down: move the highlight in the list
                     // - PageUp / PageDown: jump 5 entries
-                    if self.lsp_show_completions && !self.lsp_completions.is_empty() {
+                    // While an IME is mid-composition we must NOT consume Enter
+                    // here — the user's confirm-Enter belongs to the IME, and
+                    // eating it would both swallow the conversion and (worse)
+                    // accept whatever the LSP popup happened to be highlighting,
+                    // injecting garbage at the caret. Same logic for Tab, which
+                    // some IMEs use to cycle candidates.
+                    let ime_active = !self.editor_ime_preedit.is_empty();
+                    if self.lsp_show_completions && !self.lsp_completions.is_empty() && !ime_active
+                    {
                         let total = self.lsp_completions.len();
                         let (accept, up, down, pgup, pgdown) = ui.input_mut(|i| {
                             (
@@ -1742,12 +1750,15 @@ impl BerryCodeApp {
         // Handle keyboard shortcuts for LSP
         self.handle_lsp_shortcuts(ctx);
 
-        // Render completion popup
-        if self.lsp_show_completions && !self.lsp_completions.is_empty() {
+        // Render completion popup. Suppressed while an IME is mid-composition
+        // because the popup overlays the same screen position as the preedit
+        // box, hiding the conversion candidates the user is trying to read.
+        let ime_composing = !self.editor_ime_preedit.is_empty();
+        if self.lsp_show_completions && !self.lsp_completions.is_empty() && !ime_composing {
             self.render_lsp_completions(ctx);
         }
         // Render signature-help popup
-        if self.lsp_signature_help.is_some() {
+        if self.lsp_signature_help.is_some() && !ime_composing {
             self.render_lsp_signature_help(ctx);
         }
 

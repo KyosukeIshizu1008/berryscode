@@ -3207,4 +3207,178 @@ bevy = "0.15"
         );
         assert!(code.contains("use bevy::prelude::*;"));
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // GLB skeletal animation (v0.5.4)
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// Scene with no GLB → none of the animation scaffolding leaks in.
+    /// Guards against the helper module bloating every scene plugin.
+    #[test]
+    fn no_glb_scene_omits_animation_scaffolding() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Box".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+
+        assert!(!code.contains("PendingGlbAnim"), "marker should not appear");
+        assert!(
+            !code.contains("GlbAnimGraphs"),
+            "resource should not appear"
+        );
+        assert!(
+            !code.contains("AnimationGraph"),
+            "anim import should not appear"
+        );
+        assert!(
+            !code.contains("init_resource::"),
+            "no resource init for non-GLB scenes"
+        );
+        assert!(!code.contains("use bevy::gltf::Gltf;"), "no gltf import");
+    }
+
+    /// Scene with a GLB and no clip choice emits the helper scaffolding and
+    /// passes `clip: None` so the runtime falls back to the first clip
+    /// alphabetically — same behaviour the editor preview shows by default.
+    #[test]
+    fn glb_scene_without_clip_choice_emits_clip_none() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "fox".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/proj/assets/fox.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+                auto_play_clip: None,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+
+        // Helper scaffolding emitted
+        assert!(
+            code.contains("ScenePendingGlbAnim"),
+            "marker struct emitted"
+        );
+        assert!(
+            code.contains("SceneGlbAnimGraphs"),
+            "graphs resource emitted"
+        );
+        assert!(code.contains("init_resource::<SceneGlbAnimGraphs>()"));
+        assert!(code.contains("scene_build_glb_anim_graphs"));
+        assert!(code.contains("scene_attach_glb_anim_players"));
+        assert!(
+            code.contains(".add_systems(Update, (scene_build_glb_anim_graphs, scene_attach_glb_anim_players.after(scene_build_glb_anim_graphs)))"),
+            "systems registered with build→attach ordering"
+        );
+
+        // Anim-related imports appear
+        assert!(code.contains("use bevy::animation::graph::{AnimationGraph"));
+        assert!(code.contains("use bevy::animation::{AnimationClip, AnimationPlayer};"));
+        assert!(code.contains("use bevy::gltf::Gltf;"));
+        assert!(code.contains("use bevy::asset::AssetId;"));
+
+        // Spawn site embeds the marker with clip: None
+        assert!(
+            code.contains("ScenePendingGlbAnim {")
+                && code.contains("gltf: asset_server.load(\"fox.glb\")")
+                && code.contains("clip: None,"),
+            "MeshFromFile spawn carries marker with clip: None\n\n{}",
+            code
+        );
+    }
+
+    /// User picked "Walk" in the Inspector → that exact name shows up in
+    /// the generated `clip` field so `cargo run` plays it (not the
+    /// alphabetical default).
+    #[test]
+    fn glb_scene_with_clip_choice_persists_to_codegen() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "fox".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/proj/assets/fox.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+                auto_play_clip: Some("Walk".into()),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("clip: Some(\"Walk\".to_string()),"),
+            "clip name must round-trip into runtime spawn\n\n{}",
+            code
+        );
+    }
+
+    /// Two scenes in the same project must each get their own resource /
+    /// marker / system names so the runtime app can register both plugins
+    /// without colliding on a single `<X>GlbAnimGraphs` type.
+    #[test]
+    fn glb_helper_names_are_per_scene_pascal_prefixed() {
+        let mut scene_a = SceneModel::new();
+        scene_a.add_entity(
+            "fox".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/proj/assets/fox.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+                auto_play_clip: None,
+            }],
+        );
+        let scene_b = scene_a.clone();
+        let code_a = generate_scene_plugin_code_with_root(&scene_a, "scene", "");
+        let code_b = generate_scene_plugin_code_with_root(&scene_b, "level_two", "");
+
+        assert!(code_a.contains("SceneGlbAnimGraphs"));
+        assert!(code_a.contains("ScenePendingGlbAnim"));
+        assert!(code_a.contains("scene_build_glb_anim_graphs"));
+
+        assert!(code_b.contains("LevelTwoGlbAnimGraphs"));
+        assert!(code_b.contains("LevelTwoPendingGlbAnim"));
+        assert!(code_b.contains("level_two_build_glb_anim_graphs"));
+
+        // No cross-contamination
+        assert!(
+            !code_a.contains("LevelTwo"),
+            "scene plugin must not reference another scene's prefix"
+        );
+        assert!(!code_b.contains("ScenePendingGlbAnim"));
+    }
+
+    /// The attach helper must use the direct `player.stop_all()` +
+    /// `player.play()` path. We learned the hard way that
+    /// `AnimationTransitions::play` looked like it succeeded but didn't
+    /// actually swap the active clip — leaving the runtime stuck on the
+    /// initial animation forever.
+    #[test]
+    fn attach_helper_uses_direct_play_not_transitions() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "fox".into(),
+            vec![ComponentData::MeshFromFile {
+                path: "/proj/assets/fox.glb".into(),
+                texture_path: None,
+                normal_map_path: None,
+                auto_play_clip: None,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(code.contains("player.stop_all();"));
+        assert!(code.contains("player.play(node)"));
+        assert!(code.contains(".repeat();"));
+        assert!(
+            !code.contains("AnimationTransitions"),
+            "transitions layer must be bypassed in the runtime helper"
+        );
+    }
 }
