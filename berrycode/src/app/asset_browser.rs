@@ -325,6 +325,7 @@ impl BerryCodeApp {
                             path,
                             texture_path: None,
                             normal_map_path: None,
+                            auto_play_clip: None,
                         },
                     ],
                 );
@@ -579,6 +580,7 @@ impl BerryCodeApp {
                                 path: path.clone(),
                                 texture_path: None,
                                 normal_map_path: None,
+                                auto_play_clip: None,
                             },
                         ],
                     );

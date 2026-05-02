@@ -11,9 +11,11 @@
 //!   wasteful but correct, and good enough until we have real diffing.
 
 use super::bevy_render::*;
+use super::skeletal_animation::SceneAnimRoot;
 use crate::app::scene_editor::model::*;
 use crate::app::BerryCodeApp;
 use bevy::camera::visibility::RenderLayers;
+use bevy::gltf::Gltf;
 use bevy::prelude::*;
 
 /// Sync the editor `SceneModel` to Bevy entities (spawn / update / despawn).
@@ -346,7 +348,11 @@ fn spawn_scene_entity(
                 });
                 entity.insert((Mesh3d(mesh), MeshMaterial3d(mat)));
             }
-            ComponentData::MeshFromFile { path, .. } => {
+            ComponentData::MeshFromFile {
+                path,
+                auto_play_clip,
+                ..
+            } => {
                 let abs_path = if path.is_empty() {
                     String::new()
                 } else if path.starts_with('/') || path.contains(":\\") {
@@ -370,8 +376,16 @@ fn spawn_scene_entity(
                 if let Some(rel_path) = staged {
                     tracing::info!("Loading GLB scene: {} (staged as {})", abs_path, rel_path);
                     let scene_handle: Handle<Scene> = asset_server
-                        .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path));
-                    entity.insert(SceneRoot(scene_handle));
+                        .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path.clone()));
+                    let gltf_handle: Handle<Gltf> = asset_server.load(rel_path);
+                    entity.insert((
+                        SceneRoot(scene_handle),
+                        SceneAnimRoot {
+                            scene_entity_id: id,
+                            gltf: gltf_handle,
+                            initial_clip: auto_play_clip.clone(),
+                        },
+                    ));
                     if let Some(factor) = compute_glb_auto_fit(&abs_path) {
                         let mut t = transform;
                         t.scale *= factor;
@@ -499,9 +513,18 @@ fn spawn_scene_entity(
                             format!("{}/assets/{}", project_root, first.mesh_path)
                         };
                         if let Some(rel_path) = stage_asset_for_loading(&abs_path) {
-                            let scene_handle: Handle<Scene> = asset_server
-                                .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path));
-                            entity.insert(SceneRoot(scene_handle));
+                            let scene_handle: Handle<Scene> = asset_server.load(
+                                bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path.clone()),
+                            );
+                            let gltf_handle: Handle<Gltf> = asset_server.load(rel_path);
+                            entity.insert((
+                                SceneRoot(scene_handle),
+                                SceneAnimRoot {
+                                    scene_entity_id: id,
+                                    gltf: gltf_handle,
+                                    initial_clip: None,
+                                },
+                            ));
                             if let Some(factor) = compute_glb_auto_fit(&abs_path) {
                                 let mut t = transform;
                                 t.scale *= factor;
@@ -540,9 +563,18 @@ fn spawn_scene_entity(
                         format!("{}/assets/{}", project_root, path)
                     };
                     if let Some(rel_path) = stage_asset_for_loading(&abs_path) {
-                        let scene_handle: Handle<Scene> = asset_server
-                            .load(bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path));
-                        entity.insert(SceneRoot(scene_handle));
+                        let scene_handle: Handle<Scene> = asset_server.load(
+                            bevy::gltf::GltfAssetLabel::Scene(0).from_asset(rel_path.clone()),
+                        );
+                        let gltf_handle: Handle<Gltf> = asset_server.load(rel_path);
+                        entity.insert((
+                            SceneRoot(scene_handle),
+                            SceneAnimRoot {
+                                scene_entity_id: id,
+                                gltf: gltf_handle,
+                                initial_clip: None,
+                            },
+                        ));
                         if let Some(factor) = compute_glb_auto_fit(&abs_path) {
                             let mut t = transform;
                             t.scale *= factor;
@@ -786,10 +818,12 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     path,
                     texture_path,
                     normal_map_path,
+                    auto_play_clip,
                 } => {
                     path.hash(&mut hasher);
                     texture_path.hash(&mut hasher);
                     normal_map_path.hash(&mut hasher);
+                    auto_play_clip.hash(&mut hasher);
                 }
                 ComponentData::AudioSource {
                     path,

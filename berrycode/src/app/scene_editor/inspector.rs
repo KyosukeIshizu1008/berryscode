@@ -89,6 +89,45 @@ fn stop_audio_preview() {
 /// Create a default [`ScriptValue`] from a Rust type string.
 /// Recognises `Vec<T>`, `Option<T>`, and `HashMap<K,V>` wrappers in addition
 /// to the basic primitive types.
+/// Render a "Clip" dropdown for GLB skeletal animations.
+///
+/// `clips` is the list of clip names mirrored from `SceneAnimationState`.
+/// `current` is the name currently driving the `AnimationPlayer` (mirror).
+/// On selection the chosen name is written to `request`, which the inspector
+/// later flushes to `BerryCodeApp::scene_anim_clip_request`.
+fn render_glb_clip_combo(
+    ui: &mut egui::Ui,
+    clips: &[String],
+    current: &Option<String>,
+    request: &mut Option<String>,
+    salt: &str,
+) -> bool {
+    if clips.is_empty() {
+        return false;
+    }
+    let selected = current.clone().unwrap_or_default();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Clip:");
+        egui::ComboBox::from_id_salt(salt)
+            .selected_text(if selected.is_empty() {
+                "(none)"
+            } else {
+                selected.as_str()
+            })
+            .show_ui(ui, |ui| {
+                for clip in clips {
+                    let is_selected = &selected == clip;
+                    if ui.selectable_label(is_selected, clip).clicked() && !is_selected {
+                        *request = Some(clip.clone());
+                        changed = true;
+                    }
+                }
+            });
+    });
+    changed
+}
+
 pub fn script_value_from_type(ty: &str) -> ScriptValue {
     let ty = ty.trim();
     if let Some(inner) = ty.strip_prefix("Vec<").and_then(|s| s.strip_suffix('>')) {
@@ -216,6 +255,17 @@ impl BerryCodeApp {
         // Capture GPU material preview texture id before entering the mutable
         // entity borrow.
         let mat_preview_tex = self.material_preview_texture_id;
+
+        // Snapshot GLB animation state for the selected entity so the inspector
+        // can render the clip dropdown without re-borrowing `self` while
+        // `scene_model.entities.get_mut` is held.
+        let glb_anim_clips: Vec<String> = self
+            .scene_anim_clips_view
+            .get(&selected_id)
+            .cloned()
+            .unwrap_or_default();
+        let glb_anim_current: Option<String> = self.scene_anim_current.get(&selected_id).cloned();
+        let mut glb_anim_request: Option<String> = None;
 
         {
             let entity = match self.scene_model.entities.get_mut(&selected_id) {
@@ -715,11 +765,25 @@ impl BerryCodeApp {
                         ComponentData::Camera => {
                             ui.label("(no editable properties)");
                         }
-                        ComponentData::MeshFromFile { path, texture_path, normal_map_path } => {
+                        ComponentData::MeshFromFile { path, texture_path, normal_map_path, auto_play_clip } => {
                             ui.horizontal(|ui| {
                                 ui.label("Path:");
                                 ui.label(path.as_str());
                             });
+                            if render_glb_clip_combo(
+                                ui,
+                                &glb_anim_clips,
+                                &glb_anim_current,
+                                &mut glb_anim_request,
+                                "mesh_from_file",
+                            ) {
+                                // Mirror the choice into the persisted field so
+                                // codegen can emit the same clip for the runtime.
+                                if let Some(req) = glb_anim_request.clone() {
+                                    *auto_play_clip = Some(req);
+                                    mutated = true;
+                                }
+                            }
                             ui.horizontal(|ui| {
                                 ui.label("Texture:");
                                 let mut path_str = texture_path.clone().unwrap_or_default();
@@ -1617,6 +1681,13 @@ impl BerryCodeApp {
                             }
                         }
                         ComponentData::LodGroup { levels } => {
+                            render_glb_clip_combo(
+                                ui,
+                                &glb_anim_clips,
+                                &glb_anim_current,
+                                &mut glb_anim_request,
+                                "lod_group",
+                            );
                             ui.vertical(|ui| {
                                 ui.label(format!("Levels: {}", levels.len()));
                                 // Sort levels by screen_percentage descending for display.
@@ -1759,6 +1830,13 @@ impl BerryCodeApp {
                             });
                         }
                         ComponentData::SkinnedMesh { path, bones } => {
+                            render_glb_clip_combo(
+                                ui,
+                                &glb_anim_clips,
+                                &glb_anim_current,
+                                &mut glb_anim_request,
+                                "skinned_mesh",
+                            );
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.label("GLB/GLTF Path:");
@@ -2166,6 +2244,11 @@ impl BerryCodeApp {
         // Apply deferred component copy to clipboard.
         if let Some(c) = add_component_copy {
             self.component_clipboard = Some(c);
+        }
+
+        // Flush any GLB clip change requested via the inspector dropdown.
+        if let Some(req) = glb_anim_request {
+            self.scene_anim_clip_request.insert(selected_id, req);
         }
 
         // Apply deferred paste: push clipboard component onto the entity.

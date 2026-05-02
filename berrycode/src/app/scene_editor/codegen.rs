@@ -746,10 +746,31 @@ pub fn generate_scene_plugin_code_with_root(
     // scene module that lives in `src/scenes/`.
     let marker_name = format!("{}SceneEntity", pascal_name);
 
+    // GLB-skeletal-animation support: per-scene marker / resource / system
+    // names so two scenes can each carry their own state without colliding.
+    let has_glb = scene.entities.values().any(|e| {
+        e.enabled
+            && e.components
+                .iter()
+                .any(|c| matches!(c, ComponentData::MeshFromFile { path, .. } if !path.is_empty()))
+    });
+    let pending_marker = format!("{}PendingGlbAnim", pascal_name);
+    let graphs_resource = format!("{}GlbAnimGraphs", pascal_name);
+    let entry_struct = format!("{}GlbAnimEntry", pascal_name);
+    let build_sys = format!("{}_build_glb_anim_graphs", module_name);
+    let attach_sys = format!("{}_attach_glb_anim_players", module_name);
+
     let mut code = String::new();
     code.push_str("//! Auto-generated scene plugin from BerryCode Scene Editor.\n");
     code.push_str("//! DO NOT EDIT MANUALLY -- changes will be overwritten on next save.\n\n");
     code.push_str("use bevy::prelude::*;\n");
+    if has_glb {
+        code.push_str("use bevy::animation::graph::{AnimationGraph, AnimationGraphHandle, AnimationNodeIndex};\n");
+        code.push_str("use bevy::animation::{AnimationClip, AnimationPlayer};\n");
+        code.push_str("use bevy::asset::AssetId;\n");
+        code.push_str("use bevy::gltf::Gltf;\n");
+        code.push_str("use std::collections::HashMap;\n");
+    }
     code.push_str("use super::AppScene;\n\n");
 
     // Marker component for cleanup. `dead_code` is allowed because
@@ -759,6 +780,28 @@ pub fn generate_scene_plugin_code_with_root(
     code.push_str("#[allow(dead_code)]\n");
     code.push_str(&format!("pub struct {};\n\n", marker_name));
 
+    if has_glb {
+        // Marker carrying the `Handle<Gltf>` and the optional clip name to
+        // play. The build/attach systems use it to map the
+        // auto-inserted `AnimationPlayer` back to the right graph + node.
+        code.push_str("#[derive(Component)]\n");
+        code.push_str(&format!(
+            "struct {} {{\n    gltf: Handle<Gltf>,\n    clip: Option<String>,\n}}\n\n",
+            pending_marker
+        ));
+        // Per-GLTF graph + (clip name → node) lookup so we can pick a
+        // specific clip by name at attach time.
+        code.push_str(&format!(
+            "struct {} {{\n    graph: Handle<AnimationGraph>,\n    nodes: Vec<(String, AnimationNodeIndex)>,\n}}\n\n",
+            entry_struct
+        ));
+        code.push_str("#[derive(Resource, Default)]\n");
+        code.push_str(&format!(
+            "struct {} {{\n    by_id: HashMap<AssetId<Gltf>, {}>,\n}}\n\n",
+            graphs_resource, entry_struct
+        ));
+    }
+
     // Plugin struct — registers OnEnter/OnExit against the AppScene
     // variant matching this module. Two scenes in the same project
     // therefore no longer overlap: only the active state's entities
@@ -767,14 +810,28 @@ pub fn generate_scene_plugin_code_with_root(
     code.push_str(&format!("pub struct {};\n\n", plugin_name));
     code.push_str(&format!("impl Plugin for {} {{\n", plugin_name));
     code.push_str("    fn build(&self, app: &mut App) {\n");
+    code.push_str("        app");
+    if has_glb {
+        code.push_str(&format!(
+            "\n            .init_resource::<{}>()",
+            graphs_resource
+        ));
+    }
     code.push_str(&format!(
-        "        app.add_systems(OnEnter(AppScene::{}), {})\n",
+        "\n            .add_systems(OnEnter(AppScene::{}), {})",
         pascal_name, setup_fn
     ));
     code.push_str(&format!(
-        "            .add_systems(OnExit(AppScene::{}), {});\n",
+        "\n            .add_systems(OnExit(AppScene::{}), {})",
         pascal_name, cleanup_fn
     ));
+    if has_glb {
+        code.push_str(&format!(
+            "\n            .add_systems(Update, ({}, {}.after({})))",
+            build_sys, attach_sys, build_sys
+        ));
+    }
+    code.push_str(";\n");
     code.push_str("    }\n");
     code.push_str("}\n\n");
 
@@ -947,7 +1004,11 @@ pub fn generate_scene_plugin_code_with_root(
                 ComponentData::Camera => {
                     code.push_str("        Camera3d::default(),\n");
                 }
-                ComponentData::MeshFromFile { path, .. } => {
+                ComponentData::MeshFromFile {
+                    path,
+                    auto_play_clip,
+                    ..
+                } => {
                     if !path.is_empty() {
                         let asset_rel = path
                             .replace('\\', "/")
@@ -958,6 +1019,14 @@ pub fn generate_scene_plugin_code_with_root(
                         code.push_str(&format!(
                             "        SceneRoot(asset_server.load(\"{}#Scene0\")),\n",
                             asset_rel
+                        ));
+                        let clip_arg = match auto_play_clip {
+                            Some(name) => format!("Some(\"{}\".to_string())", name),
+                            None => "None".to_string(),
+                        };
+                        code.push_str(&format!(
+                            "        {} {{\n            gltf: asset_server.load(\"{}\"),\n            clip: {},\n        }},\n",
+                            pending_marker, asset_rel, clip_arg
                         ));
                     }
                 }
@@ -990,6 +1059,107 @@ pub fn generate_scene_plugin_code_with_root(
     code.push_str("        commands.entity(entity).despawn();\n");
     code.push_str("    }\n");
     code.push_str("}\n");
+
+    if has_glb {
+        // Helper systems mirror BerryCode's editor preview
+        // (`scene_editor::skeletal_animation`): build an `AnimationGraph`
+        // from the GLTF's named clips, then attach it to the
+        // `AnimationPlayer` Bevy auto-inserts on the scene root and play
+        // either the user-chosen clip (Inspector dropdown, persisted to
+        // `.bscene` as `auto_play_clip`) or the alphabetically-first one.
+        code.push_str(&format!(
+            "\nfn {build}(\n\
+             \x20   mut state: ResMut<{graphs}>,\n\
+             \x20   pending: Query<&{marker}>,\n\
+             \x20   gltfs: Res<Assets<Gltf>>,\n\
+             \x20   mut graphs: ResMut<Assets<AnimationGraph>>,\n\
+             ) {{\n\
+             \x20   for p in &pending {{\n\
+             \x20       let id = p.gltf.id();\n\
+             \x20       if state.by_id.contains_key(&id) {{\n\
+             \x20           continue;\n\
+             \x20       }}\n\
+             \x20       let Some(gltf) = gltfs.get(&p.gltf) else {{\n\
+             \x20           continue;\n\
+             \x20       }};\n\
+             \x20       if gltf.named_animations.is_empty() {{\n\
+             \x20           continue;\n\
+             \x20       }}\n\
+             \x20       let mut named: Vec<(&str, &Handle<AnimationClip>)> = gltf\n\
+             \x20           .named_animations\n\
+             \x20           .iter()\n\
+             \x20           .map(|(n, h)| (n.as_ref(), h))\n\
+             \x20           .collect();\n\
+             \x20       named.sort_by(|a, b| a.0.cmp(b.0));\n\
+             \x20       let clips: Vec<Handle<AnimationClip>> =\n\
+             \x20           named.iter().map(|(_, h)| (*h).clone()).collect();\n\
+             \x20       let (graph, indices) = AnimationGraph::from_clips(clips);\n\
+             \x20       let graph_handle = graphs.add(graph);\n\
+             \x20       let nodes: Vec<(String, AnimationNodeIndex)> = named\n\
+             \x20           .into_iter()\n\
+             \x20           .zip(indices)\n\
+             \x20           .map(|((n, _), i)| (n.to_string(), i))\n\
+             \x20           .collect();\n\
+             \x20       state\n\
+             \x20           .by_id\n\
+             \x20           .insert(id, {entry} {{ graph: graph_handle, nodes }});\n\
+             \x20   }}\n\
+             }}\n\n\
+             fn {attach}(\n\
+             \x20   mut commands: Commands,\n\
+             \x20   state: Res<{graphs}>,\n\
+             \x20   mut players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,\n\
+             \x20   pending_q: Query<&{marker}>,\n\
+             \x20   ancestors: Query<&ChildOf>,\n\
+             ) {{\n\
+             \x20   for (entity, mut player) in &mut players {{\n\
+             \x20       let mut cur = entity;\n\
+             \x20       let mut found: Option<&{marker}> = None;\n\
+             \x20       for _ in 0..50 {{\n\
+             \x20           if let Ok(p) = pending_q.get(cur) {{\n\
+             \x20               found = Some(p);\n\
+             \x20               break;\n\
+             \x20           }}\n\
+             \x20           match ancestors.get(cur) {{\n\
+             \x20               Ok(c) => cur = c.parent(),\n\
+             \x20               Err(_) => break,\n\
+             \x20           }}\n\
+             \x20       }}\n\
+             \x20       let Some(pending) = found else {{\n\
+             \x20           continue;\n\
+             \x20       }};\n\
+             \x20       let Some(entry) = state.by_id.get(&pending.gltf.id()) else {{\n\
+             \x20           continue;\n\
+             \x20       }};\n\
+             \x20       let node = match &pending.clip {{\n\
+             \x20           Some(name) => entry\n\
+             \x20               .nodes\n\
+             \x20               .iter()\n\
+             \x20               .find(|(n, _)| n == name)\n\
+             \x20               .or_else(|| entry.nodes.first())\n\
+             \x20               .map(|(_, i)| *i),\n\
+             \x20           None => entry.nodes.first().map(|(_, i)| *i),\n\
+             \x20       }};\n\
+             \x20       let Some(node) = node else {{\n\
+             \x20           continue;\n\
+             \x20       }};\n\
+             \x20       player.stop_all();\n\
+             \x20       let active = player.play(node);\n\
+             \x20       active.repeat();\n\
+             \x20       active.set_seek_time(0.0);\n\
+             \x20       commands\n\
+             \x20           .entity(entity)\n\
+             \x20           .insert(AnimationGraphHandle(entry.graph.clone()));\n\
+             \x20   }}\n\
+             }}\n",
+            build = build_sys,
+            attach = attach_sys,
+            graphs = graphs_resource,
+            entry = entry_struct,
+            marker = pending_marker,
+        ));
+    }
+
     code
 }
 
@@ -1741,6 +1911,7 @@ mod extended_tests {
                 path: "models/character.glb".into(),
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             }],
         );
         assert_valid_code(&scene);
@@ -2077,6 +2248,7 @@ mod extended_tests {
                 path: "model.glb".into(),
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             }],
         );
         scene.add_entity(
@@ -2704,6 +2876,7 @@ bevy = "0.15"
                 path: "fox.glb".into(),
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             }],
         );
         let code = generate_scene_plugin_code(&scene, "world");
@@ -2743,6 +2916,7 @@ bevy = "0.15"
                 path: "/Users/test/project/assets/fox.glb".into(),
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             }],
         );
         let code = generate_scene_plugin_code(&scene, "world");
@@ -2959,6 +3133,7 @@ bevy = "0.15"
                 path: "/fake/path/assets/model.glb".into(),
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             }],
         );
         // Set non-default transform

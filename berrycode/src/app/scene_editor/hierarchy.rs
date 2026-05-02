@@ -634,6 +634,7 @@ impl BerryCodeApp {
                                             path: path_str,
                                             texture_path: None,
                                             normal_map_path: None,
+                                            auto_play_clip: None,
                                         }],
                                     );
                                     self.scene_model.select_only(new_id);

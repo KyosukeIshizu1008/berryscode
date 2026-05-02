@@ -1,6 +1,6 @@
 [package]
 name = "berrycode"
-version = "0.5.3"
+version = "0.5.4"
 edition = "2021"
 description = "The IDE built for the Bevy game engine — Scene Editor, ECS Inspector, and more"
 authors = ["BerryCode Team"]
@@ -21,7 +21,8 @@ path = "src/bin/berrycode-egui.rs"
 # ===== Bevy + bevy_egui (Native Game Engine + Immediate Mode UI) =====
 bevy = { version = "0.18", default-features = false, features = [
     "bevy_winit", "bevy_render", "bevy_core_pipeline", "bevy_pbr",
-    "bevy_asset", "bevy_scene", "bevy_gltf", "bevy_remote", "bevy_text",
+    "bevy_asset", "bevy_scene", "bevy_gltf", "bevy_animation", "gltf_animation",
+    "bevy_remote", "bevy_text",
     "png",
     "default_font", "tonemapping_luts", "x11", "wayland",
     "bevy_audio", "vorbis", "wav",

@@ -51,6 +51,7 @@ pub(crate) mod script_scan;
 pub(crate) mod serialization;
 pub(crate) mod shader_graph;
 pub(crate) mod shader_graph_editor;
+pub mod skeletal_animation;
 pub(crate) mod skeleton;
 pub(crate) mod spline;
 pub(crate) mod state_editor;

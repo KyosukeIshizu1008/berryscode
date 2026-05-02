@@ -295,6 +295,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                 path: asset_path,
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             });
         }
 
@@ -381,6 +382,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                         path: parse_param_str(params, "path", ""),
                         texture_path: None,
                         normal_map_path: None,
+                        auto_play_clip: None,
                     });
                 }
                 "AudioSource" => {

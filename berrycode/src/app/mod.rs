@@ -587,6 +587,21 @@ pub struct BerryCodeApp {
     /// Editor-only per-entity animation playback state. Drives the Timeline
     /// window and applies sampled transforms during scene sync.
     pub(crate) animation_playback: scene_editor::animation::AnimationPlayback,
+
+    // === GLB skeletal animation bridge (read-only mirrors of `SceneAnimationState`) ===
+    /// Per-scene-entity available clip names (mirrored each frame from
+    /// `SceneAnimationState`). Used by the inspector to populate dropdowns.
+    pub(crate) scene_anim_clips_view: std::collections::HashMap<u64, Vec<String>>,
+    /// Per-scene-entity currently-playing clip name (mirror).
+    pub(crate) scene_anim_current: std::collections::HashMap<u64, String>,
+    /// Per-scene-entity user-requested clip name (consumed by `berry_ui_system`
+    /// each frame and pushed back into `SceneAnimationState`).
+    pub(crate) scene_anim_clip_request: std::collections::HashMap<u64, String>,
+
+    // === Model preview animation bridge (read-only mirror of `ModelPreviewScene`) ===
+    pub(crate) preview_anim_clips: Vec<String>,
+    pub(crate) preview_anim_current: Option<String>,
+    pub(crate) preview_anim_clip_request: Option<String>,
     /// Whether the floating Timeline window is currently visible.
     pub(crate) timeline_open: bool,
     /// Whether the floating Dopesheet / Curve Editor window is visible.
@@ -1721,6 +1736,14 @@ impl BerryCodeApp {
                 ap.playing = true;
                 ap
             },
+
+            scene_anim_clips_view: std::collections::HashMap::new(),
+            scene_anim_current: std::collections::HashMap::new(),
+            scene_anim_clip_request: std::collections::HashMap::new(),
+
+            preview_anim_clips: Vec::new(),
+            preview_anim_current: None,
+            preview_anim_clip_request: None,
             timeline_open: false,
             dopesheet_open: false,
             dopesheet_show_curves: true,
@@ -2231,6 +2254,9 @@ pub fn berry_ui_system(
     mut mat_preview: bevy::ecs::system::ResMut<
         scene_editor::material_preview::MaterialPreviewRender,
     >,
+    mut scene_anim: bevy::ecs::system::ResMut<
+        scene_editor::skeletal_animation::SceneAnimationState,
+    >,
     fonts_configured: bevy::prelude::Res<EguiFontsConfigured>,
 ) -> bevy::prelude::Result {
     // Wait until `setup_egui_fonts_and_style` has uploaded fonts AND a
@@ -2243,6 +2269,45 @@ pub fn berry_ui_system(
         }
         return Ok(());
     }
+
+    // === GLB animation bridge (resources → BerryCodeApp mirrors) ===
+    // Mirror Bevy-side animation state into `BerryCodeApp` so the inspector /
+    // model preview UI (which only sees `&mut self`) can read clip lists and
+    // currently-playing names without having to thread Bevy resources through
+    // every render call.
+    app.scene_anim_clips_view.clear();
+    app.scene_anim_current.clear();
+    for (id, entry) in &scene_anim.entries {
+        if !entry.clips.is_empty() {
+            app.scene_anim_clips_view
+                .insert(*id, entry.clips.iter().map(|(n, _)| n.clone()).collect());
+        }
+        if let Some(c) = &entry.current_clip {
+            app.scene_anim_current.insert(*id, c.clone());
+        }
+    }
+    app.preview_anim_clips = preview_scene
+        .animation_clips
+        .iter()
+        .map(|(n, _)| n.clone())
+        .collect();
+    app.preview_anim_current = preview_scene.current_clip.clone();
+
+    // Drive continuous repaints while any GLB animation is playing — under
+    // `WinitSettings::Reactive` Bevy's `Update` only ticks on input/window
+    // events otherwise, which down-samples `AnimationPlayer` and produces a
+    // visibly stuttered run/walk cycle.
+    let scene_anim_active = scene_anim
+        .entries
+        .values()
+        .any(|e| e.player_entity.is_some());
+    let preview_anim_active = preview_scene.animation_player_entity.is_some();
+    if scene_anim_active || preview_anim_active {
+        if let Ok(ctx) = egui_ctx.ctx_mut() {
+            ctx.request_repaint();
+        }
+    }
+
     // Handle window close — check for unsaved files
     let mut exiting = false;
     for _event in close_events.read() {
@@ -2752,6 +2817,26 @@ pub fn berry_ui_system(
             });
             if !any_model_tab && preview_scene.loaded_model_path.is_some() {
                 preview_scene.requested_model_path = None;
+            }
+        }
+    }
+
+    // === Flush UI clip-change requests back into Bevy resources ===
+    if let Some(req) = app.preview_anim_clip_request.take() {
+        // Only honour the request if it's a known clip for the current model.
+        if preview_scene.animation_clips.iter().any(|(n, _)| n == &req) {
+            preview_scene.requested_clip = Some(req);
+        }
+    }
+    for (id, req) in app.scene_anim_clip_request.drain() {
+        if let Some(entry) = scene_anim.entries.get_mut(&id) {
+            if entry.clips.iter().any(|(n, _)| n == &req) {
+                tracing::info!(
+                    "Scene anim: UI requested clip '{}' for scene entity {}",
+                    req,
+                    id
+                );
+                entry.requested_clip = Some(req);
             }
         }
     }

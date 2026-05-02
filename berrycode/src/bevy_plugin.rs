@@ -4,7 +4,8 @@
 //! using bevy_egui for immediate mode UI rendering.
 
 use crate::app::preview_3d::{
-    manage_preview_scene, propagate_preview_render_layers, setup_preview_render_target,
+    apply_preview_clip_change, attach_preview_animation_player, manage_preview_scene,
+    propagate_preview_render_layers, setup_preview_animation_graph, setup_preview_render_target,
     ModelPreviewScene,
 };
 use crate::app::scene_editor::bevy_render::{
@@ -14,6 +15,10 @@ use crate::app::scene_editor::bevy_render::{
 use crate::app::scene_editor::bevy_sync::sync_scene_to_bevy;
 use crate::app::scene_editor::material_preview::{
     setup_material_preview, update_material_preview, MaterialPreviewRender,
+};
+use crate::app::scene_editor::skeletal_animation::{
+    apply_scene_clip_changes, attach_scene_animation_players, setup_scene_animation_graphs,
+    SceneAnimationState,
 };
 use crate::app::BerryCodeApp;
 use crate::app::{berry_ui_system, demo_capture_system, setup_egui_fonts_and_style};
@@ -97,6 +102,7 @@ impl Plugin for BerryCodePlugin {
             .init_resource::<ModelPreviewScene>()
             .init_resource::<SceneEditorRender>()
             .init_resource::<MaterialPreviewRender>()
+            .init_resource::<SceneAnimationState>()
             .init_resource::<crate::app::EguiFontsConfigured>()
             .add_systems(
                 PreStartup,
@@ -126,11 +132,27 @@ impl Plugin for BerryCodePlugin {
                 Update,
                 propagate_preview_render_layers.after(manage_preview_scene),
             )
+            .add_systems(
+                Update,
+                (
+                    setup_preview_animation_graph.after(manage_preview_scene),
+                    attach_preview_animation_player.after(setup_preview_animation_graph),
+                    apply_preview_clip_change.after(attach_preview_animation_player),
+                ),
+            )
             .add_systems(Update, update_scene_editor_camera)
             .add_systems(Update, sync_scene_to_bevy)
             .add_systems(
                 Update,
                 propagate_scene_editor_render_layers.after(sync_scene_to_bevy),
+            )
+            .add_systems(
+                Update,
+                (
+                    setup_scene_animation_graphs.after(sync_scene_to_bevy),
+                    attach_scene_animation_players.after(setup_scene_animation_graphs),
+                    apply_scene_clip_changes.after(attach_scene_animation_players),
+                ),
             )
             .add_systems(Update, update_material_preview);
     }

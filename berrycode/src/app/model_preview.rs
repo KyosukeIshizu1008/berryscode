@@ -1594,12 +1594,12 @@ impl BerryCodeApp {
             .next()
             .unwrap_or("")
             .to_lowercase();
-        // The GPU preview path is wired up but its render target still
-        // arrives black on macOS — the bevy_egui ↔ render-graph interaction
-        // is not yet sorted out (see Issue #1). The `false &&` keeps users
-        // on the CPU wireframe fallback (which works) until that's fixed,
-        // even though `gpu_preview_texture_id` is populated.
-        if false && (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
+        // GPU preview path. Historically gated off because the render target
+        // arrived black on macOS (Issue #1). Re-enabled now that animation
+        // playback (run/walk/…) is wired in — if the texture still appears
+        // black on a given platform, switch this back to `false &&` and use
+        // the CPU wireframe fallback below.
+        if (ext == "glb" || ext == "gltf") && tab.gpu_preview_texture_id.is_some() {
             let texture_id = tab.gpu_preview_texture_id.unwrap();
 
             // Metadata header
@@ -1617,6 +1617,29 @@ impl BerryCodeApp {
             });
             ui.separator();
             ui.label("Bevy PBR renderer -- drag to orbit, scroll to zoom, double-click to reset");
+
+            // Animation clip dropdown (only shown when the loaded GLB exposes clips).
+            if !self.preview_anim_clips.is_empty() {
+                let selected = self
+                    .preview_anim_current
+                    .clone()
+                    .unwrap_or_else(|| "(none)".to_string());
+                ui.horizontal(|ui| {
+                    ui.label("Clip:");
+                    egui::ComboBox::from_id_salt("preview_glb_clip")
+                        .selected_text(&selected)
+                        .show_ui(ui, |ui| {
+                            let clips = self.preview_anim_clips.clone();
+                            for clip in &clips {
+                                let is_selected = &selected == clip;
+                                if ui.selectable_label(is_selected, clip).clicked() && !is_selected
+                                {
+                                    self.preview_anim_clip_request = Some(clip.clone());
+                                }
+                            }
+                        });
+                });
+            }
             ui.separator();
 
             // Allocate the preview area with interaction

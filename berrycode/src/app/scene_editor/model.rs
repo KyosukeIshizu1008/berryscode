@@ -535,6 +535,12 @@ pub enum ComponentData {
         texture_path: Option<String>,
         #[serde(default)]
         normal_map_path: Option<String>,
+        /// Name of the GLB animation clip to play on loop in the runtime
+        /// game. `None` (and the default for older `.bscene` files) means
+        /// "the alphabetically-first clip", matching what the editor preview
+        /// auto-attaches.
+        #[serde(default)]
+        auto_play_clip: Option<String>,
     },
     AudioSource {
         /// Path to an audio file (relative to the project's `assets/` dir, or absolute).
@@ -790,6 +796,7 @@ impl ComponentData {
                     path: String::new(),
                     texture_path: None,
                     normal_map_path: None,
+                    auto_play_clip: None,
                 },
             ),
             (
@@ -1722,6 +1729,7 @@ mod tests {
                 path: "/assets/model.glb".into(),
                 texture_path: None,
                 normal_map_path: None,
+                auto_play_clip: None,
             }],
         );
         assert!(scene.entities.contains_key(&id));
