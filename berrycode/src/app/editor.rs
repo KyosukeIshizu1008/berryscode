@@ -1202,8 +1202,15 @@ impl BerryCodeApp {
                     if cmd_held {
                         if let Some(pos) = hover_pos {
                             if editor_rect.contains(pos) {
-                                // Convert screen position to galley-local position
-                                let local_pos = pos - editor_rect.min;
+                                // Convert screen position to galley-local position.
+                                // `cursor_from_pos` expects coordinates relative to
+                                // where the galley starts drawing (`text_origin`),
+                                // NOT the outer TextEdit rect — the latter includes
+                                // the 64px gutter margin and produced a hover hit
+                                // that read ~10 chars to the right of the actual
+                                // pointer (visible as a left-shifted underline
+                                // because we redraw at the wrong char's position).
+                                let local_pos = pos - text_origin;
                                 let cursor = galley.cursor_from_pos(local_pos);
                                 let char_idx = cursor.index;
 
