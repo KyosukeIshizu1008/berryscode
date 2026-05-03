@@ -1379,11 +1379,6 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
     // animation player to the destination state's clip when a condition
     // fires.
     code.push_str("use bevy::animation::AnimationPlayer as BcAnimationPlayer;\n");
-    code.push_str("use bevy::animation::graph::AnimationGraphHandle as BcAnimationGraphHandle;\n");
-    code.push_str("use bevy::asset::AssetId as BcAssetId;\n");
-    code.push_str("use bevy::gltf::Gltf as BcGltf;\n");
-    code.push_str("use bevy::animation::graph::{AnimationGraph as BcAnimationGraph, AnimationNodeIndex as BcAnimationNodeIndex};\n");
-    code.push_str("use bevy::animation::AnimationClip as BcAnimationClip;\n");
     code.push_str("use std::collections::HashMap as BcHashMap;\n\n");
 
     code.push_str("#[derive(Debug, Clone)]\n");
