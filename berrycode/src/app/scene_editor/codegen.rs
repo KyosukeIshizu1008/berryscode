@@ -732,6 +732,87 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
 }
 
 #[allow(dead_code)]
+/// Load an `.banimator` file from `controller_path` and return a Rust
+/// literal that constructs the matching `super::AnimatorRuntime` value
+/// for the runtime FSM. Returns `None` when the file is missing or
+/// fails to deserialize — the caller emits a comment in that case so
+/// the surrounding scene still compiles.
+///
+/// `controller_path` is treated as relative to `project_root` if it
+/// doesn't start with `/`. We snap-translate the editor's
+/// `AnimatorController` (which carries layout positions, blend trees,
+/// etc.) into the trimmed runtime shape — `AnimRuntimeState` /
+/// `AnimTransition` / `AnimCondition`.
+fn load_animator_for_codegen(controller_path: &str, project_root: &str) -> Option<String> {
+    if controller_path.is_empty() {
+        return None;
+    }
+    let abs_path = if controller_path.starts_with('/') {
+        controller_path.to_string()
+    } else {
+        format!("{}/{}", project_root, controller_path)
+    };
+    let ctrl = super::animator::load_animator(&abs_path).ok()?;
+
+    let mut out = String::new();
+    out.push_str("        super::AnimatorRuntime {\n            states: vec![\n");
+    for st in &ctrl.states {
+        // Skip Entry/Exit pseudo-states — they don't have clips.
+        let is_pseudo = matches!(
+            st.kind,
+            super::animator::StateKind::Entry
+                | super::animator::StateKind::Exit
+                | super::animator::StateKind::AnyState
+        );
+        let clip = if is_pseudo {
+            String::new()
+        } else {
+            st.effective_clip_name().to_string()
+        };
+        out.push_str(&format!(
+            "                super::AnimRuntimeState {{ name: {:?}.to_string(), clip_name: {:?}.to_string(), looped: {} }},\n",
+            st.name, clip, st.looped
+        ));
+    }
+    out.push_str("            ],\n            transitions: vec![\n");
+    for trans in &ctrl.transitions {
+        let cond_lit = match &trans.condition {
+            super::animator::TransitionCondition::BoolParam { name, value } => format!(
+                "super::AnimCondition::BoolEq {{ name: {:?}.to_string(), value: {} }}",
+                name, value
+            ),
+            super::animator::TransitionCondition::FloatGreater { name, threshold } => format!(
+                "super::AnimCondition::FloatGreater {{ name: {:?}.to_string(), threshold: {:.3}_f32 }}",
+                name, threshold
+            ),
+            super::animator::TransitionCondition::FloatLess { name, threshold } => format!(
+                "super::AnimCondition::FloatLess {{ name: {:?}.to_string(), threshold: {:.3}_f32 }}",
+                name, threshold
+            ),
+            super::animator::TransitionCondition::IntEquals { name, value } => format!(
+                "super::AnimCondition::IntEq {{ name: {:?}.to_string(), value: {}_i64 }}",
+                name, value
+            ),
+            super::animator::TransitionCondition::Trigger { name } => format!(
+                "super::AnimCondition::Trigger {{ name: {:?}.to_string() }}",
+                name
+            ),
+            super::animator::TransitionCondition::OnComplete => {
+                "super::AnimCondition::OnComplete".to_string()
+            }
+        };
+        out.push_str(&format!(
+            "                super::AnimTransition {{ from: {}, to: {}, condition: {} }},\n",
+            trans.from_state, trans.to_state, cond_lit
+        ));
+    }
+    out.push_str(&format!(
+        "            ],\n            current_state: {0},\n            default_state: {0},\n        }},\n",
+        ctrl.default_state
+    ));
+    Some(out)
+}
+
 pub fn generate_scene_plugin_code_with_root(
     scene: &SceneModel,
     scene_name: &str,
@@ -1039,6 +1120,19 @@ pub fn generate_scene_plugin_code_with_root(
                         ));
                     }
                 }
+                ComponentData::Animator { controller_path } => {
+                    if let Some(animator_lit) =
+                        load_animator_for_codegen(controller_path, project_root)
+                    {
+                        code.push_str(&animator_lit);
+                        code.push_str("        super::AnimatorParams::default(),\n");
+                    } else {
+                        code.push_str(&format!(
+                            "        // [BerryCode:Animator] missing or invalid controller: {}\n",
+                            controller_path
+                        ));
+                    }
+                }
                 ComponentData::PlayerController {
                     speed,
                     jump_velocity,
@@ -1277,6 +1371,180 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
     code.push_str("    pub turn_speed: f32,\n");
     code.push_str("}\n\n");
 
+    // ── Animator runtime (Unity-style FSM) ────────────────────────────────
+    // Always emitted so user code can `use scenes::AnimatorParams` even
+    // before they add an Animator to any entity. The `animator_evaluate`
+    // system iterates entities with `AnimatorRuntime` + `AnimatorParams`,
+    // checks transitions out of the current state, and swaps the GLB
+    // animation player to the destination state's clip when a condition
+    // fires.
+    code.push_str("use bevy::animation::AnimationPlayer as BcAnimationPlayer;\n");
+    code.push_str("use bevy::animation::graph::AnimationGraphHandle as BcAnimationGraphHandle;\n");
+    code.push_str("use bevy::asset::AssetId as BcAssetId;\n");
+    code.push_str("use bevy::gltf::Gltf as BcGltf;\n");
+    code.push_str("use bevy::animation::graph::{AnimationGraph as BcAnimationGraph, AnimationNodeIndex as BcAnimationNodeIndex};\n");
+    code.push_str("use bevy::animation::AnimationClip as BcAnimationClip;\n");
+    code.push_str("use std::collections::HashMap as BcHashMap;\n\n");
+
+    code.push_str("#[derive(Debug, Clone)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub enum AnimParamValue {\n");
+    code.push_str("    Bool(bool),\n");
+    code.push_str("    Float(f32),\n");
+    code.push_str("    Int(i64),\n");
+    code.push_str("    Trigger(bool),\n");
+    code.push_str("}\n\n");
+
+    code.push_str("#[derive(Component, Default)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub struct AnimatorParams {\n");
+    code.push_str("    pub values: BcHashMap<String, AnimParamValue>,\n");
+    code.push_str("}\n\n");
+
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("impl AnimatorParams {\n");
+    code.push_str("    pub fn set_bool(&mut self, name: &str, v: bool) {\n");
+    code.push_str("        self.values.insert(name.to_string(), AnimParamValue::Bool(v));\n");
+    code.push_str("    }\n");
+    code.push_str("    pub fn set_float(&mut self, name: &str, v: f32) {\n");
+    code.push_str("        self.values.insert(name.to_string(), AnimParamValue::Float(v));\n");
+    code.push_str("    }\n");
+    code.push_str("    pub fn set_int(&mut self, name: &str, v: i64) {\n");
+    code.push_str("        self.values.insert(name.to_string(), AnimParamValue::Int(v));\n");
+    code.push_str("    }\n");
+    code.push_str("    pub fn trigger(&mut self, name: &str) {\n");
+    code.push_str("        self.values.insert(name.to_string(), AnimParamValue::Trigger(true));\n");
+    code.push_str("    }\n");
+    code.push_str("    pub fn get_bool(&self, name: &str) -> bool {\n");
+    code.push_str("        matches!(self.values.get(name), Some(AnimParamValue::Bool(true)))\n");
+    code.push_str("    }\n");
+    code.push_str("    pub fn get_float(&self, name: &str) -> f32 {\n");
+    code.push_str("        if let Some(AnimParamValue::Float(v)) = self.values.get(name) { *v } else { 0.0 }\n");
+    code.push_str("    }\n");
+    code.push_str("    pub fn get_int(&self, name: &str) -> i64 {\n");
+    code.push_str(
+        "        if let Some(AnimParamValue::Int(v)) = self.values.get(name) { *v } else { 0 }\n",
+    );
+    code.push_str("    }\n");
+    code.push_str("    pub fn check_trigger(&mut self, name: &str) -> bool {\n");
+    code.push_str("        if let Some(AnimParamValue::Trigger(true)) = self.values.get(name) {\n");
+    code.push_str(
+        "            self.values.insert(name.to_string(), AnimParamValue::Trigger(false));\n",
+    );
+    code.push_str("            true\n");
+    code.push_str("        } else { false }\n");
+    code.push_str("    }\n");
+    code.push_str("}\n\n");
+
+    code.push_str("#[derive(Debug, Clone)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub enum AnimCondition {\n");
+    code.push_str("    BoolEq { name: String, value: bool },\n");
+    code.push_str("    FloatGreater { name: String, threshold: f32 },\n");
+    code.push_str("    FloatLess { name: String, threshold: f32 },\n");
+    code.push_str("    IntEq { name: String, value: i64 },\n");
+    code.push_str("    Trigger { name: String },\n");
+    code.push_str("    OnComplete,\n");
+    code.push_str("}\n\n");
+
+    code.push_str("#[derive(Debug, Clone)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub struct AnimTransition {\n");
+    code.push_str("    pub from: usize,\n");
+    code.push_str("    pub to: usize,\n");
+    code.push_str("    pub condition: AnimCondition,\n");
+    code.push_str("}\n\n");
+
+    code.push_str("#[derive(Debug, Clone)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub struct AnimRuntimeState {\n");
+    code.push_str("    pub name: String,\n");
+    code.push_str("    pub clip_name: String,\n");
+    code.push_str("    pub looped: bool,\n");
+    code.push_str("}\n\n");
+
+    code.push_str("#[derive(Component)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub struct AnimatorRuntime {\n");
+    code.push_str("    pub states: Vec<AnimRuntimeState>,\n");
+    code.push_str("    pub transitions: Vec<AnimTransition>,\n");
+    code.push_str("    pub current_state: usize,\n");
+    code.push_str("    pub default_state: usize,\n");
+    code.push_str("}\n\n");
+
+    // The evaluator needs the project-wide `PendingGlbAnim` /
+    // `GlbAnimGraphs` types (they're per-scene-prefixed in the plugin
+    // file, so we walk all scenes and emit thin wrapper queries — but
+    // that's heavy. Instead we narrow to the existing pattern: each
+    // scene plugin runs its own attach system; the animator evaluator
+    // only fires for entities that ALREADY have a `Handle<Gltf>`
+    // accessible via a per-scene marker. To keep this code generic we
+    // re-derive the GLTF handle from the entity's `AnimatorRuntime`
+    // alongside a scene-side tag at spawn — but for v0.5.10 we keep it
+    // simple: only the *first* scene's PendingGlbAnim type is
+    // referenced. Document this limitation; multi-scene projects with
+    // per-scene Animators will need a follow-up.
+    if !modules.is_empty() {
+        let first = &modules[0];
+        let first_pascal = module_to_pascal(first);
+        let pending_marker = format!("{}PendingGlbAnim", first_pascal);
+        let graphs_resource = format!("{}GlbAnimGraphs", first_pascal);
+        code.push_str(&format!(
+            "// Animator evaluator wires into the *first* scene plugin's\n\
+             // GLB anim resources. Multi-scene projects that need per-scene\n\
+             // animators should register a parallel evaluator per plugin.\n\
+             use {first}::{{{pending} as BcPendingGlbAnim, {graphs} as BcGlbAnimGraphs}};\n\n",
+            first = first,
+            pending = pending_marker,
+            graphs = graphs_resource,
+        ));
+        code.push_str(
+            "#[allow(clippy::type_complexity)]\n\
+             pub fn animator_evaluate(\n\
+             \x20   mut animators: Query<(Entity, &mut AnimatorRuntime, &mut AnimatorParams, &BcPendingGlbAnim)>,\n\
+             \x20   state: Res<BcGlbAnimGraphs>,\n\
+             \x20   children_q: Query<&Children>,\n\
+             \x20   mut players: Query<&mut BcAnimationPlayer>,\n\
+             ) {\n\
+             \x20   for (entity, mut animator, mut params, pending) in &mut animators {\n\
+             \x20       let current = animator.current_state;\n\
+             \x20       let mut next: Option<usize> = None;\n\
+             \x20       let transitions = animator.transitions.clone();\n\
+             \x20       for trans in &transitions {\n\
+             \x20           if trans.from != current { continue; }\n\
+             \x20           let fired = match &trans.condition {\n\
+             \x20               AnimCondition::BoolEq { name, value } => params.get_bool(name) == *value,\n\
+             \x20               AnimCondition::FloatGreater { name, threshold } => params.get_float(name) > *threshold,\n\
+             \x20               AnimCondition::FloatLess { name, threshold } => params.get_float(name) < *threshold,\n\
+             \x20               AnimCondition::IntEq { name, value } => params.get_int(name) == *value,\n\
+             \x20               AnimCondition::Trigger { name } => params.check_trigger(name),\n\
+             \x20               AnimCondition::OnComplete => false,\n\
+             \x20           };\n\
+             \x20           if fired { next = Some(trans.to); break; }\n\
+             \x20       }\n\
+             \x20       let Some(new_state) = next else { continue; };\n\
+             \x20       if new_state == current { continue; }\n\
+             \x20       animator.current_state = new_state;\n\
+             \x20       let st = animator.states[new_state].clone();\n\
+             \x20       let Some(entry) = state.by_id.get(&pending.gltf.id()) else { continue; };\n\
+             \x20       let Some((_, node)) = entry.nodes.iter().find(|(n, _)| n == &st.clip_name) else { continue; };\n\
+             \x20       let mut stack = vec![entity];\n\
+             \x20       while let Some(e) = stack.pop() {\n\
+             \x20           if let Ok(mut p) = players.get_mut(e) {\n\
+             \x20               p.stop_all();\n\
+             \x20               let active = p.play(*node);\n\
+             \x20               if st.looped { active.repeat(); }\n\
+             \x20               break;\n\
+             \x20           }\n\
+             \x20           if let Ok(children) = children_q.get(e) {\n\
+             \x20               stack.extend(children.iter());\n\
+             \x20           }\n\
+             \x20       }\n\
+             \x20   }\n\
+             }\n\n",
+        );
+    }
+
     if modules.is_empty() {
         code.push_str("pub struct ScenesPlugin;\n\n");
         code.push_str("impl Plugin for ScenesPlugin {\n");
@@ -1308,6 +1576,7 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
             m, pascal
         ));
     }
+    code.push_str("        app.add_systems(Update, animator_evaluate);\n");
     code.push_str("    }\n");
     code.push_str("}\n");
     code
