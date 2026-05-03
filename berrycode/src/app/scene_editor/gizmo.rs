@@ -353,7 +353,8 @@ pub fn aabb_for_entity(
             | ComponentData::JointHinge { .. }
             | ComponentData::JointSpring { .. }
             | ComponentData::NavMeshAgent { .. }
-            | ComponentData::PlayerController { .. } => {
+            | ComponentData::PlayerController { .. }
+            | ComponentData::TouchInputZone { .. } => {
                 // Data-only; no visual footprint.
                 continue;
             }

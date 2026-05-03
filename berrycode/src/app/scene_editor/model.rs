@@ -176,6 +176,44 @@ fn default_player_turn_speed() -> f32 {
     12.0
 }
 
+/// Default touch zone — a button at the bottom-right corner taking up
+/// 18% of screen width / 12% of height. `parameter_name` defaults to an
+/// empty string so the runtime no-ops until the user fills it in.
+fn default_touch_x() -> f32 {
+    0.78
+}
+fn default_touch_y() -> f32 {
+    0.78
+}
+fn default_touch_w() -> f32 {
+    0.18
+}
+fn default_touch_h() -> f32 {
+    0.12
+}
+fn default_touch_label() -> String {
+    "Button".into()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum TouchActionKind {
+    /// Sets a bool `true` while the touch is held, `false` when released.
+    #[default]
+    Hold,
+    /// Fires the parameter as a trigger (one-shot) on touch-begin.
+    Trigger,
+}
+
+impl TouchActionKind {
+    pub fn label(&self) -> &'static str {
+        match self {
+            TouchActionKind::Hold => "Hold (bool)",
+            TouchActionKind::Trigger => "Trigger (one-shot)",
+        }
+    }
+    pub const ALL: &'static [TouchActionKind] = &[TouchActionKind::Hold, TouchActionKind::Trigger];
+}
+
 /// Default friction for a newly-created Collider component.
 fn default_friction() -> f32 {
     0.5
@@ -696,6 +734,28 @@ pub enum ComponentData {
         #[serde(default)]
         controller_path: String,
     },
+    /// Mobile-friendly virtual button. Defines a normalized screen-space
+    /// rectangle (0..1) that, while touched, drives an `AnimatorParams`
+    /// field on the same entity. `Hold` keeps the bool true while the
+    /// touch is down; `Trigger` fires once on touch-begin (one-shot).
+    /// Useful for jump pads, fire buttons, and run / brake holds without
+    /// the user needing to write `bevy::input::touch` glue.
+    TouchInputZone {
+        #[serde(default = "default_touch_x")]
+        x: f32,
+        #[serde(default = "default_touch_y")]
+        y: f32,
+        #[serde(default = "default_touch_w")]
+        w: f32,
+        #[serde(default = "default_touch_h")]
+        h: f32,
+        #[serde(default)]
+        parameter_name: String,
+        #[serde(default)]
+        action_kind: TouchActionKind,
+        #[serde(default = "default_touch_label")]
+        label: String,
+    },
     /// Editor-authored LOD (Level of Detail) group. Contains
     /// multiple mesh levels that the runtime switches between based on
     /// screen-space coverage.
@@ -873,6 +933,18 @@ impl ComponentData {
                     jump_velocity: default_player_jump(),
                     run_multiplier: default_player_run_mult(),
                     turn_speed: default_player_turn_speed(),
+                },
+            ),
+            (
+                "Touch Input Zone",
+                ComponentData::TouchInputZone {
+                    x: default_touch_x(),
+                    y: default_touch_y(),
+                    w: default_touch_w(),
+                    h: default_touch_h(),
+                    parameter_name: String::new(),
+                    action_kind: TouchActionKind::Hold,
+                    label: default_touch_label(),
                 },
             ),
             (
@@ -1067,6 +1139,7 @@ impl ComponentData {
             ComponentData::CustomScript { .. } => "Custom Script",
             ComponentData::Skybox { .. } => "Skybox",
             ComponentData::Animator { .. } => "Animator",
+            ComponentData::TouchInputZone { .. } => "Touch Input Zone",
             ComponentData::LodGroup { .. } => "LOD Group",
             ComponentData::Spline { .. } => "Spline",
             ComponentData::Terrain { .. } => "Terrain",

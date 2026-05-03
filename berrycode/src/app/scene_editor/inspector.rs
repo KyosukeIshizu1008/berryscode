@@ -2092,6 +2092,43 @@ impl BerryCodeApp {
                                 }
                             }).response.on_hover_text("0 = locked rotation, > 0 = slerp toward movement direction");
                         }
+                        ComponentData::TouchInputZone { x, y, w, h, parameter_name, action_kind, label } => {
+                            ui.horizontal(|ui| {
+                                ui.label("Label:");
+                                if ui.text_edit_singleline(label).changed() { mutated = true; }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Parameter:");
+                                if ui.add(egui::TextEdit::singleline(parameter_name).hint_text("AnimatorParams name").desired_width(160.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Action:");
+                                egui::ComboBox::from_id_salt("touch_action_kind")
+                                    .selected_text(action_kind.label())
+                                    .show_ui(ui, |ui| {
+                                        for k in crate::app::scene_editor::model::TouchActionKind::ALL {
+                                            if ui.selectable_label(action_kind == k, k.label()).clicked() {
+                                                *action_kind = *k;
+                                                mutated = true;
+                                            }
+                                        }
+                                    });
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("X:");
+                                if ui.add(egui::DragValue::new(x).speed(0.01).range(0.0..=1.0)).changed() { mutated = true; }
+                                ui.label("Y:");
+                                if ui.add(egui::DragValue::new(y).speed(0.01).range(0.0..=1.0)).changed() { mutated = true; }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("W:");
+                                if ui.add(egui::DragValue::new(w).speed(0.01).range(0.0..=1.0)).changed() { mutated = true; }
+                                ui.label("H:");
+                                if ui.add(egui::DragValue::new(h).speed(0.01).range(0.0..=1.0)).changed() { mutated = true; }
+                            });
+                        }
                     }
                 });
             }

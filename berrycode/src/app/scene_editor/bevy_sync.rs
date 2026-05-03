@@ -611,6 +611,9 @@ fn spawn_scene_entity(
                 });
                 entity.insert((Mesh3d(mesh), MeshMaterial3d(mat)));
             }
+            ComponentData::TouchInputZone { .. } => {
+                // Screen-space data only — no world footprint to sync.
+            }
         }
     }
 
@@ -1113,6 +1116,23 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     jump_velocity.to_bits().hash(&mut hasher);
                     run_multiplier.to_bits().hash(&mut hasher);
                     turn_speed.to_bits().hash(&mut hasher);
+                }
+                ComponentData::TouchInputZone {
+                    x,
+                    y,
+                    w,
+                    h,
+                    parameter_name,
+                    action_kind,
+                    label,
+                } => {
+                    x.to_bits().hash(&mut hasher);
+                    y.to_bits().hash(&mut hasher);
+                    w.to_bits().hash(&mut hasher);
+                    h.to_bits().hash(&mut hasher);
+                    parameter_name.hash(&mut hasher);
+                    std::mem::discriminant(action_kind).hash(&mut hasher);
+                    label.hash(&mut hasher);
                 }
             }
         }

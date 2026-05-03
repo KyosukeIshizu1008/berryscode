@@ -493,6 +493,9 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     // plugin path does). Drop a comment for parity.
                     code.push_str("        // [BerryCode:PlayerController]\n");
                 }
+                ComponentData::TouchInputZone { .. } => {
+                    code.push_str("        // [BerryCode:TouchInputZone]\n");
+                }
             }
         }
 
@@ -1187,6 +1190,24 @@ pub fn generate_scene_plugin_code_with_root(
                         ));
                     }
                 }
+                ComponentData::TouchInputZone {
+                    x,
+                    y,
+                    w,
+                    h,
+                    parameter_name,
+                    action_kind,
+                    label,
+                } => {
+                    let kind = match action_kind {
+                        crate::app::scene_editor::model::TouchActionKind::Hold => "Hold",
+                        crate::app::scene_editor::model::TouchActionKind::Trigger => "Trigger",
+                    };
+                    code.push_str(&format!(
+                        "        super::TouchInputZone {{\n            x: {:.4},\n            y: {:.4},\n            w: {:.4},\n            h: {:.4},\n            parameter_name: {:?}.to_string(),\n            action_kind: super::TouchActionKind::{},\n            label: {:?}.to_string(),\n            was_inside: false,\n        }},\n",
+                        x, y, w, h, parameter_name, kind, label
+                    ));
+                }
                 ComponentData::PlayerController {
                     speed,
                     jump_velocity,
@@ -1521,6 +1542,27 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
     code.push_str("    pub looped: bool,\n");
     code.push_str("}\n\n");
 
+    // Touch input zones — mobile-friendly virtual buttons. Each zone is a
+    // normalized screen-space rectangle that, while held / on touch-begin,
+    // mutates an `AnimatorParams` field on the same entity. `was_inside`
+    // tracks the previous-frame state so `Trigger` actions fire exactly
+    // once on touch-begin.
+    code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub enum TouchActionKind { Hold, Trigger }\n\n");
+    code.push_str("#[derive(Component, Debug, Clone)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub struct TouchInputZone {\n");
+    code.push_str("    pub x: f32,\n");
+    code.push_str("    pub y: f32,\n");
+    code.push_str("    pub w: f32,\n");
+    code.push_str("    pub h: f32,\n");
+    code.push_str("    pub parameter_name: String,\n");
+    code.push_str("    pub action_kind: TouchActionKind,\n");
+    code.push_str("    pub label: String,\n");
+    code.push_str("    pub was_inside: bool,\n");
+    code.push_str("}\n\n");
+
     code.push_str("#[derive(Component)]\n");
     code.push_str("#[allow(dead_code)]\n");
     code.push_str("pub struct AnimatorRuntime {\n");
@@ -1654,8 +1696,59 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
         ));
     }
     code.push_str("        app.add_systems(Update, animator_evaluate);\n");
+    code.push_str("        app.add_systems(Update, touch_input_evaluate);\n");
     code.push_str("    }\n");
     code.push_str("}\n");
+
+    // Touch input runtime: each frame, walk all `TouchInputZone`s and
+    // mutate the entity's `AnimatorParams` based on whether any touch /
+    // mouse-button cursor is inside the zone's normalized rect. Mouse
+    // is included so the user can desktop-test mobile UI without a
+    // touch device.
+    code.push_str(
+        "\n#[allow(clippy::type_complexity)]\n\
+         pub fn touch_input_evaluate(\n\
+         \x20   touches: Res<bevy::input::touch::Touches>,\n\
+         \x20   mouse_btn: Res<ButtonInput<MouseButton>>,\n\
+         \x20   window_q: Query<&Window>,\n\
+         \x20   mut zones_q: Query<(&mut TouchInputZone, &mut AnimatorParams)>,\n\
+         ) {\n\
+         \x20   let Ok(window) = window_q.single() else { return; };\n\
+         \x20   let win_w = window.width();\n\
+         \x20   let win_h = window.height();\n\
+         \x20   if win_w <= 0.0 || win_h <= 0.0 { return; }\n\
+         \x20   // Active screen-space points = ongoing touches + mouse cursor (if held).\n\
+         \x20   let mut points: Vec<(f32, f32)> = touches.iter().map(|t| (t.position().x, t.position().y)).collect();\n\
+         \x20   if mouse_btn.pressed(MouseButton::Left) {\n\
+         \x20       if let Some(p) = window.cursor_position() {\n\
+         \x20           points.push((p.x, p.y));\n\
+         \x20       }\n\
+         \x20   }\n\
+         \x20   for (mut zone, mut params) in &mut zones_q {\n\
+         \x20       if zone.parameter_name.is_empty() { continue; }\n\
+         \x20       let zx = zone.x * win_w;\n\
+         \x20       let zy = zone.y * win_h;\n\
+         \x20       let zw = zone.w * win_w;\n\
+         \x20       let zh = zone.h * win_h;\n\
+         \x20       let inside = points.iter().any(|(px, py)| {\n\
+         \x20           *px >= zx && *px <= zx + zw && *py >= zy && *py <= zy + zh\n\
+         \x20       });\n\
+         \x20       match zone.action_kind {\n\
+         \x20           TouchActionKind::Hold => {\n\
+         \x20               let name = zone.parameter_name.clone();\n\
+         \x20               params.set_bool(&name, inside);\n\
+         \x20           }\n\
+         \x20           TouchActionKind::Trigger => {\n\
+         \x20               if inside && !zone.was_inside {\n\
+         \x20                   let name = zone.parameter_name.clone();\n\
+         \x20                   params.trigger(&name);\n\
+         \x20               }\n\
+         \x20           }\n\
+         \x20       }\n\
+         \x20       zone.was_inside = inside;\n\
+         \x20   }\n\
+         }\n",
+    );
     code
 }
 
