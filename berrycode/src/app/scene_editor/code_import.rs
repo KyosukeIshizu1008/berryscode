@@ -1235,7 +1235,12 @@ pub fn setup_scene(
             // Components that generate comment-only output lose data during roundtrip
             if matches!(
                 entity.name.as_str(),
-                "Mesh From File" | "Joint Fixed" | "Joint Hinge" | "Joint Spring" | "NavMesh Agent"
+                "Mesh From File"
+                    | "Joint Fixed"
+                    | "Joint Hinge"
+                    | "Joint Spring"
+                    | "NavMesh Agent"
+                    | "Player Controller"
             ) {
                 continue;
             }
