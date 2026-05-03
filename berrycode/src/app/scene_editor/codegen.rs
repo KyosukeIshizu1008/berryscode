@@ -732,6 +732,22 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
 }
 
 #[allow(dead_code)]
+/// Walk a `Motion` tree and pull out the first leaf clip name. Used by
+/// the animator codegen as a degraded fallback for blend trees until
+/// the runtime supports per-frame weight evaluation.
+fn pick_dominant_clip(motion: &super::animator::Motion) -> Option<String> {
+    match motion {
+        super::animator::Motion::Clip { clip_name } if !clip_name.is_empty() => {
+            Some(clip_name.clone())
+        }
+        super::animator::Motion::Clip { .. } => None,
+        super::animator::Motion::BlendTree(tree) => tree
+            .children
+            .iter()
+            .find_map(|c| pick_dominant_clip(&c.motion)),
+    }
+}
+
 /// Load an `.banimator` file from `controller_path` and return a Rust
 /// literal that constructs the matching `super::AnimatorRuntime` value
 /// for the runtime FSM. Returns `None` when the file is missing or
@@ -767,7 +783,14 @@ fn load_animator_for_codegen(controller_path: &str, project_root: &str) -> Optio
         let clip = if is_pseudo {
             String::new()
         } else {
-            st.effective_clip_name().to_string()
+            // True blend trees aren't represented in the runtime FSM yet
+            // (no per-frame weight evaluation). As a minimum-viable
+            // fallback, pick the first leaf clip in the tree so the user
+            // can still author blend states in the editor and get
+            // *something* playing — typically the lowest-threshold child
+            // (idle pose for a Walk↔Run blend) which is a sensible
+            // default. Real blending lands in a follow-up.
+            pick_dominant_clip(&st.motion).unwrap_or_else(|| st.clip_name.clone())
         };
         out.push_str(&format!(
             "                super::AnimRuntimeState {{ name: {:?}.to_string(), clip_name: {:?}.to_string(), looped: {} }},\n",
@@ -3899,6 +3922,72 @@ bevy = "0.15"
             !code.contains("pub fn animator_evaluate"),
             "evaluator should be skipped for empty scenes dir to avoid the\n\
              dangling `super::PendingGlbAnim` import"
+        );
+    }
+
+    #[test]
+    fn animator_blend_tree_state_falls_back_to_first_leaf_clip() {
+        use crate::app::scene_editor::animator::{
+            AnimState, AnimatorController, BlendTree, BlendTreeChild, BlendType, Motion, StateKind,
+        };
+        let tmp = tempfile::tempdir().unwrap();
+        let banimator = tmp.path().join("blend.banimator");
+
+        // A 1D blend tree mixing Walk → Run by speed. The runtime can't
+        // evaluate weights yet, so codegen must at least pick the first
+        // leaf clip ("Walk" here) so the state plays *something*.
+        let ctrl = AnimatorController {
+            name: "Locomotion".into(),
+            states: vec![AnimState {
+                name: "Move".into(),
+                clip_name: String::new(),
+                motion: Motion::BlendTree(BlendTree {
+                    name: "Locomotion".into(),
+                    blend_type: BlendType::Simple1D,
+                    parameter_x: "speed".into(),
+                    parameter_y: String::new(),
+                    children: vec![
+                        BlendTreeChild {
+                            motion: Motion::Clip {
+                                clip_name: "Walk".into(),
+                            },
+                            threshold: 0.0,
+                            position: [0.0, 0.0],
+                            time_scale: 1.0,
+                        },
+                        BlendTreeChild {
+                            motion: Motion::Clip {
+                                clip_name: "Run".into(),
+                            },
+                            threshold: 5.0,
+                            position: [0.0, 0.0],
+                            time_scale: 1.0,
+                        },
+                    ],
+                }),
+                speed: 1.0,
+                looped: true,
+                position: [0.0, 0.0],
+                kind: StateKind::Normal,
+            }],
+            transitions: vec![],
+            parameters: vec![],
+            default_state: 0,
+        };
+        super::super::animator::save_animator(&ctrl, banimator.to_str().unwrap()).unwrap();
+
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Hero".into(),
+            vec![ComponentData::Animator {
+                controller_path: banimator.to_string_lossy().to_string(),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("clip_name: \"Walk\".to_string()"),
+            "blend tree state must fall back to first leaf clip\n\n{}",
+            code
         );
     }
 
