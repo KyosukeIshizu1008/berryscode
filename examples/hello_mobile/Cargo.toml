@@ -1,0 +1,21 @@
+[package]
+name = "hello_mobile"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "BerryCode v0.7.5 reference: a minimal mobile-ready Bevy game."
+
+# This crate is intentionally tiny — it shows the runtime shape that
+# BerryCode emits into a real project (see MOBILE.md) without dragging
+# in the editor itself. Open it in BerryCode to layout the scene
+# visually, or read `src/main.rs` to learn what BerryCode generates.
+
+[dependencies]
+bevy = { version = "0.18", default-features = false, features = [
+    "bevy_winit", "bevy_render", "bevy_core_pipeline", "bevy_pbr",
+    "bevy_asset", "bevy_scene", "bevy_gltf", "bevy_animation", "gltf_animation",
+    "bevy_text", "default_font",
+    "x11", "wayland",
+    "tonemapping_luts",
+] }
+avian3d = "0.6"
