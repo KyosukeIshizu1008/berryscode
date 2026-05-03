@@ -2485,6 +2485,49 @@ pub fn berry_ui_system(
         return Ok(());
     }
 
+    // === File-tree live refresh ===
+    // The `FileWatcher` was being constructed in `open_project` but its
+    // event channel was never drained, so the File Tree only reflected
+    // disk state at the moment of project open. Drain pending events
+    // here, collect the unique parent directories that changed, and
+    // re-read each one if it's currently expanded so externally-created
+    // / -deleted files appear without forcing the user to manually
+    // refresh.
+    let mut dirs_to_reload: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut root_touched = false;
+    // Snapshot root_path before mutably borrowing the watcher so the
+    // event loop's parent-vs-root check doesn't alias.
+    let root_path_snapshot = app.root_path.clone();
+    if let Some(watcher) = app.file_watcher.as_mut() {
+        while let Some(ev) = watcher.try_recv() {
+            let path = match ev {
+                native::watcher::FileEvent::Created(p)
+                | native::watcher::FileEvent::Modified(p)
+                | native::watcher::FileEvent::Removed(p) => p,
+                native::watcher::FileEvent::Renamed { to, .. } => to,
+            };
+            if let Some(parent) = path.parent() {
+                let parent_str = parent.to_string_lossy().to_string();
+                if parent_str == root_path_snapshot {
+                    root_touched = true;
+                }
+                dirs_to_reload.insert(parent_str);
+            }
+        }
+    }
+    if root_touched {
+        // Cheapest path for root-level changes — clear the cache and
+        // let the next render re-walk the project root.
+        app.file_tree_cache.clear();
+        app.file_tree_load_pending = true;
+    } else {
+        for dir in dirs_to_reload {
+            if app.expanded_dirs.contains(&dir) {
+                app.load_directory_children(&dir);
+            }
+        }
+    }
+
     // === IME ⇄ Text de-duplication (global, before any TextEdit runs) ===
     // egui on macOS sometimes emits both `Event::Ime(Preedit("l"))` and
     // `Event::Text("l")` for the *same* romaji char. Standard `TextEdit`s
