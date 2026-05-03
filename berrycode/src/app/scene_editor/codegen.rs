@@ -790,20 +790,23 @@ pub fn generate_scene_plugin_code_with_root(
         // Marker carrying the `Handle<Gltf>` and the optional clip name to
         // play. The build/attach systems use it to map the
         // auto-inserted `AnimationPlayer` back to the right graph + node.
+        // `pub` so user code (e.g. a `switch_clip` system in `main.rs`)
+        // can read the GLTF handle and trigger animation changes at
+        // runtime without going through codegen.
         code.push_str("#[derive(Component)]\n");
         code.push_str(&format!(
-            "struct {} {{\n    gltf: Handle<Gltf>,\n    clip: Option<String>,\n}}\n\n",
+            "pub struct {} {{\n    pub gltf: Handle<Gltf>,\n    pub clip: Option<String>,\n}}\n\n",
             pending_marker
         ));
         // Per-GLTF graph + (clip name → node) lookup so we can pick a
         // specific clip by name at attach time.
         code.push_str(&format!(
-            "struct {} {{\n    graph: Handle<AnimationGraph>,\n    nodes: Vec<(String, AnimationNodeIndex)>,\n}}\n\n",
+            "pub struct {} {{\n    pub graph: Handle<AnimationGraph>,\n    pub nodes: Vec<(String, AnimationNodeIndex)>,\n}}\n\n",
             entry_struct
         ));
         code.push_str("#[derive(Resource, Default)]\n");
         code.push_str(&format!(
-            "struct {} {{\n    by_id: HashMap<AssetId<Gltf>, {}>,\n}}\n\n",
+            "pub struct {} {{\n    pub by_id: HashMap<AssetId<Gltf>, {}>,\n}}\n\n",
             graphs_resource, entry_struct
         ));
     }
