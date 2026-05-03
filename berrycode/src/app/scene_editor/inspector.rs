@@ -89,6 +89,37 @@ fn stop_audio_preview() {
 /// Create a default [`ScriptValue`] from a Rust type string.
 /// Recognises `Vec<T>`, `Option<T>`, and `HashMap<K,V>` wrappers in addition
 /// to the basic primitive types.
+/// Render a path `TextEdit` that also accepts a file dragged from the
+/// File Tree / Asset Browser. When the user drops an asset directly on
+/// the field, `dragged` is consumed and `value` becomes the dropped
+/// path. Returns `true` if the value was changed by typing or by drop.
+///
+/// `dragged` is `&mut` so the caller can decide whether to restore it
+/// after rendering (e.g. if no field accepted the drop, leave it for a
+/// later widget that frame).
+fn path_text_edit(
+    ui: &mut egui::Ui,
+    value: &mut String,
+    hint: &str,
+    desired_width: f32,
+    dragged: &mut Option<String>,
+) -> bool {
+    let resp = ui.add(
+        egui::TextEdit::singleline(value)
+            .hint_text(hint)
+            .desired_width(desired_width),
+    );
+    let mut changed = resp.changed();
+    let pointer_released = ui.input(|i| i.pointer.any_released());
+    if dragged.is_some() && resp.hovered() && pointer_released {
+        if let Some(p) = dragged.take() {
+            *value = p;
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// Render a "Clip" dropdown for GLB skeletal animations.
 ///
 /// `clips` is the list of clip names mirrored from `SceneAnimationState`.
@@ -255,6 +286,12 @@ impl BerryCodeApp {
         // Capture GPU material preview texture id before entering the mutable
         // entity borrow.
         let mat_preview_tex = self.material_preview_texture_id;
+
+        // Take ownership of any in-flight asset drag so the path-field
+        // helper can consume it on drop without re-borrowing `self`. Any
+        // value left in `dragged` after the entity edit closes is written
+        // back so the Scene View / other widgets can still receive it.
+        let mut dragged_asset = self.dragged_asset_path.take();
 
         // Snapshot GLB animation state for the selected entity so the inspector
         // can render the clip dropdown without re-borrowing `self` while
@@ -498,8 +535,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Texture:");
                                 let mut path_str = texture_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("image path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "image path", 180.0, &mut dragged_asset) {
                                     *texture_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -507,8 +543,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Normal Map:");
                                 let mut path_str = normal_map_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("normal map path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "normal map path", 180.0, &mut dragged_asset) {
                                     *normal_map_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -571,8 +606,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Texture:");
                                 let mut path_str = texture_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("image path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "image path", 180.0, &mut dragged_asset) {
                                     *texture_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -580,8 +614,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Normal Map:");
                                 let mut path_str = normal_map_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("normal map path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "normal map path", 180.0, &mut dragged_asset) {
                                     *normal_map_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -644,8 +677,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Texture:");
                                 let mut path_str = texture_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("image path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "image path", 180.0, &mut dragged_asset) {
                                     *texture_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -653,8 +685,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Normal Map:");
                                 let mut path_str = normal_map_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("normal map path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "normal map path", 180.0, &mut dragged_asset) {
                                     *normal_map_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -768,7 +799,9 @@ impl BerryCodeApp {
                         ComponentData::MeshFromFile { path, texture_path, normal_map_path, auto_play_clip } => {
                             ui.horizontal(|ui| {
                                 ui.label("Path:");
-                                ui.label(path.as_str());
+                                if path_text_edit(ui, path, ".glb / .gltf path", 220.0, &mut dragged_asset) {
+                                    mutated = true;
+                                }
                             });
                             if render_glb_clip_combo(
                                 ui,
@@ -787,8 +820,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Texture:");
                                 let mut path_str = texture_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("image path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "image path", 180.0, &mut dragged_asset) {
                                     *texture_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -796,8 +828,7 @@ impl BerryCodeApp {
                             ui.horizontal(|ui| {
                                 ui.label("Normal Map:");
                                 let mut path_str = normal_map_path.clone().unwrap_or_default();
-                                if ui.add(egui::TextEdit::singleline(&mut path_str).hint_text("normal map path").desired_width(180.0))
-                                    .changed() {
+                                if path_text_edit(ui, &mut path_str, "normal map path", 180.0, &mut dragged_asset) {
                                     *normal_map_path = if path_str.is_empty() { None } else { Some(path_str) };
                                     mutated = true;
                                 }
@@ -1541,8 +1572,7 @@ impl BerryCodeApp {
                         ComponentData::Skybox { path } => {
                             ui.horizontal(|ui| {
                                 ui.label("HDR Path:");
-                                if ui.add(egui::TextEdit::singleline(path).hint_text("path to .hdr/.exr").desired_width(200.0))
-                                    .changed() { mutated = true; }
+                                if path_text_edit(ui, path, "path to .hdr/.exr", 200.0, &mut dragged_asset) { mutated = true; }
                             });
                         }
                         ComponentData::Animation {
@@ -1672,8 +1702,7 @@ impl BerryCodeApp {
                         ComponentData::Animator { controller_path } => {
                             ui.horizontal(|ui| {
                                 ui.label("Controller:");
-                                if ui.add(egui::TextEdit::singleline(controller_path).hint_text(".banimator path").desired_width(200.0))
-                                    .changed() { mutated = true; }
+                                if path_text_edit(ui, controller_path, ".banimator path", 200.0, &mut dragged_asset) { mutated = true; }
                             });
                             if ui.button("Open Editor").clicked() {
                                 open_animator_editor = true;
@@ -1703,11 +1732,7 @@ impl BerryCodeApp {
                                         });
                                         ui.horizontal(|ui| {
                                             ui.label("Mesh:");
-                                            if ui.add(
-                                                egui::TextEdit::singleline(&mut level.mesh_path)
-                                                    .hint_text("mesh asset path")
-                                                    .desired_width(200.0),
-                                            ).changed() {
+                                            if path_text_edit(ui, &mut level.mesh_path, "mesh asset path", 200.0, &mut dragged_asset) {
                                                 mutated = true;
                                             }
                                         });
@@ -1840,7 +1865,7 @@ impl BerryCodeApp {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
                                     ui.label("GLB/GLTF Path:");
-                                    if ui.text_edit_singleline(path).changed() {
+                                    if path_text_edit(ui, path, ".glb / .gltf path", 220.0, &mut dragged_asset) {
                                         mutated = true;
                                     }
                                 });
@@ -2276,6 +2301,10 @@ impl BerryCodeApp {
         if let Some(req) = glb_anim_request {
             self.scene_anim_clip_request.insert(selected_id, req);
         }
+
+        // If no path field consumed the drag, hand it back so other panels
+        // (e.g. the Scene View drop-to-spawn handler) can still receive it.
+        self.dragged_asset_path = dragged_asset;
 
         // Apply deferred paste: push clipboard component onto the entity.
         if paste_requested {
