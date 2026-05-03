@@ -10,6 +10,7 @@ pub mod log_relay;
 pub mod packager;
 pub mod play_console;
 pub mod probe;
+pub mod project_emit;
 pub mod runner;
 pub mod types;
 
