@@ -3837,6 +3837,208 @@ bevy = "0.15"
         );
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Animator runtime FSM (v0.5.10–11)
+    // ──────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn animator_runtime_types_always_emitted_in_mod_rs() {
+        // The runtime FSM types live in `scenes/mod.rs` so user code can
+        // `use scenes::AnimatorParams` even before any scene file exists
+        // (`tempdir` here has none). Verify each public surface.
+        let tmp = tempfile::tempdir().unwrap();
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        for needle in [
+            "pub enum AnimParamValue",
+            "pub struct AnimatorParams",
+            "pub fn set_bool",
+            "pub fn set_float",
+            "pub fn set_int",
+            "pub fn trigger",
+            "pub fn check_trigger",
+            "pub enum AnimCondition",
+            "BoolEq {",
+            "FloatGreater {",
+            "FloatLess {",
+            "IntEq {",
+            "Trigger {",
+            "OnComplete",
+            "pub struct AnimTransition",
+            "pub struct AnimRuntimeState",
+            "pub struct AnimatorRuntime",
+        ] {
+            assert!(
+                code.contains(needle),
+                "missing `{}` in mod.rs\n\n{}",
+                needle,
+                code
+            );
+        }
+        // Animator evaluator only emits when there's at least one scene
+        // module to draw GLB anim resources from — empty case skips it.
+        assert!(
+            !code.contains("pub fn animator_evaluate"),
+            "evaluator should be skipped for empty scenes dir to avoid the\n\
+             dangling `super::PendingGlbAnim` import"
+        );
+    }
+
+    #[test]
+    fn animator_evaluator_registered_when_scenes_exist() {
+        // With a scene file present, `animator_evaluate` is emitted *and*
+        // wired into ScenesPlugin so the FSM ticks every frame.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("scene.rs"), "// stub\n").unwrap();
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        assert!(
+            code.contains("pub fn animator_evaluate("),
+            "evaluator function must be defined when scenes exist\n\n{}",
+            code
+        );
+        assert!(
+            code.contains("app.add_systems(Update, animator_evaluate);"),
+            "ScenesPlugin must register animator_evaluate\n\n{}",
+            code
+        );
+        // Evaluator imports the *first* scene's prefixed GLB anim types.
+        assert!(
+            code.contains("use scene::{ScenePendingGlbAnim as BcPendingGlbAnim, SceneGlbAnimGraphs as BcGlbAnimGraphs};"),
+            "evaluator must alias the first scene's per-prefix types\n\n{}",
+            code
+        );
+    }
+
+    #[test]
+    fn animator_component_with_missing_controller_emits_comment_fallback() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Hero".into(),
+            vec![ComponentData::Animator {
+                controller_path: "/no/such/file.banimator".into(),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("// [BerryCode:Animator] missing or invalid controller"),
+            "missing .banimator must fall back to a comment so the scene\n\
+             file still compiles\n\n{}",
+            code
+        );
+        assert!(
+            !code.contains("super::AnimatorRuntime {"),
+            "must NOT emit a runtime literal when the file isn't loadable\n\n{}",
+            code
+        );
+    }
+
+    #[test]
+    fn animator_component_emits_runtime_literal_from_banimator_file() {
+        use crate::app::scene_editor::animator::{
+            AnimParam, AnimState, AnimTransition as EdTrans, AnimatorController, Motion, StateKind,
+            TransitionCondition,
+        };
+        let tmp = tempfile::tempdir().unwrap();
+        let banimator_path = tmp.path().join("hero.banimator");
+
+        let ctrl = AnimatorController {
+            name: "HeroFsm".into(),
+            states: vec![
+                AnimState {
+                    name: "Idle".into(),
+                    clip_name: String::new(),
+                    motion: Motion::Clip {
+                        clip_name: "Survey".into(),
+                    },
+                    speed: 1.0,
+                    looped: true,
+                    position: [0.0, 0.0],
+                    kind: StateKind::Normal,
+                },
+                AnimState {
+                    name: "Run".into(),
+                    clip_name: String::new(),
+                    motion: Motion::Clip {
+                        clip_name: "Run".into(),
+                    },
+                    speed: 1.0,
+                    looped: true,
+                    position: [200.0, 0.0],
+                    kind: StateKind::Normal,
+                },
+            ],
+            transitions: vec![
+                EdTrans {
+                    from_state: 0,
+                    to_state: 1,
+                    condition: TransitionCondition::BoolParam {
+                        name: "isMoving".into(),
+                        value: true,
+                    },
+                    blend_duration: 0.0,
+                    has_exit_time: false,
+                    exit_time: 1.0,
+                },
+                EdTrans {
+                    from_state: 1,
+                    to_state: 0,
+                    condition: TransitionCondition::BoolParam {
+                        name: "isMoving".into(),
+                        value: false,
+                    },
+                    blend_duration: 0.0,
+                    has_exit_time: false,
+                    exit_time: 1.0,
+                },
+            ],
+            parameters: vec![AnimParam::Bool {
+                name: "isMoving".into(),
+                value: false,
+            }],
+            default_state: 0,
+        };
+        super::super::animator::save_animator(&ctrl, banimator_path.to_str().unwrap()).unwrap();
+
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Hero".into(),
+            vec![ComponentData::Animator {
+                controller_path: banimator_path.to_string_lossy().to_string(),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+
+        // States made it through with the right (clip_name, looped) pairing
+        assert!(
+            code.contains("clip_name: \"Survey\".to_string(), looped: true")
+                && code.contains("clip_name: \"Run\".to_string(), looped: true"),
+            "state clip_name + looped flags must round-trip\n\n{}",
+            code
+        );
+        // Transitions: BoolEq with the editor's parameter name and value
+        assert!(
+            code.contains(
+                "super::AnimCondition::BoolEq { name: \"isMoving\".to_string(), value: true }"
+            ) && code.contains(
+                "super::AnimCondition::BoolEq { name: \"isMoving\".to_string(), value: false }"
+            ),
+            "BoolParam transitions must emit BoolEq conditions\n\n{}",
+            code
+        );
+        // Default state is honoured
+        assert!(
+            code.contains("current_state: 0,") && code.contains("default_state: 0,"),
+            "current_state and default_state must match the controller's default_state\n\n{}",
+            code
+        );
+        // The `AnimatorParams` is auto-spawned alongside so user code can
+        // `set_bool` without inserting it manually.
+        assert!(
+            code.contains("super::AnimatorParams::default()"),
+            "AnimatorParams must accompany every Animator spawn\n\n{}",
+            code
+        );
+    }
+
     /// Scene without any Collider/RigidBody must not pull in avian
     /// references — keeps non-physics scenes cheap and prevents accidental
     /// `use avian3d` requirements on projects that haven't added the dep.
