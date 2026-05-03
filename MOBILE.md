@@ -1,8 +1,16 @@
 # Mobile build pipeline
 
 End-to-end notes for shipping a BerryCode project to the App Store and
-Google Play. Status reflects v0.7.2; gaps are tracked in the editor's
+Google Play. Status reflects v0.7.6; gaps are tracked in the editor's
 Build Settings panel.
+
+> 📦 Looking for a working sample? See
+> [`examples/hello_mobile/`](./examples/hello_mobile/) — a standalone
+> Bevy + avian3d project that mirrors the runtime shape BerryCode
+> emits, including a `TouchInputZone` virtual jump button.
+
+> 🔀 Upgrading from v0.5 / v0.6? Read [`MIGRATION.md`](./MIGRATION.md)
+> for the per-version changes.
 
 ## Targets
 

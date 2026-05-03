@@ -1,4 +1,11 @@
-//! ANSI escape sequence parser for terminal output colorization
+//! ANSI escape sequence parser for terminal output colorization.
+//!
+//! API surface for the future colour-aware terminal renderer; the
+//! current `terminal.rs` paints from the `vt100` parser directly.
+//! Allow `dead_code` so the parser can land without each helper
+//! tripping the lint until the renderer is wired up.
+
+#![allow(dead_code)]
 
 /// A segment of text with associated ANSI color
 #[derive(Debug, Clone)]
