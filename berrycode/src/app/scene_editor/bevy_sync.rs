@@ -1105,10 +1105,12 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     speed,
                     jump_velocity,
                     run_multiplier,
+                    turn_speed,
                 } => {
                     speed.to_bits().hash(&mut hasher);
                     jump_velocity.to_bits().hash(&mut hasher);
                     run_multiplier.to_bits().hash(&mut hasher);
+                    turn_speed.to_bits().hash(&mut hasher);
                 }
             }
         }

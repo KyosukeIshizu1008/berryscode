@@ -2270,6 +2270,32 @@ pub fn berry_ui_system(
         return Ok(());
     }
 
+    // === IME ⇄ Text de-duplication (global, before any TextEdit runs) ===
+    // egui on macOS sometimes emits both `Event::Ime(Preedit("l"))` and
+    // `Event::Text("l")` for the *same* romaji char. Standard `TextEdit`s
+    // happily insert the Text event into the buffer while also showing the
+    // preedit overlay on top — leaving a stray latin char that the user
+    // can't backspace (they think they're deleting the overlay, not the
+    // committed char). The IME's own `Preedit` / `Commit` events are
+    // sufficient to drive text insertion, so drop loose `Text` events
+    // whenever any IME event is in flight this frame.
+    if let Ok(ctx) = egui_ctx.ctx_mut() {
+        ctx.input_mut(|i| {
+            // Only the *Preedit* case is the buggy one — the OS sometimes
+            // double-fires `Text("l")` alongside `Preedit("l")` for the
+            // same romaji char. `Commit` is the normal IME insertion path
+            // and may also be paired with `Text` carrying the same final
+            // string; dropping that breaks deletion of the last committed
+            // char (egui's `TextEdit` ends up with mismatched buffer state).
+            let has_preedit = i.events.iter().any(
+                |e| matches!(e, egui::Event::Ime(egui::ImeEvent::Preedit(s)) if !s.is_empty()),
+            );
+            if has_preedit {
+                i.events.retain(|e| !matches!(e, egui::Event::Text(_)));
+            }
+        });
+    }
+
     // === GLB animation bridge (resources → BerryCodeApp mirrors) ===
     // Mirror Bevy-side animation state into `BerryCodeApp` so the inspector /
     // model preview UI (which only sees `&mut self`) can read clip lists and
@@ -2531,7 +2557,16 @@ pub fn berry_ui_system(
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
-                    app.render_scene_inspector(ui);
+                    // Wrap in a ScrollArea so long component lists (e.g. an
+                    // entity carrying Mesh + Collider + RigidBody +
+                    // PlayerController + Transform sliders) don't get
+                    // clipped at the bottom of the panel with no way to
+                    // reach them.
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false; 2])
+                        .show(ui, |ui| {
+                            app.render_scene_inspector(ui);
+                        });
                 });
             egui::CentralPanel::default()
                 .frame(
@@ -2628,11 +2663,12 @@ pub fn berry_ui_system(
         // Render debug panel (bottom panel when debugging)
         app.render_debug_panel(ctx);
 
-        // Render run output panel (bottom panel when running cargo)
-        // Skip if tool panel is open (console is shown there instead)
-        if !app.tool_panel_open {
-            app.render_run_panel(ctx);
-        }
+        // The standalone run-output panel was removed in v0.5.7 — its
+        // Run/Stop/filter UI lives inside the dock's "Output" tab now
+        // (`dock::ToolTab::Output` → `render_console_content`). Triggering
+        // a run from the toolbar / shortcut auto-opens that tab so the
+        // user always sees the same console regardless of how they
+        // started the build.
 
         // Render diagnostics: now hosted as the "Problems" tab inside the
         // unified bottom panel (see `dock::render_tool_panel`). Auto-open

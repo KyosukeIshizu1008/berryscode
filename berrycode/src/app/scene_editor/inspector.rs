@@ -1992,7 +1992,7 @@ impl BerryCodeApp {
                                 }
                             });
                         }
-                        ComponentData::PlayerController { speed, jump_velocity, run_multiplier } => {
+                        ComponentData::PlayerController { speed, jump_velocity, run_multiplier, turn_speed } => {
                             ui.horizontal(|ui| {
                                 ui.label("Speed:");
                                 if ui.add(egui::DragValue::new(speed).speed(0.1).range(0.0..=50.0)).changed() {
@@ -2011,6 +2011,12 @@ impl BerryCodeApp {
                                     mutated = true;
                                 }
                             });
+                            ui.horizontal(|ui| {
+                                ui.label("Turn Speed:");
+                                if ui.add(egui::DragValue::new(turn_speed).speed(0.1).range(0.0..=30.0)).changed() {
+                                    mutated = true;
+                                }
+                            }).response.on_hover_text("0 = locked rotation, > 0 = slerp toward movement direction");
                         }
                     }
                 });

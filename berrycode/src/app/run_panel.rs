@@ -112,6 +112,13 @@ impl BerryCodeApp {
         self.run_output.clear();
         self.run_output
             .push("─── Starting cargo run ───".to_string());
+        // Surface output in the unified bottom panel — open it and switch
+        // to the Output tab so the user sees the build / runtime logs
+        // without having to hunt for the right tab.
+        self.tool_panel_open = true;
+        self.active_tool_tab = crate::app::dock::ToolTab::Output;
+        // Kept for backward-compat with any caller that still flips the
+        // legacy field; the standalone panel itself was removed in v0.5.7.
         self.run_panel_open = true;
 
         let project_path = self.root_path.clone();

@@ -1040,10 +1040,11 @@ pub fn generate_scene_plugin_code_with_root(
                     speed,
                     jump_velocity,
                     run_multiplier,
+                    turn_speed,
                 } => {
                     code.push_str(&format!(
-                        "        super::PlayerController {{\n            speed: {:.3},\n            jump_velocity: {:.3},\n            run_multiplier: {:.3},\n        }},\n",
-                        speed, jump_velocity, run_multiplier
+                        "        super::PlayerController {{\n            speed: {:.3},\n            jump_velocity: {:.3},\n            run_multiplier: {:.3},\n            turn_speed: {:.3},\n        }},\n",
+                        speed, jump_velocity, run_multiplier, turn_speed
                     ));
                 }
                 ComponentData::RigidBody { body_type, .. } => {
@@ -1268,6 +1269,9 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
     code.push_str("    pub speed: f32,\n");
     code.push_str("    pub jump_velocity: f32,\n");
     code.push_str("    pub run_multiplier: f32,\n");
+    code.push_str("    /// Slerp factor (per second) used to face the\n");
+    code.push_str("    /// movement direction. `0.0` keeps rotation locked.\n");
+    code.push_str("    pub turn_speed: f32,\n");
     code.push_str("}\n\n");
 
     if modules.is_empty() {
@@ -3535,6 +3539,7 @@ bevy = "0.15"
                 speed: 7.5,
                 jump_velocity: 12.0,
                 run_multiplier: 1.8,
+                turn_speed: 9.0,
             }],
         );
         let code = generate_scene_plugin_code_with_root(&scene, "scene", "");

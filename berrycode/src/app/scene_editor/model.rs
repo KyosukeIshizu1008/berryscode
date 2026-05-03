@@ -172,6 +172,9 @@ fn default_player_jump() -> f32 {
 fn default_player_run_mult() -> f32 {
     2.0
 }
+fn default_player_turn_speed() -> f32 {
+    12.0
+}
 
 /// Default friction for a newly-created Collider component.
 fn default_friction() -> f32 {
@@ -552,6 +555,12 @@ pub enum ComponentData {
         jump_velocity: f32,
         #[serde(default = "default_player_run_mult")]
         run_multiplier: f32,
+        /// Slerp factor (per second) the runtime applies to make the player
+        /// face their movement direction. `0.0` keeps the rotation locked,
+        /// any positive value rotates toward the input vector — `12.0` is
+        /// "snappy", `4.0` is "smooth".
+        #[serde(default = "default_player_turn_speed")]
+        turn_speed: f32,
     },
     MeshFromFile {
         path: String,
@@ -855,6 +864,7 @@ impl ComponentData {
                     speed: default_player_speed(),
                     jump_velocity: default_player_jump(),
                     run_multiplier: default_player_run_mult(),
+                    turn_speed: default_player_turn_speed(),
                 },
             ),
             (
