@@ -80,6 +80,113 @@ pub enum SceneViewMode {
     Game,
 }
 
+/// Mobile / tablet display profiles for previewing how a scene will look
+/// on a target device. The Scene View letter-boxes its render target to
+/// the chosen aspect ratio and overlays safe-area indicators for the
+/// iPhone notch / Android status bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DisplayProfile {
+    #[default]
+    Default,
+    IPhonePortrait,
+    IPhoneLandscape,
+    IPadPortrait,
+    IPadLandscape,
+    AndroidPhonePortrait,
+    AndroidPhoneLandscape,
+    AndroidTablet,
+}
+
+/// Pixel dimensions + safe-area insets (top/bottom in logical points)
+/// for a `DisplayProfile`. The insets describe the area covered by the
+/// system status bar / notch / home indicator.
+pub struct DisplayProfileSpec {
+    pub label: &'static str,
+    pub width: u32,
+    pub height: u32,
+    pub safe_top: u32,
+    pub safe_bottom: u32,
+}
+
+impl DisplayProfile {
+    pub const ALL: &'static [DisplayProfile] = &[
+        DisplayProfile::Default,
+        DisplayProfile::IPhonePortrait,
+        DisplayProfile::IPhoneLandscape,
+        DisplayProfile::IPadPortrait,
+        DisplayProfile::IPadLandscape,
+        DisplayProfile::AndroidPhonePortrait,
+        DisplayProfile::AndroidPhoneLandscape,
+        DisplayProfile::AndroidTablet,
+    ];
+
+    /// Spec for this profile. `Default` returns `None`, telling the
+    /// renderer to fill the panel as-is (no letterboxing).
+    pub fn spec(self) -> Option<DisplayProfileSpec> {
+        match self {
+            // iPhone 15 Pro logical points (Dynamic Island = 59pt safe top).
+            DisplayProfile::IPhonePortrait => Some(DisplayProfileSpec {
+                label: "iPhone (Portrait)",
+                width: 393,
+                height: 852,
+                safe_top: 59,
+                safe_bottom: 34,
+            }),
+            DisplayProfile::IPhoneLandscape => Some(DisplayProfileSpec {
+                label: "iPhone (Landscape)",
+                width: 852,
+                height: 393,
+                safe_top: 0,
+                safe_bottom: 21,
+            }),
+            // iPad Pro 11" logical points.
+            DisplayProfile::IPadPortrait => Some(DisplayProfileSpec {
+                label: "iPad (Portrait)",
+                width: 834,
+                height: 1194,
+                safe_top: 24,
+                safe_bottom: 20,
+            }),
+            DisplayProfile::IPadLandscape => Some(DisplayProfileSpec {
+                label: "iPad (Landscape)",
+                width: 1194,
+                height: 834,
+                safe_top: 24,
+                safe_bottom: 20,
+            }),
+            // Android Pixel 8 — status bar + 3-button nav.
+            DisplayProfile::AndroidPhonePortrait => Some(DisplayProfileSpec {
+                label: "Android Phone (Portrait)",
+                width: 412,
+                height: 915,
+                safe_top: 24,
+                safe_bottom: 48,
+            }),
+            DisplayProfile::AndroidPhoneLandscape => Some(DisplayProfileSpec {
+                label: "Android Phone (Landscape)",
+                width: 915,
+                height: 412,
+                safe_top: 24,
+                safe_bottom: 48,
+            }),
+            DisplayProfile::AndroidTablet => Some(DisplayProfileSpec {
+                label: "Android Tablet",
+                width: 1280,
+                height: 800,
+                safe_top: 24,
+                safe_bottom: 48,
+            }),
+            DisplayProfile::Default => None,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        self.spec()
+            .map(|s| s.label)
+            .unwrap_or("Free Aspect (Editor)")
+    }
+}
+
 // ===== Syntax Highlighting Color Palette =====
 // VS Code Dark+ inspired color scheme for Rust syntax highlighting
 
@@ -523,6 +630,9 @@ pub struct BerryCodeApp {
     /// `Scene` = the orbit-controlled editor camera (default), `Game` =
     /// the scene's own `Camera`-tagged entity (player POV).
     pub(crate) scene_view_mode: SceneViewMode,
+    /// Mobile / tablet display profile that letter-boxes the Scene View
+    /// to a target device aspect ratio. `Default` keeps the panel as-is.
+    pub(crate) display_profile: DisplayProfile,
     pub(crate) scene_orbit_yaw: f32,
     pub(crate) scene_orbit_pitch: f32,
     pub(crate) scene_orbit_distance: f32,
@@ -1691,6 +1801,7 @@ impl BerryCodeApp {
             new_script_dialog_open: false,
             new_script_name: String::new(),
             scene_view_mode: SceneViewMode::Scene,
+            display_profile: DisplayProfile::Default,
             scene_orbit_yaw: std::f32::consts::FRAC_PI_4,
             scene_orbit_pitch: 0.5,
             scene_orbit_distance: 8.0,

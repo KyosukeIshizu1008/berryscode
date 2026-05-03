@@ -358,6 +358,27 @@ impl BerryCodeApp {
                 ui.add_space(2.0);
                 thin_sep(ui);
 
+                // Display profile selector — letter-boxes the viewport to
+                // a target device aspect ratio (Unity's Game-view aspect
+                // dropdown, plus iOS / Android safe-area overlays for
+                // mobile UI authoring).
+                let current_label = self.display_profile.label();
+                egui::ComboBox::from_id_salt("display_profile_selector")
+                    .selected_text(current_label)
+                    .show_ui(ui, |ui| {
+                        for profile in crate::app::DisplayProfile::ALL {
+                            if ui
+                                .selectable_label(self.display_profile == *profile, profile.label())
+                                .clicked()
+                            {
+                                self.display_profile = *profile;
+                            }
+                        }
+                    });
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
                 // Play mode controls
                 match self.play_mode {
                     super::play_mode::PlayModeState::Stopped => {
@@ -541,9 +562,16 @@ impl BerryCodeApp {
             return;
         };
 
-        // Allocate a rect that preserves the render target's 4:3 aspect ratio.
+        // Display profile aspect ratio: `Default` keeps the render
+        // target's 4:3, mobile profiles use the device's logical
+        // dimensions so the viewport letter-boxes to phone / tablet
+        // proportions for mobile UI authoring.
+        let profile_spec = self.display_profile.spec();
+        let aspect = match &profile_spec {
+            Some(s) => s.width as f32 / s.height as f32,
+            None => 1024.0 / 768.0,
+        };
         let available = ui.available_size();
-        let aspect = 1024.0 / 768.0;
         let display_w = available.x.min(available.y * aspect);
         let display_h = display_w / aspect;
         let (rect, response) = ui.allocate_exact_size(
@@ -558,6 +586,44 @@ impl BerryCodeApp {
             egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
             egui::Color32::WHITE,
         );
+
+        // Mobile preview overlays: hatched safe-area bands at top /
+        // bottom (iOS notch + home indicator, Android status bar +
+        // navigation bar) so the user lays out UI inside the safe
+        // region.
+        if let Some(spec) = &profile_spec {
+            let scale_y = rect.height() / spec.height as f32;
+            let band_color = egui::Color32::from_rgba_premultiplied(255, 60, 60, 60);
+            if spec.safe_top > 0 {
+                let h = spec.safe_top as f32 * scale_y;
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), h)),
+                    0.0,
+                    band_color,
+                );
+            }
+            if spec.safe_bottom > 0 {
+                let h = spec.safe_bottom as f32 * scale_y;
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_size(
+                        egui::pos2(rect.min.x, rect.max.y - h),
+                        egui::vec2(rect.width(), h),
+                    ),
+                    0.0,
+                    band_color,
+                );
+            }
+            // Resolution badge in the bottom-right so the user knows
+            // exactly what device dimensions they're authoring against.
+            let badge = format!("{}×{}", spec.width, spec.height);
+            ui.painter().text(
+                egui::pos2(rect.right() - 6.0, rect.bottom() - 4.0),
+                egui::Align2::RIGHT_BOTTOM,
+                badge,
+                egui::FontId::proportional(11.0),
+                egui::Color32::from_rgba_premultiplied(220, 220, 220, 200),
+            );
+        }
 
         // Visual feedback while an asset is being dragged from the file tree.
         if let Some(asset) = &self.dragged_asset_path {
