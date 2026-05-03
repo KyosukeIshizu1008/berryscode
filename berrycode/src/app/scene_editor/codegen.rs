@@ -1513,7 +1513,26 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
              \x20               AnimCondition::FloatLess { name, threshold } => params.get_float(name) < *threshold,\n\
              \x20               AnimCondition::IntEq { name, value } => params.get_int(name) == *value,\n\
              \x20               AnimCondition::Trigger { name } => params.check_trigger(name),\n\
-             \x20               AnimCondition::OnComplete => false,\n\
+             \x20               AnimCondition::OnComplete => {\n\
+             \x20                   // Walk to the AnimationPlayer descendant and check\n\
+             \x20                   // whether any active clip has reached its end. Looped\n\
+             \x20                   // clips never report finished, so OnComplete naturally\n\
+             \x20                   // only fires for one-shot states.\n\
+             \x20                   let mut done = false;\n\
+             \x20                   let mut stack = vec![entity];\n\
+             \x20                   while let Some(e) = stack.pop() {\n\
+             \x20                       if let Ok(p) = players.get(e) {\n\
+             \x20                           if p.playing_animations().any(|(_, a)| a.is_finished()) {\n\
+             \x20                               done = true;\n\
+             \x20                           }\n\
+             \x20                           break;\n\
+             \x20                       }\n\
+             \x20                       if let Ok(children) = children_q.get(e) {\n\
+             \x20                           stack.extend(children.iter());\n\
+             \x20                       }\n\
+             \x20                   }\n\
+             \x20                   done\n\
+             \x20               }\n\
              \x20           };\n\
              \x20           if fired { next = Some(trans.to); break; }\n\
              \x20       }\n\
@@ -3880,6 +3899,23 @@ bevy = "0.15"
             !code.contains("pub fn animator_evaluate"),
             "evaluator should be skipped for empty scenes dir to avoid the\n\
              dangling `super::PendingGlbAnim` import"
+        );
+    }
+
+    #[test]
+    fn animator_oncomplete_emits_is_finished_walk() {
+        // Implementation guarantee for v0.5.13: the evaluator's
+        // `OnComplete` arm must walk the player descendant chain and
+        // check `is_finished()` on the active animation, otherwise
+        // one-shot states (attack, death, …) never advance.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("scene.rs"), "// stub\n").unwrap();
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        assert!(
+            code.contains("AnimCondition::OnComplete =>") && code.contains("a.is_finished()"),
+            "OnComplete must invoke `ActiveAnimation::is_finished` on the\n\
+             player's currently-playing animations\n\n{}",
+            code
         );
     }
 
