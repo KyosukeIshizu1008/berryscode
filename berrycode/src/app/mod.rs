@@ -2435,7 +2435,7 @@ pub fn setup_egui_fonts_and_style(
     let japanese_font_paths: Vec<&str> = vec![];
 
     for path in japanese_font_paths {
-        if let Ok(font_data) = std::fs::read(path) {
+        if let Ok(font_data) = std::fs::read(&path) {
             let mut font_data_with_tweak = egui::FontData::from_owned(font_data);
             font_data_with_tweak.tweak.y_offset_factor = 0.15;
             font_data_with_tweak.tweak.y_offset = 2.0;
