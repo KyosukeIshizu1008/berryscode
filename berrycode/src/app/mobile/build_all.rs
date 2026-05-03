@@ -13,6 +13,47 @@
 #![allow(dead_code)]
 
 use crate::app::mobile::packager;
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::{channel, Receiver};
+
+/// Desktop / Web variant of `packager::spawn_cargo_build`. Kept here
+/// (not in `packager`) because `build_settings::execute_build` is the
+/// usual desktop path; this version is only used by `build_all` for
+/// the cross-platform "ship everything" command.
+fn spawn_desktop_build(root: &str, triple: &str) -> Result<(Child, Receiver<String>), String> {
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build")
+        .arg("--release")
+        .arg("--target")
+        .arg(triple)
+        .current_dir(root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start `cargo build` for {triple}: {e}"))?;
+    let (tx, rx) = channel();
+    if let Some(stderr) = child.stderr.take() {
+        let tx_clone = tx.clone();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx_clone.send(line);
+            }
+        });
+    }
+    if let Some(stdout) = child.stdout.take() {
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    Ok((child, rx))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildAllPlatform {
@@ -84,11 +125,7 @@ pub fn build_all(
                 BuildAllPlatform::MacOs
                 | BuildAllPlatform::Windows
                 | BuildAllPlatform::Linux
-                | BuildAllPlatform::Web => Err(format!(
-                    "{} desktop / web build dispatch not yet wired into build_all \
-                     (use the Build Settings panel for now). Tracked for v0.7.4.",
-                    p.label()
-                )),
+                | BuildAllPlatform::Web => spawn_desktop_build(root, p.target_triple()),
             };
             (p, res)
         })
@@ -112,12 +149,22 @@ mod tests {
     }
 
     #[test]
-    fn desktop_targets_emit_skipped_in_v0_7_2() {
+    fn desktop_targets_dispatch_through_cargo_in_v0_7_4() {
+        // Smoke-test that the desktop arm now produces a `Child` (the
+        // build itself may fail in CI without the target triple, but
+        // the v0.7.2-era hard-coded version-gate error is gone).
         let results = build_all("/tmp", &[BuildAllPlatform::MacOs]);
         assert_eq!(results.len(), 1);
         match &results[0].1 {
-            Err(msg) => assert!(msg.contains("v0.7.4"), "{msg}"),
-            Ok(_) => panic!("desktop dispatch should be a placeholder until v0.7.4"),
+            Ok(_) => {}
+            Err(msg) => {
+                // Acceptable failure modes are toolchain-related, not
+                // the v0.7.2 placeholder.
+                assert!(
+                    !msg.contains("v0.7.4"),
+                    "should no longer reference the placeholder gate: {msg}"
+                );
+            }
         }
     }
 }
