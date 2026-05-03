@@ -4078,6 +4078,105 @@ bevy = "0.15"
     // Animator runtime FSM (v0.5.10–11)
     // ──────────────────────────────────────────────────────────────────────
 
+    // ──────────────────────────────────────────────────────────────────────
+    // TouchInputZone (v0.6.1)
+    // ──────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn touch_input_zone_runtime_types_emitted_in_mod_rs() {
+        // The runtime types live in `scenes/mod.rs` so user code can
+        // `use scenes::TouchInputZone` without depending on a per-scene
+        // module path.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("scene.rs"), "// stub\n").unwrap();
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        for needle in [
+            "pub enum TouchActionKind",
+            "Hold",
+            "Trigger",
+            "pub struct TouchInputZone",
+            "pub parameter_name: String",
+            "pub action_kind: TouchActionKind",
+            "pub was_inside: bool",
+            "pub fn touch_input_evaluate",
+            "app.add_systems(Update, touch_input_evaluate);",
+        ] {
+            assert!(
+                code.contains(needle),
+                "missing `{}` in mod.rs\n\n{}",
+                needle,
+                code
+            );
+        }
+    }
+
+    #[test]
+    fn touch_input_zone_spawn_emits_inspector_values_with_was_inside_false() {
+        use crate::app::scene_editor::model::TouchActionKind;
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Hud".into(),
+            vec![ComponentData::TouchInputZone {
+                x: 0.05,
+                y: 0.85,
+                w: 0.20,
+                h: 0.10,
+                parameter_name: "jump".into(),
+                action_kind: TouchActionKind::Trigger,
+                label: "JUMP".into(),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("super::TouchInputZone {"),
+            "spawn must reference the project-wide TouchInputZone\n\n{}",
+            code
+        );
+        // Inspector values round-trip into the literal.
+        assert!(code.contains("x: 0.0500,"));
+        assert!(code.contains("y: 0.8500,"));
+        assert!(code.contains("w: 0.2000,"));
+        assert!(code.contains("h: 0.1000,"));
+        assert!(code.contains("parameter_name: \"jump\".to_string(),"));
+        assert!(
+            code.contains("action_kind: super::TouchActionKind::Trigger,"),
+            "Trigger variant must be picked\n\n{}",
+            code
+        );
+        assert!(code.contains("label: \"JUMP\".to_string(),"));
+        // `was_inside` always seeded to false so the Trigger arm fires
+        // exactly once on the first touch-begin.
+        assert!(
+            code.contains("was_inside: false,"),
+            "spawn must seed `was_inside: false` for rising-edge detection\n\n{}",
+            code
+        );
+    }
+
+    #[test]
+    fn touch_input_zone_hold_action_kind_round_trips() {
+        use crate::app::scene_editor::model::TouchActionKind;
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Run".into(),
+            vec![ComponentData::TouchInputZone {
+                x: 0.0,
+                y: 0.0,
+                w: 0.5,
+                h: 0.5,
+                parameter_name: "isRunning".into(),
+                action_kind: TouchActionKind::Hold,
+                label: "Run".into(),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("action_kind: super::TouchActionKind::Hold,"),
+            "Hold variant must be picked\n\n{}",
+            code
+        );
+    }
+
     #[test]
     fn animator_runtime_types_always_emitted_in_mod_rs() {
         // The runtime FSM types live in `scenes/mod.rs` so user code can

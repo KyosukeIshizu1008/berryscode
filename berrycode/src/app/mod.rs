@@ -187,6 +187,88 @@ impl DisplayProfile {
     }
 }
 
+#[cfg(test)]
+mod display_profile_tests {
+    use super::DisplayProfile;
+
+    #[test]
+    fn default_profile_has_no_spec() {
+        // The "Free Aspect" / Default profile must skip the
+        // letter-box path so the Scene View still uses the editor's
+        // 4:3 default.
+        assert!(DisplayProfile::Default.spec().is_none());
+        assert_eq!(DisplayProfile::Default.label(), "Free Aspect (Editor)");
+    }
+
+    #[test]
+    fn portrait_profiles_are_taller_than_wide() {
+        for p in [
+            DisplayProfile::IPhonePortrait,
+            DisplayProfile::IPadPortrait,
+            DisplayProfile::AndroidPhonePortrait,
+        ] {
+            let s = p.spec().expect("portrait spec");
+            assert!(
+                s.height > s.width,
+                "{:?} expected portrait but got {}×{}",
+                p,
+                s.width,
+                s.height
+            );
+        }
+    }
+
+    #[test]
+    fn landscape_profiles_are_wider_than_tall() {
+        for p in [
+            DisplayProfile::IPhoneLandscape,
+            DisplayProfile::IPadLandscape,
+            DisplayProfile::AndroidPhoneLandscape,
+            DisplayProfile::AndroidTablet,
+        ] {
+            let s = p.spec().expect("landscape spec");
+            assert!(
+                s.width > s.height,
+                "{:?} expected landscape but got {}×{}",
+                p,
+                s.width,
+                s.height
+            );
+        }
+    }
+
+    #[test]
+    fn iphone_portrait_has_safe_top_for_dynamic_island() {
+        // The notch / Dynamic Island area must be reported so UI
+        // overlays (HUD, joystick) don't draw underneath it.
+        let s = DisplayProfile::IPhonePortrait.spec().unwrap();
+        assert!(s.safe_top > 0, "iPhone portrait must reserve a safe top");
+        assert!(
+            s.safe_bottom > 0,
+            "iPhone portrait must reserve home-indicator"
+        );
+    }
+
+    #[test]
+    fn all_includes_default_first() {
+        // The selector dropdown puts "Free Aspect" first so opening
+        // a fresh project doesn't surprise the user with a phone
+        // letter-box on the editor camera.
+        assert_eq!(DisplayProfile::ALL.first(), Some(&DisplayProfile::Default));
+    }
+
+    #[test]
+    fn every_label_is_unique() {
+        // Drop-down keys collide if two profiles share a label;
+        // guard against that as more devices are added.
+        let mut labels: Vec<&'static str> = DisplayProfile::ALL.iter().map(|p| p.label()).collect();
+        labels.sort_unstable();
+        let original = labels.len();
+        labels.dedup();
+        assert_eq!(labels.len(), original, "duplicate DisplayProfile label");
+    }
+}
+
 // ===== Syntax Highlighting Color Palette =====
 // VS Code Dark+ inspired color scheme for Rust syntax highlighting
 

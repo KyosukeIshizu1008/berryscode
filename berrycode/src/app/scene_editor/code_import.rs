@@ -1242,6 +1242,7 @@ pub fn setup_scene(
                     | "Joint Spring"
                     | "NavMesh Agent"
                     | "Player Controller"
+                    | "Touch Input Zone"
             ) {
                 continue;
             }
