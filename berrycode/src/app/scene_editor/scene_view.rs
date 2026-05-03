@@ -343,6 +343,21 @@ impl BerryCodeApp {
                 ui.add_space(2.0);
                 thin_sep(ui);
 
+                // Scene / Game view toggle (Unity-style). Game view
+                // mirrors the scene's `Camera`-tagged entity transform
+                // so the user can preview their player POV without
+                // leaving the editor.
+                let scene_active = self.scene_view_mode == crate::app::SceneViewMode::Scene;
+                if flat_btn(ui, "Scene", scene_active, true) {
+                    self.scene_view_mode = crate::app::SceneViewMode::Scene;
+                }
+                if flat_btn(ui, "Game", !scene_active, true) {
+                    self.scene_view_mode = crate::app::SceneViewMode::Game;
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
                 // Play mode controls
                 match self.play_mode {
                     super::play_mode::PlayModeState::Stopped => {

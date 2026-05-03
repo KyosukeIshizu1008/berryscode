@@ -84,6 +84,20 @@ pub struct SceneEditorRender {
     pub ambient_light_entity: Option<Entity>,
     /// Previous skybox enabled state for change detection.
     pub prev_skybox_active: bool,
+    /// When `Some`, the editor camera uses this transform/projection
+    /// instead of the orbit math — used by Game-view mode to render from
+    /// the scene's `Camera` entity. The UI bridge in `mod.rs` populates
+    /// this each frame from `scene_model`.
+    pub game_camera_override: Option<GameCameraOverride>,
+}
+
+/// World-space transform + projection of the scene's gameplay `Camera`,
+/// pushed every frame when the user is in Game view.
+#[derive(Clone, Copy)]
+pub struct GameCameraOverride {
+    pub translation: [f32; 3],
+    pub rotation_euler: [f32; 3],
+    pub fov_y: f32,
 }
 
 impl Default for SceneEditorRender {
@@ -120,6 +134,7 @@ impl Default for SceneEditorRender {
             dof_aperture: 0.02,
             ambient_light_entity: None,
             prev_skybox_active: false,
+            game_camera_override: None,
         }
     }
 }
@@ -260,32 +275,57 @@ pub fn update_scene_editor_camera(
     }
 
     if let Ok((mut t, mut proj)) = q.single_mut() {
-        let yaw = state.orbit_yaw;
-        let pitch = state.orbit_pitch;
-        let d = state.orbit_distance;
-        let target = Vec3::from_slice(&state.orbit_target);
-        let x = d * yaw.cos() * pitch.cos();
-        let y = d * pitch.sin();
-        let z = d * yaw.sin() * pitch.cos();
-        *t = Transform::from_xyz(target.x + x, target.y + y, target.z + z)
-            .looking_at(target, Vec3::Y);
-
-        // Swap projection based on ortho flag.
-        if state.ortho {
-            *proj = Projection::Orthographic(OrthographicProjection {
-                scaling_mode: bevy::camera::ScalingMode::FixedVertical {
-                    viewport_height: state.ortho_scale * 2.0,
-                },
-                ..OrthographicProjection::default_3d()
-            });
-        } else {
+        // Game view overrides — when set, render from the scene's
+        // gameplay Camera entity instead of the orbit camera. Skybox
+        // and post-process state below still applies so switching
+        // back to Scene view doesn't strand the editor.
+        if let Some(over) = state.game_camera_override {
+            *t = Transform::from_xyz(
+                over.translation[0],
+                over.translation[1],
+                over.translation[2],
+            )
+            .with_rotation(Quat::from_euler(
+                EulerRot::XYZ,
+                over.rotation_euler[0],
+                over.rotation_euler[1],
+                over.rotation_euler[2],
+            ));
             *proj = Projection::Perspective(PerspectiveProjection {
-                fov: std::f32::consts::FRAC_PI_4,
+                fov: over.fov_y,
                 aspect_ratio: state.width as f32 / state.height.max(1) as f32,
                 near: 0.1,
                 far: 1000.0,
                 ..default()
             });
+        } else {
+            let yaw = state.orbit_yaw;
+            let pitch = state.orbit_pitch;
+            let d = state.orbit_distance;
+            let target = Vec3::from_slice(&state.orbit_target);
+            let x = d * yaw.cos() * pitch.cos();
+            let y = d * pitch.sin();
+            let z = d * yaw.sin() * pitch.cos();
+            *t = Transform::from_xyz(target.x + x, target.y + y, target.z + z)
+                .looking_at(target, Vec3::Y);
+
+            // Swap projection based on ortho flag.
+            if state.ortho {
+                *proj = Projection::Orthographic(OrthographicProjection {
+                    scaling_mode: bevy::camera::ScalingMode::FixedVertical {
+                        viewport_height: state.ortho_scale * 2.0,
+                    },
+                    ..OrthographicProjection::default_3d()
+                });
+            } else {
+                *proj = Projection::Perspective(PerspectiveProjection {
+                    fov: std::f32::consts::FRAC_PI_4,
+                    aspect_ratio: state.width as f32 / state.height.max(1) as f32,
+                    near: 0.1,
+                    far: 1000.0,
+                    ..default()
+                });
+            }
         }
     }
 

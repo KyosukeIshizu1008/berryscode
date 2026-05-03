@@ -69,6 +69,17 @@ pub(crate) mod vim_mode;
 // Re-export public types
 pub use types::*;
 
+/// Which camera the Scene Editor's central viewport renders from.
+/// `Scene` is the orbit-controlled editor camera (default); `Game`
+/// follows the scene's `Camera`-tagged entity so the user can preview
+/// what their player will see.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SceneViewMode {
+    #[default]
+    Scene,
+    Game,
+}
+
 // ===== Syntax Highlighting Color Palette =====
 // VS Code Dark+ inspired color scheme for Rust syntax highlighting
 
@@ -508,6 +519,10 @@ pub struct BerryCodeApp {
     pub(crate) new_script_dialog_open: bool,
     /// Name for the new script being created.
     pub(crate) new_script_name: String,
+    /// Scene Editor: which camera the central viewport renders from.
+    /// `Scene` = the orbit-controlled editor camera (default), `Game` =
+    /// the scene's own `Camera`-tagged entity (player POV).
+    pub(crate) scene_view_mode: SceneViewMode,
     pub(crate) scene_orbit_yaw: f32,
     pub(crate) scene_orbit_pitch: f32,
     pub(crate) scene_orbit_distance: f32,
@@ -1675,6 +1690,7 @@ impl BerryCodeApp {
             add_component_popup_open: false,
             new_script_dialog_open: false,
             new_script_name: String::new(),
+            scene_view_mode: SceneViewMode::Scene,
             scene_orbit_yaw: std::f32::consts::FRAC_PI_4,
             scene_orbit_pitch: 0.5,
             scene_orbit_distance: 8.0,
@@ -2902,6 +2918,34 @@ pub fn berry_ui_system(
         scene_render.dof_enabled = app.scene_dof_enabled;
         scene_render.dof_focus_distance = app.scene_dof_focus_distance;
         scene_render.dof_aperture = app.scene_dof_aperture;
+
+        // Game-view override: when the user has switched the central
+        // viewport to "Game", find the first scene entity carrying a
+        // `Camera` component and push its world transform into the
+        // render state so the editor camera mirrors it. Falls back to
+        // None (orbit camera) when no Camera entity exists.
+        scene_render.game_camera_override = if app.scene_view_mode == SceneViewMode::Game {
+            app.scene_model.entities.values().find_map(|e| {
+                if !e.enabled {
+                    return None;
+                }
+                let has_camera = e
+                    .components
+                    .iter()
+                    .any(|c| matches!(c, scene_editor::model::ComponentData::Camera));
+                if !has_camera {
+                    return None;
+                }
+                let world = app.scene_model.compute_world_transform(e.id);
+                Some(scene_editor::bevy_render::GameCameraOverride {
+                    translation: world.translation,
+                    rotation_euler: world.rotation_euler,
+                    fov_y: std::f32::consts::FRAC_PI_4,
+                })
+            })
+        } else {
+            None
+        };
 
         if let Some(handle) = scene_render.render_target.clone() {
             let tex_id = egui_ctx.add_image(bevy_egui::EguiTextureHandle::Strong(handle));
