@@ -277,16 +277,22 @@ pub fn execute_build(
     root_path: &str,
     settings: &BuildSettings,
 ) -> Result<(std::process::Child, std::sync::mpsc::Receiver<String>), String> {
-    // Mobile / XR targets need IPA / AAB packaging that this plain
-    // `cargo build` shell-out can't produce. Phase E (v0.8.x) replaces this
-    // dispatch with the per-platform packagers; until then refuse early
-    // with a clear message so the user understands why nothing happens.
-    if settings.target_platform.is_mobile() {
-        return Err(format!(
-            "{} builds are routed through the Mobile Toolchain panel — \
-             the desktop pipeline doesn't package IPA / AAB / OpenXR yet.",
-            settings.target_platform.label()
-        ));
+    // Mobile / XR targets dispatch into `app::mobile::packager` (Phase E)
+    // which compiles for the right `rustup` target. Codesigning / IPA
+    // assembly / AAB packaging are still v0.7.1+ follow-ups; the user
+    // takes the resulting binary into Xcode / Android Studio for now.
+    use crate::app::mobile::packager;
+    match settings.target_platform {
+        Platform::IosSimulator => return packager::build_ios_simulator(root_path),
+        Platform::IosDevice => return packager::build_ios_device(root_path),
+        Platform::Android => return packager::build_android(root_path),
+        Platform::VisionOs | Platform::Quest => {
+            return Err(format!(
+                "{} builds are not packaged yet — tracked for v0.9.x.",
+                settings.target_platform.label()
+            ));
+        }
+        _ => {}
     }
 
     let triple = settings.target_platform.target_triple();
@@ -679,15 +685,17 @@ mod tests {
     }
 
     #[test]
-    fn execute_build_rejects_mobile() {
+    fn execute_build_rejects_visionos_until_v0_9() {
+        // v0.7.0 wires iOS/Android through `mobile::packager`; visionOS /
+        // Quest still hit the explicit "not packaged yet" guard.
         let bs = BuildSettings {
-            target_platform: Platform::Android,
+            target_platform: Platform::VisionOs,
             ..BuildSettings::default()
         };
         let err = execute_build(".", &bs).unwrap_err();
         assert!(
-            err.contains("Mobile Toolchain"),
-            "expected guard message, got: {err}"
+            err.contains("v0.9"),
+            "expected version-gate message, got: {err}"
         );
     }
 

@@ -6,6 +6,7 @@
 //! all read from the same `MobileToolchain` snapshot.
 
 pub mod log_relay;
+pub mod packager;
 pub mod probe;
 pub mod runner;
 pub mod types;
