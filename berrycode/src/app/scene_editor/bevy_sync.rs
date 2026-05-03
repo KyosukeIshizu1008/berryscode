@@ -598,6 +598,19 @@ fn spawn_scene_entity(
             ComponentData::NavMeshAgent { .. } => {
                 // Data-only; navmesh agent is metadata for the runtime.
             }
+            ComponentData::PlayerController { .. } => {
+                // Visualize the player as a yellow capsule so the user can see
+                // it in the Scene View even before they hit Run. Sized to
+                // match the runtime collider's defaults (radius 0.4, total
+                // height 1.7) so what they preview is what they play.
+                let mesh = meshes.add(Capsule3d::new(0.4, 0.9));
+                let mat = materials.add(StandardMaterial {
+                    base_color: Color::srgb(1.0, 0.85, 0.2),
+                    emissive: LinearRgba::rgb(0.4, 0.34, 0.08),
+                    ..default()
+                });
+                entity.insert((Mesh3d(mesh), MeshMaterial3d(mat)));
+            }
         }
     }
 
@@ -1087,6 +1100,15 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     radius.to_bits().hash(&mut hasher);
                     height.to_bits().hash(&mut hasher);
                     max_slope.to_bits().hash(&mut hasher);
+                }
+                ComponentData::PlayerController {
+                    speed,
+                    jump_velocity,
+                    run_multiplier,
+                } => {
+                    speed.to_bits().hash(&mut hasher);
+                    jump_velocity.to_bits().hash(&mut hasher);
+                    run_multiplier.to_bits().hash(&mut hasher);
                 }
             }
         }

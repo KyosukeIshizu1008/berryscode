@@ -352,7 +352,8 @@ pub fn aabb_for_entity(
             ComponentData::JointFixed { .. }
             | ComponentData::JointHinge { .. }
             | ComponentData::JointSpring { .. }
-            | ComponentData::NavMeshAgent { .. } => {
+            | ComponentData::NavMeshAgent { .. }
+            | ComponentData::PlayerController { .. } => {
                 // Data-only; no visual footprint.
                 continue;
             }

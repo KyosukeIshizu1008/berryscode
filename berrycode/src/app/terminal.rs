@@ -534,35 +534,29 @@ impl BerryCodeApp {
                         // call accumulates that error and the cursor drifts past
                         // the visible text. Place each char at its exact column
                         // instead so grid coords stay aligned with pixels.
-                        let has_wide = run_text
-                            .chars()
-                            .any(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(1) > 1);
-                        if has_wide {
-                            // Place each char at the *center* of its slot
-                            // (1 cell wide for ASCII, 2 cells wide for CJK).
-                            // This keeps the cursor / grid math right while
-                            // distributing the leftover space evenly so we
-                            // don't get a big right-side gap on every CJK
-                            // glyph.
-                            let mut col = run_start_col;
-                            for c in run_text.chars() {
-                                let w = unicode_width::UnicodeWidthChar::width(c)
-                                    .unwrap_or(1)
-                                    .max(1);
-                                let slot_x = origin.x + col as f32 * cell_w;
-                                let slot_w = w as f32 * cell_w;
-                                painter.text(
-                                    egui::pos2(slot_x + slot_w * 0.5, y + 1.0),
-                                    egui::Align2::CENTER_TOP,
-                                    c.to_string(),
-                                    fid.clone(),
-                                    run_fg,
-                                );
-                                col += w;
-                            }
-                        } else {
-                            let text_pos = egui::pos2(x, y + 1.0);
-                            painter.text(text_pos, egui::Align2::LEFT_TOP, run_text, fid, run_fg);
+                        // Always place one glyph per cell. Letting egui
+                        // run-render an ASCII string with `painter.text` made
+                        // the actual font advance drift past `cell_w` (the
+                        // monospace fallback's metrics don't exactly match
+                        // our `font_size * 0.575` cell width), so each long
+                        // line accumulated error and later columns — most
+                        // visibly the filename column in `ls -la` — overlapped
+                        // the timestamp before them.
+                        let mut col = run_start_col;
+                        for c in run_text.chars() {
+                            let w = unicode_width::UnicodeWidthChar::width(c)
+                                .unwrap_or(1)
+                                .max(1);
+                            let slot_x = origin.x + col as f32 * cell_w;
+                            let slot_w = w as f32 * cell_w;
+                            painter.text(
+                                egui::pos2(slot_x + slot_w * 0.5, y + 1.0),
+                                egui::Align2::CENTER_TOP,
+                                c.to_string(),
+                                fid.clone(),
+                                run_fg,
+                            );
+                            col += w;
                         }
                         if run_underline {
                             let ul_y = y + cell_h - 2.0;
@@ -823,6 +817,11 @@ impl BerryCodeApp {
             }
         }
 
+        // Snapshot whether an IME composition is in flight before borrowing
+        // `tab` so the loop below can decide whether to drop loose `Text`
+        // events without re-borrowing `self.terminal`.
+        let ime_active = !self.terminal.ime_preedit.is_empty();
+
         let tab = match self.terminal.active_tab() {
             Some(t) => t,
             None => return,
@@ -831,9 +830,17 @@ impl BerryCodeApp {
         for event in &events {
             match event {
                 egui::Event::Text(text) => {
-                    // Normal text input (not consumed by modifiers).
-                    // egui converts most IME-committed CJK input into Text
-                    // events, so this path also handles 日本語 / 中文 input.
+                    // While the IME owns a preedit, drop loose `Text` events.
+                    // egui on macOS occasionally fires both `Ime::Preedit("l")`
+                    // *and* `Text("l")` for the same romaji char, which
+                    // committed the pre-conversion letter to the PTY before
+                    // the user had even confirmed — and the stray `l` then
+                    // sat under the preedit overlay, immune to backspace
+                    // because the user thought they were deleting the
+                    // overlay, not the buffered char.
+                    if ime_active {
+                        continue;
+                    }
                     tab.write_to_pty(text.as_bytes());
                     had_input = true;
                 }

@@ -1992,6 +1992,26 @@ impl BerryCodeApp {
                                 }
                             });
                         }
+                        ComponentData::PlayerController { speed, jump_velocity, run_multiplier } => {
+                            ui.horizontal(|ui| {
+                                ui.label("Speed:");
+                                if ui.add(egui::DragValue::new(speed).speed(0.1).range(0.0..=50.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Jump Velocity:");
+                                if ui.add(egui::DragValue::new(jump_velocity).speed(0.1).range(0.0..=30.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Run Multiplier:");
+                                if ui.add(egui::DragValue::new(run_multiplier).speed(0.05).range(1.0..=5.0)).changed() {
+                                    mutated = true;
+                                }
+                            });
+                        }
                     }
                 });
             }

@@ -161,6 +161,18 @@ fn default_mass() -> f32 {
     1.0
 }
 
+/// Defaults for `PlayerController` — match the values that `Test7`'s
+/// hand-rolled controller used so existing projects feel the same.
+fn default_player_speed() -> f32 {
+    5.0
+}
+fn default_player_jump() -> f32 {
+    8.0
+}
+fn default_player_run_mult() -> f32 {
+    2.0
+}
+
 /// Default friction for a newly-created Collider component.
 fn default_friction() -> f32 {
     0.5
@@ -529,6 +541,18 @@ pub enum ComponentData {
         shadows: bool,
     },
     Camera,
+    /// Marks an entity as the player. Carries tunable parameters that the
+    /// runtime movement system reads (speed, jump impulse, run multiplier).
+    /// In codegen this is emitted as `super::PlayerController { … }`, paired
+    /// with a single project-wide struct definition in `scenes/mod.rs`.
+    PlayerController {
+        #[serde(default = "default_player_speed")]
+        speed: f32,
+        #[serde(default = "default_player_jump")]
+        jump_velocity: f32,
+        #[serde(default = "default_player_run_mult")]
+        run_multiplier: f32,
+    },
     MeshFromFile {
         path: String,
         #[serde(default)]
@@ -826,6 +850,14 @@ impl ComponentData {
             ),
             ("Camera", ComponentData::Camera),
             (
+                "Player Controller",
+                ComponentData::PlayerController {
+                    speed: default_player_speed(),
+                    jump_velocity: default_player_jump(),
+                    run_multiplier: default_player_run_mult(),
+                },
+            ),
+            (
                 "Audio Source",
                 ComponentData::AudioSource {
                     path: String::new(),
@@ -999,6 +1031,7 @@ impl ComponentData {
             ComponentData::SpotLight { .. } => "Spot Light",
             ComponentData::DirectionalLight { .. } => "Directional Light",
             ComponentData::Camera => "Camera",
+            ComponentData::PlayerController { .. } => "Player Controller",
             ComponentData::MeshFromFile { .. } => "Mesh",
             ComponentData::AudioSource { .. } => "Audio Source",
             ComponentData::AudioListener => "Audio Listener",

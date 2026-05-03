@@ -485,6 +485,12 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                         speed, radius, height, max_slope
                     ));
                 }
+                ComponentData::PlayerController { .. } => {
+                    // The legacy monolithic emit doesn't reference the
+                    // shared `PlayerController` struct (only the modular
+                    // plugin path does). Drop a comment for parity.
+                    code.push_str("        // [BerryCode:PlayerController]\n");
+                }
             }
         }
 
@@ -1030,6 +1036,16 @@ pub fn generate_scene_plugin_code_with_root(
                         ));
                     }
                 }
+                ComponentData::PlayerController {
+                    speed,
+                    jump_velocity,
+                    run_multiplier,
+                } => {
+                    code.push_str(&format!(
+                        "        super::PlayerController {{\n            speed: {:.3},\n            jump_velocity: {:.3},\n            run_multiplier: {:.3},\n        }},\n",
+                        speed, jump_velocity, run_multiplier
+                    ));
+                }
                 ComponentData::RigidBody { body_type, .. } => {
                     let variant = match body_type {
                         RigidBodyType::Static => "Static",
@@ -1240,6 +1256,19 @@ pub fn generate_scenes_mod_rs(scenes_dir: &str) -> String {
         code.push_str(&format!("pub mod {};\n", m));
     }
     code.push_str("\nuse bevy::prelude::*;\n\n");
+
+    // Project-wide `PlayerController` — single shared definition so the
+    // user's movement system can `use scenes::PlayerController` regardless
+    // of which scene the player lives in. Scenes that don't use the
+    // component just don't reference it; the unused-struct warning is
+    // suppressed below.
+    code.push_str("#[derive(Component, Debug, Clone)]\n");
+    code.push_str("#[allow(dead_code)]\n");
+    code.push_str("pub struct PlayerController {\n");
+    code.push_str("    pub speed: f32,\n");
+    code.push_str("    pub jump_velocity: f32,\n");
+    code.push_str("    pub run_multiplier: f32,\n");
+    code.push_str("}\n\n");
 
     if modules.is_empty() {
         code.push_str("pub struct ScenesPlugin;\n\n");
@@ -3491,6 +3520,49 @@ bevy = "0.15"
                 code
             );
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // PlayerController (v0.5.6)
+    // ──────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn player_controller_emits_super_struct_with_inspector_values() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Hero".into(),
+            vec![ComponentData::PlayerController {
+                speed: 7.5,
+                jump_velocity: 12.0,
+                run_multiplier: 1.8,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("super::PlayerController {")
+                && code.contains("speed: 7.500,")
+                && code.contains("jump_velocity: 12.000,")
+                && code.contains("run_multiplier: 1.800,"),
+            "PlayerController must emit `super::PlayerController` with inspector values\n\n{}",
+            code
+        );
+    }
+
+    #[test]
+    fn shared_player_controller_struct_emitted_in_mod_rs() {
+        // Empty scenes dir → still emit the shared struct so the user's
+        // movement system can reference `scenes::PlayerController` even
+        // before they add a player to a scene.
+        let tmp = tempfile::tempdir().unwrap();
+        let code = generate_scenes_mod_rs(&tmp.path().to_string_lossy());
+        assert!(
+            code.contains("pub struct PlayerController {")
+                && code.contains("pub speed: f32,")
+                && code.contains("pub jump_velocity: f32,")
+                && code.contains("pub run_multiplier: f32,"),
+            "scenes/mod.rs must always declare the shared PlayerController\n\n{}",
+            code
+        );
     }
 
     /// Scene without any Collider/RigidBody must not pull in avian
