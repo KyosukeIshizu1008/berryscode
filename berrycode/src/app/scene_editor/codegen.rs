@@ -1030,6 +1030,51 @@ pub fn generate_scene_plugin_code_with_root(
                         ));
                     }
                 }
+                ComponentData::RigidBody { body_type, .. } => {
+                    let variant = match body_type {
+                        RigidBodyType::Static => "Static",
+                        RigidBodyType::Dynamic => "Dynamic",
+                        RigidBodyType::Kinematic => "Kinematic",
+                    };
+                    code.push_str(&format!(
+                        "        avian3d::prelude::RigidBody::{},\n",
+                        variant
+                    ));
+                }
+                ComponentData::Collider {
+                    shape,
+                    friction,
+                    restitution,
+                } => {
+                    let collider_expr = match shape {
+                        ColliderShape::Box { half_extents } => format!(
+                            "avian3d::prelude::Collider::cuboid({:.3}, {:.3}, {:.3})",
+                            half_extents[0] * 2.0,
+                            half_extents[1] * 2.0,
+                            half_extents[2] * 2.0,
+                        ),
+                        ColliderShape::Sphere { radius } => {
+                            format!("avian3d::prelude::Collider::sphere({:.3})", radius)
+                        }
+                        ColliderShape::Capsule {
+                            half_height,
+                            radius,
+                        } => format!(
+                            "avian3d::prelude::Collider::capsule({:.3}, {:.3})",
+                            radius,
+                            half_height * 2.0,
+                        ),
+                    };
+                    code.push_str(&format!("        {},\n", collider_expr));
+                    code.push_str(&format!(
+                        "        avian3d::prelude::Friction::new({:.3}),\n",
+                        friction
+                    ));
+                    code.push_str(&format!(
+                        "        avian3d::prelude::Restitution::new({:.3}),\n",
+                        restitution
+                    ));
+                }
                 _ => {}
             }
         }
@@ -3353,6 +3398,124 @@ bevy = "0.15"
             "scene plugin must not reference another scene's prefix"
         );
         assert!(!code_b.contains("ScenePendingGlbAnim"));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Physics codegen (avian3d) — Inspector Collider/RigidBody must
+    // round-trip into runnable physics components.
+    // ──────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn collider_box_emits_avian_cuboid_with_full_extents() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Wall".into(),
+            vec![ComponentData::Collider {
+                shape: ColliderShape::Box {
+                    // half_extents → cuboid takes full side lengths.
+                    half_extents: [0.75, 1.0, 0.5],
+                },
+                friction: 0.6,
+                restitution: 0.1,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("avian3d::prelude::Collider::cuboid(1.500, 2.000, 1.000)"),
+            "Box collider must double half_extents to full lengths\n\n{}",
+            code
+        );
+        assert!(code.contains("avian3d::prelude::Friction::new(0.600)"));
+        assert!(code.contains("avian3d::prelude::Restitution::new(0.100)"));
+    }
+
+    #[test]
+    fn collider_sphere_emits_avian_sphere() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Ball".into(),
+            vec![ComponentData::Collider {
+                shape: ColliderShape::Sphere { radius: 0.42 },
+                friction: 0.5,
+                restitution: 0.0,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(code.contains("avian3d::prelude::Collider::sphere(0.420)"));
+    }
+
+    #[test]
+    fn collider_capsule_emits_avian_capsule_with_full_length() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Person".into(),
+            vec![ComponentData::Collider {
+                // half_height → capsule takes full segment length.
+                shape: ColliderShape::Capsule {
+                    half_height: 0.45,
+                    radius: 0.4,
+                },
+                friction: 0.5,
+                restitution: 0.0,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("avian3d::prelude::Collider::capsule(0.400, 0.900)"),
+            "Capsule expects (radius, length=2*half_height)\n\n{}",
+            code
+        );
+    }
+
+    #[test]
+    fn rigidbody_variants_each_map_to_avian_variant() {
+        for (variant, expected) in [
+            (RigidBodyType::Static, "RigidBody::Static"),
+            (RigidBodyType::Dynamic, "RigidBody::Dynamic"),
+            (RigidBodyType::Kinematic, "RigidBody::Kinematic"),
+        ] {
+            let mut scene = SceneModel::new();
+            scene.add_entity(
+                "X".into(),
+                vec![ComponentData::RigidBody {
+                    body_type: variant,
+                    mass: 1.0,
+                }],
+            );
+            let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+            assert!(
+                code.contains(&format!("avian3d::prelude::{},", expected)),
+                "{:?} should emit avian3d::prelude::{}\n\n{}",
+                variant,
+                expected,
+                code
+            );
+        }
+    }
+
+    /// Scene without any Collider/RigidBody must not pull in avian
+    /// references — keeps non-physics scenes cheap and prevents accidental
+    /// `use avian3d` requirements on projects that haven't added the dep.
+    #[test]
+    fn no_physics_scene_does_not_reference_avian() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Box".into(),
+            vec![ComponentData::MeshCube {
+                size: 1.0,
+                color: [1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                emissive: [0.0, 0.0, 0.0],
+                texture_path: None,
+                normal_map_path: None,
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            !code.contains("avian3d"),
+            "non-physics scene leaked an avian reference"
+        );
     }
 
     /// The attach helper must use the direct `player.stop_all()` +
