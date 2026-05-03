@@ -358,6 +358,25 @@ impl BerryCodeApp {
                 ui.add_space(2.0);
                 thin_sep(ui);
 
+                // Show Colliders toggle — flips the green Collider AABB
+                // overlay on/off. Defaults to on so collision bounds are
+                // visible on fresh projects.
+                if flat_btn(
+                    ui,
+                    if self.show_colliders {
+                        "\u{ea71} Colliders"
+                    } else {
+                        "Colliders"
+                    },
+                    self.show_colliders,
+                    true,
+                ) {
+                    self.show_colliders = !self.show_colliders;
+                }
+
+                ui.add_space(2.0);
+                thin_sep(ui);
+
                 // Display profile selector — letter-boxes the viewport to
                 // a target device aspect ratio (Unity's Game-view aspect
                 // dropdown, plus iOS / Android safe-area overlays for
@@ -760,65 +779,73 @@ impl BerryCodeApp {
             ortho_scale,
         );
 
-        // Collider wireframe overlay (green) for all entities with a Collider component.
-        for (id, entity) in &self.scene_model.entities {
-            let world_t = self.scene_model.compute_world_transform(*id);
-            let pos = bevy::math::Vec3::from_array(world_t.translation);
-            for component in &entity.components {
-                if let crate::app::scene_editor::model::ComponentData::Collider { shape, .. } =
-                    component
-                {
-                    match shape {
-                        crate::app::scene_editor::model::ColliderShape::Box { half_extents } => {
-                            let h = bevy::math::Vec3::from_array(*half_extents);
-                            draw_wireframe_aabb(
-                                ui.painter(),
-                                pos - h,
-                                pos + h,
-                                cam_pos,
-                                orbit_target,
-                                rect,
-                                ortho,
-                                ortho_scale,
-                                egui::Color32::from_rgb(80, 220, 80),
-                            );
-                        }
-                        crate::app::scene_editor::model::ColliderShape::Sphere { radius } => {
-                            // Approximate by an axis-aligned bounding box (cheap).
-                            let h = bevy::math::Vec3::splat(*radius);
-                            draw_wireframe_aabb(
-                                ui.painter(),
-                                pos - h,
-                                pos + h,
-                                cam_pos,
-                                orbit_target,
-                                rect,
-                                ortho,
-                                ortho_scale,
-                                egui::Color32::from_rgb(80, 220, 80),
-                            );
-                        }
-                        crate::app::scene_editor::model::ColliderShape::Capsule {
-                            half_height,
-                            radius,
-                        } => {
-                            let h = bevy::math::Vec3::new(*radius, *half_height + *radius, *radius);
-                            draw_wireframe_aabb(
-                                ui.painter(),
-                                pos - h,
-                                pos + h,
-                                cam_pos,
-                                orbit_target,
-                                rect,
-                                ortho,
-                                ortho_scale,
-                                egui::Color32::from_rgb(80, 220, 80),
-                            );
+        // Collider wireframe overlay (green) for all entities with a
+        // Collider component. Gated on the toolbar toggle so authoring
+        // mesh-heavy scenes isn't drowned in green AABBs.
+        if self.show_colliders {
+            for (id, entity) in &self.scene_model.entities {
+                let world_t = self.scene_model.compute_world_transform(*id);
+                let pos = bevy::math::Vec3::from_array(world_t.translation);
+                for component in &entity.components {
+                    if let crate::app::scene_editor::model::ComponentData::Collider {
+                        shape, ..
+                    } = component
+                    {
+                        match shape {
+                            crate::app::scene_editor::model::ColliderShape::Box {
+                                half_extents,
+                            } => {
+                                let h = bevy::math::Vec3::from_array(*half_extents);
+                                draw_wireframe_aabb(
+                                    ui.painter(),
+                                    pos - h,
+                                    pos + h,
+                                    cam_pos,
+                                    orbit_target,
+                                    rect,
+                                    ortho,
+                                    ortho_scale,
+                                    egui::Color32::from_rgb(80, 220, 80),
+                                );
+                            }
+                            crate::app::scene_editor::model::ColliderShape::Sphere { radius } => {
+                                // Approximate by an axis-aligned bounding box (cheap).
+                                let h = bevy::math::Vec3::splat(*radius);
+                                draw_wireframe_aabb(
+                                    ui.painter(),
+                                    pos - h,
+                                    pos + h,
+                                    cam_pos,
+                                    orbit_target,
+                                    rect,
+                                    ortho,
+                                    ortho_scale,
+                                    egui::Color32::from_rgb(80, 220, 80),
+                                );
+                            }
+                            crate::app::scene_editor::model::ColliderShape::Capsule {
+                                half_height,
+                                radius,
+                            } => {
+                                let h =
+                                    bevy::math::Vec3::new(*radius, *half_height + *radius, *radius);
+                                draw_wireframe_aabb(
+                                    ui.painter(),
+                                    pos - h,
+                                    pos + h,
+                                    cam_pos,
+                                    orbit_target,
+                                    rect,
+                                    ortho,
+                                    ortho_scale,
+                                    egui::Color32::from_rgb(80, 220, 80),
+                                );
+                            }
                         }
                     }
                 }
+                let _ = id;
             }
-            let _ = id;
         }
 
         // Spline curve overlay

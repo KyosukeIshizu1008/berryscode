@@ -715,6 +715,11 @@ pub struct BerryCodeApp {
     /// Mobile / tablet display profile that letter-boxes the Scene View
     /// to a target device aspect ratio. `Default` keeps the panel as-is.
     pub(crate) display_profile: DisplayProfile,
+    /// Toolbar toggle for the green Collider AABB overlay in the Scene
+    /// View. Defaults to `true` so collision bounds are obvious on
+    /// fresh projects; flip off when the wireframes start overlapping
+    /// the authored mesh and the scene gets visually noisy.
+    pub(crate) show_colliders: bool,
     pub(crate) scene_orbit_yaw: f32,
     pub(crate) scene_orbit_pitch: f32,
     pub(crate) scene_orbit_distance: f32,
@@ -1884,6 +1889,7 @@ impl BerryCodeApp {
             new_script_name: String::new(),
             scene_view_mode: SceneViewMode::Scene,
             display_profile: DisplayProfile::Default,
+            show_colliders: true,
             scene_orbit_yaw: std::f32::consts::FRAC_PI_4,
             scene_orbit_pitch: 0.5,
             scene_orbit_distance: 8.0,
