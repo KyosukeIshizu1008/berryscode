@@ -599,6 +599,14 @@ pub enum ComponentData {
         friction: f32,
         #[serde(default = "default_restitution")]
         restitution: f32,
+        /// Optional path to a `.bphysmat` file. When set, codegen reads
+        /// the file at save time and emits its `friction` /
+        /// `restitution` instead of the per-instance values above —
+        /// matches Unity's "Physic Material" asset reference workflow,
+        /// where multiple colliders can share one tuned set of
+        /// friction/bounce values.
+        #[serde(default)]
+        physic_material_path: Option<String>,
     },
     /// Editor-authored UI text node. Runtime rendering is delegated to
     /// `bevy_ui` in the generated game; in the Scene View it is represented by
@@ -890,6 +898,7 @@ impl ComponentData {
                     shape: ColliderShape::default(),
                     friction: 0.5,
                     restitution: 0.0,
+                    physic_material_path: None,
                 },
             ),
             (

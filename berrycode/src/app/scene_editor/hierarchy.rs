@@ -437,6 +437,7 @@ impl BerryCodeApp {
                                 },
                                 friction: 0.5,
                                 restitution: 0.0,
+                                physic_material_path: None,
                             },
                         ],
                     );

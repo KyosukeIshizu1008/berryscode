@@ -430,6 +430,7 @@ pub fn import_scene_from_code(code: &str) -> SceneModel {
                         shape,
                         friction: parse_param_f32(params, "friction", 0.5),
                         restitution: parse_param_f32(params, "restitution", 0.0),
+                        physic_material_path: None,
                     });
                 }
                 "UiText" => {

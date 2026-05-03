@@ -858,7 +858,9 @@ fn compute_scene_hash(scene: &SceneModel) -> u64 {
                     shape,
                     friction,
                     restitution,
+                    physic_material_path,
                 } => {
+                    physic_material_path.hash(&mut hasher);
                     match shape {
                         ColliderShape::Box { half_extents } => {
                             "box".hash(&mut hasher);

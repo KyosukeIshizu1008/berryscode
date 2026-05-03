@@ -298,7 +298,9 @@ pub fn generate_scene_code(scene: &SceneModel) -> String {
                     shape,
                     friction,
                     restitution,
+                    physic_material_path,
                 } => {
+                    let _ = physic_material_path;
                     let shape_str = match shape {
                         ColliderShape::Box { half_extents } => format!(
                             "shape=Box half_x={:.3} half_y={:.3} half_z={:.3}",
@@ -732,6 +734,29 @@ pub fn generate_scene_plugin_code(scene: &SceneModel, scene_name: &str) -> Strin
 }
 
 #[allow(dead_code)]
+/// Load a `.bphysmat` file (RON-encoded `{ friction, restitution }`)
+/// from disk and return the tuned values. Returns `None` if the path
+/// is missing or unreadable so the caller can fall back to the
+/// inline Collider values.
+fn load_physic_material_for_codegen(path: &str, project_root: &str) -> Option<(f32, f32)> {
+    if path.is_empty() {
+        return None;
+    }
+    let abs_path = if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("{}/{}", project_root, path)
+    };
+    let s = std::fs::read_to_string(&abs_path).ok()?;
+    #[derive(serde::Deserialize)]
+    struct Mat {
+        friction: f32,
+        restitution: f32,
+    }
+    let mat: Mat = ron::from_str(&s).ok()?;
+    Some((mat.friction, mat.restitution))
+}
+
 /// Walk a `Motion` tree and pull out the first leaf clip name. Used by
 /// the animator codegen as a degraded fallback for blend trees until
 /// the runtime supports per-frame weight evaluation.
@@ -1182,6 +1207,7 @@ pub fn generate_scene_plugin_code_with_root(
                     shape,
                     friction,
                     restitution,
+                    physic_material_path,
                 } => {
                     let collider_expr = match shape {
                         ColliderShape::Box { half_extents } => format!(
@@ -1203,13 +1229,21 @@ pub fn generate_scene_plugin_code_with_root(
                         ),
                     };
                     code.push_str(&format!("        {},\n", collider_expr));
+                    // If a `.bphysmat` is referenced, use its tuned values
+                    // instead of the inline ones (Unity-style shared
+                    // physic material). Falls back to the inline values
+                    // when the file is missing or fails to parse.
+                    let (eff_friction, eff_restitution) = physic_material_path
+                        .as_ref()
+                        .and_then(|p| load_physic_material_for_codegen(p, project_root))
+                        .unwrap_or((*friction, *restitution));
                     code.push_str(&format!(
                         "        avian3d::prelude::Friction::new({:.3}),\n",
-                        friction
+                        eff_friction
                     ));
                     code.push_str(&format!(
                         "        avian3d::prelude::Restitution::new({:.3}),\n",
-                        restitution
+                        eff_restitution
                     ));
                 }
                 _ => {}
@@ -2066,6 +2100,7 @@ mod extended_tests {
                 },
                 friction: 0.6,
                 restitution: 0.2,
+                physic_material_path: None,
             }],
         );
         assert_valid_code(&scene);
@@ -2080,6 +2115,7 @@ mod extended_tests {
                 shape: ColliderShape::Sphere { radius: 1.0 },
                 friction: 0.3,
                 restitution: 0.8,
+                physic_material_path: None,
             }],
         );
         assert_valid_code(&scene);
@@ -2097,6 +2133,7 @@ mod extended_tests {
                 },
                 friction: 0.5,
                 restitution: 0.0,
+                physic_material_path: None,
             }],
         );
         assert_valid_code(&scene);
@@ -2508,6 +2545,7 @@ mod extended_tests {
                     },
                     friction: 0.5,
                     restitution: 0.3,
+                    physic_material_path: None,
                 },
                 ComponentData::AudioSource {
                     path: "hit.wav".into(),
@@ -2661,6 +2699,7 @@ mod extended_tests {
                 shape: ColliderShape::Sphere { radius: 1.0 },
                 friction: 0.5,
                 restitution: 0.0,
+                physic_material_path: None,
             }],
         );
         scene.add_entity(
@@ -3072,6 +3111,7 @@ bevy = "0.15"
                     },
                     friction: 0.6,
                     restitution: 0.2,
+                    physic_material_path: None,
                 },
             ],
         );
@@ -3748,6 +3788,59 @@ bevy = "0.15"
     // ──────────────────────────────────────────────────────────────────────
 
     #[test]
+    fn collider_with_bphysmat_overrides_inline_friction_and_restitution() {
+        // The Collider's inline friction/restitution should be ignored when
+        // a `.bphysmat` file is referenced — same precedence Unity uses for
+        // the Physic Material asset slot.
+        let tmp = tempfile::tempdir().unwrap();
+        let mat_path = tmp.path().join("ice.bphysmat");
+        std::fs::write(&mat_path, "( friction: 0.05, restitution: 0.9 )").unwrap();
+
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Floor".into(),
+            vec![ComponentData::Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [1.0, 0.5, 1.0],
+                },
+                friction: 0.99, // would-be-inline value, must NOT show up
+                restitution: 0.0,
+                physic_material_path: Some(mat_path.to_string_lossy().to_string()),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("Friction::new(0.050)") && code.contains("Restitution::new(0.900)"),
+            "Physic material values must override the inline Collider\n\
+             values (got `Friction::new(0.99)` instead of `0.050`)\n\n{}",
+            code
+        );
+    }
+
+    #[test]
+    fn collider_with_missing_bphysmat_falls_back_to_inline_values() {
+        let mut scene = SceneModel::new();
+        scene.add_entity(
+            "Floor".into(),
+            vec![ComponentData::Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [1.0, 0.5, 1.0],
+                },
+                friction: 0.42,
+                restitution: 0.13,
+                physic_material_path: Some("/no/such/file.bphysmat".into()),
+            }],
+        );
+        let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
+        assert!(
+            code.contains("Friction::new(0.420)") && code.contains("Restitution::new(0.130)"),
+            "Missing `.bphysmat` must fall back to the inline Collider\n\
+             values rather than producing default-zero physics\n\n{}",
+            code
+        );
+    }
+
+    #[test]
     fn collider_box_emits_avian_cuboid_with_full_extents() {
         let mut scene = SceneModel::new();
         scene.add_entity(
@@ -3759,6 +3852,7 @@ bevy = "0.15"
                 },
                 friction: 0.6,
                 restitution: 0.1,
+                physic_material_path: None,
             }],
         );
         let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
@@ -3780,6 +3874,7 @@ bevy = "0.15"
                 shape: ColliderShape::Sphere { radius: 0.42 },
                 friction: 0.5,
                 restitution: 0.0,
+                physic_material_path: None,
             }],
         );
         let code = generate_scene_plugin_code_with_root(&scene, "scene", "");
@@ -3799,6 +3894,7 @@ bevy = "0.15"
                 },
                 friction: 0.5,
                 restitution: 0.0,
+                physic_material_path: None,
             }],
         );
         let code = generate_scene_plugin_code_with_root(&scene, "scene", "");

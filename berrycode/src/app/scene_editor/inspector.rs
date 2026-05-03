@@ -928,6 +928,7 @@ impl BerryCodeApp {
                             shape,
                             friction,
                             restitution,
+                            physic_material_path,
                         } => {
                             ui.vertical(|ui| {
                                 ui.horizontal(|ui| {
@@ -1057,6 +1058,25 @@ impl BerryCodeApp {
                                         .add(egui::Slider::new(restitution, 0.0..=1.0))
                                         .changed()
                                     {
+                                        mutated = true;
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Physic Material:");
+                                    let mut path_str =
+                                        physic_material_path.clone().unwrap_or_default();
+                                    if path_text_edit(
+                                        ui,
+                                        &mut path_str,
+                                        ".bphysmat path",
+                                        180.0,
+                                        &mut dragged_asset,
+                                    ) {
+                                        *physic_material_path = if path_str.is_empty() {
+                                            None
+                                        } else {
+                                            Some(path_str)
+                                        };
                                         mutated = true;
                                     }
                                 });

@@ -1354,6 +1354,7 @@ impl BerryCodeApp {
                                 shape: ColliderShape::Sphere { radius: 0.5 },
                                 friction: 0.5,
                                 restitution: 0.5,
+                                physic_material_path: None,
                             },
                         ],
                     );

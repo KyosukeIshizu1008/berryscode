@@ -258,6 +258,7 @@ mod tests {
                     shape: ColliderShape::Sphere { radius: 0.5 },
                     friction: 0.5,
                     restitution: 0.0,
+                    physic_material_path: None,
                 },
             ],
         );
@@ -373,6 +374,7 @@ mod tests {
                     },
                     friction: 0.5,
                     restitution: 0.0,
+                    physic_material_path: None,
                 },
             ],
         );
@@ -394,6 +396,7 @@ mod tests {
                     },
                     friction: 0.5,
                     restitution: 0.0,
+                    physic_material_path: None,
                 },
             ],
         );
@@ -453,6 +456,7 @@ mod tests {
                     },
                     friction: 0.8,
                     restitution: 0.0,
+                    physic_material_path: None,
                 },
             ],
         );
@@ -494,6 +498,7 @@ mod tests {
                     shape: ColliderShape::Sphere { radius: 0.5 },
                     friction: 0.0,
                     restitution: 0.0,
+                    physic_material_path: None,
                 },
             ],
         );
