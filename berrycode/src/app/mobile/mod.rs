@@ -7,6 +7,7 @@
 
 pub mod build_all;
 pub mod log_relay;
+pub mod one_click;
 pub mod packager;
 pub mod play_console;
 pub mod probe;

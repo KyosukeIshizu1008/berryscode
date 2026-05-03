@@ -41,6 +41,33 @@ Open `File → Build Settings` and fill the relevant rows:
 Settings are stored in `<project>/build_settings.ron` and committed with
 the project so teammates don't re-enter them.
 
+## One-click run on iOS / Android (v0.7.8+)
+
+`mobile::one_click` wraps [cargo-mobile2](https://crates.io/crates/cargo-mobile2)
+so the editor's "Run on iOS Simulator" / "Run on Android" buttons take
+care of the toolchain probe → init → launch sequence with no manual
+shell-out:
+
+1. **Toolchain probe** — `cargo mobile --version`. Missing? The editor
+   offers an "Install cargo-mobile2" action that runs
+   `cargo install cargo-mobile2 --locked` for you (the install streams
+   into the dock's Output panel, ~5 min on first run).
+2. **Project init** — first run only: `cargo mobile init
+   --non-interactive --name <project> --bundle-id <id>` reads the
+   project name + Bundle ID straight from Build Settings. Skipped on
+   subsequent runs (gated by `<root>/mobile.toml` existing).
+3. **Launch** — `cargo apple run --release` (Simulator) or
+   `cargo android run --release` (emulator / device). Logs stream into
+   the Output dock; Stop kills the simctl process.
+
+Prereqs the wrapper *can't* automate:
+
+- macOS + Xcode for iOS builds.
+- A booted Simulator (`xcrun simctl boot "iPhone 15 Pro"`) before
+  `Run on iOS`.
+- Android SDK + NDK + an emulator booted in Android Studio for
+  `Run on Android`.
+
 ## Workflow
 
 1. **Author the scene** in BerryCode's Scene Editor. Any
