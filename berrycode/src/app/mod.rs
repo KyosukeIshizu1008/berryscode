@@ -2405,12 +2405,34 @@ pub fn setup_egui_fonts_and_style(
     tracing::info!("Codicon + Nerd Font Symbols loaded");
 
     // Add Japanese font (try monospace fonts first for better baseline alignment)
+    #[cfg(target_os = "macos")]
     let japanese_font_paths = vec![
         "/System/Library/Fonts/Osaka.ttf",
         "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
         "/System/Library/Fonts/Hiragino Sans GB.ttc",
         "/Library/Fonts/ヒラギノ角ゴ ProN W3.otf",
     ];
+    #[cfg(target_os = "windows")]
+    let japanese_font_paths = {
+        let win_dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".to_string());
+        vec![
+            format!("{win_dir}\\Fonts\\YuGothM.ttc"),
+            format!("{win_dir}\\Fonts\\YuGothR.ttc"),
+            format!("{win_dir}\\Fonts\\meiryo.ttc"),
+            format!("{win_dir}\\Fonts\\msgothic.ttc"),
+        ]
+    };
+    #[cfg(target_os = "linux")]
+    let japanese_font_paths = vec![
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/fonts-japanese-gothic.ttf",
+        "/usr/share/fonts/truetype/takao-gothic/TakaoPGothic.ttf",
+        "/usr/share/fonts/ipa-gothic/ipag.ttf",
+    ];
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    let japanese_font_paths: Vec<&str> = vec![];
 
     for path in japanese_font_paths {
         if let Ok(font_data) = std::fs::read(path) {
