@@ -742,7 +742,11 @@ fn load_physic_material_for_codegen(path: &str, project_root: &str) -> Option<(f
     if path.is_empty() {
         return None;
     }
-    let abs_path = if path.starts_with('/') {
+    // `is_absolute` handles both Unix `/foo` and Windows `C:\foo`; the
+    // earlier `starts_with('/')` check incorrectly classified Windows
+    // CI paths (`C:\Users\RUNNER~1\…`) as relative and prepended an
+    // empty `project_root`, so the file failed to open.
+    let abs_path = if std::path::Path::new(path).is_absolute() {
         path.to_string()
     } else {
         format!("{}/{}", project_root, path)
@@ -788,7 +792,9 @@ fn load_animator_for_codegen(controller_path: &str, project_root: &str) -> Optio
     if controller_path.is_empty() {
         return None;
     }
-    let abs_path = if controller_path.starts_with('/') {
+    // Windows CI passes paths like `C:\Users\…\hero.banimator`; the old
+    // `starts_with('/')` check classified those as relative.
+    let abs_path = if std::path::Path::new(controller_path).is_absolute() {
         controller_path.to_string()
     } else {
         format!("{}/{}", project_root, controller_path)
