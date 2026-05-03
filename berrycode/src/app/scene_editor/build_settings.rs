@@ -12,6 +12,26 @@ pub struct BuildSettings {
     /// Ordered list of scenes included in the build. Index 0 is the startup scene.
     #[serde(default)]
     pub scenes_in_build: Vec<SceneEntry>,
+    /// iOS bundle identifier (e.g. `com.example.myapp`). Surfaced in
+    /// the generated `Info.plist` and in the `xcrun altool` upload.
+    #[serde(default)]
+    pub ios_bundle_id: String,
+    /// Apple developer Team ID for codesigning (10-char alphanumeric).
+    #[serde(default)]
+    pub ios_team_id: String,
+    /// Android package name (e.g. `com.example.myapp`).
+    #[serde(default)]
+    pub android_package_name: String,
+    /// Path to the keystore (`.jks`) used for AAB signing.
+    #[serde(default)]
+    pub android_keystore_path: String,
+    /// Keystore alias inside the `.jks`.
+    #[serde(default)]
+    pub android_key_alias: String,
+    /// Path to the Play Console service-account JSON used by
+    /// `mobile::play_console::upload`.
+    #[serde(default)]
+    pub play_console_service_account_path: String,
 }
 
 /// A scene entry in the build order.
@@ -134,6 +154,12 @@ impl Default for BuildSettings {
             fullscreen: false,
             quality: QualityLevel::High,
             scenes_in_build: Vec::new(),
+            ios_bundle_id: String::new(),
+            ios_team_id: String::new(),
+            android_package_name: String::new(),
+            android_keystore_path: String::new(),
+            android_key_alias: String::new(),
+            play_console_service_account_path: String::new(),
         }
     }
 }
@@ -764,6 +790,7 @@ mod tests {
             fullscreen: true,
             quality: QualityLevel::Ultra,
             scenes_in_build: vec![],
+            ..BuildSettings::default()
         };
         let s = ron::ser::to_string(&bs).unwrap();
         let loaded: BuildSettings = ron::from_str(&s).unwrap();

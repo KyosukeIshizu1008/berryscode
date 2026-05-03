@@ -5,8 +5,10 @@
 //! deploy code, the Phase C asset compressor, and the Phase E packagers
 //! all read from the same `MobileToolchain` snapshot.
 
+pub mod build_all;
 pub mod log_relay;
 pub mod packager;
+pub mod play_console;
 pub mod probe;
 pub mod runner;
 pub mod types;

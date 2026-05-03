@@ -83,6 +83,109 @@ pub fn build_android(root: &str) -> Result<(Child, Receiver<String>), String> {
     spawn_cargo_build(root, "aarch64-linux-android")
 }
 
+/// Build an Android App Bundle (`.aab`) via Gradle. Requires the user
+/// to have a Gradle wrapper at `<root>/android/gradlew` (created on
+/// first save by `generate_android_project`, v0.7.4+) and the
+/// `aarch64-linux-android` rustup target installed. Codesigning uses
+/// the keystore + alias from `BuildSettings`; v0.7.2 stops short of
+/// uploading — call `play_console::upload_aab` for that.
+pub fn build_android_aab(root: &str) -> Result<(Child, Receiver<String>), String> {
+    let android_dir = std::path::Path::new(root).join("android");
+    let gradlew = android_dir.join(if cfg!(windows) {
+        "gradlew.bat"
+    } else {
+        "gradlew"
+    });
+    if !gradlew.exists() {
+        return Err(format!(
+            "No Gradle wrapper at {}. Run `Build → Android → Generate Gradle Project` first \
+             (Settings → Build → Android → Generate). The wrapper is auto-emitted \
+             from BerryCode v0.7.4+.",
+            gradlew.display()
+        ));
+    }
+    let mut cmd = Command::new(&gradlew);
+    cmd.arg(":app:bundleRelease")
+        .current_dir(&android_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start `gradlew bundleRelease`: {e}"))?;
+    let (tx, rx) = channel();
+    if let Some(stderr) = child.stderr.take() {
+        let tx_clone = tx.clone();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx_clone.send(line);
+            }
+        });
+    }
+    if let Some(stdout) = child.stdout.take() {
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    Ok((child, rx))
+}
+
+/// Build a signed iOS IPA via `xcodebuild`. Requires the user to have
+/// an Xcode project at `<root>/ios/<app>.xcodeproj`; auto-generation
+/// is the v0.7.3 follow-up. Codesigning uses the team ID from
+/// `BuildSettings`. macOS-only.
+#[cfg(target_os = "macos")]
+pub fn build_ios_ipa(root: &str, scheme: &str) -> Result<(Child, Receiver<String>), String> {
+    let ios_dir = std::path::Path::new(root).join("ios");
+    if !ios_dir.exists() {
+        return Err(format!(
+            "No iOS Xcode project at {}. Run `Build → iOS → Generate Xcode Project` first \
+             (Settings → Build → iOS → Generate). Project generation lands in v0.7.3.",
+            ios_dir.display()
+        ));
+    }
+    let mut cmd = Command::new("xcodebuild");
+    cmd.arg("-scheme")
+        .arg(scheme)
+        .arg("-configuration")
+        .arg("Release")
+        .arg("-archivePath")
+        .arg(ios_dir.join("build/app.xcarchive"))
+        .arg("archive")
+        .current_dir(&ios_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start `xcodebuild archive`: {e}"))?;
+    let (tx, rx) = channel();
+    if let Some(stderr) = child.stderr.take() {
+        let tx_clone = tx.clone();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx_clone.send(line);
+            }
+        });
+    }
+    if let Some(stdout) = child.stdout.take() {
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            let reader = std::io::BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx.send(line);
+            }
+        });
+    }
+    Ok((child, rx))
+}
+
 /// Required `rustup` target triples per platform. Mirrors
 /// `cargo --print target-list` exactly so a missing target produces a
 /// "run `rustup target add <triple>`" hint in the UI.
