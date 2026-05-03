@@ -7,9 +7,21 @@ use crate::app::BerryCodeApp;
 /// fixed compact size so the four header actions read as a tidy strip
 /// instead of chunky `[ ^ ][ v ][ C ][ x ]` chiclets.
 fn icon_button(ui: &mut egui::Ui, glyph: &str, tooltip: &str) -> egui::Response {
-    let btn = egui::Button::new(egui::RichText::new(glyph).size(13.0))
-        .frame(false)
-        .min_size(egui::vec2(20.0, 20.0));
+    // Render the glyph in the codicon font so the per-component header
+    // buttons (chevron up/down, copy, close) actually show as VS Code
+    // icons rather than blank squares — the default monospace fallback
+    // doesn't carry these glyphs.
+    let btn = egui::Button::new(
+        egui::RichText::new(glyph)
+            .size(12.0)
+            .font(egui::FontId::new(
+                12.0,
+                egui::FontFamily::Name("codicon".into()),
+            ))
+            .color(egui::Color32::from_rgb(160, 160, 160)),
+    )
+    .frame(false)
+    .min_size(egui::vec2(18.0, 18.0));
     ui.add(btn).on_hover_text(tooltip)
 }
 
@@ -456,7 +468,16 @@ impl BerryCodeApp {
             let mut move_down_idx: Option<usize> = None;
             let component_count = entity.components.len();
             for (idx, component) in entity.components.iter_mut().enumerate() {
-                ui.group(|ui| {
+                // Flat VS Code Settings-style component block: no border, no
+                // rounding, just a subtle horizontal divider above the next
+                // header. Tight vertical margins so a fox entity with
+                // Mesh + PlayerController + Collider + Rigidbody fits on
+                // one screen without scrolling.
+                if idx > 0 {
+                    ui.add_space(2.0);
+                    ui.separator();
+                }
+                egui::Frame::NONE.inner_margin(egui::Margin::symmetric(0, 4)).show(ui, |ui| {
                     // Header row: component label + reorder/remove buttons.
                     // VSCode-style flat icon buttons (no frame, subtle hover).
                     ui.horizontal(|ui| {
@@ -466,19 +487,22 @@ impl BerryCodeApp {
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
                                 ui.spacing_mut().item_spacing.x = 2.0;
-                                if icon_button(ui, "\u{2715}", "Remove component").clicked() {
+                                // VS Code codicon glyphs (verified vs assets/codicon.ttf):
+                                //   \u{ea76} = close, \u{ea4d} = copy,
+                                //   \u{eaa1} = chevron-down, \u{eaa3} = chevron-up.
+                                if icon_button(ui, "\u{ea76}", "Remove component").clicked() {
                                     component_to_remove = Some(idx);
                                 }
-                                if icon_button(ui, "\u{2398}", "Copy component").clicked() {
+                                if icon_button(ui, "\u{ea4d}", "Copy component").clicked() {
                                     add_component_copy = Some(component.clone());
                                 }
                                 ui.add_enabled_ui(idx + 1 < component_count, |ui| {
-                                    if icon_button(ui, "\u{25BE}", "Move down").clicked() {
+                                    if icon_button(ui, "\u{eaa1}", "Move down").clicked() {
                                         move_down_idx = Some(idx);
                                     }
                                 });
                                 ui.add_enabled_ui(idx > 0, |ui| {
-                                    if icon_button(ui, "\u{25B4}", "Move up").clicked() {
+                                    if icon_button(ui, "\u{eaa3}", "Move up").clicked() {
                                         move_up_idx = Some(idx);
                                     }
                                 });
@@ -1535,7 +1559,12 @@ impl BerryCodeApp {
                                     mutated = true;
                                 }
                                 ui.separator();
-                                ui.horizontal(|ui| {
+                                // `horizontal_wrapped` so the type-button row
+                                // breaks onto a second line when the panel is
+                                // narrow — `horizontal` clipped the trailing
+                                // `+ Option` / `+ Map` buttons in the default
+                                // 220px Inspector width.
+                                ui.horizontal_wrapped(|ui| {
                                     ui.label("Add field:");
                                     if ui.small_button("+ f32").clicked() {
                                         fields.push(ScriptField {
@@ -2082,17 +2111,19 @@ impl BerryCodeApp {
 
             ui.separator();
 
-            // Delete button — VSCode-style danger button (flat, full-width,
-            // muted red text, subtle border).
+            // Delete button — VSCode-style: red codicon trash + label,
+            // no border, no fill. Hover shows the standard accent fill
+            // via egui defaults so the affordance is still obvious.
             if ui
                 .add_sized(
-                    [ui.available_width(), 24.0],
+                    [ui.available_width(), 22.0],
                     egui::Button::new(
-                        egui::RichText::new("\u{1F5D1}  Delete Entity")
-                            .color(egui::Color32::from_rgb(244, 135, 113)),
+                        egui::RichText::new("\u{ea81}  Delete Entity")
+                            .color(egui::Color32::from_rgb(244, 135, 113))
+                            .size(12.0),
                     )
                     .fill(egui::Color32::TRANSPARENT)
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(80, 50, 50))),
+                    .stroke(egui::Stroke::NONE),
                 )
                 .clicked()
             {
