@@ -12,7 +12,7 @@ impl BerryCodeApp {
             .exact_height(32.0)
             .frame(
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(50, 51, 54)) // Dark gray background #323336
+                    .fill(ui_colors::TOP_BAR_BG)
                     .inner_margin(egui::Margin::symmetric(8, 4)),
             )
             .show(ctx, |ui| {
@@ -76,7 +76,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Close Project"))
                                     .size(12.0)
-                                    .color(egui::Color32::from_rgb(180, 180, 180)),
+                                    .color(ui_colors::TEXT_MUTED),
                             )
                             .frame(false),
                         )
@@ -97,7 +97,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("+ New Bevy Project"))
                                     .size(12.0)
-                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                    .color(ui_colors::TEXT_DEFAULT),
                             )
                             .frame(false),
                         )
@@ -169,7 +169,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Build Settings"))
                                     .size(12.0)
-                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                    .color(ui_colors::TEXT_DEFAULT),
                             )
                             .frame(false),
                         )
@@ -186,7 +186,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Packages"))
                                     .size(12.0)
-                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                    .color(ui_colors::TEXT_DEFAULT),
                             )
                             .frame(false),
                         )
@@ -203,7 +203,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Mobile"))
                                     .size(12.0)
-                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                    .color(ui_colors::TEXT_DEFAULT),
                             )
                             .frame(false),
                         )

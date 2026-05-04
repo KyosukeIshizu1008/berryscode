@@ -7,14 +7,14 @@ use super::BerryCodeApp;
 impl BerryCodeApp {
     /// Render Sidebar (file tree, chat, terminal, etc.)
     pub(crate) fn render_sidebar(&mut self, ctx: &egui::Context) {
-        // Bumped id (`sidebar_v2`) discards stale persisted widths from
+        // Bumped id (`sidebar_v3`) discards stale persisted widths from
         // earlier builds, so the panel comes up at `default_width` and
         // stays inside `width_range` regardless of what the previous
         // session had stored. Both Explorer and Search render inside
         // this same panel, so they always share width by construction.
-        egui::SidePanel::left("sidebar_v2")
-            .default_width(220.0)
-            .width_range(120.0..=400.0)
+        egui::SidePanel::left("sidebar_v3")
+            .default_width(210.0)
+            .width_range(160.0..=360.0)
             .resizable(true)
             .show_separator_line(true)
             .frame(

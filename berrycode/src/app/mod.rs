@@ -300,8 +300,13 @@ pub(crate) mod ui_colors {
 
     pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
     pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
+    pub const TOP_BAR_BG: Color32 = Color32::from_rgb(48, 49, 52); // #303134 toolbar
     pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 Light Gray
+    pub const TEXT_MUTED: Color32 = Color32::from_rgb(154, 157, 168); // subdued labels
     pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59); // #36393B Medium Gray
+    pub const PANEL_BORDER: Color32 = Color32::from_rgb(36, 38, 42); // #24262A splitters
+    pub const CONTROL_BG: Color32 = Color32::from_rgb(32, 34, 39); // #202227 buttons/inputs
+    pub const CONTROL_BORDER: Color32 = Color32::from_rgb(54, 57, 66); // #363942
 
     // VS Code-style settings palette
     pub const SETTINGS_NAV_BG: Color32 = Color32::from_rgb(30, 30, 32); // panel column

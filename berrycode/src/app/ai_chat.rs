@@ -1,6 +1,7 @@
 //! AI Chat panel rendering and REST communication
 
 use super::types::{AiChatMessage, AiChatResponse};
+use super::ui_colors;
 use super::utils::strip_thinking_blocks;
 use super::BerryCodeApp;
 
@@ -9,17 +10,17 @@ impl BerryCodeApp {
     #[allow(dead_code)]
     pub(crate) fn render_ai_chat_panel(&mut self, ctx: &egui::Context) {
         // Accent colors for the chat panel
-        const PANEL_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28); // match editor bg #191A1C
+        const PANEL_BG: egui::Color32 = ui_colors::SIDEBAR_BG;
         const HEADER_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28);
-        const INPUT_BG: egui::Color32 = egui::Color32::from_rgb(28, 29, 34);
+        const INPUT_BG: egui::Color32 = egui::Color32::from_rgb(24, 25, 31);
         const USER_BG: egui::Color32 = egui::Color32::from_rgb(45, 55, 95);
         const ACCENT: egui::Color32 = egui::Color32::from_rgb(99, 139, 255);
-        const TEXT_DIM: egui::Color32 = egui::Color32::from_rgb(110, 115, 130);
+        const TEXT_DIM: egui::Color32 = ui_colors::TEXT_MUTED;
         const DIVIDER: egui::Color32 = egui::Color32::from_rgb(35, 37, 45);
 
         // ── Collapsed state: render a thin 32 px reopen strip ──
         if self.ai_chat_collapsed {
-            egui::SidePanel::right("ai_chat_panel_v2_collapsed")
+            egui::SidePanel::right("ai_chat_panel_v3_collapsed")
                 .exact_width(32.0)
                 .resizable(false)
                 .show_separator_line(true)
@@ -68,9 +69,9 @@ impl BerryCodeApp {
             }
         }
 
-        egui::SidePanel::right("ai_chat_panel_v2")
-            .default_width(420.0)
-            .width_range(200.0..=600.0)
+        egui::SidePanel::right("ai_chat_panel_v3")
+            .default_width(320.0)
+            .width_range(260.0..=520.0)
             .resizable(true)
             .show_separator_line(true)
             .frame(egui::Frame::NONE.fill(PANEL_BG).inner_margin(0))
@@ -120,6 +121,12 @@ impl BerryCodeApp {
                     });
                 });
                 ui.add_space(2.0);
+                let header_divider_rect = ui.max_rect();
+                ui.painter().hline(
+                    header_divider_rect.left()..=header_divider_rect.right(),
+                    ui.cursor().top(),
+                    egui::Stroke::new(1.0, ui_colors::PANEL_BORDER),
+                );
 
                 // ── Layout: input pinned to bottom, scroll fills rest ──
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -133,87 +140,18 @@ impl BerryCodeApp {
                     egui::Frame::NONE
                         .fill(PANEL_BG)
                         .inner_margin(egui::Margin {
-                            left: 12,
-                            right: 12,
-                            top: 8,
+                            left: 14,
+                            right: 14,
+                            top: 10,
                             bottom: 12,
                         })
                         .show(ui, |ui| {
-                            // ── Agent backend picker (above input)
-                            // Chat / Agent toggle was retired with the
-                            // shift to a single Native-agent flow — all
-                            // requests now go through the agent loop,
-                            // which makes the model's `read_file` /
-                            // tool calls transparent in the chat panel.
-                            ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing.x = 6.0;
-                                let claude_installed = crate::agent::CodingAgent::check_installed(
-                                    &crate::agent::claude::ClaudeCodeAgent::new(),
-                                );
-                                let codex_installed = crate::agent::CodingAgent::check_installed(
-                                    &crate::agent::codex::CodexAgent::new(),
-                                );
-                                let mut backend = self.ai_settings.agent_backend.clone();
-                                ui.label(egui::RichText::new("Agent:").size(11.0).color(TEXT_DIM));
-                                egui::ComboBox::from_id_salt("agent_backend_picker")
-                                    .selected_text(match backend.as_str() {
-                                        "codex" => "Codex",
-                                        "claude" => "Claude Code",
-                                        _ => "Native",
-                                    })
-                                    .show_ui(ui, |ui| {
-                                        ui.selectable_value(
-                                            &mut backend,
-                                            "native".to_string(),
-                                            "Native (in-process)",
-                                        );
-                                        ui.selectable_value(
-                                            &mut backend,
-                                            "claude".to_string(),
-                                            "Claude Code",
-                                        );
-                                        ui.selectable_value(
-                                            &mut backend,
-                                            "codex".to_string(),
-                                            "Codex",
-                                        );
-                                    });
-                                if backend != self.ai_settings.agent_backend {
-                                    self.ai_settings.agent_backend = backend.clone();
-                                    self.ai_settings.save();
-                                }
-                                let (installed, install_hint) = match backend.as_str() {
-                                    "native" => (Some("ready".to_string()), ""),
-                                    "codex" => (
-                                        codex_installed,
-                                        "codex not on PATH — `npm i -g @openai/codex`",
-                                    ),
-                                    _ => (
-                                        claude_installed,
-                                        "claude not on PATH — `npm i -g @anthropic-ai/claude-code`",
-                                    ),
-                                };
-                                match installed {
-                                    Some(v) => {
-                                        ui.label(egui::RichText::new(v).size(11.0).color(TEXT_DIM));
-                                    }
-                                    None => {
-                                        ui.label(
-                                            egui::RichText::new(install_hint)
-                                                .size(11.0)
-                                                .color(egui::Color32::from_rgb(220, 120, 120)),
-                                        );
-                                    }
-                                }
-                            });
-                            ui.add_space(6.0);
-
                             let input_id = egui::Id::new("chat_input");
                             let input_focused = ui.memory(|m| m.has_focus(input_id));
                             let border_color = if input_focused {
                                 ACCENT
                             } else {
-                                egui::Color32::from_rgb(48, 50, 62)
+                                ui_colors::CONTROL_BORDER
                             };
 
                             egui::Frame::NONE
@@ -364,15 +302,15 @@ impl BerryCodeApp {
 
                                 if self.ai_messages.is_empty() && !self.ai_streaming {
                                     // ── Welcome / empty state (VS Code Copilot style) ──
-                                    ui.add_space(40.0);
+                                    ui.add_space(42.0);
                                     ui.vertical_centered(|ui| {
-                                        ui.add_space(20.0);
+                                        ui.add_space(18.0);
                                         ui.label(
                                             egui::RichText::new(
                                                 "Ask anything or type / for commands",
                                             )
                                             .size(13.0)
-                                            .color(egui::Color32::from_rgb(130, 135, 150)),
+                                            .color(TEXT_DIM),
                                         );
                                         ui.add_space(24.0);
 
@@ -387,15 +325,15 @@ impl BerryCodeApp {
                                             let btn = egui::Button::new(
                                                 egui::RichText::new(*text)
                                                     .size(12.0)
-                                                    .color(egui::Color32::from_rgb(180, 185, 200)),
+                                                    .color(ui_colors::TEXT_DEFAULT),
                                             )
-                                            .fill(egui::Color32::from_rgb(35, 37, 42))
+                                            .fill(ui_colors::CONTROL_BG)
                                             .stroke(egui::Stroke::new(
                                                 1.0,
-                                                egui::Color32::from_rgb(55, 57, 63),
+                                                ui_colors::CONTROL_BORDER,
                                             ))
                                             .corner_radius(6)
-                                            .min_size(egui::vec2(200.0, 28.0));
+                                            .min_size(egui::vec2(210.0, 28.0));
                                             if ui.add(btn).clicked() {
                                                 self.ai_input = text.to_string();
                                                 self.send_ai_message();
