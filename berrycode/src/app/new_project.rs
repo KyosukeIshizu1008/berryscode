@@ -10,6 +10,8 @@ pub enum ProjectTemplate {
     Walker3D,
     WalkableArchitecture,
     Plugin,
+    Mobile2D,
+    Mobile3D,
 }
 
 impl ProjectTemplate {
@@ -19,6 +21,8 @@ impl ProjectTemplate {
         ProjectTemplate::Walker3D,
         ProjectTemplate::WalkableArchitecture,
         ProjectTemplate::Plugin,
+        ProjectTemplate::Mobile2D,
+        ProjectTemplate::Mobile3D,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -30,6 +34,8 @@ impl ProjectTemplate {
                 "Walkable Architecture (FPS + colliders + day/night)"
             }
             ProjectTemplate::Plugin => "Plugin",
+            ProjectTemplate::Mobile2D => "Mobile 2D (iOS / Android ready)",
+            ProjectTemplate::Mobile3D => "Mobile 3D (iOS / Android ready)",
         }
     }
 
@@ -42,7 +48,17 @@ impl ProjectTemplate {
                 "FPS walkthrough with auto-generated AABB colliders and day/night toggle (T) — drop your CAD-imported GLB into assets/ and walk it"
             }
             ProjectTemplate::Plugin => "A reusable Bevy Plugin",
+            ProjectTemplate::Mobile2D => {
+                "2D project pre-configured as cdylib + bevy_main — runnable on iOS Simulator / Android via cargo-mobile2"
+            }
+            ProjectTemplate::Mobile3D => {
+                "3D project pre-configured as cdylib + bevy_main — runnable on iOS Simulator / Android via cargo-mobile2"
+            }
         }
+    }
+
+    pub fn is_mobile(self) -> bool {
+        matches!(self, ProjectTemplate::Mobile2D | ProjectTemplate::Mobile3D)
     }
 }
 
@@ -202,11 +218,21 @@ impl BerryCodeApp {
         fs::write(root.join("src/systems/mod.rs"), "// Systems\n")?;
         fs::write(root.join("src/events/mod.rs"), "// Events\n")?;
 
-        // Cargo.toml with fast compile settings
-        let cargo_toml = format!(
-            "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nbevy = {{ version = \"0.18\", features = [\"dynamic_linking\", \"bevy_remote\"] }}\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
-            name = project_name
-        );
+        // Cargo.toml — mobile templates need a [lib] section so cargo-mobile2
+        // can produce the staticlib (iOS) / cdylib (Android) artifacts that
+        // Xcode and Gradle link against. Desktop templates skip the [lib]
+        // entry to keep `cargo run` straightforward.
+        let cargo_toml = if template.is_mobile() {
+            format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\ncrate-type = [\"staticlib\", \"cdylib\", \"rlib\"]\n\n[dependencies]\nbevy = {{ version = \"0.18\", features = [\"bevy_remote\"] }}\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
+                name = project_name
+            )
+        } else {
+            format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nbevy = {{ version = \"0.18\", features = [\"dynamic_linking\", \"bevy_remote\"] }}\n\n[profile.dev]\nopt-level = 1\n\n[profile.dev.package.\"*\"]\nopt-level = 3\n",
+                name = project_name
+            )
+        };
         fs::write(root.join("Cargo.toml"), cargo_toml)?;
 
         // Copy fox.glb asset for Walker3D / WalkableArchitecture templates.
@@ -221,9 +247,21 @@ impl BerryCodeApp {
             let _ = fs::write(root.join("assets/fox.glb"), fox_bytes);
         }
 
-        // src/main.rs based on template
-        let main_rs = template_main_rs(template);
-        fs::write(root.join("src/main.rs"), main_rs)?;
+        // src/main.rs based on template. Mobile templates also emit
+        // src/lib.rs holding the `#[bevy_main]`-decorated entry point;
+        // src/main.rs becomes a thin shim that defers to the lib so a
+        // single source of truth covers both `cargo run` (desktop dev)
+        // and `cargo apple/android run` (mobile via cargo-mobile2).
+        if template.is_mobile() {
+            let crate_name = project_name.replace('-', "_");
+            let lib_rs = template_lib_rs(template);
+            fs::write(root.join("src/lib.rs"), lib_rs)?;
+            let main_rs = format!("fn main() {{\n    {crate_name}::main();\n}}\n");
+            fs::write(root.join("src/main.rs"), main_rs)?;
+        } else {
+            let main_rs = template_main_rs(template);
+            fs::write(root.join("src/main.rs"), main_rs)?;
+        }
 
         // .gitignore
         fs::write(root.join(".gitignore"), "/target\n")?;
@@ -1006,5 +1044,94 @@ fn update() {
 }
 "#.to_string()
         }
+        // Mobile templates emit src/lib.rs (with `#[bevy_main]`) plus a
+        // thin src/main.rs shim — `create_bevy_project` handles both
+        // files directly via `template_lib_rs`. This arm exists only for
+        // match exhaustiveness; production code paths never reach it.
+        ProjectTemplate::Mobile2D | ProjectTemplate::Mobile3D => String::new(),
+    }
+}
+
+/// Source for `src/lib.rs` of mobile-ready templates. The function is
+/// decorated with `#[bevy_main]`, which expands to a no-op on desktop
+/// and emits the `android_main` extern entry point on Android. iOS
+/// links against the staticlib via Xcode and calls the C `main`
+/// generated by the bin target (`src/main.rs`).
+fn template_lib_rs(template: ProjectTemplate) -> String {
+    match template {
+        ProjectTemplate::Mobile2D => r#"use bevy::prelude::*;
+
+#[bevy_main]
+pub fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                resizable: false,
+                title: "Mobile Bevy".into(),
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_systems(Startup, setup)
+        .run();
+}
+
+fn setup(mut commands: Commands) {
+    commands.spawn(Camera2d);
+    commands.spawn((
+        Sprite::from_color(Color::srgb(0.4, 0.7, 1.0), Vec2::new(120.0, 120.0)),
+        Transform::default(),
+    ));
+}
+"#
+        .to_string(),
+        ProjectTemplate::Mobile3D => r#"use bevy::prelude::*;
+
+#[bevy_main]
+pub fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                resizable: false,
+                title: "Mobile Bevy 3D".into(),
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_systems(Startup, setup)
+        .run();
+}
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(3.0, 3.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+    commands.spawn((
+        DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, 0.5, 0.0)),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::default())),
+        MeshMaterial3d(materials.add(Color::srgb(0.4, 0.6, 1.0))),
+        Transform::from_xyz(0.0, 0.5, 0.0),
+    ));
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(10.0, 10.0))),
+        MeshMaterial3d(materials.add(Color::srgb(0.3, 0.3, 0.3))),
+    ));
+}
+"#
+        .to_string(),
+        // Non-mobile templates do not emit a lib.rs.
+        _ => String::new(),
     }
 }

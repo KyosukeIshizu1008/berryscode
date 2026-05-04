@@ -1,6 +1,6 @@
 [package]
 name = "berrycode"
-version = "0.7.11"
+version = "0.8.0"
 edition = "2021"
 description = "The IDE built for the Bevy game engine — Scene Editor, ECS Inspector, and more"
 authors = ["BerryCode Team"]
@@ -67,6 +67,11 @@ tree-sitter-python = "0.23"
 tree-sitter-javascript = "0.23"
 tree-sitter-c = "0.23"
 tree-sitter-cpp = "0.23"
+
+# ===== Godot Project Read-Only Support (v0.8.x Migration & interop) =====
+godot-properties-parser = "0.4"
+tree-sitter-gdscript = "6.1"
+tree-sitter-godot-resource = "0.7"
 
 # ===== Serialization =====
 serde = { version = "1.0", features = ["derive"] }

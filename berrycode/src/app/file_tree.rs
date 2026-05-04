@@ -1045,6 +1045,19 @@ impl BerryCodeApp {
             ("\u{ea7b}", egui::Color32::from_rgb(101, 79, 240)) // file — purple
         } else if filename.ends_with(".ron") || filename.ends_with(".scn.ron") {
             ("\u{ea7b}", file_icon_colors::RUST_ORANGE) // file — Bevy scene
+                                                        // Godot files (v0.8.x Migration & interop). Distinct colours so
+                                                        // a Godot project glanced at in the file tree is instantly
+                                                        // recognisable to migrating users.
+        } else if filename.ends_with(".gd") {
+            ("\u{ea7b}", file_icon_colors::GODOT_SCRIPT_BLUE) // file — GDScript
+        } else if filename == "project.godot" {
+            ("\u{eb19}", file_icon_colors::GODOT_SCRIPT_BLUE) // gear — Godot project config
+        } else if filename.ends_with(".tscn") {
+            ("\u{ea7b}", file_icon_colors::GODOT_SCENE_PURPLE) // file — Godot scene
+        } else if filename.ends_with(".tres") || filename.ends_with(".res") {
+            ("\u{ea7b}", file_icon_colors::GODOT_RESOURCE_TEAL) // file — Godot resource
+        } else if filename.ends_with(".import") {
+            ("\u{ea7b}", file_icon_colors::CONFIG_GRAY) // file — Godot asset import metadata
         } else {
             ("\u{ea7b}", ui_colors::TEXT_DEFAULT) // file — default
         }

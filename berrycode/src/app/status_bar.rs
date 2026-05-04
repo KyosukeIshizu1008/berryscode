@@ -43,6 +43,24 @@ impl BerryCodeApp {
 
                     ui.separator();
 
+                    // Godot project badge — shows whenever the workspace
+                    // root contains a `project.godot`. Cheap to recompute
+                    // each frame (`is_file()` syscall) and gives migrating
+                    // users an instant visual confirmation that BerryCode
+                    // recognises their project type. (v0.8.x Migration & interop)
+                    if !self.root_path.is_empty()
+                        && crate::godot_import::is_godot_project(std::path::Path::new(
+                            &self.root_path,
+                        ))
+                    {
+                        ui.label(
+                            egui::RichText::new("● Godot Project")
+                                .small()
+                                .color(super::file_icon_colors::GODOT_SCRIPT_BLUE),
+                        );
+                        ui.separator();
+                    }
+
                     // Current file language
                     if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
                         let lang = if tab.file_path.ends_with(".rs") {
@@ -53,6 +71,16 @@ impl BerryCodeApp {
                             "Markdown"
                         } else if tab.file_path.ends_with(".json") {
                             "JSON"
+                        } else if tab.file_path.ends_with(".gd") {
+                            "GDScript"
+                        } else if tab.file_path.ends_with(".tscn") {
+                            "Godot Scene"
+                        } else if tab.file_path.ends_with(".tres")
+                            || tab.file_path.ends_with(".res")
+                        {
+                            "Godot Resource"
+                        } else if tab.file_path.ends_with("project.godot") {
+                            "Godot Project"
                         } else {
                             self.tr("Plain Text")
                         };

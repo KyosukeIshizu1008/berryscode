@@ -30,6 +30,7 @@ mod file_tree;
 mod folding;
 
 mod git;
+mod godot_panel;
 mod header;
 pub(crate) mod i18n;
 mod image_preview;
@@ -353,6 +354,15 @@ pub(crate) mod file_icon_colors {
     pub const IMAGE_PURPLE: Color32 = Color32::from_rgb(156, 39, 176); // #9C27B0
     pub const SVG_AMBER: Color32 = Color32::from_rgb(255, 179, 0); // #FFB300
     pub const GIT_ORANGE: Color32 = Color32::from_rgb(240, 98, 35); // #F06223
+
+    // Godot project files (v0.8.x Migration & interop). The Godot
+    // brand uses a desaturated cool blue for its UI; we lean into
+    // that so users coming from Godot recognise their files at a
+    // glance, while keeping `.gd` slightly warmer to differentiate
+    // scripts from scenes / resources.
+    pub const GODOT_SCRIPT_BLUE: Color32 = Color32::from_rgb(71, 142, 191); // #478EBF
+    pub const GODOT_SCENE_PURPLE: Color32 = Color32::from_rgb(154, 113, 209); // #9A71D1
+    pub const GODOT_RESOURCE_TEAL: Color32 = Color32::from_rgb(94, 169, 169); // #5EA9A9
 }
 
 /// Main panels in the Activity Bar
@@ -1030,6 +1040,12 @@ pub struct BerryCodeApp {
     // === Mobile Toolchain (v0.8 Phase A) ===
     pub(crate) mobile_toolchain_open: bool,
     pub(crate) mobile_toolchain: mobile_toolchain::MobileToolchainState,
+
+    // === Godot scene viewer (v0.8.x Migration & interop) ===
+    // Auto-renders when the active editor tab is a `.tscn` file.
+    // Holds the cached parse + selected node so we don't re-parse
+    // every frame.
+    pub(crate) godot_scene_panel: godot_panel::GodotScenePanelState,
     // === Texture Importer ===
 
     // === Audio Mixer ===
@@ -2171,6 +2187,8 @@ impl BerryCodeApp {
 
             mobile_toolchain_open: false,
             mobile_toolchain: mobile_toolchain::MobileToolchainState::from_cache_or_default(),
+
+            godot_scene_panel: godot_panel::GodotScenePanelState::default(),
         };
 
         // === Test Mode CLI: --test-mode ===
@@ -3031,6 +3049,10 @@ pub fn berry_ui_system(
 
         // floating mobile toolchain window (v0.8 Phase A).
         app.render_mobile_toolchain_window(ctx);
+
+        // Godot scene viewer — auto-shows when active tab is a `.tscn`
+        // file (v0.8.x Migration & interop).
+        app.render_godot_scene_panel(ctx);
 
         // floating scene merge panel.
         app.render_merge_panel(ctx);

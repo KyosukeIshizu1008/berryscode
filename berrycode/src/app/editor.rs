@@ -284,6 +284,20 @@ impl BerryCodeApp {
                     "ts"
                 } else if tab.file_path.ends_with(".py") {
                     "py"
+                } else if tab.file_path.ends_with(".gd") {
+                    // Godot GDScript — handled by SyntaxHighlighter::highlight_gdscript
+                    // (v0.8.x Migration & interop). Read-only rendering only;
+                    // no LSP / completion for GDScript.
+                    "gd"
+                } else if tab.file_path.ends_with(".tscn") {
+                    // Godot scene file — INI-like format with section
+                    // headers. Highlighter colours `[node ...]` headers
+                    // as attributes so the structural anchors pop.
+                    "tscn"
+                } else if tab.file_path.ends_with(".tres") || tab.file_path.ends_with(".res") {
+                    "tres"
+                } else if tab.file_path.ends_with("project.godot") {
+                    "godot"
                 } else if tab.file_path.ends_with(".json") {
                     "json"
                 } else if tab.file_path.ends_with(".yaml") || tab.file_path.ends_with(".yml") {

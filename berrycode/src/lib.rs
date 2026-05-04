@@ -51,3 +51,9 @@ pub mod settings;
 
 // ===== Git Integration =====
 pub mod git;
+
+// ===== Godot Project Read-Only Support (v0.8.x Migration & interop) =====
+// Read `project.godot` + `.tscn` scene trees so users migrating from
+// Godot can browse their existing project alongside new Bevy code.
+// Strictly read-only: BerryCode is a bridge, not a converter.
+pub mod godot_import;

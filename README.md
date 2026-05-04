@@ -193,187 +193,75 @@ git config core.hooksPath .githooks
 
 ### Roadmap
 
-BerryCode is in active development. The next milestones in priority order:
+BerryCode ships in monthly releases. The big picture:
 
-The arc:
-**v0.4–v0.7** = core editor + first non-game wedge (architecture).
-**v0.8–v0.9** = the runtime story (ship to mobile, then connect players online).
-**v0.10–v0.12** = the publishing story (data, testing, store + i18n).
-**v1.0** = team-scale IDE.
+| Phase | Versions | What we're building |
+|-------|----------|---------------------|
+| **Editor** | v0.4 – v0.7 | A solid Bevy IDE foundation (✅ shipped) |
+| **Runtime** | v0.8 – v0.9 | Ship to mobile, then connect players online |
+| **Publishing** | v0.10 – v0.12 | Game data, testing, store integration, i18n |
+| **Team scale** | v1.0 | Multi-developer collaboration |
 
-#### v0.4 — Editor polish (target: 2026 Q3)
-- [~] GPU PBR preview for GLB/GLTF models ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1) — closed wontfix; the CPU `asset_browser` preview already covers the user-visible path with skinning + animation playback)
-- [x] In-progress IME preedit display in source code editor
-- [x] LSP: completion details (signature help, parameter hints)
-- [ ] Scene Editor: prefab nested overrides ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10) — carryover to v0.4.x)
-- [x] Settings UI for keybindings and theme
+#### ✅ Shipped (v0.4 → v0.7)
 
-#### v0.4.5 — AI integration (target: 2026 Q4 / mid)
+Highlights of what's already in the latest release:
 
-> _AI-native, Bevy-aware._ Bring-your-own-key support for the major
-> code-savvy models for chat, plus a built-in **Native agent** that
-> runs the Responses-API tool-calling loop in-process — no `npm`
-> install or external CLI required for end users. **Codex CLI** and
-> **Claude Code** remain selectable as drop-in subprocess backends for
-> users who already have them on `PATH`.
+- **Editor core** (v0.4): Rust LSP with completion details + signature help, IME preedit in the source editor, settings UI for keybindings & themes
+- **AI integration** (v0.4.5): BYOK chat for Anthropic / OpenAI / Ollama, in-process **Native agent** (Responses-API tool-calling — `read_file` / `write_file` / `list_files` / `run_bash`), Codex CLI / Claude Code as fallback, `Cmd+L` chat sidebar, Approve / Reject diff cards, `@file` attachments, 3-way merge guard, Bevy 0.18 cheatsheet injection
+- **Bevy depth** (v0.5): System Graph, animation blend tree, shader graph live-recompile preview, asset import (FBX / OBJ / glTF), plugin browser, hot reload for `.bscene` and shaders
+- **Audio pipeline** (v0.6): in-IDE waveform with scrubbing, event-driven editor (one-shots / loops / ducking / parameter layers), spatial audio with attenuation curves, music graph with stinger / vertical re-mix, SFX randomiser, hot reload
+- **Architecture → game** (v0.7): DXF importer (LINE / LWPOLYLINE / 3DFACE / arcs), IFC MVP importer, layer-name → PBR colour with EN + JA vocabulary, **Walkable Architecture** template (FPS controller + AABB collider + day / dusk / night cycle)
 
-**Single-mode chat panel (agent-loop only)**
+See [GitHub Releases](https://github.com/KyosukeIshizu1008/berryscode/releases) for the full per-version breakdown.
 
-The dual Chat / Agent surface was retired in favour of a single agent-loop UI: every prompt flows through the agent, which transparently uses `read_file` for Q&A and `write_file` for edits. The Provider plug-in layer is still in the codebase for future inline-completion use.
-
-- [x] **Provider plug-in layer**: Anthropic, OpenAI (incl. Azure Responses API), Ollama, with prompt caching where supported. Currently consumed by the Native agent backend; chat-shaped direct calls retired.
-- [x] **Bring-your-own-key UI**: per-provider keys + model selection in Settings, env-var fallback (`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ANTHROPIC_API_KEY`); never round-trips through a hosted backend
-- [x] **Cost / token panel**: per-conversation usage + monthly cap so users never get surprise bills
-- [x] **Chat sidebar (`Cmd+L`)** — focuses the chat input from anywhere
-- [x] **Native agent (default)**: in-process Responses-API tool-calling loop — `read_file` / `write_file` / `list_files` / `run_bash` — streamed live to the chat panel; reuses the chat provider settings; no `npm` install required for end users
-- [x] **Agent backend (Claude Code)**: spawn `claude --print --output-format=stream-json`; selectable as fallback when `claude` is on `PATH`
-- [x] **Agent backend (Codex CLI)**: equivalent path via `codex exec --json --cd <cwd> --full-auto`; selectable as fallback when `codex` is on `PATH`
-- [x] **Apply diff**: agent edit proposals surface as Approve / Reject cards above the chat input; approving writes the file and reloads any open editor tab
-- [x] **Chat attachments (MVP)**: `@file` shipped — path-based, file contents auto-inlined into the agent's system prompt; max 10 files / 200 KB each / 1 MB aggregate. `@symbol` / `@scene` deferred to v0.10.5.
-- [x] **3-way merge guard**: Apply refuses to overwrite if the file changed on disk since the agent's read snapshot. Full line-level merge tracked in [#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13) (v0.10.5).
-- [x] **Bevy 0.18 cheatsheet**: static idiom reminder injected into every system prompt. Real embedded-RAG tracked in [#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14) (v0.10.5).
-- [→ v0.10.5] Inline / Tab completion ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)) + ECS-aware completion ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)) deferred — both lean on infrastructure from v0.10 (Game Data Inspector / DB panel) so they're better tackled after that lands.
-- [~] **Release-blocking end-to-end verification with real provider tokens** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11)) — OpenAI (incl. Azure Responses API) chat round-trip ✓, Native agent + streaming + Apply diff ✓, Cmd+L focus / Cost panel cache rows / Approve-Reject wiring all code-verified ✓. **Still pending live tests:** Anthropic key round-trip, Ollama (`ollama serve`) round-trip, AI Usage tab visual check.
-
-Positioning: the first AI assistant that *understands* Bevy, not just Rust — backed by the same agent tooling expert Rust developers already trust.
-
-#### v0.5 — Bevy depth + asset import (target: 2026 Q4)
-- [x] System Graph: drag-to-reorder + visual scheduling
-- [x] Animation: blend tree node graph editor
-- [x] Shader Graph: live-recompile preview
-- [x] Hot reload for `.bscene` and shader assets
-- [x] Plugin Browser: install with one click + auto-update
-- [x] **Asset import pipeline**: FBX, OBJ, glTF variants, custom converter plugins (foundation that v0.6 / v0.7 build on)
-
-#### v0.6 — Audio pipeline (target: 2027 H1)
-
-> _The audio half of game development, brought into the IDE._ An
-> open-source FMOD / Wwise alternative tuned for Bevy.
-
-- [x] **Asset preview**: in-IDE waveform display + scrubbing for any audio file (WAV in v0.6.0; mp3 / ogg / flac via symphonia in v0.6.1)
-- [x] **Event-driven editor**: define one-shots, loops, ducking, and parameter-driven layers (data + UI; `events.fire()` runtime in v0.6.1)
-- [x] **Spatial audio**: visualise 3D source placement / attenuation curves on top of the Scene Editor viewport (component + inspector + attenuation curves; SpatialAudioSink runtime in v0.6.1)
-- [x] **Music graph**: BGM transitions, stinger / cue triggers, vertical re-mixing (data + node-graph editor; crossfade runtime in v0.6.1)
-- [x] **SFX randomiser**: pitch / volume / variation tables to avoid repetitive sound (data + inspector; runtime spawn in v0.6.1)
-- [x] **Hot reload**: edit a sound and hear it in the running game without restart (file watcher + preview re-decode; Bevy asset reload in v0.6.1)
-
-#### v0.7 — Architecture → game pipeline (target: 2027 H2)
-
-> _Bring your buildings to life._ Treat the artifacts that architects, BIM
-> engineers, and archviz studios already produce as first-class Bevy
-> assets — no Blender / Unreal detour required.
-
-**Shipped (Phases A–D, v0.7.0-alpha)**
-
-- [x] **DXF importer** — LINE / LWPOLYLINE / POLYLINE / 3DFACE / CIRCLE / ARC; curves tessellated at 32 segments; routed through the file tree, asset browser, drag-drop, and thumbnail cache
-- [x] **Auto-prep**: `$INSUNITS` → metres scale factor, Z-up → Y-up axis swap, layer-name → PBR colour with English + Japanese vocabulary (`Wall` / 壁, `Glass` / 窓, `Floor` / 床, `Door` / ドア, `Roof` / 屋根, `Ceiling` / 天井, `Stair` / 階段, `Furniture` / 家具)
-- [x] **Walkable Architecture project template** — FPS controller (WASD + mouse + jump + sprint), `AutoCollider { min, max }` AABB component with axis-independent collision so the player slides along walls, three-phase day / dusk / night cycle (T key) driving sun colour + intensity + sky `ClearColor` + ambient brightness in one pass
-- [x] **IFC importer (MVP)** — STEP-21 line scanner extracting `IFCCARTESIANPOINT` records and `IFCPOLYLINE` / `IFCPOLYLOOP` references; auto-prep applied; falls back to a sparse point cloud when no polylines are present so a malformed file still shows something
-
-**Deferred to v0.7.x**
-
-- [ ] Remaining CAD importers: DWG, STEP, IGES, SketchUp `.skp`, plus the Revit → IFC bridge (each one ships behind its own feature flag once the parser story is sorted)
-- [ ] `IFCEXTRUDEDAREASOLID` / `IFCFACETEDBREP` / swept-area tessellation — most IFC geometry actually lives in these; covering them is CAD-kernel-grade work
-- [ ] IFC entity-type → material inference (`IFCWALL` / `IFCSLAB` / `IFCWINDOW` / `IFCDOOR` walked via `IFCRELAGGREGATES` / `IFCRELDEFINESBYTYPE`) so every edge gets the right Phase B colour instead of the default `Wall` grey
-- [ ] IFC unit detection from `IFCSIUNIT`; `.ifczip` (zipped) and `.ifcXML` (XML) container variants
-- [ ] LOD synthesis + UV unwrap from the original auto-prep list — they need real surfaces to chew on, so they land with the IFC brep importer above
-- [ ] Door / elevator interaction defaults — pre-supposes the IFC entity-type story so the runtime trigger model can attach to the right elements
-- [ ] **Targets**: architecture firms shipping client demos, real-estate viz, BIM-driven digital twins, Quest / Vision Pro VR walkthroughs (pending the deferred importers + IFC geometry above; v0.7.0-alpha covers wireframe preview but not yet "client demo quality")
-
-Positioning: an open-source Bevy-based alternative to Twinmotion / Enscape / Datasmith.
-
-#### v0.8 — Ship to phones from one IDE (target: 2028 H1)
+#### 🚧 Current focus: v0.8 — Ship to mobile
 
 > _Bevy mobile development without the toolchain hell._ Replace the
 > cargo-mobile + Xcode + Android Studio + SDK juggling with a single
 > integrated workflow.
 
-**Landed on `main` (Phases A + B partial — internal preview)**
+Already in `main`:
 
-- [x] **Toolchain detection** — Mobile Toolchain panel probes Xcode (`xcode-select` + `xcrun simctl`), Android SDK / NDK / `adb` (auto-discovers `$ANDROID_HOME` and the macOS / Linux / Windows install conventions), and `rustup` for the iOS / Android / visionOS triples. Lazy probes for codesign identities (`security find-identity`) and `adb devices -l` are gated behind explicit Refresh buttons. Snapshot persists to `~/Library/Application Support/berrycode/toolchain.ron` so cold starts skip the probe.
-- [x] **`Platform` extension** — `IosDevice` / `IosSimulator` / `Android` / `VisionOs` / `Quest` variants with the right target triples; the legacy desktop Build Settings dropdown stays scoped to desktop / web so mobile targets can't fall through to a broken `cargo build` shell-out.
-- [x] **Mobile run dispatch** — pick a probed simulator or `adb` device, point at a pre-built `.app` / `.apk`, click Run; the runner chains `simctl boot/install/launch --console-pty` (iOS Sim), `devicectl device install/process launch --console` (iOS Device), or `adb install -r → am start -W → adb logcat --pid=$(pidof)` (Android) into one tracked subprocess. Drop kills the child to avoid orphaned simulators after IDE quit.
-- [x] **Unified log console** — severity classifier handles adb logcat priority letters (`E/Tag(pid):`), Apple unified-log markers (`<Error>` / `<Warning>`), tracing / RUST_LOG keywords, and **Bevy / Rust panic detection** as a dedicated severity. 6-colour stream rendering with stick-to-bottom in the same panel.
+- ✅ **One-click iOS Simulator run** via cargo-mobile2 — no Xcode juggling
+- ✅ **Toolchain detection** — Xcode / Android SDK / NDK / `adb` / rustup targets / codesign identities, persisted to disk so cold starts skip the probe
+- ✅ **Mobile run dispatch** — `simctl boot/install/launch` (iOS Sim), `devicectl` (iOS Device), `adb install + am start + logcat` (Android), all chained as one tracked subprocess that gets cleaned up on IDE quit
+- ✅ **Unified log console** — severity classifier handles `adb logcat` priorities, Apple unified-log markers, tracing keywords, and Bevy / Rust panic detection as a dedicated severity
 
-**Deferred to v0.8.x**
+v0.8.x roadmap:
 
-- [ ] **WiFi hot reload** — mDNS-discovered TCP socket so asset edits flow to the running device build without rebuild; ships with a small `berrycode_hot_reload` device-side Bevy plugin
-- [ ] **iOS Device probing** — `xcrun devicectl list devices` so attached real iOS / visionOS hardware shows up in the target dropdown (the dispatch path is already wired)
-- [ ] **Signing UI** — pick certs from `security find-identity`, attach a provisioning profile, manage Android keystores via `keyring` (currently the panel only *displays* identities; selection lives in Phase E)
-- [ ] **One-click target install** — `rustup target add` from the toolchain panel rather than just suggesting the command
-- [ ] **Mobile-aware editor**: visual touch-input editor (virtual joysticks, tap zones, gestures), safe-area / notch / orientation-aware layouts, mobile UI templates, auto texture compression (ASTC / ETC2), mobile LOD presets
-- [ ] **Performance**: integrated GPU profiler (Metal frame capture / RenderDoc Android), frame-budget visualisation, battery-cost estimator, lifecycle (Background / Foreground / Lock) test harness
-- [ ] **Ship**: IPA / AAB build & signing inside the IDE, App Store Connect / Play Console upload helper, TestFlight & internal-test QR generator
-- [ ] **VR/AR bonus**: Vision Pro / Quest builds reuse the v0.7 walkable scenes — pipeline becomes "CAD → walkthrough → headset" in one tool
+- [ ] **WiFi hot reload** — mDNS-discovered TCP socket; asset edits flow to the running device build without rebuild
+- [ ] **iOS device probing** — `xcrun devicectl list devices` so attached hardware shows up in the target dropdown (dispatch path is already wired)
+- [ ] **Signing UI** — pick certs from `security find-identity`, attach provisioning profiles, manage Android keystores
+- [ ] **One-click `rustup target add`** from the toolchain panel
+- [ ] **Mobile-aware editor** — touch input editor, safe-area / notch / orientation layouts, ASTC / ETC2 texture compression, mobile LOD presets
+- [ ] **Performance tooling** — Metal frame capture / RenderDoc Android, frame-budget visualiser, battery-cost estimator, lifecycle test harness
+- [ ] **IPA / AAB build & sign** inside the IDE, App Store Connect / Play Console upload helper, TestFlight QR generator
+- [ ] **VR/AR** — Vision Pro / Quest builds reusing the v0.7 walkable scenes; pipeline becomes "CAD → walkthrough → headset" in one tool
 
-#### v0.9 — Networking & multiplayer (target: 2028 H2)
+#### 🌉 Migration & interop (v0.8.x → v0.9, parallel track)
 
-> _Online games stop being a separate project._ First-class integration
-> with the Bevy netcode ecosystem.
+> _Bring your existing projects with you._ BerryCode aims to be a
+> bridge, not a wall.
 
-- [ ] **`lightyear` / `bevy_replicon` integration**: project templates, replication-rule editor, lag compensation toggles
-- [ ] **Rollback / interpolation visualiser**: see frame-by-frame what the predictor and reconciler are doing
-- [ ] **N-client local launcher**: start 4 clients + 1 server in one click, stress-test interactions
-- [ ] **Network condition simulator**: latency / packet loss / bandwidth caps applied per client
-- [ ] **Server packaging**: dedicated-server binary, Dockerfile generation, one-button deploy to Fly.io / Railway / a Kubernetes cluster
-- [ ] **Auth & matchmaking starters**: pluggable backends so indie devs don't reinvent leaderboards each time
+- [ ] **Godot project read-only viewer** — open `project.godot`, browse `.tscn` scene trees, syntax-highlight `.gd` / `.cs` files. **No automatic conversion** — just side-by-side reading while you migrate at your own pace
+- [ ] **Migration assistant** — AI-suggested ECS scaffolding from Godot scene structure, side-by-side Godot ↔ Bevy code hints
+- [ ] **Unity project read** (TBD) — `.unity` YAML scenes, `.cs` syntax-highlighted, similar non-converting viewer
+- [ ] **Jackdaw scene format interop** — read scenes authored in the Bevy-native [Jackdaw](https://github.com/jbuehler23/jackdaw) editor; edit code-side in BerryCode, scene-side in Jackdaw
 
-#### v0.10 — Game Data Inspector (target: 2029 H1)
+Positioning: the editor that **speaks your existing engine's files**, even while you write new code in Bevy.
 
-> _ECS and the database in one pane._ A DB viewer purpose-built for
-> game development — save files, live multiplayer back-ends, and the
-> Bevy asset cache are first-class, not an afterthought.
+#### 🔮 Future (v0.9 onwards)
 
-- [ ] **Connections**: SQLite / Postgres / MySQL / Redis / sled, with auto-detection of save-file paths inside a Bevy project
-- [ ] **Browser UI**: table / KV navigation that mirrors the ECS Inspector (same filter, search, and column-pinning UX)
-- [ ] **Query editor**: SQL with syntax highlighting + completion via the existing Tree-sitter / LSP plumbing
-- [ ] **Schema diagrams**: ER view rendered with the same node-graph layer as the System Graph
-- [ ] **Live save-file editing**: rewrite a running game's save and hot-reload without restarting
-- [ ] **ECS ↔ DB bridge**: visualise how Bevy Components map to rows / columns and trace persistence flow
-- [ ] **Migrations**: track schema changes alongside save-file compatibility so old saves don't silently break
+| Version | Theme | Headline |
+|---------|-------|----------|
+| **v0.9** | Networking & multiplayer | First-class `lightyear` / `bevy_replicon` integration, N-client local launcher, server packaging (Fly.io / Railway / k8s) |
+| **v0.10** | Game data | DB inspector for SQLite / Postgres / Redis with ECS bridge, live save-file editing, schema diagrams |
+| **v0.10.5** | AI completion | Inline / Tab ghost-text, real 3-way merge, embedded Bevy doc RAG, ECS-aware completion (carryover from v0.4.5) |
+| **v0.11** | Testing & QA | Replay capture, AI playtest agent, visual regression, performance regression tracking |
+| **v0.12** | Publishing & i18n | Steam / itch / GOG / Epic upload, achievements, translation memory + AI-assisted i18n |
+| **v1.0** | Team scale | Multi-cursor CRDT collaborative editing, visual scripting → Rust codegen, plugin API freeze |
 
-Positioning: not a DataGrip clone — a game-data debugger that ships in the same IDE as the Scene Editor and ECS Inspector.
-
-#### v0.10.5 — AI completion (carryover from v0.4.5)
-
-> _Pick up where v0.4.5 left off._ The four AI features that didn't make
-> the v0.4.5 cut — inline / Tab completion, real 3-way merge, indexed
-> Bevy doc RAG, and ECS-aware completion — slot in here so they can
-> lean on the DB panel and ECS plumbing built in v0.10.
-
-- [ ] **Inline / Tab completion** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ghost-text suggestions across Rust, Bevy `.scn.ron`, shaders, and TOML
-- [ ] **3-way merge** ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13)): real line-level merge for the conflict cases the v0.4.5 guard refuses to overwrite
-- [ ] **Bevy doc RAG** ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14)): embedded vector index of Bevy 0.18 docs / examples, retrieved at chat-send time
-- [ ] **ECS-aware completion** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): typing `commands.spawn(` lists Components present in the current scene; system signatures suggest queries that actually compile
-
-#### v0.11 — Testing & QA (target: 2029 H2)
-
-- [ ] **Gameplay recording / replay**: deterministic capture of input + RNG seed, replay on demand
-- [ ] **AI playtesting agent**: random / heuristic / RL agent that wanders the scene to surface crashes and stuck states
-- [ ] **Visual regression tests**: per-scene screenshot diff against a baseline, integrated into CI
-- [ ] **Performance regression tracking**: frame-time budgets per scene, alert on regressions over time
-- [ ] **Bug-report bundler**: one-click collect logs + save state + screenshot + system info into a shareable archive
-
-#### v0.12 — Publishing & i18n (target: 2030 H1)
-
-- [ ] **Steam / itch.io / GOG / Epic integration**: build → upload via butler / SteamPipe / Epic's tooling, all from the IDE
-- [ ] **Store asset manager**: icons, trailers, screenshots, capsules — sized & previewed for each storefront's requirements
-- [ ] **Achievements & cloud saves**: define achievement schemas once, generate per-store integration code
-- [ ] **Localisation tables**: spreadsheet-style translation manager with translator workflow (review, lock, missing-key reports)
-- [ ] **Auto font fallback**: detect target locales and switch fonts (CJK, Arabic RTL, Devanagari) without manual setup
-- [ ] **Translation memory + AI assist**: leverage prior translations and optional LLM suggestions, human-reviewed
-
-#### v1.0 — Team-scale IDE (target: 2030 H2)
-
-- [ ] **Multi-cursor + CRDT collaborative editing** — multiple devs in the same scene / file
-- [ ] **Visual scripting → Rust codegen** — designers contribute logic without writing Rust by hand
-- [ ] **Profiler integration (Bevy + Tracy)** — promoted from earlier WIP into stable
-- [ ] **Project / workspace management** — for studios juggling many BerryCode projects
-- [ ] **Stabilisation** — settings migration, deprecation policy, plugin API freeze
-
-#### Beyond v1.0
-- [ ] WASM build for in-browser editing
-- [ ] Cloud sync for workspaces
+Beyond v1.0: WASM in-browser editing, cloud workspace sync.
 
 See [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues) for the current backlog and
 [Discussions](https://github.com/KyosukeIshizu1008/berryscode/discussions) to suggest new directions.
@@ -576,187 +464,75 @@ cargo run --bin berrycode               # ターミナル2
 
 ### ロードマップ
 
-BerryCode は活発に開発中です。優先順位順の今後のマイルストーン:
+BerryCode は毎月リリースペースで開発中。全体像:
 
-全体の流れ:
-**v0.4–v0.7** = コアエディタ + 最初の非ゲーム wedge（建築）
-**v0.8–v0.9** = ランタイムストーリー（モバイル → オンライン）
-**v0.10–v0.12** = リリースストーリー（データ / テスト / ストア + 多言語）
-**v1.0** = チーム規模で使える IDE
+| フェーズ | バージョン | 内容 |
+|---------|-----------|------|
+| **エディタ** | v0.4 – v0.7 | Bevy IDE の基盤（✅ リリース済） |
+| **ランタイム** | v0.8 – v0.9 | モバイル → オンライン |
+| **公開** | v0.10 – v0.12 | データ / テスト / ストア / 多言語 |
+| **チーム規模** | v1.0 | 複数人での共同開発 |
 
-#### v0.4 — エディタの磨き込み (目標: 2026 Q3)
-- [~] GLB/GLTF モデルの GPU PBR プレビュー ([#1](https://github.com/KyosukeIshizu1008/berryscode/issues/1) — wontfix でクローズ。`asset_browser` の CPU プレビューがスキニング + アニメ再生付きでユーザ可視パスをカバー済みのため)
-- [x] ソースコードエディタでの IME preedit 表示
-- [x] LSP: 補完詳細（シグネチャヘルプ、パラメータヒント）
-- [ ] シーンエディタ: プレハブのネストオーバーライド ([#10](https://github.com/KyosukeIshizu1008/berryscode/issues/10) — v0.4.x 持ち越し)
-- [x] キーバインド・テーマの設定 UI
+#### ✅ リリース済み (v0.4 → v0.7)
 
-#### v0.4.5 — AI 統合 (目標: 2026 Q4 / 中盤)
+最新リリースに含まれる主な機能:
 
-> _AI ネイティブ、Bevy 対応。_ チャットは BYOK で主要モデル直叩き、
-> エージェントは **Native** バックエンドが Responses API の tool
-> calling ループをプロセス内で実行(`npm install` 不要)。**Codex
-> CLI** と **Claude Code** も `PATH` にあれば subprocess バックエンド
-> として選択可能。
+- **エディタコア** (v0.4): Rust LSP の補完詳細 + シグネチャヘルプ、ソースエディタの IME preedit 表示、キーバインド・テーマ設定 UI
+- **AI 統合** (v0.4.5): Anthropic / OpenAI / Ollama 向け BYOK チャット、プロセス内 **Native エージェント**（Responses API tool-calling: `read_file` / `write_file` / `list_files` / `run_bash`）、Codex CLI / Claude Code は fallback、`Cmd+L` チャットサイドバー、Approve / Reject diff カード、`@file` 添付、3-way merge ガード、Bevy 0.18 cheatsheet 注入
+- **Bevy 深耕** (v0.5): システムグラフ、アニメーションブレンドツリー、シェーダーグラフライブプレビュー、アセットインポート（FBX / OBJ / glTF）、プラグインブラウザ、`.bscene` とシェーダーのホットリロード
+- **オーディオパイプライン** (v0.6): IDE 内波形プレビュー + スクラブ再生、イベント駆動エディタ（ワンショット / ループ / ダッキング / パラメータレイヤ）、空間オーディオと減衰カーブ、ミュージックグラフ + スティンガー、SFX ランダマイザ、ホットリロード
+- **建築 → ゲーム** (v0.7): DXF インポータ（LINE / LWPOLYLINE / 3DFACE / 曲線テッセレート）、IFC MVP インポータ、レイヤ名 → PBR 色の英語 + 日本語語彙、**Walkable Architecture** テンプレート（FPS コントローラ + AABB コライダ + 昼 / 夕 / 夜サイクル）
 
-**シングルモード チャットパネル(エージェントループのみ)**
+詳細は [GitHub Releases](https://github.com/KyosukeIshizu1008/berryscode/releases) を参照。
 
-Chat / Agent の二段構えは廃止し、すべてのプロンプトをエージェントループ経由に一本化。質問は `read_file` で取りに行き、編集は `write_file` で行う。Provider プラグイン層はインライン補完用に存置。
-
-- [x] **プロバイダプラグイン層**: Anthropic、OpenAI(Azure Responses API 含む)、Ollama、対応モデルではプロンプトキャッシュ利用。現状は Native エージェントから利用、直叩きパスは廃止
-- [x] **BYOK UI**: プロバイダごとの API キー + モデル選択、env 変数フォールバック (`OPENAI_API_KEY` / `OPENAI_BASE_URL` / `ANTHROPIC_API_KEY`) — ホスト型バックエンド経由なし
-- [x] **コスト / トークンパネル**: 会話ごとの使用量 + 月次キャップで予期せぬ請求を回避
-- [x] **チャットサイドバー (`Cmd+L`)**: 任意の場所からチャット入力欄にフォーカス
-- [x] **Native エージェント (デフォルト)**: Responses API の tool calling ループをプロセス内実行 — `read_file` / `write_file` / `list_files` / `run_bash`、ストリーミングで反映、エンドユーザーは `npm install` 不要
-- [x] **エージェントバックエンド (Claude Code)**: `PATH` に `claude` があれば fallback として選択可能
-- [x] **エージェントバックエンド (Codex CLI)**: `PATH` に `codex` があれば fallback として選択可能
-- [x] **Apply diff**: エージェントの編集提案を Approve / Reject カード表示、承認するとファイル書き込み + 開いている編集タブを自動リロード
-- [x] **チャット添付 (MVP)**: `@file` 実装済み(パス指定、ファイル内容をエージェントの system prompt に自動 inline、最大 10 件 / 1 件 200 KB / 合計 1 MB 制限)。`@symbol` / `@scene` は v0.10.5 へ
-- [x] **3-way merge ガード**: Apply 時にファイルが変更されていれば上書きを拒否。本物の行レベル merge は [#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13)(v0.10.5)で対応
-- [x] **Bevy 0.18 cheatsheet**: 静的な idiom リマインダーを system prompt に注入。本物の埋め込み RAG は [#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14)(v0.10.5)
-- [→ v0.10.5] Inline / Tab 補完 ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)) + ECS 対応補完 ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)) を v0.10(DB パネル / Game Data Inspector)実装後に持ち越し。両方とも v0.10 のインフラに依存させる方が筋が良いため
-- [~] **リリースブロッカー: 実プロバイダ鍵での E2E 検証** ([#11](https://github.com/KyosukeIshizu1008/berryscode/issues/11)) — OpenAI (Azure Responses API 含む) 往復 ✓、Native + ストリーミング + Apply diff ✓、Cmd+L / Cost パネル / Approve-Reject の配線はコード上確認済 ✓。**残ライブ検証:** Anthropic 鍵での往復、Ollama (`ollama serve`) での往復、AI Usage タブ目視
-
-ポジショニング: ただの Rust ではなく **Bevy を理解する** 初の AI アシスタント。 — 経験豊富な Rust 開発者が既に信頼しているエージェントツールが裏で走ります。
-
-#### v0.5 — Bevy 深耕 + アセットインポート (目標: 2026 Q4)
-- [x] システムグラフ: ドラッグで順序変更 + 視覚的スケジューリング
-- [x] アニメーション: ブレンドツリーノードグラフエディタ
-- [x] シェーダーグラフ: ライブ再コンパイルプレビュー
-- [x] `.bscene` とシェーダーアセットのホットリロード
-- [x] プラグインブラウザ: ワンクリックインストール + 自動アップデート
-- [x] **アセットインポートパイプライン**: FBX, OBJ, glTF 各種、カスタムコンバータプラグイン (v0.6 / v0.7 の基盤)
-
-#### v0.6 — オーディオパイプライン (目標: 2027 H1)
-
-> _ゲーム開発の半分を占める音をIDE 内で完結。_
-> Bevy 向けに最適化された OSS の FMOD / Wwise 代替。
-
-- [x] **アセットプレビュー**: あらゆる音声ファイルの波形表示 + IDE 内スクラブ再生(v0.6.0 は WAV のみ、symphonia 経由の mp3 / ogg / flac は v0.6.1)
-- [x] **イベント駆動エディタ**: ワンショット、ループ、ダッキング、パラメータ駆動レイヤーの定義(データ + UI、`events.fire()` ランタイムは v0.6.1)
-- [x] **空間オーディオ**: シーンエディタビューポートに 3D 音源・減衰カーブを重ねて可視化(コンポーネント + インスペクタ + 減衰カーブ、SpatialAudioSink ランタイムは v0.6.1)
-- [x] **ミュージックグラフ**: BGM トランジション、スティンガー、垂直リミックス(データ + ノードエディタ、クロスフェードランタイムは v0.6.1)
-- [x] **SFX ランダマイザ**: ピッチ・音量・バリエーションテーブルで効果音の繰り返し感解消(データ + インスペクタは実装、ランタイム生成は v0.6.1)
-- [x] **ホットリロード**: 音を編集すると実行中ゲームに即反映(ファイル監視 + プレビュー再デコード、Bevy アセットリロードは v0.6.1)
-
-#### v0.7 — 建築 → ゲーム パイプライン (目標: 2027 H2)
-
-> _建物に命を吹き込む。_ 建築家・BIM エンジニア・archviz スタジオが既に
-> 作っているデータをそのまま Bevy のアセットとして扱う —
-> Blender や Unreal を経由する必要なし。
-
-**リリース済み (Phase A〜D、v0.7.0-alpha)**
-
-- [x] **DXF インポータ** — LINE / LWPOLYLINE / POLYLINE / 3DFACE / CIRCLE / ARC、曲線は 32 セグメントでテッセレート。ファイルツリー / アセットブラウザ / ドラッグ&ドロップ / サムネイルキャッシュまで配線済み
-- [x] **自動最適化**: `$INSUNITS` → メートル換算、Z-up → Y-up 軸変換、レイヤ名 → PBR 色推論 (英 + 日語語彙: `Wall` / 壁、`Glass` / 窓、`Floor` / 床、`Door` / ドア、`Roof` / 屋根、`Ceiling` / 天井、`Stair` / 階段、`Furniture` / 家具)
-- [x] **Walkable Architecture プロジェクトテンプレート** — FPS コントローラ (WASD + マウス + ジャンプ + スプリント)、`AutoCollider { min, max }` AABB コンポーネント (軸独立衝突で壁スライド可)、3 段階の昼/夕/夜サイクル (T キー、太陽の色 + 強度 + 空 `ClearColor` + 環境光を一括で切替)
-- [x] **IFC インポータ (MVP)** — STEP-21 行スキャンで `IFCCARTESIANPOINT` と `IFCPOLYLINE` / `IFCPOLYLOOP` を抽出、自動最適化適用、ポリラインが無いファイルは点群フォールバックで「全くの空」を回避
-
-**v0.7.x 持ち越し**
-
-- [ ] 残り CAD インポータ: DWG、STEP、IGES、SketchUp `.skp`、Revit → IFC ブリッジ (パーサ事情がそれぞれ違うのでフィーチャーフラグ別出し)
-- [ ] `IFCEXTRUDEDAREASOLID` / `IFCFACETEDBREP` / 掃引曲面のテッセレート — **実際の BIM ソフトが吐く IFC の幾何のほとんどはここに乗っている**。CAD カーネル相当の実装が必要
-- [ ] IFC エンティティタイプ → マテリアル推論 (`IFCWALL` / `IFCSLAB` / `IFCWINDOW` / `IFCDOOR` を `IFCRELAGGREGATES` / `IFCRELDEFINESBYTYPE` で辿る) — 現状は全エッジが既定の `Wall` グレー
-- [ ] IFC `IFCSIUNIT` ベースの単位検出、`.ifczip` (zip 圧縮) と `.ifcXML` (XML 形式) の対応
-- [ ] LOD 合成 + UV アンラップ — 元の自動最適化リストから持ち越し。実サーフェスが必要なので IFC brep インポータと一緒に着地
-- [ ] ドア / エレベーター インタラクション defaults — IFC のエンティティタイプ認識が前提なのでそれ待ち
-- [ ] **ターゲット**: クライアント向けデモを作る建築事務所、不動産 viz、BIM 駆動のデジタルツイン、Quest / Vision Pro 向け VR ウォークスルー (上記の残り CAD + IFC 幾何が前提。v0.7.0-alpha はワイヤフレームプレビューまで、まだ「クライアントデモ品質」には届かない)
-
-ポジショニング: Twinmotion / Enscape / Datasmith のオープンソース Bevy 版。
-
-#### v0.8 — モバイル開発を1つの IDE で完結 (目標: 2028 H1)
+#### 🚧 現在の優先: v0.8 — モバイル出荷
 
 > _Bevy のモバイル開発をツールチェーン地獄から解放。_
 > cargo-mobile + Xcode + Android Studio + 各種 SDK の往復を、
-> 1つの統合ワークフローに置き換える。
+> 1 つの統合ワークフローに置き換える。
 
-**`main` ブランチに着地済み (Phase A + Phase B 部分 — 内部プレビュー)**
+`main` ブランチに着地済み:
 
-- [x] **ツールチェーン検出** — Mobile Toolchain パネルが Xcode (`xcode-select` + `xcrun simctl`)、Android SDK / NDK / `adb` (`$ANDROID_HOME` および macOS / Linux / Windows のインストール慣例パスを自動探索)、`rustup` の iOS / Android / visionOS triple をプローブ。codesign identities (`security find-identity`) と `adb devices -l` は明示的な Refresh ボタンの遅延プローブ。スナップショットは `~/Library/Application Support/berrycode/toolchain.ron` に永続化されコールド起動時のプローブをスキップ
-- [x] **`Platform` 拡張** — `IosDevice` / `IosSimulator` / `Android` / `VisionOs` / `Quest` バリアントを正しい target triple 付きで追加。既存のデスクトップ Build Settings ドロップダウンはデスクトップ / Web に絞ってあるので、モバイルターゲットが壊れた `cargo build` shell-out にフォールスルーすることはない
-- [x] **モバイル run dispatch** — プローブされたシミュレータか `adb` デバイスを選び、ビルド済みの `.app` / `.apk` を指して Run をクリックすると、`simctl boot/install/launch --console-pty` (iOS Sim) / `devicectl device install/process launch --console` (iOS Device) / `adb install -r → am start -W → adb logcat --pid=$(pidof)` (Android) を 1 つの追跡可能なサブプロセスにチェーン。Drop で確実に kill されるので IDE 終了後にシミュレータが孤児化しない
-- [x] **統合ログコンソール** — 重要度分類器が adb logcat 優先度 (`E/Tag(pid):`)、Apple unified-log マーカ (`<Error>` / `<Warning>`)、tracing / RUST_LOG キーワード、そして **Bevy / Rust パニック検出** を独立した重要度として処理。同じパネル内で 6 色 + stick-to-bottom のストリーム表示
+- ✅ **iOS Simulator ワンクリック起動**（cargo-mobile2 経由）— Xcode を触らない
+- ✅ **ツールチェーン検出** — Xcode / Android SDK / NDK / `adb` / rustup target / codesign identities をプローブ、結果は永続化されコールド起動時はスキップ
+- ✅ **モバイル run dispatch** — `simctl boot/install/launch`（iOS Sim）、`devicectl`（iOS Device）、`adb install + am start + logcat`（Android）を 1 つの追跡可能サブプロセスに連結、IDE 終了時に確実にクリーンアップ
+- ✅ **統合ログコンソール** — `adb logcat` 優先度、Apple unified-log マーカー、tracing キーワード、Bevy / Rust パニック検出を独立した重要度として処理
 
-**v0.8.x に繰越**
+v0.8.x ロードマップ:
 
-- [ ] **WiFi ホットリロード** — mDNS で発見される TCP ソケットでアセット変更を再ビルド無しに動作中のデバイスへ流す。小さな `berrycode_hot_reload` デバイス側 Bevy プラグインも同梱
-- [ ] **iOS 実機プローブ** — `xcrun devicectl list devices` で接続中の iOS / visionOS 実機がターゲット dropdown に出るように (dispatch パスは既に通している)
-- [ ] **署名 UI** — `security find-identity` から証明書を選択、provisioning profile を紐付け、Android keystore は `keyring` クレート経由で管理 (現在パネルは識別子を *表示* するのみ。選択は Phase E)
-- [ ] **ターゲットのワンクリックインストール** — コマンドを表示するだけでなくパネルから直接 `rustup target add` を実行
-- [ ] **モバイル対応エディタ**: タッチ入力ビジュアルエディタ (仮想ジョイスティック、タップゾーン、ジェスチャー)、セーフエリア / ノッチ / 縦横回転対応レイアウト、モバイル UI テンプレート、テクスチャ自動圧縮 (ASTC / ETC2)、モバイル LOD プリセット
-- [ ] **パフォーマンス**: GPU プロファイラ統合 (Metal frame capture / RenderDoc Android)、フレーム予算可視化、バッテリー消費見積もり、ライフサイクル (Background / Foreground / Lock) テストハーネス
-- [ ] **公開**: IPA / AAB ビルド・署名を IDE 内で完結、App Store Connect / Play Console アップロード補助、TestFlight / 内部テスト用 QR 生成
-- [ ] **VR/AR ボーナス**: v0.7 の walkable シーンをそのまま Vision Pro / Quest ビルドに流用 — 「CAD → ウォークスルー → ヘッドセット」が 1 ツールで完結
+- [ ] **WiFi ホットリロード** — mDNS で発見される TCP ソケットでアセット変更を再ビルド無しに動作中のデバイスへ流す
+- [ ] **iOS 実機プローブ** — `xcrun devicectl list devices` で接続中の実機を target dropdown に表示（dispatch パスは既に通っている）
+- [ ] **署名 UI** — `security find-identity` から証明書選択、provisioning profile 紐付け、Android keystore 管理
+- [ ] **`rustup target add` ワンクリック** — パネルから直接実行
+- [ ] **モバイル対応エディタ** — タッチ入力ビジュアルエディタ、セーフエリア / ノッチ / 縦横回転対応、ASTC / ETC2 圧縮、モバイル LOD プリセット
+- [ ] **パフォーマンスツール** — Metal frame capture / RenderDoc Android、フレーム予算可視化、バッテリー消費見積もり
+- [ ] **IPA / AAB ビルド・署名** を IDE 内で完結、App Store Connect / Play Console アップロード補助、TestFlight QR 生成
+- [ ] **VR / AR** — v0.7 の walkable シーンを Vision Pro / Quest ビルドに流用、「CAD → ウォークスルー → ヘッドセット」が 1 ツールで完結
 
-#### v0.9 — ネットワーキング & マルチプレイヤー (目標: 2028 H2)
+#### 🌉 移行サポート & 相互運用 (v0.8.x → v0.9、並行トラック)
 
-> _オンラインゲームを別プロジェクト扱いしない。_
-> Bevy のネットコードエコシステムと一級統合。
+> _既存プロジェクトを連れて来られる。_
+> BerryCode は壁ではなく**橋**を目指す。
 
-- [ ] **`lightyear` / `bevy_replicon` 統合**: プロジェクトテンプレート、レプリケーションルールエディタ、ラグ補正トグル
-- [ ] **ロールバック / 補間ビジュアライザ**: 予測・調停の動きをフレーム単位で確認
-- [ ] **N クライアントローカル起動**: ワンクリックで 4 クライアント + 1 サーバを並行起動、相互作用ストレステスト
-- [ ] **ネットワーク条件シミュレータ**: クライアント別にレイテンシ / パケロス / 帯域制限
-- [ ] **サーバパッケージング**: dedicated server バイナリ、Dockerfile 自動生成、Fly.io / Railway / Kubernetes へのワンボタンデプロイ
-- [ ] **認証 & マッチメイキングスターター**: プラガブルなバックエンドでリーダーボード等を毎回作り直さない
+- [ ] **Godot プロジェクト読み取り専用ビューア** — `project.godot` を開く、`.tscn` シーンツリーを参照、`.gd` / `.cs` をシンタックスハイライト。**自動変換はしない** — 移行作業中の参照ビューに徹する
+- [ ] **移行アシスタント** — Godot シーン構造から Bevy ECS 設計を AI 提案、Godot ↔ Bevy のコード対応ヒントを横並び表示
+- [ ] **Unity プロジェクト読み取り** (TBD) — `.unity` YAML シーン、`.cs` シンタックスハイライト、同じ「変換しない」ビュー
+- [ ] **Jackdaw シーン形式の相互運用** — Bevy ネイティブの [Jackdaw](https://github.com/jbuehler23/jackdaw) エディタで作ったシーンを読み込み、シーン編集は Jackdaw、コード編集は BerryCode
 
-#### v0.10 — Game Data Inspector (目標: 2029 H1)
+ポジショニング: **既存のエンジンのファイルを「読める」エディタ**。Bevy で新しいコードを書きながら、古い資産も触れる。
 
-> _ECS と DB を 1 画面で。_ ゲーム開発専用の DB ビューア —
-> セーブファイル、ライブのマルチプレイバックエンド、Bevy アセットキャッシュを
-> 後付けではなくファーストクラスで扱う。
+#### 🔮 これから (v0.9 以降)
 
-- [ ] **接続管理**: SQLite / Postgres / MySQL / Redis / sled、Bevy プロジェクトのセーブファイルパス自動検出
-- [ ] **ブラウザ UI**: ECS Inspector と同じフィルタ・検索・列ピン留め UX のテーブル / KV ナビゲーション
-- [ ] **クエリエディタ**: 既存の Tree-sitter / LSP 基盤を流用した SQL シンタックスハイライト + 補完
-- [ ] **スキーマ可視化**: System Graph と同じノードグラフレイヤーで ER 図を描画
-- [ ] **ライブセーブ編集**: 実行中ゲームの save を書き換えて再起動なしでホットリロード
-- [ ] **ECS ↔ DB ブリッジ**: Bevy Component が row / column にどうマップされるか可視化、永続化フロー追跡
-- [ ] **マイグレーション**: スキーマ変更を save 互換と一緒に追跡し、古い save が静かに壊れない
+| バージョン | テーマ | ヘッドライン |
+|----------|------|-----------|
+| **v0.9** | ネットワーク / マルチプレイヤー | `lightyear` / `bevy_replicon` 一級統合、N クライアントローカル起動、サーバーパッケージング（Fly.io / Railway / k8s） |
+| **v0.10** | ゲームデータ | SQLite / Postgres / Redis 向け DB インスペクタ、ECS ブリッジ、ライブセーブ編集、ER 図 |
+| **v0.10.5** | AI 補完 | インライン / Tab ゴーストテキスト、本物の 3-way merge、Bevy doc RAG、ECS 対応補完（v0.4.5 からの持ち越し） |
+| **v0.11** | テスト & QA | リプレイキャプチャ、AI プレイテストエージェント、ビジュアル回帰、パフォーマンス回帰追跡 |
+| **v0.12** | 公開 & 多言語化 | Steam / itch / GOG / Epic アップロード、実績、翻訳メモリ + AI 補助多言語化 |
+| **v1.0** | チーム規模 | マルチカーソル CRDT 共同編集、ビジュアルスクリプト → Rust コード生成、プラグイン API 凍結 |
 
-ポジショニング: DataGrip のクローンではなく、Scene Editor / ECS Inspector と同じ IDE に同梱されるゲームデータデバッガ。
-
-#### v0.10.5 — AI 補完(v0.4.5 からの繰り越し)
-
-> _v0.4.5 の続き。_ v0.4.5 に乗せきれなかった 4 つの AI 機能 ——
-> インライン / Tab 補完、本物の 3-way merge、埋め込みインデックス
-> 版の Bevy doc RAG、ECS 対応補完 —— をここで回収。v0.10 (DB パネル)
-> と ECS 周りのインフラに乗せる前提なので、後ろにずらした方が筋が
-> 良い。
-
-- [ ] **インライン / Tab 補完** ([#12](https://github.com/KyosukeIshizu1008/berryscode/issues/12)): ゴーストテキスト提案 (Rust、Bevy `.scn.ron`、シェーダー、TOML)
-- [ ] **3-way merge** ([#13](https://github.com/KyosukeIshizu1008/berryscode/issues/13)): v0.4.5 の衝突ガードが上書きを拒否したケースを行レベルでマージ
-- [ ] **Bevy doc RAG** ([#14](https://github.com/KyosukeIshizu1008/berryscode/issues/14)): Bevy 0.18 ドキュメント・例の埋め込みベクトルインデックス、チャット送信時に retrieve
-- [ ] **ECS 対応補完** ([#15](https://github.com/KyosukeIshizu1008/berryscode/issues/15)): `commands.spawn(` で現シーンの Component を候補に、System シグネチャから実コンパイル可能な Query を提案
-
-#### v0.11 — テスト & QA (目標: 2029 H2)
-
-- [ ] **ゲームプレイ録画 / 再生**: 入力 + RNG seed の決定論的キャプチャ、任意のタイミングで再生
-- [ ] **AI プレイテストエージェント**: ランダム / ヒューリスティック / 強化学習エージェントがシーンを徘徊しクラッシュやスタック状態を炙り出す
-- [ ] **ビジュアル回帰テスト**: シーンごとのスクリーンショット差分、CI 統合
-- [ ] **パフォーマンス回帰追跡**: シーンごとのフレーム予算、悪化時にアラート
-- [ ] **バグレポートバンドラ**: ログ + セーブ状態 + スクショ + システム情報をワンクリックで共有可能なアーカイブに
-
-#### v0.12 — 公開 & 多言語化 (目標: 2030 H1)
-
-- [ ] **Steam / itch.io / GOG / Epic 統合**: ビルド → butler / SteamPipe / Epic ツール経由で IDE からアップロード
-- [ ] **ストアアセットマネージャ**: アイコン、トレーラー、スクショ、カプセル — 各ストアの要件に合わせてサイズ調整・プレビュー
-- [ ] **実績 & クラウドセーブ**: 実績スキーマを 1 度定義してストアごとの統合コードを生成
-- [ ] **翻訳テーブル**: スプレッドシート風の翻訳マネージャ、翻訳者ワークフロー（レビュー、ロック、欠損キー報告）
-- [ ] **フォント自動フォールバック**: ターゲットロケールを検出し CJK・アラビア RTL・デーヴァナーガリーを手動設定なしで切替
-- [ ] **翻訳メモリ + AI アシスト**: 過去翻訳の流用と LLM 提案、人によるレビュー前提
-
-#### v1.0 — チームスケール IDE (目標: 2030 H2)
-
-- [ ] **マルチカーソル + CRDT 共同編集** — 複数人が同じシーン / ファイルで作業
-- [ ] **ビジュアルスクリプト → Rust コード生成** — デザイナーが Rust を書かずにロジック貢献
-- [ ] **プロファイラ統合 (Bevy + Tracy)** — WIP から正式機能へ昇格
-- [ ] **プロジェクト / ワークスペース管理** — 複数 BerryCode プロジェクトを抱えるスタジオ向け
-- [ ] **安定化** — 設定マイグレーション、非推奨ポリシー、プラグイン API 凍結
-
-#### v1.0 以降
-- [ ] ブラウザ内編集用 WASM ビルド
-- [ ] ワークスペースのクラウド同期
+v1.0 以降: ブラウザ内編集用 WASM ビルド、ワークスペースのクラウド同期。
 
 現在のバックログは [open issues](https://github.com/KyosukeIshizu1008/berryscode/issues)、
 新規アイデアは [Discussions](https://github.com/KyosukeIshizu1008/berryscode/discussions) を参照。

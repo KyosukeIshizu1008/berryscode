@@ -4,10 +4,13 @@
 //! status and a copy-paste install hint when something's missing. The actual
 //! probing lives in `app::mobile::probe`; this file is just the egui shell.
 
+use super::mobile::one_click::{self, install_cargo_mobile, OneClickConfig, OneClickError};
 use super::mobile::{self, LogStream, MobileRunSession, MobileTarget, MobileToolchain};
 use super::scene_editor::build_settings::Platform;
 use super::BerryCodeApp;
 use std::path::PathBuf;
+use std::process::Child;
+use std::sync::mpsc::Receiver;
 
 /// Panel state. Cheap to clone; lives directly on `BerryCodeApp`.
 #[derive(Debug, Default)]
@@ -35,6 +38,113 @@ pub struct MobileToolchainState {
     pub run_session: Option<MobileRunSession>,
     pub run_log: LogStream,
     pub run_error: Option<String>,
+
+    /// Active `cargo mobile` child + log channel from the one-click flow
+    /// (install / init / run). Distinct from `run_session` so the legacy
+    /// pre-built-artifact path keeps working unchanged.
+    pub one_click_session: Option<OneClickSession>,
+    /// Cached `cargo mobile --version` probe result. `None` means not yet
+    /// probed; `Some(b)` is the last result. Probe spawns a `cargo` child,
+    /// so caching is critical — without it the panel re-spawns the process
+    /// every frame and the UI freezes. Invalidated by the Refresh button
+    /// and after a one-click session ends (install / init / run can flip
+    /// the install state).
+    pub one_click_installed: Option<bool>,
+}
+
+/// Owns the live `cargo mobile` child and its stdout/stderr channel.
+/// Mirrors `MobileRunSession`'s shape so the panel polls both kinds of
+/// session uniformly each frame.
+pub struct OneClickSession {
+    pub stage: OneClickStageLabel,
+    child: Option<Child>,
+    rx: Option<Receiver<String>>,
+}
+
+/// Snapshot of `OneClickStage` that survives the move into the session
+/// (so the UI can show "Installing cargo-mobile2…" while the child is
+/// still alive).
+#[derive(Debug, Clone, Copy)]
+pub enum OneClickStageLabel {
+    Install,
+    Init,
+    RunIos,
+    RunAndroid,
+}
+
+impl OneClickStageLabel {
+    fn human(self) -> &'static str {
+        match self {
+            OneClickStageLabel::Install => "Installing cargo-mobile2",
+            OneClickStageLabel::Init => "Initializing mobile project",
+            OneClickStageLabel::RunIos => "Running on iOS Simulator",
+            OneClickStageLabel::RunAndroid => "Running on Android",
+        }
+    }
+}
+
+impl std::fmt::Debug for OneClickSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OneClickSession")
+            .field("stage", &self.stage)
+            .field("running", &self.child.is_some())
+            .finish()
+    }
+}
+
+impl OneClickSession {
+    pub fn new(stage: OneClickStageLabel, pair: (Child, Receiver<String>)) -> Self {
+        let (child, rx) = pair;
+        Self {
+            stage,
+            child: Some(child),
+            rx: Some(rx),
+        }
+    }
+
+    /// Drain pending lines into `stream`, then check whether the child
+    /// has exited. Returns `true` while the session is still live.
+    pub fn poll_into(&mut self, stream: &mut LogStream) -> bool {
+        if let Some(rx) = &self.rx {
+            for _ in 0..256 {
+                match rx.try_recv() {
+                    Ok(line) => stream.push_line(line),
+                    Err(_) => break,
+                }
+            }
+        }
+        if let Some(child) = &mut self.child {
+            if let Ok(Some(status)) = child.try_wait() {
+                stream.push_line(format!(
+                    "─── {} exited with code {:?} ───",
+                    self.stage.human(),
+                    status.code()
+                ));
+                self.child = None;
+                self.rx = None;
+                return false;
+            }
+        }
+        self.child.is_some()
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.child.is_some()
+    }
+
+    pub fn stop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        self.rx = None;
+    }
+}
+
+impl Drop for OneClickSession {
+    fn drop(&mut self) {
+        self.stop();
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -113,6 +223,18 @@ impl MobileToolchainState {
                 // drop the receiver so we stop polling.
             }
         }
+        if let Some(session) = self.one_click_session.as_mut() {
+            let still_running = session.poll_into(&mut self.run_log);
+            if !still_running {
+                // Drop the dead session so the next click can start a
+                // new one. Logs already landed in `run_log` and stay
+                // visible after the session goes away. Also invalidate
+                // the cargo-mobile2 install cache: install obviously
+                // changes it, and init/run may have run a self-update.
+                self.one_click_session = None;
+                self.one_click_installed = None;
+            }
+        }
     }
 
     fn build_target(&self) -> Option<MobileTarget> {
@@ -176,6 +298,7 @@ impl BerryCodeApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Refresh").clicked() {
                     self.mobile_toolchain.refresh();
+                    self.mobile_toolchain.one_click_installed = None;
                 }
             });
         });
@@ -194,8 +317,217 @@ impl BerryCodeApp {
             self.render_rust_targets_section(ui);
             ui.add_space(12.0);
             ui.separator();
+            self.render_one_click_section(ui);
+            ui.add_space(12.0);
+            ui.separator();
             self.render_run_section(ui);
         });
+    }
+
+    fn render_one_click_section(&mut self, ui: &mut egui::Ui) {
+        ui.heading("One-click mobile run");
+        ui.label(
+            egui::RichText::new(
+                "Wraps cargo-mobile2: probe → install → init → cargo apple/android run.",
+            )
+            .small()
+            .color(egui::Color32::from_gray(170)),
+        );
+        ui.add_space(4.0);
+
+        // Probe `cargo mobile` lazily and cache the result. Probing spawns
+        // a `cargo` subprocess (~100–500ms), so doing it per-frame freezes
+        // the UI. Refresh / session-end invalidate the cache.
+        let installed = *self
+            .mobile_toolchain
+            .one_click_installed
+            .get_or_insert_with(one_click::probe_cargo_mobile);
+        let mobile_toml_exists = std::path::Path::new(&self.root_path)
+            .join("mobile.toml")
+            .exists();
+        let busy = self
+            .mobile_toolchain
+            .one_click_session
+            .as_ref()
+            .map(|s| s.is_running())
+            .unwrap_or(false);
+
+        ui.horizontal(|ui| {
+            ui.label(if installed {
+                egui::RichText::new("✓ cargo-mobile2 installed")
+                    .color(egui::Color32::from_rgb(120, 200, 120))
+            } else {
+                egui::RichText::new("✗ cargo-mobile2 missing")
+                    .color(egui::Color32::from_rgb(220, 80, 80))
+            });
+            ui.separator();
+            ui.label(if mobile_toml_exists {
+                egui::RichText::new("✓ mobile.toml present")
+                    .color(egui::Color32::from_rgb(120, 200, 120))
+            } else {
+                egui::RichText::new("✗ mobile.toml missing")
+                    .color(egui::Color32::from_rgb(220, 180, 80))
+            });
+        });
+
+        ui.add_space(4.0);
+
+        ui.horizontal(|ui| {
+            let install_label = if busy
+                && matches!(
+                    self.mobile_toolchain
+                        .one_click_session
+                        .as_ref()
+                        .map(|s| s.stage),
+                    Some(OneClickStageLabel::Install)
+                ) {
+                "Installing…"
+            } else {
+                "Install cargo-mobile2"
+            };
+            if ui
+                .add_enabled(!installed && !busy, egui::Button::new(install_label))
+                .clicked()
+            {
+                self.start_one_click_install();
+            }
+            if ui
+                .add_enabled(
+                    installed && !mobile_toml_exists && !busy,
+                    egui::Button::new("Initialize for Mobile"),
+                )
+                .clicked()
+            {
+                self.start_one_click_init();
+            }
+            #[cfg(target_os = "macos")]
+            if ui
+                .add_enabled(installed && !busy, egui::Button::new("Run on iOS Sim"))
+                .clicked()
+            {
+                self.start_one_click_ios();
+            }
+            #[cfg(not(target_os = "macos"))]
+            ui.add_enabled(false, egui::Button::new("Run on iOS Sim (macOS only)"));
+            if ui
+                .add_enabled(installed && !busy, egui::Button::new("Run on Android"))
+                .clicked()
+            {
+                self.start_one_click_android();
+            }
+            if busy {
+                if ui.button("Stop").clicked() {
+                    if let Some(s) = self.mobile_toolchain.one_click_session.as_mut() {
+                        s.stop();
+                    }
+                }
+            }
+        });
+    }
+
+    fn start_one_click_install(&mut self) {
+        self.mobile_toolchain.run_error = None;
+        self.mobile_toolchain
+            .run_log
+            .push_line("─── Installing cargo-mobile2 (this can take a few minutes) ───".into());
+        match install_cargo_mobile() {
+            Ok(pair) => {
+                self.mobile_toolchain.one_click_session =
+                    Some(OneClickSession::new(OneClickStageLabel::Install, pair));
+            }
+            Err(e) => {
+                self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
+            }
+        }
+    }
+
+    fn start_one_click_init(&mut self) {
+        self.mobile_toolchain.run_error = None;
+        let project_root = std::path::PathBuf::from(&self.root_path);
+        let project_name = project_root
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("game")
+            .to_string();
+        let cfg = OneClickConfig {
+            project_root: &project_root,
+            project_name: &project_name,
+            ios_bundle_id: &self.build_settings.ios_bundle_id,
+            android_package_name: &self.build_settings.android_package_name,
+        };
+        match one_click::init_mobile_project_if_needed(&cfg) {
+            Ok(Some(pair)) => {
+                self.mobile_toolchain
+                    .run_log
+                    .push_line("─── cargo mobile init ───".into());
+                self.mobile_toolchain.one_click_session =
+                    Some(OneClickSession::new(OneClickStageLabel::Init, pair));
+            }
+            Ok(None) => {
+                self.mobile_toolchain
+                    .run_log
+                    .push_line("mobile.toml already present — skipping init.".into());
+            }
+            Err(e) => {
+                self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
+            }
+        }
+    }
+
+    fn start_one_click_ios(&mut self) {
+        self.mobile_toolchain.run_error = None;
+        let project_root = std::path::PathBuf::from(&self.root_path);
+        let project_name = project_root
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("game")
+            .to_string();
+        let cfg = OneClickConfig {
+            project_root: &project_root,
+            project_name: &project_name,
+            ios_bundle_id: &self.build_settings.ios_bundle_id,
+            android_package_name: &self.build_settings.android_package_name,
+        };
+        match one_click::run_on_ios_simulator(&cfg) {
+            Ok(pair) => {
+                self.mobile_toolchain
+                    .run_log
+                    .push_line("─── cargo apple run --release ───".into());
+                self.mobile_toolchain.one_click_session =
+                    Some(OneClickSession::new(OneClickStageLabel::RunIos, pair));
+            }
+            Err(e) => {
+                self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
+            }
+        }
+    }
+
+    fn start_one_click_android(&mut self) {
+        self.mobile_toolchain.run_error = None;
+        let project_root = std::path::PathBuf::from(&self.root_path);
+        let project_name = project_root
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("game")
+            .to_string();
+        let cfg = OneClickConfig {
+            project_root: &project_root,
+            project_name: &project_name,
+            ios_bundle_id: &self.build_settings.ios_bundle_id,
+            android_package_name: &self.build_settings.android_package_name,
+        };
+        match one_click::run_on_android(&cfg) {
+            Ok(pair) => {
+                self.mobile_toolchain
+                    .run_log
+                    .push_line("─── cargo android run --release ───".into());
+                self.mobile_toolchain.one_click_session =
+                    Some(OneClickSession::new(OneClickStageLabel::RunAndroid, pair));
+            }
+            Err(e) => {
+                self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
+            }
+        }
     }
 
     fn render_run_section(&mut self, ui: &mut egui::Ui) {
@@ -615,6 +947,10 @@ impl BerryCodeApp {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+fn format_one_click_err(e: &OneClickError) -> String {
+    format!("[{}] {}", e.stage.label(), e.message)
+}
+
 fn short_id(s: &str) -> String {
     if s.len() > 8 {
         format!("{}…", &s[..8])
@@ -653,4 +989,31 @@ fn install_hint(ui: &mut egui::Ui, command: &str) {
             ui.ctx().copy_text(command.to_string());
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_click_installed_starts_unprobed() {
+        // Regression guard: the panel relies on `None` to mean "probe on
+        // first paint" via `get_or_insert_with`. If this default ever
+        // becomes `Some(false)`, the panel will skip probing and the
+        // status row gets stuck on `cargo-mobile2 missing`.
+        let state = MobileToolchainState::default();
+        assert_eq!(state.one_click_installed, None);
+    }
+
+    #[test]
+    fn refresh_keeps_one_click_cache_untouched() {
+        // `refresh()` re-probes Xcode/Android/Rust targets but must not
+        // touch the cargo-mobile2 cache — that invalidation lives at the
+        // call site (Refresh button + session end) so unit refreshes
+        // (e.g. codesign/adb) don't trigger a stray `cargo` subprocess.
+        let mut state = MobileToolchainState::default();
+        state.one_click_installed = Some(true);
+        state.refresh();
+        assert_eq!(state.one_click_installed, Some(true));
+    }
 }
