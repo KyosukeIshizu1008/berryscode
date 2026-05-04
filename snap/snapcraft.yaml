@@ -1,5 +1,5 @@
 name: berrycode
-version: '0.2.0'
+version: '0.7.11'
 summary: The IDE built for the Bevy game engine
 description: |
   A fully-featured native IDE built on Bevy + bevy_egui + WGPU,
@@ -17,10 +17,10 @@ architectures:
 parts:
   berrycode:
     plugin: dump
-    source: https://github.com/KyosukeIshizu1008/berryscode/releases/download/v0.2.0/berrycode-0.2.0-linux-x86_64.tar.gz
+    source: https://github.com/KyosukeIshizu1008/berryscode/releases/download/v0.7.11/berrycode-0.7.11-linux-x86_64.tar.gz
     organize:
-      berrycode-0.2.0-linux-x86_64/berrycode: bin/berrycode
-      berrycode-0.2.0-linux-x86_64/assets: share/berrycode/assets
+      berrycode-0.7.11-linux-x86_64/berrycode: bin/berrycode
+      berrycode-0.7.11-linux-x86_64/assets: share/berrycode/assets
 
 apps:
   berrycode:

@@ -145,11 +145,11 @@ Grab the latest release artifact for your platform from the
 
 | Platform | Artifact |
 |----------|----------|
-| macOS (Apple Silicon + Intel) | `berrycode-macos-universal.tar.gz` |
-| Linux (x86_64) | `berrycode-linux-x86_64.tar.gz` |
-| Windows (x86_64) | `berrycode-windows-x86_64.zip` |
+| macOS (Apple Silicon + Intel) | `BerryCode-<version>-macOS-universal.dmg` |
+| Linux (x86_64) | `berrycode-<version>-linux-x86_64.tar.gz` |
+| Windows (x86_64) | `berrycode-<version>-windows-x86_64.zip` |
 
-Releases are signed with [Sigstore](https://www.sigstore.dev/).
+Releases are signed with [Sigstore](https://www.sigstore.dev/) (`.sig` + `.pem` files alongside each archive). Windows ZIPs are additionally code-signed via SignPath so SmartScreen doesn't flag the binary.
 
 #### Package managers
 
@@ -177,11 +177,9 @@ git clone https://github.com/KyosukeIshizu1008/berryscode
 cd berryscode
 cargo run --bin berrycode               # debug
 cargo build --release --bin berrycode   # release
-
-# AI features (optional)
-cd berry_api && cargo run               # terminal 1
-cargo run --bin berrycode               # terminal 2
 ```
+
+AI features (chat, Native agent, Codex CLI / Claude Code fallbacks) are built into the binary — bring your own API key in Settings (`Cmd+,`) under the AI section.
 
 **Prerequisites**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
 
@@ -422,11 +420,11 @@ Bevy ツールだけではなく、完全な Rust IDE。
 
 | プラットフォーム | アーティファクト |
 |------------------|------------------|
-| macOS (Apple Silicon + Intel) | `berrycode-macos-universal.tar.gz` |
-| Linux (x86_64) | `berrycode-linux-x86_64.tar.gz` |
-| Windows (x86_64) | `berrycode-windows-x86_64.zip` |
+| macOS (Apple Silicon + Intel) | `BerryCode-<version>-macOS-universal.dmg` |
+| Linux (x86_64) | `berrycode-<version>-linux-x86_64.tar.gz` |
+| Windows (x86_64) | `berrycode-<version>-windows-x86_64.zip` |
 
-リリースは [Sigstore](https://www.sigstore.dev/) で署名されています。
+リリースは [Sigstore](https://www.sigstore.dev/) で署名されています(`.sig` + `.pem` ファイルが各アーカイブに同梱)。Windows ZIP は SignPath によるコード署名も追加されているので SmartScreen が警告を出しません。
 
 #### パッケージマネージャー
 
@@ -454,11 +452,9 @@ git clone https://github.com/KyosukeIshizu1008/berryscode
 cd berryscode
 cargo run --bin berrycode               # デバッグビルド
 cargo build --release --bin berrycode   # リリースビルド
-
-# AI 機能 (オプション)
-cd berry_api && cargo run               # ターミナル1
-cargo run --bin berrycode               # ターミナル2
 ```
+
+AI 機能(チャット、Native エージェント、Codex CLI / Claude Code フォールバック)はバイナリに同梱済み — Settings (`Cmd+,`) の AI セクションで API キーを入力してください。
 
 **前提条件**: Rust 1.75+ | Linux: `libx11-dev libasound2-dev libudev-dev libpipewire-0.3-dev`
 
