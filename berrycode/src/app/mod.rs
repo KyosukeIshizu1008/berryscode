@@ -300,25 +300,32 @@ pub(crate) mod syntax_colors {
 pub(crate) mod ui_colors {
     use egui::Color32;
 
-    pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
-    pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C Dark Gray
-    pub const TOP_BAR_BG: Color32 = Color32::from_rgb(48, 49, 52); // #303134 toolbar
-    pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4 Light Gray
-    pub const TEXT_MUTED: Color32 = Color32::from_rgb(154, 157, 168); // subdued labels
-    pub const BORDER: Color32 = Color32::from_rgb(54, 57, 59); // #36393B Medium Gray
-    pub const PANEL_BORDER: Color32 = Color32::from_rgb(36, 38, 42); // #24262A splitters
-    pub const CONTROL_BG: Color32 = Color32::from_rgb(32, 34, 39); // #202227 buttons/inputs
-    pub const CONTROL_BORDER: Color32 = Color32::from_rgb(54, 57, 66); // #363942
+    pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
+    pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
+    pub const ACTIVITY_BAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
+    pub const TOP_BAR_BG: Color32 = Color32::from_rgb(48, 49, 52); // #303134
+    pub const STATUS_BAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
+    pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4
+    pub const TEXT_MUTED: Color32 = Color32::from_rgb(153, 153, 153); // #999999
+    pub const BORDER: Color32 = Color32::from_rgb(60, 60, 60); // #3C3C3C
+    pub const PANEL_BORDER: Color32 = Color32::from_rgb(43, 43, 43); // #2B2B2B
+    pub const CONTROL_BG: Color32 = Color32::from_rgb(60, 60, 60); // #3C3C3C
+    pub const CONTROL_BORDER: Color32 = Color32::from_rgb(86, 86, 86); // #565656
+    pub const HOVER_BG: Color32 = Color32::from_rgb(45, 45, 45); // #2D2D2D
+    pub const ACTIVE_BG: Color32 = Color32::from_rgb(55, 55, 61); // #37373D
+    pub const ACCENT: Color32 = Color32::from_rgb(0, 122, 204); // #007ACC
+    pub const ACCENT_HOVER: Color32 = Color32::from_rgb(17, 119, 187); // #1177BB
+    pub const FOCUS_BORDER: Color32 = Color32::from_rgb(0, 127, 212); // #007FD4
 
     // VS Code-style settings palette
-    pub const SETTINGS_NAV_BG: Color32 = Color32::from_rgb(30, 30, 32); // panel column
-    pub const SETTINGS_BG: Color32 = Color32::from_rgb(36, 37, 41); // main scroll area
-    pub const SETTINGS_SEARCH_BG: Color32 = Color32::from_rgb(50, 52, 58); // search input
-    pub const SETTINGS_DESC: Color32 = Color32::from_rgb(150, 152, 160); // description text
-    pub const SETTINGS_HINT: Color32 = Color32::from_rgb(120, 122, 130); // tertiary hint
-    pub const SETTINGS_HEADER: Color32 = Color32::from_rgb(220, 222, 230); // section header
-    pub const SETTINGS_CARD_BORDER: Color32 = Color32::from_rgb(60, 62, 68);
-    pub const SETTINGS_ACCENT: Color32 = Color32::from_rgb(99, 139, 255);
+    pub const SETTINGS_NAV_BG: Color32 = SIDEBAR_BG;
+    pub const SETTINGS_BG: Color32 = EDITOR_BG;
+    pub const SETTINGS_SEARCH_BG: Color32 = CONTROL_BG;
+    pub const SETTINGS_DESC: Color32 = TEXT_MUTED;
+    pub const SETTINGS_HINT: Color32 = Color32::from_rgb(128, 128, 128);
+    pub const SETTINGS_HEADER: Color32 = TEXT_DEFAULT;
+    pub const SETTINGS_CARD_BORDER: Color32 = BORDER;
+    pub const SETTINGS_ACCENT: Color32 = ACCENT;
 }
 
 // ===== Component Color Palette =====
@@ -328,19 +335,19 @@ pub(crate) mod ui_colors {
 pub(crate) mod component_colors {
     use egui::Color32;
     // VS Code accent blue
-    pub const ACCENT: Color32 = Color32::from_rgb(0, 122, 204);
+    pub const ACCENT: Color32 = super::ui_colors::ACCENT;
     // Tab colors
-    pub const TAB_ACTIVE: Color32 = Color32::from_rgb(255, 255, 255);
-    pub const TAB_INACTIVE: Color32 = Color32::from_rgb(130, 130, 130);
+    pub const TAB_ACTIVE: Color32 = super::ui_colors::TEXT_DEFAULT;
+    pub const TAB_INACTIVE: Color32 = super::ui_colors::TEXT_MUTED;
     // Button colors
-    pub const BUTTON_TEXT: Color32 = Color32::from_rgb(200, 200, 200);
-    pub const BUTTON_BG: Color32 = Color32::from_rgb(45, 45, 48);
+    pub const BUTTON_TEXT: Color32 = super::ui_colors::TEXT_DEFAULT;
+    pub const BUTTON_BG: Color32 = super::ui_colors::CONTROL_BG;
     // Hover
-    pub const HOVER_BG: Color32 = Color32::from_rgb(42, 45, 46);
+    pub const HOVER_BG: Color32 = super::ui_colors::HOVER_BG;
     // Input
-    pub const INPUT_BG: Color32 = Color32::from_rgb(28, 29, 34);
+    pub const INPUT_BG: Color32 = super::ui_colors::CONTROL_BG;
     // Dim text
-    pub const TEXT_DIM: Color32 = Color32::from_rgb(110, 115, 130);
+    pub const TEXT_DIM: Color32 = super::ui_colors::TEXT_MUTED;
 }
 
 // ===== File Icon Color Palette =====
@@ -1099,43 +1106,39 @@ impl BerryCodeApp {
         crate::app::i18n::t(self.ui_language, key)
     }
 
-    /// Apply the BerryCode egui style — IntelliJ-inspired dark theme
+    /// Apply the BerryCode egui style — VS Code Dark+ inspired theme.
     pub fn setup_egui_style(ctx: &egui::Context) {
         let mut style = egui::Style::default();
         let mut visuals = egui::Visuals::dark();
 
-        // === Colors === (VS Code Dark+ inspired)
-        let bg_dark = egui::Color32::from_rgb(30, 30, 30); // editor.background #1E1E1E
-        let bg_panel = egui::Color32::from_rgb(58, 61, 65); // button.secondaryBackground #3A3D41
-        let bg_input = egui::Color32::from_rgb(60, 60, 60); // input.background #3C3C3C
-        let bg_hover = egui::Color32::from_rgb(69, 73, 78); // button.secondaryHoverBackground #45494E
-        let bg_active = egui::Color32::from_rgb(45, 47, 50); // pressed (slightly darker than rest)
-                                                             // Selection bg uses RGBA with alpha so the underlying text remains
-                                                             // legible during IME preedit (egui paints selection over the glyphs).
-                                                             // Premultiplied alpha: ~30% opacity = (rgb * 0.3, alpha 76).
-        let bg_selected = egui::Color32::from_rgba_premultiplied(20, 40, 70, 130);
-        let border = egui::Color32::from_rgba_premultiplied(0, 0, 0, 0); // VS Code: no borders by default
-        let border_focus = egui::Color32::from_rgb(0, 127, 212); // VS Code focusBorder #007FD4
-        let text = egui::Color32::from_rgb(205, 207, 213); // primary text
-        let _text_dim = egui::Color32::from_rgb(140, 143, 150); // secondary text
+        let bg_dark = ui_colors::EDITOR_BG;
+        let bg_panel = ui_colors::SIDEBAR_BG;
+        let bg_input = ui_colors::CONTROL_BG;
+        let bg_hover = ui_colors::HOVER_BG;
+        let bg_active = ui_colors::ACTIVE_BG;
+        let bg_selected = egui::Color32::from_rgba_premultiplied(9, 71, 113, 180);
+        let border = ui_colors::BORDER;
+        let border_focus = ui_colors::FOCUS_BORDER;
+        let text = ui_colors::TEXT_DEFAULT;
 
         visuals.override_text_color = None;
         visuals.window_fill = bg_panel;
         visuals.panel_fill = bg_dark;
         visuals.extreme_bg_color = bg_input;
-        visuals.code_bg_color = egui::Color32::from_rgb(35, 36, 40);
-        visuals.faint_bg_color = egui::Color32::from_rgb(38, 40, 43);
+        visuals.code_bg_color = bg_dark;
+        visuals.faint_bg_color = ui_colors::HOVER_BG;
+        visuals.hyperlink_color = ui_colors::ACCENT_HOVER;
 
         // Window
-        visuals.window_stroke = egui::Stroke::new(1.0, border);
+        visuals.window_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER);
         visuals.window_shadow = egui::epaint::Shadow {
-            offset: [0, 4],
-            blur: 12,
+            offset: [0, 8],
+            blur: 24,
             spread: 0,
-            color: egui::Color32::from_black_alpha(80),
+            color: egui::Color32::from_black_alpha(100),
         };
-        visuals.window_corner_radius = egui::CornerRadius::same(8);
-        visuals.menu_corner_radius = egui::CornerRadius::same(6);
+        visuals.window_corner_radius = egui::CornerRadius::same(4);
+        visuals.menu_corner_radius = egui::CornerRadius::same(3);
 
         // Selection — `selection.stroke.color` is misleadingly named: egui
         // uses it to *override* the glyph color of the selected text, so it
@@ -1145,22 +1148,21 @@ impl BerryCodeApp {
         visuals.selection.stroke = egui::Stroke::new(0.0, text);
 
         // Text cursor
-        visuals.text_cursor.stroke.color = egui::Color32::from_rgb(180, 190, 220);
+        visuals.text_cursor.stroke.color = egui::Color32::from_rgb(174, 175, 173);
 
         // === Widget Styles ===
 
         // Non-interactive (labels, separators)
         visuals.widgets.noninteractive.bg_fill = bg_dark;
         visuals.widgets.noninteractive.weak_bg_fill = bg_dark;
-        visuals.widgets.noninteractive.bg_stroke =
-            egui::Stroke::new(0.0, egui::Color32::TRANSPARENT);
+        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER);
         visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
         visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(2);
 
         // Inactive (buttons, checkboxes at rest)
         visuals.widgets.inactive.bg_fill = bg_panel;
         visuals.widgets.inactive.weak_bg_fill = bg_panel;
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::NONE;
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, border);
         visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, text);
         visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(2);
         visuals.widgets.inactive.expansion = 0.0;
@@ -1168,7 +1170,7 @@ impl BerryCodeApp {
         // Hovered
         visuals.widgets.hovered.bg_fill = bg_hover;
         visuals.widgets.hovered.weak_bg_fill = bg_hover;
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::NONE;
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, ui_colors::CONTROL_BORDER);
         visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
         visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(2);
         visuals.widgets.hovered.expansion = 0.0;
@@ -1192,7 +1194,7 @@ impl BerryCodeApp {
         visuals.popup_shadow = egui::epaint::Shadow {
             offset: [0, 6],
             blur: 16,
-            spread: 2,
+            spread: 0,
             color: egui::Color32::from_black_alpha(100),
         };
 
@@ -1200,16 +1202,15 @@ impl BerryCodeApp {
         visuals.striped = true;
 
         // Separator
-        visuals.widgets.noninteractive.bg_stroke =
-            egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 47, 50));
+        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER);
 
         style.visuals = visuals;
 
         // === Spacing ===
-        style.spacing.item_spacing = egui::vec2(8.0, 6.0); // more breathing room
+        style.spacing.item_spacing = egui::vec2(8.0, 5.0);
         style.spacing.button_padding = egui::vec2(8.0, 3.0); // VS Code: compact
-        style.spacing.window_margin = egui::Margin::same(12); // window inner padding
-        style.spacing.menu_margin = egui::Margin::same(8);
+        style.spacing.window_margin = egui::Margin::same(8);
+        style.spacing.menu_margin = egui::Margin::same(6);
         style.spacing.indent = 18.0; // tree indent
                                      // Keep resize handles and splitters slim and consistent across
                                      // Explorer/Search/AI/Inspector side panels.
@@ -1225,23 +1226,26 @@ impl BerryCodeApp {
             ..Default::default()
         };
 
-        // === Text (even pixel sizes for crisp rendering) ===
+        // === Text ===
+        // VS Code keeps its chrome compact: 13px body text, 12px controls,
+        // 11px secondary labels. Panels can still opt into larger text for
+        // true document/editor content, but the app shell starts here.
         use egui::FontId;
         style
             .text_styles
-            .insert(egui::TextStyle::Heading, FontId::proportional(18.0));
+            .insert(egui::TextStyle::Heading, FontId::proportional(16.0));
         style
             .text_styles
-            .insert(egui::TextStyle::Body, FontId::proportional(14.0));
+            .insert(egui::TextStyle::Body, FontId::proportional(13.0));
         style
             .text_styles
-            .insert(egui::TextStyle::Small, FontId::proportional(12.0));
+            .insert(egui::TextStyle::Small, FontId::proportional(11.0));
         style
             .text_styles
-            .insert(egui::TextStyle::Button, FontId::proportional(13.0));
+            .insert(egui::TextStyle::Button, FontId::proportional(12.0));
         style
             .text_styles
-            .insert(egui::TextStyle::Monospace, FontId::monospace(14.0));
+            .insert(egui::TextStyle::Monospace, FontId::monospace(13.0));
 
         // === Interaction ===
         style.interaction.show_tooltips_only_when_still = false;
@@ -1469,7 +1473,7 @@ impl BerryCodeApp {
     /// Render the project picker screen (shown when no project is loaded)
     pub(crate) fn render_project_picker(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(25, 27, 31)))
+            .frame(egui::Frame::NONE.fill(ui_colors::EDITOR_BG))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
@@ -1478,7 +1482,7 @@ impl BerryCodeApp {
                     ui.label(
                         egui::RichText::new("BerryCode")
                             .size(48.0)
-                            .color(egui::Color32::from_rgb(126, 89, 161))
+                            .color(ui_colors::TEXT_DEFAULT)
                             .strong(),
                     );
                     ui.label(

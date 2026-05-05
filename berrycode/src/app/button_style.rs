@@ -148,7 +148,7 @@ fn icon_label_job(
         &format!("  {label}"),
         0.0,
         egui::TextFormat {
-            font_id: egui::FontId::proportional(13.0),
+            font_id: egui::FontId::proportional(12.0),
             color: text_color,
             ..Default::default()
         },
@@ -163,7 +163,7 @@ fn icon_label_job(
 pub fn icon_button(ui: &mut egui::Ui, glyph: &str, tooltip: &str) -> egui::Response {
     let text = egui::RichText::new(glyph)
         .family(egui::FontFamily::Name("codicon".into()))
-        .size(13.0);
+        .size(12.0);
     let response = ui.add_sized(
         egui::vec2(22.0, 22.0),
         egui::Button::new(text).min_size(egui::vec2(22.0, 22.0)),

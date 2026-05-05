@@ -46,13 +46,13 @@ impl BerryCodeApp {
                 // Tab bar (VS Code style)
                 let mut tab_to_close: Option<usize> = None;
 
-                let tab_bar_bg = egui::Color32::from_rgb(37, 37, 38); // #252526
-                let tab_active_bg = egui::Color32::from_rgb(30, 30, 30); // #1E1E1E
-                let tab_inactive_bg = egui::Color32::from_rgb(45, 45, 46); // #2D2D2E
-                let tab_border = egui::Color32::from_rgb(37, 37, 38);
-                let tab_active_indicator = super::component_colors::ACCENT; // #007ACC
-                let tab_text_active = egui::Color32::from_rgb(255, 255, 255);
-                let tab_text_inactive = egui::Color32::from_rgb(150, 150, 150);
+                let tab_bar_bg = ui_colors::SIDEBAR_BG;
+                let tab_active_bg = ui_colors::EDITOR_BG;
+                let tab_inactive_bg = ui_colors::SIDEBAR_BG;
+                let tab_border = ui_colors::PANEL_BORDER;
+                let tab_active_indicator = ui_colors::ACCENT;
+                let tab_text_active = ui_colors::TEXT_DEFAULT;
+                let tab_text_inactive = ui_colors::TEXT_MUTED;
 
                 // Tab bar background
                 let tab_bar_rect = egui::Rect::from_min_size(

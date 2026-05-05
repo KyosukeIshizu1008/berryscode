@@ -19,25 +19,24 @@ impl BerryCodeApp {
                 ui.horizontal(|ui| {
                     ui.add_space(4.0);
 
-                    // Purple tab with project info
+                    // Compact project switcher, styled like VS Code's title bar command area.
                     let tab_rect_size = egui::vec2(160.0, 24.0);
                     let (tab_rect, _response) =
                         ui.allocate_exact_size(tab_rect_size, egui::Sense::click());
 
-                    // Draw purple background
-                    ui.painter().rect_filled(
+                    ui.painter()
+                        .rect_filled(tab_rect, 3.0, egui::Color32::from_rgb(71, 71, 71));
+                    ui.painter().rect_stroke(
                         tab_rect,
-                        4.0,                                   // Rounded corners
-                        egui::Color32::from_rgb(126, 89, 161), // Purple #7E59A1
+                        3.0,
+                        egui::Stroke::new(1.0, ui_colors::CONTROL_BORDER),
+                        egui::StrokeKind::Inside,
                     );
 
                     // Draw badge with "0"
                     let badge_center = egui::pos2(tab_rect.left() + 16.0, tab_rect.center().y);
-                    ui.painter().circle_filled(
-                        badge_center,
-                        9.0,
-                        egui::Color32::from_rgba_premultiplied(255, 255, 255, 60),
-                    );
+                    ui.painter()
+                        .circle_filled(badge_center, 9.0, ui_colors::ACCENT);
                     ui.painter().text(
                         badge_center,
                         egui::Align2::CENTER_CENTER,
@@ -55,7 +54,7 @@ impl BerryCodeApp {
                         egui::Align2::LEFT_CENTER,
                         project_name,
                         egui::FontId::proportional(12.0),
-                        egui::Color32::WHITE,
+                        ui_colors::TEXT_DEFAULT,
                     );
 
                     // Dropdown arrow
@@ -65,7 +64,7 @@ impl BerryCodeApp {
                         egui::Align2::CENTER_CENTER,
                         "▼",
                         egui::FontId::proportional(9.0),
-                        egui::Color32::from_rgb(200, 200, 200),
+                        ui_colors::TEXT_MUTED,
                     );
 
                     ui.add_space(16.0);
@@ -283,25 +282,19 @@ impl BerryCodeApp {
             .resizable(false)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::SIDEBAR_BG) // #191A1C
+                    .fill(ui_colors::ACTIVITY_BAR_BG)
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(8.0);
 
-                    // Increase icon size for Activity Bar
-                    ui.style_mut().text_styles.insert(
-                        egui::TextStyle::Button,
-                        egui::FontId::proportional(20.0), // Increased from default
-                    );
-
                     let icon_size = 24.0;
                     let btn_size = egui::vec2(40.0, 40.0);
-                    let active_bar_color = egui::Color32::from_rgb(255, 255, 255);
-                    let icon_active = egui::Color32::from_rgb(255, 255, 255);
-                    let icon_inactive = egui::Color32::from_rgb(120, 120, 120);
-                    let hover_bg = egui::Color32::from_rgb(45, 47, 50);
+                    let active_bar_color = ui_colors::TEXT_DEFAULT;
+                    let icon_active = ui_colors::TEXT_DEFAULT;
+                    let icon_inactive = ui_colors::TEXT_MUTED;
+                    let hover_bg = ui_colors::HOVER_BG;
 
                     for panel in MAIN_PANELS {
                         let is_selected = self.active_panel == panel.variant;
