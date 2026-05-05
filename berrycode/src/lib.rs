@@ -249,12 +249,14 @@ pub mod syntax;
 pub mod native;
 
 // ===== AI providers (BYOK direct API clients) =====
+#[cfg(feature = "ai")]
 pub mod ai;
 
 // ===== Coding agents (subprocess wrappers around Codex CLI / Claude Code) =====
 // Provides Agent mode, Apply diff, and tool-calling capabilities by
 // shelling out to mature external CLIs rather than reimplementing the
 // agent loop in Rust. v0.4.5 / Phase 4.
+#[cfg(feature = "ai")]
 pub mod agent;
 
 // ===== Common Utilities =====

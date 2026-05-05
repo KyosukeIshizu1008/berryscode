@@ -9,6 +9,7 @@ use std::collections::HashSet;
 use tokio::sync::mpsc;
 
 // ===== Submodules =====
+#[cfg(feature = "ai")]
 mod ai_chat;
 pub(crate) mod ansi;
 mod asset_browser;
@@ -44,6 +45,7 @@ pub(crate) mod mobile;
 pub(crate) mod mobile_toolchain;
 mod model_preview;
 pub(crate) mod new_project;
+#[cfg(feature = "ai")]
 mod oracleberry;
 pub(crate) mod package_manager;
 mod peek;
@@ -412,6 +414,7 @@ const MAIN_PANELS: &[SidebarPanel] = &[
         icon: "\u{eb29}", // codicon-package (Docker container metaphor)
         _name: "Docker",
     },
+    #[cfg(feature = "ai")]
     SidebarPanel {
         variant: ActivePanel::OracleBerry,
         icon: "\u{ec1f}", // codicon-lightbulb-sparkle (placeholder until brand SVG)
@@ -471,6 +474,7 @@ pub struct BerryCodeApp {
     pub(crate) docker: docker::DockerState,
 
     // === OracleBerry Panel State ===
+    #[cfg(feature = "ai")]
     pub(crate) oracleberry: oracleberry::OracleBerryState,
 
     // === Search State ===
@@ -924,6 +928,7 @@ pub struct BerryCodeApp {
     pub(crate) lsp_completion_accept_pending: bool,
     /// BYOK provider configuration (Anthropic / OpenAI / Ollama API keys
     /// and selected models). Persisted to `~/.berrycode/ai.json`.
+    #[cfg(feature = "ai")]
     pub(crate) ai_settings: crate::ai::settings::AiSettings,
     /// Cached egui texture for the Scene View activity-bar icon
     /// (rasterised from `assets/icons/scene_view.svg` on first use).
@@ -1745,6 +1750,7 @@ impl BerryCodeApp {
             terminal: terminal_emulator::TerminalEmulator::new(&terminal_working_dir),
             database: database::DatabaseState::default(),
             docker: docker::DockerState::default(),
+            #[cfg(feature = "ai")]
             oracleberry: oracleberry::OracleBerryState::default(),
             search_query: String::new(),
             search_dialog_open: false,
@@ -2100,6 +2106,7 @@ impl BerryCodeApp {
             keybinding_message: None,
             theme_mode: load_theme_mode(),
             lsp_completion_accept_pending: false,
+            #[cfg(feature = "ai")]
             ai_settings: crate::ai::settings::AiSettings::load(),
             scene_view_icon: None,
             database_icon: None,
@@ -2817,6 +2824,7 @@ pub fn berry_ui_system(
         // streaming process output drive what the user sees while typing /
         // watching a build, so a 50ms gap would feel sluggish.
         app.poll_lsp_responses();
+        #[cfg(feature = "ai")]
         app.poll_ai_responses();
         app.poll_run_output();
 
@@ -2965,16 +2973,19 @@ pub fn berry_ui_system(
         } else if app.active_panel == ActivePanel::OracleBerry {
             // AI image generator: sidebar = recent generations,
             // central = prompt + settings + result canvas
-            app.render_sidebar(ctx);
-            egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
-                        .inner_margin(egui::Margin::same(12)),
-                )
-                .show(ctx, |ui| {
-                    app.render_oracleberry_central(ui);
-                });
+            #[cfg(feature = "ai")]
+            {
+                app.render_sidebar(ctx);
+                egui::CentralPanel::default()
+                    .frame(
+                        egui::Frame::NONE
+                            .fill(ui_colors::EDITOR_BG)
+                            .inner_margin(egui::Margin::same(12)),
+                    )
+                    .show(ctx, |ui| {
+                        app.render_oracleberry_central(ui);
+                    });
+            }
         } else if app.active_panel == ActivePanel::Settings {
             // Settings spans the full width: skip the (now-empty) sidebar
             // panel entirely — the activity bar is already rendered above
@@ -2990,6 +3001,7 @@ pub fn berry_ui_system(
                 });
         } else {
             app.render_sidebar(ctx);
+            #[cfg(feature = "ai")]
             app.render_ai_chat_panel(ctx);
             app.render_editor_area(ctx);
         }

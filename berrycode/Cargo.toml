@@ -136,8 +136,9 @@ lsp-types = "0.95"
 rusqlite = { version = "0.32", features = ["bundled"] }
 
 [features]
-default = []
+default = ["ai"]
 vendored-openssl = ["openssl"]
+ai = []
 
 # ═══════════════════════════════════════════════════════════
 # App bundling configuration (cargo-bundle / cargo-packager)

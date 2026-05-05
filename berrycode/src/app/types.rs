@@ -126,9 +126,11 @@ pub enum SettingsTab {
     Plugins,
     GitHub,
     /// AI providers: BYOK API keys + model selection (v0.4.5).
+    #[cfg(feature = "ai")]
     AiProviders,
     /// AI usage & cost: per-day / per-month token counts, estimated
     /// USD spend, and a soft monthly cap (v0.4.5).
+    #[cfg(feature = "ai")]
     AiUsage,
 }
 
