@@ -5,6 +5,7 @@
 //! switch between tools in the same panel area.
 
 use crate::app::types::DiagnosticSeverity;
+use crate::app::ui_colors;
 use crate::app::BerryCodeApp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +72,7 @@ impl BerryCodeApp {
             .min_height(100.0)
             .frame(
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_rgb(30, 31, 34))
+                    .fill(ui_colors::SIDEBAR_BG)
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {

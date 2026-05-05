@@ -18,7 +18,7 @@ impl BerryCodeApp {
             ui.add_space(4.0);
             ui.label(
                 egui::RichText::new("Settings")
-                    .size(18.0)
+                    .size(16.0)
                     .color(ui_colors::SETTINGS_HEADER)
                     .strong(),
             );
@@ -287,7 +287,7 @@ impl BerryCodeApp {
 
         ui.label(
             egui::RichText::new("AI Providers")
-                .size(20.0)
+                .size(16.0)
                 .color(ui_colors::SETTINGS_HEADER)
                 .strong(),
         );
@@ -402,7 +402,7 @@ impl BerryCodeApp {
         ui.add_space(8.0);
         ui.label(
             egui::RichText::new("Model selection")
-                .size(15.0)
+                .size(13.0)
                 .color(ui_colors::SETTINGS_HEADER)
                 .strong(),
         );
@@ -918,7 +918,7 @@ impl BerryCodeApp {
                 ui.add_space(6.0);
                 ui.label(
                     egui::RichText::new(format!("${:.2}", t.cost_usd))
-                        .size(22.0)
+                        .size(18.0)
                         .color(egui::Color32::WHITE),
                 );
                 ui.add_space(4.0);

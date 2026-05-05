@@ -3,6 +3,7 @@
 
 use super::model::*;
 use crate::app::button_style::{button_with_icon, glyph, icon_button, primary_button};
+use crate::app::ui_colors;
 use crate::app::BerryCodeApp;
 
 impl BerryCodeApp {
@@ -49,12 +50,12 @@ impl BerryCodeApp {
         // tabs so the two surfaces feel like one IDE: dark active bg,
         // a slightly lighter inactive bg, ACCENT-coloured 2px bottom
         // bar marking the active one.
-        let tab_active_bg = egui::Color32::from_rgb(30, 30, 30);
-        let tab_inactive_bg = egui::Color32::from_rgb(45, 45, 46);
-        let tab_border = egui::Color32::from_rgb(37, 37, 38);
-        let tab_active_indicator = egui::Color32::from_rgb(0, 122, 204);
-        let tab_text_active = egui::Color32::from_rgb(255, 255, 255);
-        let tab_text_inactive = egui::Color32::from_gray(180);
+        let tab_active_bg = ui_colors::EDITOR_BG;
+        let tab_inactive_bg = ui_colors::SIDEBAR_BG;
+        let tab_border = ui_colors::PANEL_BORDER;
+        let tab_active_indicator = ui_colors::ACCENT;
+        let tab_text_active = ui_colors::TEXT_DEFAULT;
+        let tab_text_inactive = ui_colors::TEXT_MUTED;
         // Pre-compute display labels with disambiguation: when two tabs
         // share the same base label, prefix the one with a different
         // path with its parent directory ("scenes/scene" vs
@@ -100,11 +101,11 @@ impl BerryCodeApp {
 
                 let frame = egui::Frame::NONE
                     .fill(bg)
-                    .inner_margin(egui::Margin::symmetric(10, 5))
+                    .inner_margin(egui::Margin::symmetric(10, 4))
                     .stroke(egui::Stroke::new(1.0, tab_border));
                 let resp = frame.show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 6.0;
+                        ui.spacing_mut().item_spacing.x = 5.0;
                         // Modified dot — VS Code shows a filled circle
                         // in the close-button slot when the file has
                         // unsaved edits; we emulate that with a small
@@ -132,7 +133,20 @@ impl BerryCodeApp {
                         // panel never ends up with zero tabs (it
                         // injects a fresh blank one if you close the
                         // last).
-                        if icon_button(ui, glyph::CLOSE, "Close scene").clicked() {
+                        let close_text = egui::RichText::new(glyph::CLOSE)
+                            .size(11.0)
+                            .color(text_color)
+                            .family(egui::FontFamily::Name("codicon".into()));
+                        if ui
+                            .add_sized(
+                                egui::vec2(16.0, 16.0),
+                                egui::Button::new(close_text)
+                                    .frame(false)
+                                    .min_size(egui::vec2(16.0, 16.0)),
+                            )
+                            .on_hover_text("Close scene")
+                            .clicked()
+                        {
                             close_tab = Some(i);
                         }
                     });
