@@ -1032,6 +1032,15 @@ pub struct BerryCodeApp {
     /// so the user doesn't have to click Refresh just to see the
     /// list of installed deps.
     pub(crate) installed_plugins_loaded: bool,
+    /// Background `Refresh` of the installed-plugin list. When the
+    /// user clicks Refresh, we spawn a worker thread that hits
+    /// crates.io (~1 round-trip per plugin, capped at 10 s each by
+    /// curl's `--max-time`) and returns the updated list through this
+    /// channel. The egui render path polls it with `try_recv` per
+    /// frame so the IDE never blocks on the network. `None` means
+    /// idle; `Some` means a refresh is in flight.
+    pub(crate) installed_plugins_refresh_rx:
+        Option<std::sync::mpsc::Receiver<Vec<scene_editor::plugin_browser::InstalledPlugin>>>,
 
     // === Bevy Version Management ===
     pub(crate) bevy_version: Option<String>,
@@ -2174,6 +2183,7 @@ impl BerryCodeApp {
             plugin_browser_open: false,
             installed_plugins: Vec::new(),
             installed_plugins_loaded: false,
+            installed_plugins_refresh_rx: None,
             asset_watcher: asset_watcher::AssetWatcher::default(),
             current_scene_path: None,
             audio_preview: audio::preview::AudioPreviewState::new(),
@@ -2210,10 +2220,15 @@ impl BerryCodeApp {
                     }
                 };
                 tracing::info!("Test mode: listening on 127.0.0.1:17171");
-                for stream in listener.incoming().flatten() {
+                // `incoming()` returns `Result<TcpStream, _>`; using
+                // `.flatten()` would silently spin on a stream of
+                // persistent IO errors (clippy::flat_map_option /
+                // clippy::flatten-on-fallible-iter). `map_while` stops
+                // on the first error instead of looping forever.
+                for stream in listener.incoming().map_while(Result::ok) {
                     use std::io::{BufRead, BufReader};
                     let reader = BufReader::new(&stream);
-                    for line in reader.lines().flatten() {
+                    for line in reader.lines().map_while(Result::ok) {
                         if tx.send(line).is_err() {
                             return;
                         }

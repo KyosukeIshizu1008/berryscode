@@ -89,10 +89,23 @@ pub fn scan_installed_plugins(root: &str) -> Vec<InstalledPlugin> {
 /// Uses the same `curl` shell-out pattern as [`search_bevy_crates`] so
 /// we don't fight with reqwest's blocking-vs-async story here. Returns
 /// `None` on any error (no network, crate not found, parse failure).
+///
+/// `--max-time 10` caps the request so a hung crates.io endpoint or
+/// flaky network can't freeze the caller indefinitely. Without it,
+/// curl will sit on a stalled TLS handshake for the full system TCP
+/// timeout (~75s on macOS, longer on some Linuxes) — long enough for
+/// the editor to feel dead.
 pub fn fetch_latest_version(crate_name: &str) -> Option<String> {
     let url = format!("https://crates.io/api/v1/crates/{}", crate_name);
     let output = std::process::Command::new("curl")
-        .args(["-s", "-H", "User-Agent: BerryCode-Editor", &url])
+        .args([
+            "-s",
+            "--max-time",
+            "10",
+            "-H",
+            "User-Agent: BerryCode-Editor",
+            &url,
+        ])
         .output()
         .ok()?;
     if !output.status.success() {
@@ -107,13 +120,33 @@ pub fn fetch_latest_version(crate_name: &str) -> Option<String> {
 }
 
 /// Refresh `latest_version` on every entry by fetching from crates.io.
-/// Synchronous: blocks the caller for ~200ms × N. The browser only
-/// calls this when the user clicks Refresh, so the freeze is on a
-/// user-initiated action instead of every frame.
+///
+/// **Synchronous; do not call from the egui render path.** Blocks the
+/// caller for up to ~10 s per plugin (the curl `--max-time` cap). The
+/// UI uses [`refresh_latest_versions_async`] instead so the editor
+/// stays responsive during the network round-trip.
 pub fn refresh_latest_versions(plugins: &mut [InstalledPlugin]) {
     for p in plugins {
         p.latest_version = fetch_latest_version(&p.name);
     }
+}
+
+/// Async wrapper around [`refresh_latest_versions`]. Spawns a worker
+/// thread, runs the curl-based version probes off the UI thread, and
+/// hands the updated `Vec<InstalledPlugin>` back through an mpsc
+/// channel. The caller stores the receiver in app state and polls it
+/// per-frame with `try_recv` — the egui pass never blocks on network.
+pub fn refresh_latest_versions_async(
+    mut plugins: Vec<InstalledPlugin>,
+) -> std::sync::mpsc::Receiver<Vec<InstalledPlugin>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        refresh_latest_versions(&mut plugins);
+        // Receiver dropped before we finish? That's the user closing the
+        // panel mid-refresh — silently discard the result.
+        let _ = tx.send(plugins);
+    });
+    rx
 }
 
 /// Numeric compare of dotted version strings. `"0.18.1"` > `"0.18"`,
@@ -210,7 +243,10 @@ fn rewrite_version_line(line: &str, new_version: &str) -> Option<String> {
     Some(out)
 }
 
-/// Search crates.io for Bevy plugins (uses curl since reqwest may not have blocking)
+/// Search crates.io for Bevy plugins (uses curl since reqwest may not
+/// have blocking). `--max-time 10` keeps a stalled network from
+/// freezing the caller; pair with [`search_bevy_crates_async`] when
+/// calling from the egui render path.
 pub fn search_bevy_crates(query: &str) -> Vec<CrateResult> {
     let url = format!(
         "https://crates.io/api/v1/crates?page=1&per_page=20&q=bevy+{}",
@@ -218,7 +254,14 @@ pub fn search_bevy_crates(query: &str) -> Vec<CrateResult> {
     );
 
     let output = match std::process::Command::new("curl")
-        .args(["-s", "-H", "User-Agent: BerryCode-Editor", &url])
+        .args([
+            "-s",
+            "--max-time",
+            "10",
+            "-H",
+            "User-Agent: BerryCode-Editor",
+            &url,
+        ])
         .output()
     {
         Ok(o) => o,
@@ -331,18 +374,47 @@ impl BerryCodeApp {
                             "s"
                         }
                     ));
-                    if ui.button("Refresh").clicked() {
-                        // Re-scan first in case Cargo.toml changed,
-                        // then fetch latest versions for every entry.
+                    let refresh_in_flight = self.installed_plugins_refresh_rx.is_some();
+                    let refresh_label = if refresh_in_flight {
+                        "Refreshing…"
+                    } else {
+                        "Refresh"
+                    };
+                    if ui
+                        .add_enabled(!refresh_in_flight, egui::Button::new(refresh_label))
+                        .clicked()
+                    {
+                        // Re-scan synchronously (file IO, sub-millisecond)
+                        // so the new dep set shows up immediately, then
+                        // hand the version probes to a worker thread —
+                        // crates.io HTTP round-trips would otherwise
+                        // freeze the egui pass for ~10 s × N plugins.
                         self.installed_plugins = scan_installed_plugins(&self.root_path);
-                        refresh_latest_versions(&mut self.installed_plugins);
+                        self.installed_plugins_refresh_rx = Some(refresh_latest_versions_async(
+                            self.installed_plugins.clone(),
+                        ));
+                        self.status_message =
+                            format!("Refreshing {} dependencies…", self.installed_plugins.len());
+                        self.status_message_timestamp = Some(std::time::Instant::now());
+                    }
+                });
+
+                // Drain the background refresh result, if any. Non-
+                // blocking — `try_recv` returns immediately whether the
+                // worker is still running or has already finished. The
+                // egui pass calls this once per frame via the panel
+                // render so results arrive within a frame of completion.
+                if let Some(rx) = &self.installed_plugins_refresh_rx {
+                    if let Ok(updated) = rx.try_recv() {
+                        self.installed_plugins = updated;
+                        self.installed_plugins_refresh_rx = None;
                         self.status_message = format!(
                             "Checked {} dependencies for updates",
                             self.installed_plugins.len()
                         );
                         self.status_message_timestamp = Some(std::time::Instant::now());
                     }
-                });
+                }
 
                 let mut update_request: Option<(String, String)> = None;
                 egui::ScrollArea::vertical()

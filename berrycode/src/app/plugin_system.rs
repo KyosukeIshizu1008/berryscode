@@ -190,15 +190,51 @@ impl BerryCodeApp {
             .map(|t| t.cursor_line.to_string())
             .unwrap_or_default();
 
-        let output = std::process::Command::new("sh")
-            .arg(script_path.to_str().unwrap_or(""))
-            .arg(command_id)
-            .current_dir(&self.root_path)
-            .env("BERRYCODE_PROJECT", &self.root_path)
-            .env("BERRYCODE_FILE", &current_file)
-            .env("BERRYCODE_LINE", &cursor_line)
-            .env("BERRYCODE_COMMAND", command_id)
-            .output();
+        // Run the plugin off the egui render thread so a long-running
+        // or hung plugin can't freeze the editor. We hand the
+        // subprocess to a worker thread, then wait on the result with
+        // a hard 30 s timeout via a bounded channel. A plugin that
+        // blocks forever (waits for stdin, streams without exiting)
+        // returns `RecvTimeoutError::Timeout` instead of hanging the
+        // UI; we surface that as a status message and let the orphan
+        // process exit on its own.
+        //
+        // A future pass should hoist this to a per-frame `try_recv`
+        // poll on app state so the UI stays responsive *during* the
+        // plugin run instead of just bounding the worst case. Tracked
+        // alongside the equivalent move in `plugin_browser.rs`.
+        let script_path_str = script_path.to_str().unwrap_or("").to_string();
+        let command_id_owned = command_id.to_string();
+        let root_path_owned = self.root_path.clone();
+        let current_file_owned = current_file.clone();
+        let cursor_line_owned = cursor_line.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = std::process::Command::new("sh")
+                .arg(&script_path_str)
+                .arg(&command_id_owned)
+                .current_dir(&root_path_owned)
+                .env("BERRYCODE_PROJECT", &root_path_owned)
+                .env("BERRYCODE_FILE", &current_file_owned)
+                .env("BERRYCODE_LINE", &cursor_line_owned)
+                .env("BERRYCODE_COMMAND", &command_id_owned)
+                .output();
+            // Receiver dropped before we finish? Caller went away —
+            // discard the result silently rather than panicking.
+            let _ = tx.send(result);
+        });
+        let output = match rx.recv_timeout(std::time::Duration::from_secs(30)) {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::warn!(
+                    "Plugin command {command_id} timed out after 30s; orphaning subprocess"
+                );
+                self.status_message =
+                    format!("Plugin '{command_id}' timed out (30s); skipped output");
+                self.status_message_timestamp = Some(std::time::Instant::now());
+                return;
+            }
+        };
 
         match output {
             Ok(result) => {

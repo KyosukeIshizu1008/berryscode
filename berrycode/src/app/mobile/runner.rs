@@ -135,13 +135,25 @@ impl Drop for MobileRunSession {
     }
 }
 
+use crate::common::shell::shell_quote;
+
 /// Build the argv for a target + artifact pair. Pure function so the
 /// dispatch matrix has unit tests; the actual spawn happens in
 /// `start_run` below.
+///
+/// Every value that appears in the resulting `sh -c` script — UDIDs,
+/// bundle ids, serial numbers, package names, activities, and artifact
+/// paths — is run through [`shell_quote`] before interpolation. The
+/// previous version of this function wrapped only the artifact path in
+/// single quotes and assumed the others were "alphanumeric enough not to
+/// matter," which left a real injection surface for any user-supplied
+/// value containing a single quote (a perfectly legal char in a macOS
+/// path or an Android activity name).
 pub fn build_command(
     target: &MobileTarget,
     artifact: &Path,
 ) -> Result<(String, Vec<String>), String> {
+    let app = shell_quote(&artifact.display().to_string());
     match target {
         MobileTarget::IosSim { udid, bundle_id } => {
             // `simctl launch --console booted` would technically work
@@ -149,14 +161,13 @@ pub fn build_command(
             // three subprocesses sequentially makes lifecycle fragile.
             // We use a small shell wrapper so the user gets one Child
             // to track and one log stream regardless of platform.
+            let udid = shell_quote(udid);
+            let bundle = shell_quote(bundle_id);
             let script = format!(
                 "set -e; \
                  xcrun simctl boot {udid} >/dev/null 2>&1 || true; \
-                 xcrun simctl install {udid} '{app}'; \
-                 exec xcrun simctl launch --console-pty {udid} {bundle}",
-                udid = udid,
-                app = artifact.display(),
-                bundle = bundle_id,
+                 xcrun simctl install {udid} {app}; \
+                 exec xcrun simctl launch --console-pty {udid} {bundle}"
             );
             Ok(("sh".into(), vec!["-c".into(), script]))
         }
@@ -164,14 +175,13 @@ pub fn build_command(
             // `devicectl` ships with Xcode 15+. Older toolchains
             // shipped `ios-deploy`; we deliberately don't fall back —
             // a clear error is better than a silently different path.
+            let udid = shell_quote(udid);
+            let bundle = shell_quote(bundle_id);
             let script = format!(
                 "set -e; \
-                 xcrun devicectl device install app --device {udid} '{app}'; \
+                 xcrun devicectl device install app --device {udid} {app}; \
                  exec xcrun devicectl device process launch \
-                     --device {udid} --console {bundle}",
-                udid = udid,
-                app = artifact.display(),
-                bundle = bundle_id,
+                     --device {udid} --console {bundle}"
             );
             Ok(("sh".into(), vec!["-c".into(), script]))
         }
@@ -194,9 +204,12 @@ pub fn build_command(
             } else {
                 format!("{package_name}/{component}")
             };
+            let serial = shell_quote(serial);
+            let component = shell_quote(&component);
+            let pkg = shell_quote(package_name);
             let script = format!(
                 "set -e; \
-                 adb -s {serial} install -r '{apk}'; \
+                 adb -s {serial} install -r {app}; \
                  adb -s {serial} shell am start -W -n {component}; \
                  sleep 1; \
                  PID=$(adb -s {serial} shell pidof -s {pkg} | tr -d '\\r'); \
@@ -204,11 +217,7 @@ pub fn build_command(
                    exec adb -s {serial} logcat -v threadtime; \
                  else \
                    exec adb -s {serial} logcat -v threadtime --pid=$PID; \
-                 fi",
-                serial = serial,
-                apk = artifact.display(),
-                component = component,
-                pkg = package_name,
+                 fi"
             );
             Ok(("sh".into(), vec!["-c".into(), script]))
         }
@@ -295,9 +304,11 @@ mod tests {
         let (program, args) = build_command(&target, Path::new("/tmp/Game.app")).unwrap();
         assert_eq!(program, "sh");
         let script = &args[1];
-        assert!(script.contains("simctl boot ABC-DEF"));
-        assert!(script.contains("simctl install ABC-DEF '/tmp/Game.app'"));
-        assert!(script.contains("simctl launch --console-pty ABC-DEF com.example.Game"));
+        // Every interpolated value is now shell-quoted, so we look for
+        // the quoted forms instead of bare tokens.
+        assert!(script.contains("simctl boot 'ABC-DEF'"));
+        assert!(script.contains("simctl install 'ABC-DEF' '/tmp/Game.app'"));
+        assert!(script.contains("simctl launch --console-pty 'ABC-DEF' 'com.example.Game'"));
     }
 
     #[test]
@@ -309,9 +320,9 @@ mod tests {
         let (_, args) = build_command(&target, Path::new("/tmp/Game.app")).unwrap();
         let script = &args[1];
         assert!(script.contains("devicectl device install"));
-        assert!(script.contains("--device 00008110-001234"));
+        assert!(script.contains("--device '00008110-001234'"));
         assert!(script.contains("devicectl device process launch"));
-        assert!(script.contains("com.example.Game"));
+        assert!(script.contains("'com.example.Game'"));
     }
 
     #[test]
@@ -323,13 +334,13 @@ mod tests {
         };
         let (_, args) = build_command(&target, Path::new("/tmp/game.apk")).unwrap();
         let script = &args[1];
-        assert!(script.contains("adb -s R5CTC0ABC123 install -r '/tmp/game.apk'"));
+        assert!(script.contains("adb -s 'R5CTC0ABC123' install -r '/tmp/game.apk'"));
         assert!(
-            script.contains("am start -W -n com.example.game/.MainActivity"),
+            script.contains("am start -W -n 'com.example.game/.MainActivity'"),
             "script: {script}"
         );
         assert!(script.contains("logcat"));
-        assert!(script.contains("pidof -s com.example.game"));
+        assert!(script.contains("pidof -s 'com.example.game'"));
     }
 
     #[test]
@@ -342,10 +353,35 @@ mod tests {
         let (_, args) = build_command(&target, Path::new("/tmp/g.apk")).unwrap();
         let script = &args[1];
         // Already explicit — runner builds `pkg/com.example.MainActivity`
-        // (the explicit path is preserved).
+        // (the explicit path is preserved). Wrapped in shell-quotes
+        // because the result is interpolated into a `sh -c` script.
         assert!(
-            script.contains("am start -W -n com.example/com.example.MainActivity"),
+            script.contains("am start -W -n 'com.example/com.example.MainActivity'"),
             "script: {script}"
+        );
+    }
+
+    #[test]
+    fn build_command_neutralises_quoted_artifact_path() {
+        // Regression: a path like `/tmp/foo'; rm -rf /` would previously
+        // close the wrapping `'…'` and execute the trailing portion.
+        // After the fix the malicious payload is escaped via the
+        // close/escape/reopen pattern (`'\''`) and stays a literal
+        // argument to `simctl install`.
+        let target = MobileTarget::IosSim {
+            udid: "U".into(),
+            bundle_id: "B".into(),
+        };
+        let (_, args) = build_command(&target, Path::new("/tmp/foo'; rm -rf /")).unwrap();
+        let script = &args[1];
+        // The user's path is preserved as a single quoted literal
+        // including the `'` they typed. Substring checks like
+        // "not containing '; rm -rf /'" don't work — the payload
+        // legitimately ends up inside the second quoted segment of
+        // the escape pattern.
+        assert!(
+            script.contains(r"'/tmp/foo'\''; rm -rf /'"),
+            "expected escaped form in: {script}"
         );
     }
 

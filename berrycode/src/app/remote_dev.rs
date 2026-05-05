@@ -14,6 +14,7 @@
 //! Messages: { "id": N, "method": "fs/read", "params": {...} }
 
 use super::BerryCodeApp;
+use crate::common::shell::shell_quote;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -124,9 +125,19 @@ impl RemoteConnection {
             format!("{}@{}", user, host)
         };
 
+        // `remote_path` is user-controlled (typed into the connect
+        // dialog) and gets interpolated into a remote shell script we
+        // run via `ssh user@host 'sh -c "..."'`. A path containing a
+        // single quote — perfectly legal on Linux/macOS — would have
+        // closed the wrapping `'…'` and let the trailing portion run
+        // as separate shell commands on the remote host. That's a flat
+        // remote-code-execution. We shell-quote with the canonical
+        // `'\''` close/escape/reopen pattern so any embedded quotes
+        // become literal characters of the path argument.
+        let remote_path_quoted = shell_quote(&remote_path);
         let server_cmd = format!(
             "if command -v berrycode-server >/dev/null 2>&1; then \
-                berrycode-server --path '{}'; \
+                berrycode-server --path {remote_path_quoted}; \
             else \
                 echo '{{\"event\":\"fallback\",\"version\":\"shell\"}}'; \
                 while IFS= read -r line; do \
@@ -141,8 +152,7 @@ impl RemoteConnection {
                         *) echo \"{{\\\"id\\\":$id,\\\"error\\\":\\\"unknown method\\\"}}\"; ;; \
                     esac; \
                 done; \
-            fi",
-            remote_path
+            fi"
         );
 
         let mut cmd = Command::new("ssh");

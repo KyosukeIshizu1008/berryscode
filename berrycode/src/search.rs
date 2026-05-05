@@ -132,12 +132,31 @@ impl SearchEngine {
                 let actual_pos = start + pos;
                 let end_pos = actual_pos + query.len();
 
-                // Check whole word boundary
+                // Check whole word boundary.
+                //
+                // `find()` returns *byte* offsets, but the previous
+                // implementation fed those offsets into
+                // `chars().nth(...)` which treats its argument as a
+                // *char* index — so a query like `é` against a line
+                // containing `éa` would crash with `unwrap` on `None`
+                // because the byte offset overshoots the char count.
+                // We instead peel a single char off either side using
+                // string slicing on byte boundaries (which `find()`
+                // always returns) so the check is panic-free for any
+                // valid UTF-8 input.
                 if self.options.whole_word {
                     let before_ok = actual_pos == 0
-                        || !line.chars().nth(actual_pos - 1).unwrap().is_alphanumeric();
+                        || line[..actual_pos]
+                            .chars()
+                            .next_back()
+                            .map(|c| !c.is_alphanumeric())
+                            .unwrap_or(true);
                     let after_ok = end_pos >= line.len()
-                        || !line.chars().nth(end_pos).unwrap().is_alphanumeric();
+                        || line[end_pos..]
+                            .chars()
+                            .next()
+                            .map(|c| !c.is_alphanumeric())
+                            .unwrap_or(true);
 
                     if !before_ok || !after_ok {
                         start = actual_pos + 1;

@@ -1,4 +1,4 @@
-///! Common types used across the editor
+//! Common types used across the editor.
 
 /// Position in the document (line, column)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
