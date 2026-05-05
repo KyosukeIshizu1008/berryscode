@@ -107,6 +107,26 @@ impl Default for PluginManager {
     }
 }
 
+/// In-flight plugin command spawned by `execute_plugin_command`.
+/// `poll_pending_plugin_command` drains the receiver per frame and
+/// either updates the status bar with the plugin's output, surfaces
+/// a 30 s timeout, or notes a worker-thread failure. The receiver
+/// holds the `Output` so we don't keep a `Child` handle around — that
+/// means a hung subprocess can't be killed cleanly, but it also means
+/// the slot can be cleared after the timeout without leaking the
+/// channel.
+///
+/// No `Clone` / `Deserialize` derives because the receiver and the
+/// `Instant` don't implement them — the value is created on-demand
+/// when the user clicks a plugin command and dropped when the result
+/// arrives or the 30 s safety timer fires.
+pub struct PendingPluginCommand {
+    pub command_id: String,
+    pub plugin_name: String,
+    pub started_at: std::time::Instant,
+    pub rx: std::sync::mpsc::Receiver<std::io::Result<std::process::Output>>,
+}
+
 /// Scan ~/.berrycode/plugins/ for installed plugins
 pub fn scan_installed_plugins() -> Vec<LoadedPlugin> {
     let plugins_dir = dirs::home_dir()
@@ -152,8 +172,17 @@ impl BerryCodeApp {
         tracing::info!("Loaded {} plugins", self.plugin_manager.plugins.len());
     }
 
-    /// Execute a plugin command by name
+    /// Execute a plugin command by name. Returns immediately after
+    /// spawning a worker thread that runs the plugin's `sh` script;
+    /// the result is collected per-frame by
+    /// [`Self::poll_pending_plugin_command`] so the egui pass never
+    /// blocks even if the plugin hangs forever.
     pub(crate) fn execute_plugin_command(&mut self, command_id: &str) {
+        if self.pending_plugin_command.is_some() {
+            self.status_message = "Another plugin command is already running".to_string();
+            self.status_message_timestamp = Some(std::time::Instant::now());
+            return;
+        }
         // Find the plugin that provides this command
         let plugin = self.plugin_manager.plugins.iter().find(|p| {
             p.enabled
@@ -190,21 +219,19 @@ impl BerryCodeApp {
             .map(|t| t.cursor_line.to_string())
             .unwrap_or_default();
 
-        // Run the plugin off the egui render thread so a long-running
-        // or hung plugin can't freeze the editor. We hand the
-        // subprocess to a worker thread, then wait on the result with
-        // a hard 30 s timeout via a bounded channel. A plugin that
-        // blocks forever (waits for stdin, streams without exiting)
-        // returns `RecvTimeoutError::Timeout` instead of hanging the
-        // UI; we surface that as a status message and let the orphan
-        // process exit on its own.
-        //
-        // A future pass should hoist this to a per-frame `try_recv`
-        // poll on app state so the UI stays responsive *during* the
-        // plugin run instead of just bounding the worst case. Tracked
-        // alongside the equivalent move in `plugin_browser.rs`.
+        // Spawn the plugin process in a worker thread that streams
+        // its `Output` back through an mpsc channel. We then return
+        // immediately — `poll_pending_plugin_command` (called from
+        // the per-frame update loop) drains the channel with
+        // `try_recv` and reports the result to the user. Crucially,
+        // the egui render path NEVER blocks: a plugin that streams
+        // forever or waits on stdin keeps the IDE responsive while
+        // its receiver simply stays empty. The 30 s bound in
+        // `poll_pending_plugin_command` then surfaces the timeout
+        // without ever stalling a frame.
         let script_path_str = script_path.to_str().unwrap_or("").to_string();
         let command_id_owned = command_id.to_string();
+        let plugin_name_owned = plugin.manifest.name.clone();
         let root_path_owned = self.root_path.clone();
         let current_file_owned = current_file.clone();
         let cursor_line_owned = cursor_line.clone();
@@ -223,19 +250,67 @@ impl BerryCodeApp {
             // discard the result silently rather than panicking.
             let _ = tx.send(result);
         });
-        let output = match rx.recv_timeout(std::time::Duration::from_secs(30)) {
-            Ok(result) => result,
-            Err(_) => {
-                tracing::warn!(
-                    "Plugin command {command_id} timed out after 30s; orphaning subprocess"
-                );
-                self.status_message =
-                    format!("Plugin '{command_id}' timed out (30s); skipped output");
-                self.status_message_timestamp = Some(std::time::Instant::now());
-                return;
-            }
-        };
+        self.pending_plugin_command = Some(PendingPluginCommand {
+            command_id: command_id.to_string(),
+            plugin_name: plugin_name_owned,
+            started_at: std::time::Instant::now(),
+            rx,
+        });
+        self.status_message = format!("Running plugin '{command_id}'…");
+        self.status_message_timestamp = Some(std::time::Instant::now());
+    }
 
+    /// Per-frame: drain the pending plugin command's output channel
+    /// without blocking. Called from the egui update loop. Cleans up
+    /// the slot when the worker finishes (or when 30 s elapse, in
+    /// which case the still-running subprocess is left orphaned —
+    /// killing it cleanly across platforms requires holding the
+    /// `Child` handle, which is incompatible with the `Output`-based
+    /// `Command::output()` we use here).
+    pub(crate) fn poll_pending_plugin_command(&mut self) {
+        let Some(pending) = self.pending_plugin_command.as_ref() else {
+            return;
+        };
+        match pending.rx.try_recv() {
+            Ok(output) => {
+                let plugin_name = pending.plugin_name.clone();
+                let command_id = pending.command_id.clone();
+                self.pending_plugin_command = None;
+                self.handle_plugin_output(&plugin_name, &command_id, output);
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                // Worker still running — bound the wait at 30 s so a
+                // hung plugin doesn't tie up the slot forever. The
+                // orphan keeps draining its own pipes until it exits.
+                if pending.started_at.elapsed() > std::time::Duration::from_secs(30) {
+                    let command_id = pending.command_id.clone();
+                    tracing::warn!(
+                        "Plugin command {command_id} exceeded 30s; orphaning subprocess"
+                    );
+                    self.pending_plugin_command = None;
+                    self.status_message =
+                        format!("Plugin '{command_id}' timed out (30s); skipped output");
+                    self.status_message_timestamp = Some(std::time::Instant::now());
+                }
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                // Worker thread panicked or the channel was dropped
+                // before sending — drop the slot so the user can run
+                // another command.
+                let command_id = pending.command_id.clone();
+                self.pending_plugin_command = None;
+                self.status_message = format!("Plugin '{command_id}' worker died unexpectedly");
+                self.status_message_timestamp = Some(std::time::Instant::now());
+            }
+        }
+    }
+
+    fn handle_plugin_output(
+        &mut self,
+        plugin_name: &str,
+        command_id: &str,
+        output: std::io::Result<std::process::Output>,
+    ) {
         match output {
             Ok(result) => {
                 let stdout = String::from_utf8_lossy(&result.stdout).to_string();
@@ -247,11 +322,7 @@ impl BerryCodeApp {
                 if !stderr.is_empty() {
                     tracing::warn!("Plugin stderr: {}", stderr);
                 }
-                tracing::info!(
-                    "Plugin {} executed command {}",
-                    plugin.manifest.name,
-                    command_id
-                );
+                tracing::info!("Plugin {} executed command {}", plugin_name, command_id);
             }
             Err(e) => {
                 tracing::error!("Failed to execute plugin: {}", e);

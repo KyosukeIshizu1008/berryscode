@@ -674,6 +674,14 @@ pub struct BerryCodeApp {
 
     // === Plugin System ===
     pub(crate) plugin_manager: plugin_system::PluginManager,
+    /// In-flight plugin command, polled per-frame by
+    /// `poll_pending_plugin_command`. The previous implementation
+    /// spawned a worker thread and `recv_timeout(30s)`'d on the
+    /// caller's thread, which still froze the editor for up to 30 s
+    /// when a plugin hung. Now the spawn returns immediately with
+    /// the receiver stored here; the egui pass drains it via
+    /// `try_recv` so the UI stays responsive throughout.
+    pub(crate) pending_plugin_command: Option<plugin_system::PendingPluginCommand>,
 
     // === Remote Development ===
     pub(crate) remote: remote_dev::RemoteConnection,
@@ -1005,6 +1013,15 @@ pub struct BerryCodeApp {
     pub(crate) plugin_browser_open: bool,
     pub(crate) plugin_search_query: String,
     pub(crate) plugin_search_results: Vec<scene_editor::plugin_browser::CrateResult>,
+    /// Background `Search` of crates.io for new plugins. Same shape
+    /// as `installed_plugins_refresh_rx`: when the user clicks Search
+    /// we spawn a worker thread that runs `search_bevy_crates` (curl
+    /// shell-out, capped at 10 s by `--max-time`) and hands the
+    /// result back through this channel. The egui pass polls it with
+    /// `try_recv` per frame so the IDE never blocks. `None` means
+    /// idle; `Some` means a search is in flight.
+    pub(crate) plugin_search_rx:
+        Option<std::sync::mpsc::Receiver<Vec<scene_editor::plugin_browser::CrateResult>>>,
     /// Dependencies parsed out of the project's `Cargo.toml`, with
     /// their crates.io "latest" version filled in on Refresh. Drives
     /// the Plugin Browser's auto-update section. v0.5.
@@ -1866,6 +1883,7 @@ impl BerryCodeApp {
             user_snippets: custom_snippets::load_user_snippets(),
             vim: Default::default(),
             plugin_manager: Default::default(),
+            pending_plugin_command: None,
             remote: Default::default(),
             remote_dialog: Default::default(),
             collab: Default::default(),
@@ -2193,6 +2211,7 @@ impl BerryCodeApp {
             music_graph_window_open: false,
             plugin_search_query: String::new(),
             plugin_search_results: Vec::new(),
+            plugin_search_rx: None,
 
             bevy_version,
 
@@ -3073,6 +3092,13 @@ pub fn berry_ui_system(
         // Godot scene viewer — auto-shows when active tab is a `.tscn`
         // file (v0.8.x Migration & interop).
         app.render_godot_scene_panel(ctx);
+
+        // Drain the in-flight plugin command's output channel without
+        // blocking. A long-running plugin keeps its receiver empty; we
+        // simply don't update the status bar this frame and try again
+        // next frame. The 30 s safety bound lives inside the poll
+        // itself.
+        app.poll_pending_plugin_command();
 
         // floating scene merge panel.
         app.render_merge_panel(ctx);

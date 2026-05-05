@@ -4,6 +4,34 @@
 use regex::Regex;
 use std::ops::Range;
 
+/// True if `line[start..end]` is a whole-word match — i.e. the chars
+/// immediately before `start` and immediately after `end` are not
+/// alphanumeric (or don't exist because we're at a string edge).
+///
+/// Both `start` and `end` MUST be valid UTF-8 byte boundaries in
+/// `line`; the function uses slice-based char peeking
+/// (`line[..start].chars().next_back()` and
+/// `line[end..].chars().next()`) so it never falls into the
+/// `chars().nth(byte_offset)` trap that the previous inline checks
+/// did. Multi-byte characters at the boundary are handled correctly:
+/// a query like `é` against the line `éa` returns the boundary char
+/// as the next char (not the panic from over-indexing).
+fn is_whole_word(line: &str, start: usize, end: usize) -> bool {
+    let before_ok = start == 0
+        || line[..start]
+            .chars()
+            .next_back()
+            .map(|c| !c.is_alphanumeric())
+            .unwrap_or(true);
+    let after_ok = end >= line.len()
+        || line[end..]
+            .chars()
+            .next()
+            .map(|c| !c.is_alphanumeric())
+            .unwrap_or(true);
+    before_ok && after_ok
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchMatch {
     pub line: usize,
@@ -109,59 +137,47 @@ impl SearchEngine {
     }
 
     fn search_literal(&mut self, lines: &[&str], start_line: usize, end_line: usize) {
-        let query = if self.options.case_sensitive {
-            self.query.clone()
+        // Case-insensitive matching can't reuse byte offsets from a
+        // lowered string against the original line: Unicode case
+        // folding is allowed to change byte length (e.g. Turkish
+        // capital `İ` lowercases to two-codepoint `i̇`), so a query
+        // like `i` against `İ` would produce an `end_pos` that's not
+        // on a UTF-8 boundary in the original. Slicing
+        // `line[actual_pos..end_pos]` then panics.
+        //
+        // The regex crate's case-insensitive mode does the right
+        // thing — it returns byte offsets in the *original* string
+        // even when the case-folded representation is a different
+        // length. We escape the literal first so meta characters
+        // don't accidentally turn the query into a real pattern.
+        if self.options.case_sensitive {
+            self.search_literal_case_sensitive(lines, start_line, end_line);
         } else {
-            self.query.to_lowercase()
-        };
+            self.search_literal_case_insensitive(lines, start_line, end_line);
+        }
+    }
 
+    fn search_literal_case_sensitive(
+        &mut self,
+        lines: &[&str],
+        start_line: usize,
+        end_line: usize,
+    ) {
+        let query = &self.query;
         for (line_idx, line) in lines
             .iter()
             .enumerate()
             .skip(start_line)
             .take(end_line - start_line)
         {
-            let search_text = if self.options.case_sensitive {
-                line.to_string()
-            } else {
-                line.to_lowercase()
-            };
-
             let mut start = 0;
-            while let Some(pos) = search_text[start..].find(&query) {
+            while let Some(pos) = line[start..].find(query) {
                 let actual_pos = start + pos;
                 let end_pos = actual_pos + query.len();
 
-                // Check whole word boundary.
-                //
-                // `find()` returns *byte* offsets, but the previous
-                // implementation fed those offsets into
-                // `chars().nth(...)` which treats its argument as a
-                // *char* index — so a query like `é` against a line
-                // containing `éa` would crash with `unwrap` on `None`
-                // because the byte offset overshoots the char count.
-                // We instead peel a single char off either side using
-                // string slicing on byte boundaries (which `find()`
-                // always returns) so the check is panic-free for any
-                // valid UTF-8 input.
-                if self.options.whole_word {
-                    let before_ok = actual_pos == 0
-                        || line[..actual_pos]
-                            .chars()
-                            .next_back()
-                            .map(|c| !c.is_alphanumeric())
-                            .unwrap_or(true);
-                    let after_ok = end_pos >= line.len()
-                        || line[end_pos..]
-                            .chars()
-                            .next()
-                            .map(|c| !c.is_alphanumeric())
-                            .unwrap_or(true);
-
-                    if !before_ok || !after_ok {
-                        start = actual_pos + 1;
-                        continue;
-                    }
+                if self.options.whole_word && !is_whole_word(line, actual_pos, end_pos) {
+                    start = actual_pos + 1;
+                    continue;
                 }
 
                 self.matches.push(SearchMatch::new(
@@ -172,6 +188,49 @@ impl SearchEngine {
                 ));
 
                 start = actual_pos + 1;
+            }
+        }
+    }
+
+    fn search_literal_case_insensitive(
+        &mut self,
+        lines: &[&str],
+        start_line: usize,
+        end_line: usize,
+    ) {
+        // Build a case-insensitive regex from the literal query. The
+        // `regex::escape` call neutralises any meta characters in the
+        // user's input so a query like `a.b` matches the literal
+        // string `a.b`, not "a, any char, b". The (?i) flag tells the
+        // regex engine to do Unicode-aware case folding internally
+        // while still reporting byte offsets in the original line —
+        // which is the property that the previous lower-and-slice
+        // approach didn't have.
+        let pattern = format!("(?i){}", regex::escape(&self.query));
+        let regex = match Regex::new(&pattern) {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        for (line_idx, line) in lines
+            .iter()
+            .enumerate()
+            .skip(start_line)
+            .take(end_line - start_line)
+        {
+            for m in regex.find_iter(line) {
+                let actual_pos = m.start();
+                let end_pos = m.end();
+
+                if self.options.whole_word && !is_whole_word(line, actual_pos, end_pos) {
+                    continue;
+                }
+
+                self.matches.push(SearchMatch::new(
+                    line_idx,
+                    actual_pos,
+                    end_pos,
+                    line[actual_pos..end_pos].to_string(),
+                ));
             }
         }
     }
@@ -198,16 +257,13 @@ impl SearchEngine {
                 let start_pos = cap.start();
                 let end_pos = cap.end();
 
-                // Check whole word boundary if needed
-                if self.options.whole_word {
-                    let before_ok = start_pos == 0
-                        || !line.chars().nth(start_pos - 1).unwrap().is_alphanumeric();
-                    let after_ok = end_pos >= line.len()
-                        || !line.chars().nth(end_pos).unwrap().is_alphanumeric();
-
-                    if !before_ok || !after_ok {
-                        continue;
-                    }
+                // Same Unicode-safety story as the literal-case-sensitive
+                // path — `chars().nth(byte_offset)` was the previous shape
+                // and panicked on multi-byte chars. `is_whole_word` peels a
+                // single char off either side via slice-based iteration,
+                // which is sound on every byte boundary the regex returns.
+                if self.options.whole_word && !is_whole_word(line, start_pos, end_pos) {
+                    continue;
                 }
 
                 self.matches.push(SearchMatch::new(
@@ -369,6 +425,114 @@ mod tests {
         let matches = engine.search(text);
 
         assert_eq!(matches.len(), 2); // Only standalone "test"
+    }
+
+    #[test]
+    fn case_insensitive_search_handles_byte_length_changing_fold() {
+        // Regression: Turkish capital `İ` (U+0130) lowercases to two
+        // codepoints — `i` (U+0069) + COMBINING DOT ABOVE (U+0307) —
+        // i.e. the lowered form is *one byte longer* than the
+        // uppercase original. The previous implementation lowered the
+        // line, found the query in the lowered text, and used those
+        // byte offsets to slice the original line. That sliced into
+        // the middle of a multi-byte character and panicked. The
+        // regex-based path returns offsets in the original string, so
+        // it's panic-free.
+        let mut engine = SearchEngine::new();
+        engine.set_query("i".to_string());
+        let mut options = SearchOptions::default();
+        options.case_sensitive = false;
+        engine.set_options(options);
+
+        // The raw bytes for `İ` are 0xC4 0xB0 (2 bytes); lowercased
+        // to `i\u{307}` they're 0x69 0xCC 0x87 (3 bytes). Using byte
+        // offsets from the lowered version against the original would
+        // run off the end of the original line.
+        let text = "İA";
+        let matches = engine.search(text);
+
+        // The load-bearing assertion is "search() returned without
+        // panicking" — we already got that just by reaching this
+        // line. The regex engine's case-fold table may or may not
+        // consider `İ` a fold of `i` (`İ` folds to two codepoints,
+        // not one), so the match count is implementation-defined and
+        // not part of the regression contract.
+        //
+        // For any match the engine *does* return, the stored text
+        // must be a real slice of the original line — if the regex
+        // returned a byte offset that didn't sit on a UTF-8 boundary,
+        // the slice would have panicked or this contains() check
+        // would fail.
+        for m in &matches {
+            assert!(
+                text.contains(&m.text),
+                "match text {:?} not in line",
+                m.text
+            );
+        }
+    }
+
+    #[test]
+    fn case_insensitive_search_finds_unicode_match() {
+        // Sanity: a query whose case fold *is* a single codepoint
+        // round-trips correctly. `É` (U+00C9) folds to `é` (U+00E9),
+        // both single codepoints, so a case-insensitive search for
+        // `é` should find the `É` in the line. This is the
+        // non-pathological case the regex path handles alongside the
+        // pathological `İ` case above.
+        let mut engine = SearchEngine::new();
+        engine.set_query("é".to_string());
+        let mut options = SearchOptions::default();
+        options.case_sensitive = false;
+        engine.set_options(options);
+
+        let text = "Étude";
+        let matches = engine.search(text);
+
+        assert_eq!(matches.len(), 1);
+        // The stored text comes from the original line, so it's the
+        // uppercase `É` rather than the folded form.
+        assert_eq!(matches[0].text, "É");
+    }
+
+    #[test]
+    fn case_sensitive_search_handles_multibyte_query() {
+        // Multi-byte queries like `é` (2 bytes) against multi-byte
+        // lines exercise the same UTF-8 boundary code path under the
+        // case-sensitive route.
+        let mut engine = SearchEngine::new();
+        engine.set_query("é".to_string());
+
+        let text = "éa éb éc";
+        let matches = engine.search(text);
+
+        assert_eq!(matches.len(), 3);
+        for m in &matches {
+            assert_eq!(m.text, "é");
+        }
+    }
+
+    #[test]
+    fn whole_word_check_is_panic_free_at_multibyte_boundaries() {
+        // The whole-word boundary check used to call
+        // `line.chars().nth(byte_offset).unwrap()`, which panics when
+        // byte_offset overshoots the char count (any line with
+        // non-ASCII chars before the match). The slice-based version
+        // peels a single char off either side and never panics.
+        let mut engine = SearchEngine::new();
+        engine.set_query("test".to_string());
+        let mut options = SearchOptions::default();
+        options.whole_word = true;
+        engine.set_options(options);
+
+        let text = "日本語の test を検索";
+        let matches = engine.search(text);
+
+        // We just need this to not panic. The expected match count is
+        // 1 (the `test` between the Japanese phrase and the particle),
+        // but the panic-free property is the load-bearing assertion.
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "test");
     }
 
     #[test]

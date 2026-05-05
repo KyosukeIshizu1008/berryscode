@@ -243,6 +243,25 @@ fn rewrite_version_line(line: &str, new_version: &str) -> Option<String> {
     Some(out)
 }
 
+/// Async wrapper around [`search_bevy_crates`]. Spawns a worker
+/// thread, runs the curl shell-out off the UI thread, and hands the
+/// result back through an mpsc channel. The caller stores the
+/// receiver in app state and polls it per-frame with `try_recv`, so
+/// the egui pass never blocks on the network — even if curl spends
+/// its full 10 s `--max-time` budget waiting on a stalled crates.io
+/// endpoint.
+pub fn search_bevy_crates_async(query: String) -> std::sync::mpsc::Receiver<Vec<CrateResult>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let results = search_bevy_crates(&query);
+        // Receiver dropped before we finish? User closed the panel
+        // mid-search — silently discard the result rather than
+        // crashing the worker thread.
+        let _ = tx.send(results);
+    });
+    rx
+}
+
 /// Search crates.io for Bevy plugins (uses curl since reqwest may not
 /// have blocking). `--max-time 10` keeps a stalled network from
 /// freezing the caller; pair with [`search_bevy_crates_async`] when
@@ -507,12 +526,37 @@ impl BerryCodeApp {
                             .hint_text("e.g. rapier, hanabi, ui...")
                             .desired_width(300.0),
                     );
-                    if ui.button("Search").clicked()
-                        || (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
-                    {
-                        self.plugin_search_results = search_bevy_crates(&self.plugin_search_query);
+                    let search_in_flight = self.plugin_search_rx.is_some();
+                    let search_label = if search_in_flight {
+                        "Searching…"
+                    } else {
+                        "Search"
+                    };
+                    let triggered = ui
+                        .add_enabled(!search_in_flight, egui::Button::new(search_label))
+                        .clicked()
+                        || (response.lost_focus()
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                            && !search_in_flight);
+                    if triggered {
+                        // Spawn the curl shell-out on a worker thread
+                        // so the egui pass can keep rendering at 60 fps
+                        // while crates.io is reached. The receiver is
+                        // drained per frame just below.
+                        self.plugin_search_rx =
+                            Some(search_bevy_crates_async(self.plugin_search_query.clone()));
                     }
                 });
+
+                // Drain the background search result, if any.
+                // Non-blocking — `try_recv` returns immediately whether
+                // the worker is still running or has already finished.
+                if let Some(rx) = &self.plugin_search_rx {
+                    if let Ok(results) = rx.try_recv() {
+                        self.plugin_search_results = results;
+                        self.plugin_search_rx = None;
+                    }
+                }
 
                 ui.separator();
 
