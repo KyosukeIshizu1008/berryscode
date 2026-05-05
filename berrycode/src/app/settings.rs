@@ -91,12 +91,14 @@ impl BerryCodeApp {
 
                         ui.add_space(12.0);
                         nav_section_header(ui, "Features");
+                        #[cfg(feature = "ai")]
                         nav_item(
                             ui,
                             &mut self.active_settings_tab,
                             super::types::SettingsTab::AiProviders,
                             "AI Providers",
                         );
+                        #[cfg(feature = "ai")]
                         nav_item(
                             ui,
                             &mut self.active_settings_tab,
@@ -265,9 +267,11 @@ impl BerryCodeApp {
                                 }
                             }
                         }
+                        #[cfg(feature = "ai")]
                         super::types::SettingsTab::AiProviders => {
                             self.render_ai_providers_settings(ui);
                         }
+                        #[cfg(feature = "ai")]
                         super::types::SettingsTab::AiUsage => {
                             self.render_ai_usage_settings(ui);
                         }
@@ -276,6 +280,7 @@ impl BerryCodeApp {
         });
     }
 
+    #[cfg(feature = "ai")]
     /// AI Providers settings tab — BYOK configuration. Lets the user
     /// paste API keys for Anthropic / OpenAI, point at a local Ollama
     /// instance, and pick which model handles chat vs inline completion.
@@ -785,6 +790,7 @@ impl BerryCodeApp {
     /// best-effort: the authoritative bill is always whatever the
     /// provider charges, so this tab is for self-monitoring, not
     /// reconciliation.
+    #[cfg(feature = "ai")]
     pub(crate) fn render_ai_usage_settings(&mut self, ui: &mut egui::Ui) {
         let records = crate::ai::usage::load();
 
@@ -902,6 +908,7 @@ impl BerryCodeApp {
 
     /// One stat card used in the AI Usage tab. Mirrors the layout of the
     /// Today / Month columns so they read at a glance.
+    #[cfg(feature = "ai")]
     fn render_usage_card(ui: &mut egui::Ui, title: &str, t: &crate::ai::usage::UsageTotals) {
         egui::Frame::NONE
             .fill(egui::Color32::from_rgb(34, 36, 42))

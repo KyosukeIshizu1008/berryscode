@@ -54,6 +54,7 @@ impl BerryCodeApp {
                         self.render_docker_sidebar(ui);
                     }
                     ActivePanel::OracleBerry => {
+                        #[cfg(feature = "ai")]
                         self.render_oracleberry_sidebar(ui);
                     }
                 }
