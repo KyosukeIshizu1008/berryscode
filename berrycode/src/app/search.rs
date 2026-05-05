@@ -1,6 +1,7 @@
 //! Search panel, search dialog, and search operations
 
 use super::types::SearchMatch;
+use super::ui_colors;
 use super::BerryCodeApp;
 use crate::buffer::TextBuffer;
 use crate::native;
@@ -13,13 +14,14 @@ impl BerryCodeApp {
         let text_primary = egui::Color32::from_rgb(204, 204, 204);
         let text_muted = egui::Color32::from_rgb(133, 133, 133);
         let text_dim = egui::Color32::from_rgb(110, 110, 110);
-        let input_bg = egui::Color32::from_rgb(60, 60, 60);
+        let input_bg = ui_colors::CONTROL_BG;
         // VS Code's `input.border` is invisible by default — the box is
         // distinguished from the panel only by the slightly lighter fill.
         let input_border = egui::Color32::TRANSPARENT;
-        let input_border_focus = egui::Color32::from_rgb(0, 122, 204);
-        let toggle_active_bg = egui::Color32::from_rgba_unmultiplied(99, 122, 168, 80);
-        let toggle_active_border = egui::Color32::from_rgb(99, 122, 168);
+        let input_border_focus = ui_colors::FOCUS_BORDER;
+        let toggle_active_bg = ui_colors::ACTIVE_BG;
+        let toggle_hover_bg = ui_colors::HOVER_BG;
+        let toggle_active_border = ui_colors::FOCUS_BORDER;
         let match_highlight = egui::Color32::from_rgba_unmultiplied(234, 92, 0, 90);
         let row_hover_bg = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 12);
 
@@ -128,13 +130,14 @@ impl BerryCodeApp {
             // Single rounded frame containing the text input AND the three
             // option toggles (Aa / ab / .*), exactly like VS Code.
             let frame_stroke_color = input_border;
+            let mut search_input_focused = false;
             let row_frame = egui::Frame::NONE
                 .fill(input_bg)
                 .stroke(egui::Stroke::new(1.0, frame_stroke_color))
                 .corner_radius(egui::CornerRadius::same(2))
-                .inner_margin(egui::Margin::symmetric(3, 1));
+                .inner_margin(egui::Margin::symmetric(6, 2));
 
-            row_frame.show(ui, |ui| {
+            let row_response = row_frame.show(ui, |ui| {
                 // VS Code layout: toggles right-aligned, TextEdit fills the
                 // left remainder. Using `right_to_left` instead of giving
                 // the TextEdit a manual `desired_width(available - toggles)`
@@ -143,30 +146,44 @@ impl BerryCodeApp {
                 // SidePanel resize handle and blocks horizontal resizing.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
-                    let toggle_w = 20.0;
 
                     // Helper: render one inline toggle. Placed in
                     // right_to_left order so on-screen it reads
                     // `[Aa] [ab] [.*]` left-to-right.
                     let toggle = |ui: &mut egui::Ui, label: &str, state: &mut bool, hover: &str| {
-                        let (bg, border) = if *state {
-                            (toggle_active_bg, toggle_active_border)
+                        let size = egui::vec2(22.0, 20.0);
+                        let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+                        let bg = if *state {
+                            toggle_active_bg
+                        } else if response.hovered() {
+                            toggle_hover_bg
                         } else {
-                            (egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT)
+                            egui::Color32::TRANSPARENT
                         };
-                        let color = if *state {
-                            egui::Color32::from_rgb(220, 220, 220)
+                        let border = if *state {
+                            toggle_active_border
                         } else {
-                            text_muted
+                            egui::Color32::TRANSPARENT
                         };
-                        let btn = ui.add_sized(
-                            egui::vec2(toggle_w, 20.0),
-                            egui::Button::new(egui::RichText::new(label).size(11.0).color(color))
-                                .fill(bg)
-                                .stroke(egui::Stroke::new(1.0, border))
-                                .corner_radius(egui::CornerRadius::same(2)),
+                        let color = if *state { text_primary } else { text_muted };
+                        if bg != egui::Color32::TRANSPARENT || border != egui::Color32::TRANSPARENT
+                        {
+                            ui.painter().rect(
+                                rect,
+                                egui::CornerRadius::same(2),
+                                bg,
+                                egui::Stroke::new(1.0, border),
+                                egui::StrokeKind::Inside,
+                            );
+                        }
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            label,
+                            egui::FontId::proportional(10.5),
+                            color,
                         );
-                        if btn.on_hover_text(hover).clicked() {
+                        if response.on_hover_text(hover).clicked() {
                             *state = !*state;
                         }
                     };
@@ -191,19 +208,20 @@ impl BerryCodeApp {
                             .text_color(text_primary)
                             .hint_text(egui::RichText::new("Search").color(text_dim)),
                     );
-                    if response.has_focus() {
-                        ui.painter().rect_stroke(
-                            response.rect.expand(2.0),
-                            egui::CornerRadius::same(2),
-                            egui::Stroke::new(1.0, input_border_focus),
-                            egui::StrokeKind::Outside,
-                        );
-                    }
+                    search_input_focused = response.has_focus();
                     if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         do_search = true;
                     }
                 });
             });
+            if search_input_focused {
+                ui.painter().rect_stroke(
+                    row_response.response.rect,
+                    egui::CornerRadius::same(2),
+                    egui::Stroke::new(1.0, input_border_focus),
+                    egui::StrokeKind::Inside,
+                );
+            }
         });
 
         // === Replace input row (only when chevron is expanded) ===
@@ -214,13 +232,14 @@ impl BerryCodeApp {
                 // Spacer matching the chevron column width above (14px).
                 ui.add_space(14.0);
 
+                let mut replace_input_focused = false;
                 let row_frame = egui::Frame::NONE
                     .fill(input_bg)
                     .stroke(egui::Stroke::new(1.0, input_border))
                     .corner_radius(egui::CornerRadius::same(2))
-                    .inner_margin(egui::Margin::symmetric(3, 1));
+                    .inner_margin(egui::Margin::symmetric(6, 2));
 
-                row_frame.show(ui, |ui| {
+                let row_response = row_frame.show(ui, |ui| {
                     // Same pattern as the search input row above:
                     // right_to_left places the Replace-All button on the
                     // right, TextEdit fills the rest. Avoids overflowing
@@ -247,16 +266,17 @@ impl BerryCodeApp {
                                 .text_color(text_primary)
                                 .hint_text(egui::RichText::new("Replace").color(text_dim)),
                         );
-                        if response.has_focus() {
-                            ui.painter().rect_stroke(
-                                response.rect.expand(2.0),
-                                egui::CornerRadius::same(2),
-                                egui::Stroke::new(1.0, input_border_focus),
-                                egui::StrokeKind::Outside,
-                            );
-                        }
+                        replace_input_focused = response.has_focus();
                     });
                 });
+                if replace_input_focused {
+                    ui.painter().rect_stroke(
+                        row_response.response.rect,
+                        egui::CornerRadius::same(2),
+                        egui::Stroke::new(1.0, input_border_focus),
+                        egui::StrokeKind::Inside,
+                    );
+                }
             });
         }
 
