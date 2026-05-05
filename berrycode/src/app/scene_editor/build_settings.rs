@@ -337,29 +337,26 @@ pub fn execute_build(
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    // Capture stderr
+    // Capture stderr. `map_while(Result::ok)` stops the iteration on
+    // the first IO error so a broken pipe doesn't spin the thread.
     if let Some(stderr) = child.stderr.take() {
         let tx_clone = tx.clone();
         std::thread::spawn(move || {
             use std::io::BufRead;
             let reader = std::io::BufReader::new(stderr);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    let _ = tx_clone.send(line);
-                }
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx_clone.send(line);
             }
         });
     }
 
-    // Capture stdout
+    // Capture stdout (same pattern as stderr above).
     if let Some(stdout) = child.stdout.take() {
         std::thread::spawn(move || {
             use std::io::BufRead;
             let reader = std::io::BufReader::new(stdout);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    let _ = tx.send(line);
-                }
+            for line in reader.lines().map_while(Result::ok) {
+                let _ = tx.send(line);
             }
         });
     }

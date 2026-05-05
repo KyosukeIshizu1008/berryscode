@@ -1025,7 +1025,7 @@ impl BerryCodeApp {
 
                 for _ in 0..vertex_count {
                     if let Some(line) = body_lines.next() {
-                        let parts: Vec<&str> = line.trim().split_whitespace().collect();
+                        let parts: Vec<&str> = line.split_whitespace().collect();
 
                         let parse_col = |col: Option<usize>| -> f32 {
                             col.and_then(|c| parts.get(c))
@@ -1144,7 +1144,7 @@ impl BerryCodeApp {
 
                 for _ in 0..vertex_count {
                     if let Some(line) = body_lines.next() {
-                        let parts: Vec<&str> = line.trim().split_whitespace().collect();
+                        let parts: Vec<&str> = line.split_whitespace().collect();
                         if parts.len() >= 3 {
                             let x: f32 = parts[0].parse().unwrap_or(0.0);
                             let y: f32 = parts[1].parse().unwrap_or(0.0);
@@ -1161,10 +1161,10 @@ impl BerryCodeApp {
 
                 for _ in 0..face_count {
                     if let Some(line) = body_lines.next() {
-                        let parts: Vec<&str> = line.trim().split_whitespace().collect();
+                        let parts: Vec<&str> = line.split_whitespace().collect();
                         if !parts.is_empty() {
                             let count: usize = parts[0].parse().unwrap_or(0);
-                            if count >= 3 && parts.len() >= count + 1 {
+                            if count >= 3 && parts.len() > count {
                                 let indices: Vec<usize> = parts[1..=count]
                                     .iter()
                                     .filter_map(|s| s.parse().ok())

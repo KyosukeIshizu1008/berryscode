@@ -149,30 +149,28 @@ impl BerryCodeApp {
 
         let (tx, rx) = std::sync::mpsc::channel::<String>();
 
-        // Spawn thread to read stdout
+        // Spawn thread to read stdout. `lines()` yields Result<String>;
+        // `map_while(Result::ok)` stops on the first IO error rather
+        // than spinning on a sticky failure (clippy::flat_map_option).
         if let Some(stdout) = child.stdout.take() {
             let tx_clone = tx.clone();
             std::thread::spawn(move || {
                 let reader = BufReader::new(stdout);
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        if tx_clone.send(line).is_err() {
-                            break;
-                        }
+                for line in reader.lines().map_while(Result::ok) {
+                    if tx_clone.send(line).is_err() {
+                        break;
                     }
                 }
             });
         }
 
-        // Spawn thread to read stderr
+        // Spawn thread to read stderr (same pattern as stdout above).
         if let Some(stderr) = child.stderr.take() {
             std::thread::spawn(move || {
                 let reader = BufReader::new(stderr);
-                for line in reader.lines() {
-                    if let Ok(line) = line {
-                        if tx.send(format!("[stderr] {}", line)).is_err() {
-                            break;
-                        }
+                for line in reader.lines().map_while(Result::ok) {
+                    if tx.send(format!("[stderr] {}", line)).is_err() {
+                        break;
                     }
                 }
             });

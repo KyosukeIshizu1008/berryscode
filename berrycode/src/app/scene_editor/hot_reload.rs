@@ -99,10 +99,8 @@ impl HotReloadState {
                     std::thread::spawn(move || {
                         use std::io::BufRead;
                         let reader = std::io::BufReader::new(stderr);
-                        for line in reader.lines() {
-                            if let Ok(line) = line {
-                                let _ = tx_clone.send(line);
-                            }
+                        for line in reader.lines().map_while(Result::ok) {
+                            let _ = tx_clone.send(line);
                         }
                     });
                 }

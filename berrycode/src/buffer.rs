@@ -104,6 +104,14 @@ impl TextBuffer {
             .retain(|&line_idx, _| line_idx < start_line || line_idx > end_line);
     }
 
+    // Inherent `to_string` shadows the `Display`-provided one. Clippy
+    // would prefer we implement `Display` instead, but the inherent
+    // method is widely called as `buf.to_string()` across the editor;
+    // promoting to `Display` would silently change the call site
+    // semantics for any caller that happens to use the type as a fmt
+    // argument elsewhere. Keep the explicit method and silence the
+    // gate.
+    #[allow(clippy::inherent_to_string_shadow_display, clippy::inherent_to_string)]
     pub fn to_string(&self) -> String {
         self.rope.to_string()
     }

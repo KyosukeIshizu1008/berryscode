@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn max_history_caps_undo_stack() {
-        let mut model = SceneModel::new();
+        let model = SceneModel::new();
         let mut history = EditHistory::new();
         history.max_history = 3;
 

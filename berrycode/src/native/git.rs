@@ -399,15 +399,12 @@ pub fn get_diff(repo_path: impl AsRef<Path>, file_path: &str) -> Result<GitDiff>
     // libgit2 returns UnbornBranch from `repo.head()` in that state, so
     // the HEAD-tree path further down would crash. Treat every file as
     // new in that case — there is no baseline to diff against.
-    let is_unborn = match repo.head() {
-        Err(e)
+    let is_unborn = matches!(
+        repo.head(),
+        Err(ref e)
             if e.class() == git2::ErrorClass::Reference
-                && e.code() == git2::ErrorCode::UnbornBranch =>
-        {
-            true
-        }
-        _ => false,
-    };
+                && e.code() == git2::ErrorCode::UnbornBranch
+    );
 
     // Check if file is untracked (new file) OR repo has no HEAD yet.
     let full_path = repo_path.as_ref().join(file_path);
@@ -618,7 +615,7 @@ pub fn get_detailed_log(
         let (branch, _) = branch_result?;
         if let Some(oid) = branch.get().target() {
             let name = branch.name()?.unwrap_or("").to_string();
-            branch_map.entry(oid).or_insert_with(Vec::new).push(name);
+            branch_map.entry(oid).or_default().push(name);
         }
     }
 
@@ -628,10 +625,7 @@ pub fn get_detailed_log(
     for tag_name in tags.iter().flatten() {
         if let Ok(reference) = repo.find_reference(&format!("refs/tags/{}", tag_name)) {
             if let Some(oid) = reference.target() {
-                tag_map
-                    .entry(oid)
-                    .or_insert_with(Vec::new)
-                    .push(tag_name.to_string());
+                tag_map.entry(oid).or_default().push(tag_name.to_string());
             }
         }
     }

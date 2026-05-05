@@ -187,7 +187,7 @@ impl SyntaxHighlighter {
             // in practice, so this is safe.
             let before = &line[..pos];
             let quote_count = before.matches('"').count();
-            if quote_count % 2 == 0 {
+            if quote_count.is_multiple_of(2) {
                 if pos > 0 {
                     self.add_godot_resource_tokens(&mut tokens, before, 0);
                 }
