@@ -232,29 +232,11 @@ jobs:
           Copy-Item "README.md" "$dir\"
           Compress-Archive -Path "$dir" -DestinationPath "${dir}.zip"
 
-      - name: Upload unsigned Windows artifact
-        id: upload-unsigned
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-zip-unsigned
-          path: "*.zip"
-
-      - name: Submit signing request to SignPath
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: '06d5f06e-eb0b-4502-8d8d-ea63abc57831'
-          project-slug: 'BerryCode'
-          signing-policy-slug: 'test-signing'
-          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: 'signed'
-
-      - name: Upload signed Windows artifact
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
-          path: signed/*.zip
+          path: "*.zip"
 
   # ─── Create GitHub Release ───────────────────────────────────
   release:

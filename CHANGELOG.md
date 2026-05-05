@@ -15,6 +15,11 @@ release notes.
 
 ## [0.8.0] — 2026-05-05
 
+> **Note:** the Windows artifact in this release is unsigned because the
+> SignPath organization configuration is in flux. Windows users may see
+> an "Unknown publisher" SmartScreen warning. Code-signing will return
+> in v0.8.1.
+
 ### Added
 
 - Read-only Godot project support (v0.8.x Migration & interop track):
