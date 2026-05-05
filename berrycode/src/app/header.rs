@@ -297,6 +297,9 @@ impl BerryCodeApp {
                     let hover_bg = ui_colors::HOVER_BG;
 
                     for panel in MAIN_PANELS {
+                        if !self.panel_visibility.is_visible(panel.variant) {
+                            continue;
+                        }
                         let is_selected = self.active_panel == panel.variant;
 
                         let (rect, response) =

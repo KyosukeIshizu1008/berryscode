@@ -123,6 +123,8 @@ pub enum SettingsTab {
     EditorColor,
     Keybindings,
     Language,
+    /// Activity bar panel visibility toggles.
+    Panels,
     Plugins,
     GitHub,
     /// AI providers: BYOK API keys + model selection (v0.4.5).
@@ -132,6 +134,69 @@ pub enum SettingsTab {
     /// USD spend, and a soft monthly cap (v0.4.5).
     #[cfg(feature = "ai")]
     AiUsage,
+}
+
+/// Per-panel visibility for the activity bar (the left icon strip).
+/// Lets users hide panels they don't use. Database, Docker, and
+/// OracleBerry default to off because they're niche / specialised.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct PanelVisibility {
+    pub explorer: bool,
+    pub search: bool,
+    pub git: bool,
+    pub terminal: bool,
+    pub ecs_inspector: bool,
+    pub scene_editor: bool,
+    pub database: bool,
+    pub docker: bool,
+    #[cfg(feature = "ai")]
+    pub oracleberry: bool,
+}
+
+impl Default for PanelVisibility {
+    fn default() -> Self {
+        Self {
+            explorer: true,
+            search: true,
+            git: true,
+            terminal: true,
+            ecs_inspector: true,
+            scene_editor: true,
+            database: false,
+            docker: false,
+            #[cfg(feature = "ai")]
+            oracleberry: false,
+        }
+    }
+}
+
+impl PanelVisibility {
+    /// Is this activity-bar panel currently visible? Panels not listed
+    /// here (Settings gear, BevyTemplates) are always considered visible.
+    pub fn is_visible(&self, panel: ActivePanel) -> bool {
+        match panel {
+            ActivePanel::Explorer => self.explorer,
+            ActivePanel::Search => self.search,
+            ActivePanel::Git => self.git,
+            ActivePanel::Terminal => self.terminal,
+            ActivePanel::EcsInspector => self.ecs_inspector,
+            ActivePanel::SceneEditor => self.scene_editor,
+            ActivePanel::Database => self.database,
+            ActivePanel::Docker => self.docker,
+            ActivePanel::OracleBerry => {
+                #[cfg(feature = "ai")]
+                {
+                    self.oracleberry
+                }
+                #[cfg(not(feature = "ai"))]
+                {
+                    false
+                }
+            }
+            ActivePanel::Settings | ActivePanel::BevyTemplates => true,
+        }
+    }
 }
 
 /// Top-level visual theme preset. Each variant maps to a full

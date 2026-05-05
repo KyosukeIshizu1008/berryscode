@@ -929,6 +929,10 @@ pub struct BerryCodeApp {
     /// Persisted under `~/.berrycode/theme.json` so the choice survives
     /// restarts.
     pub(crate) theme_mode: types::ThemeMode,
+    /// Per-panel visibility for the activity bar. Persisted under
+    /// `~/.berrycode/panels.json` so users keep a tidy left strip across
+    /// restarts. Database/Docker/OracleBerry default off.
+    pub(crate) panel_visibility: types::PanelVisibility,
     /// `true` if the LSP completion popup pre-consumed Enter / Tab this
     /// frame so the editor's `TextEdit` won't treat it as a newline. Read
     /// and cleared by `render_lsp_completions`.
@@ -2109,6 +2113,7 @@ impl BerryCodeApp {
             keybinding_recording: None,
             keybinding_message: None,
             theme_mode: load_theme_mode(),
+            panel_visibility: load_panel_visibility(),
             lsp_completion_accept_pending: false,
             #[cfg(feature = "ai")]
             ai_settings: crate::ai::settings::AiSettings::load(),
@@ -2360,6 +2365,31 @@ fn load_theme_mode() -> types::ThemeMode {
 fn save_theme_mode(mode: types::ThemeMode) {
     let path = theme_mode_path();
     if let Ok(json) = serde_json::to_string_pretty(&mode) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+fn panel_visibility_path() -> std::path::PathBuf {
+    if let Some(home) = dirs::home_dir() {
+        let dir = home.join(".berrycode");
+        std::fs::create_dir_all(&dir).ok();
+        dir.join("panels.json")
+    } else {
+        std::path::PathBuf::from("panels.json")
+    }
+}
+
+fn load_panel_visibility() -> types::PanelVisibility {
+    let path = panel_visibility_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<types::PanelVisibility>(&s).ok())
+        .unwrap_or_default()
+}
+
+pub(crate) fn save_panel_visibility(v: types::PanelVisibility) {
+    let path = panel_visibility_path();
+    if let Ok(json) = serde_json::to_string_pretty(&v) {
         let _ = std::fs::write(&path, json);
     }
 }

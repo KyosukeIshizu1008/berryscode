@@ -90,6 +90,15 @@ impl BerryCodeApp {
                         );
 
                         ui.add_space(12.0);
+                        nav_section_header(ui, "Workbench");
+                        nav_item(
+                            ui,
+                            &mut self.active_settings_tab,
+                            super::types::SettingsTab::Panels,
+                            "Activity Bar",
+                        );
+
+                        ui.add_space(12.0);
                         nav_section_header(ui, "Features");
                         #[cfg(feature = "ai")]
                         nav_item(
@@ -267,6 +276,9 @@ impl BerryCodeApp {
                                 }
                             }
                         }
+                        super::types::SettingsTab::Panels => {
+                            self.render_panel_visibility_settings(ui);
+                        }
                         #[cfg(feature = "ai")]
                         super::types::SettingsTab::AiProviders => {
                             self.render_ai_providers_settings(ui);
@@ -278,6 +290,95 @@ impl BerryCodeApp {
                     });
             });
         });
+    }
+
+    /// Activity Bar visibility tab. One checkbox per togglable panel.
+    /// Database, Docker, and OracleBerry default to hidden because
+    /// they're niche/specialised; the rest default to visible. Edits
+    /// persist immediately to `~/.berrycode/panels.json`.
+    pub(crate) fn render_panel_visibility_settings(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            egui::RichText::new("Activity Bar")
+                .size(16.0)
+                .color(ui_colors::SETTINGS_HEADER)
+                .strong(),
+        );
+        ui.label(
+            egui::RichText::new("Show or hide panels in the left activity bar.")
+                .color(ui_colors::SETTINGS_DESC),
+        );
+        ui.add_space(12.0);
+
+        let mut v = self.panel_visibility;
+        let mut changed = false;
+
+        let row = |ui: &mut egui::Ui,
+                   label: &str,
+                   state: &mut bool,
+                   changed: &mut bool,
+                   hint: Option<&str>| {
+            let resp = ui.checkbox(state, label);
+            if resp.changed() {
+                *changed = true;
+            }
+            if let Some(h) = hint {
+                ui.label(
+                    egui::RichText::new(format!("    {h}"))
+                        .small()
+                        .color(ui_colors::SETTINGS_HINT),
+                );
+            }
+        };
+
+        row(ui, "Explorer", &mut v.explorer, &mut changed, None);
+        row(ui, "Search", &mut v.search, &mut changed, None);
+        row(ui, "Git", &mut v.git, &mut changed, None);
+        row(ui, "Terminal", &mut v.terminal, &mut changed, None);
+        row(
+            ui,
+            "ECS Inspector",
+            &mut v.ecs_inspector,
+            &mut changed,
+            None,
+        );
+        row(ui, "Scene Editor", &mut v.scene_editor, &mut changed, None);
+        row(
+            ui,
+            "Database",
+            &mut v.database,
+            &mut changed,
+            Some("Off by default."),
+        );
+        row(
+            ui,
+            "Docker",
+            &mut v.docker,
+            &mut changed,
+            Some("Off by default."),
+        );
+        #[cfg(feature = "ai")]
+        row(
+            ui,
+            "OracleBerry",
+            &mut v.oracleberry,
+            &mut changed,
+            Some("Off by default."),
+        );
+
+        if changed {
+            self.panel_visibility = v;
+            super::save_panel_visibility(v);
+            // If the user just hid the panel they're currently viewing,
+            // fall back to Explorer (or Settings if Explorer is also off)
+            // so the central area doesn't go blank.
+            if !v.is_visible(self.active_panel) {
+                self.active_panel = if v.explorer {
+                    super::types::ActivePanel::Explorer
+                } else {
+                    super::types::ActivePanel::Settings
+                };
+            }
+        }
     }
 
     #[cfg(feature = "ai")]
