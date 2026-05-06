@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -232,16 +233,35 @@ jobs:
           Copy-Item "README.md" "$dir\"
           Compress-Archive -Path "$dir" -DestinationPath "${dir}.zip"
 
-      - name: Upload Windows artifact
+      - name: Upload unsigned Windows artifact
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip-unsigned
+          path: "*.zip"
+
+      - name: Submit signing request to SignPath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: '06d5f06e-eb0b-4502-8d8d-ea63abc57831'
+          project-slug: 'BerryCode'
+          signing-policy-slug: 'Test_Signing'
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: 'signed'
+
+      - name: Upload signed Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
-          path: "*.zip"
+          path: signed/*.zip
 
   # ─── Create GitHub Release ───────────────────────────────────
   release:
     name: Create Release
     needs: [build-macos, build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
