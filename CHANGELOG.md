@@ -13,6 +13,19 @@ release notes.
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-05-06
+
+### Fixed
+
+- Windows code signing restored. The release pipeline now signs the
+  Windows zip via the SignPath PowerShell module instead of the
+  GitHub Actions connector — the connector requires the SignPath
+  organization to register GitHub Actions as a "Trusted Build System",
+  which this org's plan doesn't expose; the PowerShell module hits the
+  SignPath REST API directly with just the API token. Also corrects the
+  signing-policy slug from `test-signing` to `Test_Signing` (SignPath
+  is case-sensitive).
+
 ## [0.8.0] — 2026-05-05
 
 > **Note:** the Windows artifact in this release is unsigned because the
@@ -143,6 +156,7 @@ for per-release notes.
 For everything before v0.5, see
 [GitHub Releases](https://github.com/KyosukeIshizu1008/berryscode/releases).
 
-[Unreleased]: https://github.com/KyosukeIshizu1008/berryscode/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/KyosukeIshizu1008/berryscode/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/KyosukeIshizu1008/berryscode/releases/tag/v0.8.1
 [0.8.0]: https://github.com/KyosukeIshizu1008/berryscode/releases/tag/v0.8.0
 [0.7.11]: https://github.com/KyosukeIshizu1008/berryscode/releases/tag/v0.7.11
