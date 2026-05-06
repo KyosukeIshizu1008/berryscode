@@ -233,23 +233,23 @@ jobs:
           Copy-Item "README.md" "$dir\"
           Compress-Archive -Path "$dir" -DestinationPath "${dir}.zip"
 
-      - name: Upload unsigned Windows artifact
-        id: upload-unsigned
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-zip-unsigned
-          path: "*.zip"
-
-      - name: Submit signing request to SignPath
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: '06d5f06e-eb0b-4502-8d8d-ea63abc57831'
-          project-slug: 'BerryCode'
-          signing-policy-slug: 'Test_Signing'
-          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
-          wait-for-completion: true
-          output-artifact-directory: 'signed'
+      - name: Sign Windows zip via SignPath PowerShell module
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          Install-Module SignPath -Force -Scope CurrentUser
+          $zip = (Get-ChildItem -Filter "berrycode-*-windows-x86_64.zip" | Select-Object -First 1).Name
+          if (-not $zip) { throw "Could not find unsigned Windows zip" }
+          New-Item -ItemType Directory -Path signed | Out-Null
+          Submit-SigningRequest `
+            -InputArtifactPath "$zip" `
+            -ApiToken "$env:SIGNPATH_API_TOKEN" `
+            -OrganizationId "06d5f06e-eb0b-4502-8d8d-ea63abc57831" `
+            -ProjectSlug "BerryCode" `
+            -SigningPolicySlug "Test_Signing" `
+            -OutputArtifactPath "signed/$zip" `
+            -WaitForCompletion
 
       - name: Upload signed Windows artifact
         uses: actions/upload-artifact@v4
