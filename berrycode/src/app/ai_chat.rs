@@ -227,8 +227,57 @@ impl BerryCodeApp {
 
                                     ui.add_space(2.0);
 
-                                    // Send button row
+                                    // Send button + backend picker row.
+                                    // Keep them on the same line so the
+                                    // input box stays compact: backend on
+                                    // the left, send button on the right.
                                     ui.horizontal(|ui| {
+                                        // Inline backend picker. Mirrors the
+                                        // Settings → Coding agent control so
+                                        // users can switch without opening
+                                        // a panel mid-conversation.
+                                        let current_label =
+                                            match self.ai_settings.agent_backend.as_str() {
+                                                "claude" => "Claude Code",
+                                                "codex" => "Codex",
+                                                "ollama" => "Ollama",
+                                                _ => "Native",
+                                            };
+                                        let backend_changed =
+                                            egui::ComboBox::from_id_salt("chat_backend_picker")
+                                                .selected_text(
+                                                    egui::RichText::new(current_label)
+                                                        .size(11.0)
+                                                        .color(TEXT_DIM),
+                                                )
+                                                .width(110.0)
+                                                .show_ui(ui, |ui| {
+                                                    let mut changed = false;
+                                                    for (id, label) in [
+                                                        ("native", "Native"),
+                                                        ("claude", "Claude Code"),
+                                                        ("codex", "Codex"),
+                                                        ("ollama", "Ollama"),
+                                                    ] {
+                                                        if ui
+                                                            .selectable_label(
+                                                                self.ai_settings.agent_backend
+                                                                    == id,
+                                                                label,
+                                                            )
+                                                            .clicked()
+                                                        {
+                                                            self.ai_settings.agent_backend =
+                                                                id.to_string();
+                                                            changed = true;
+                                                        }
+                                                    }
+                                                    changed
+                                                });
+                                        if backend_changed.inner.unwrap_or(false) {
+                                            self.ai_settings.save();
+                                        }
+
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
@@ -353,14 +402,10 @@ impl BerryCodeApp {
                                         let content = &msg.content;
                                         let is_user = msg.is_user;
                                         if is_user {
-                                            let avail = ui.available_width();
                                             ui.horizontal(|ui| {
                                                 let bubble_max = 300.0_f32;
-                                                let right_pad = 12.0_f32;
-                                                let spacer =
-                                                    (avail - bubble_max - right_pad - 28.0)
-                                                        .max(0.0);
-                                                ui.add_space(spacer);
+                                                let left_pad = 12.0_f32;
+                                                ui.add_space(left_pad);
                                                 egui::Frame::NONE
                                                     .fill(USER_BG)
                                                     .inner_margin(egui::Margin {
@@ -369,9 +414,12 @@ impl BerryCodeApp {
                                                         top: 10,
                                                         bottom: 10,
                                                     })
+                                                    // Tail on the top-left so the bubble
+                                                    // visually points back at the avatar
+                                                    // column on the left.
                                                     .corner_radius(egui::CornerRadius {
-                                                        nw: 16,
-                                                        ne: 4,
+                                                        nw: 4,
+                                                        ne: 16,
                                                         sw: 16,
                                                         se: 16,
                                                     })
@@ -385,7 +433,6 @@ impl BerryCodeApp {
                                                                 .size(14.0),
                                                         );
                                                     });
-                                                ui.add_space(right_pad);
                                             });
                                         } else {
                                             ui.horizontal(|ui| {
@@ -888,7 +935,8 @@ impl BerryCodeApp {
         let cwd = std::path::PathBuf::from(self.root_path.clone());
 
         // Pull model + budget from BYOK settings; pick the agent
-        // backend off `agent_backend` ("native" / "claude" / "codex").
+        // backend off `agent_backend` ("native" / "claude" / "codex"
+        // / "ollama").
         let model = Some(self.ai_settings.chat_model.clone());
         let max_budget = if self.ai_settings.monthly_cap_usd > 0.0 {
             Some(self.ai_settings.monthly_cap_usd)
@@ -898,6 +946,7 @@ impl BerryCodeApp {
         let backend = self.ai_settings.agent_backend.clone();
         let provider_kind_for_usage = match backend.as_str() {
             "codex" | "native" => crate::ai::ProviderKind::OpenAi,
+            "ollama" => crate::ai::ProviderKind::Ollama,
             _ => crate::ai::ProviderKind::Anthropic,
         };
         let ai_settings_for_native = self.ai_settings.clone();
@@ -926,6 +975,9 @@ impl BerryCodeApp {
                     ai_settings_for_native,
                 )),
                 "codex" => Box::new(crate::agent::codex::CodexAgent::new()),
+                "ollama" => Box::new(crate::agent::ollama::OllamaAgent::new(
+                    ai_settings_for_native,
+                )),
                 _ => Box::new(crate::agent::claude::ClaudeCodeAgent::new()),
             };
             let opts = crate::agent::AgentRunOpts {

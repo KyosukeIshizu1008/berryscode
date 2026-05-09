@@ -2,6 +2,12 @@
 //! defaults to <http://localhost:11434>. Uses the OpenAI-compatible
 //! `/v1/chat/completions` shim that ships with Ollama 0.1.30+ so the
 //! code-path mirrors `openai.rs` and supports the same model list.
+//!
+//! Free functions [`probe_version`] and [`list_installed_models`] are
+//! used by the Settings UI to surface "is the server up?" status and
+//! a dynamic model picker respectively. They're plain HTTP calls — no
+//! `Provider` instance required — so the UI can call them with just
+//! the endpoint string.
 
 use super::{
     CompletionRequest, CompletionResponse, Provider, ProviderError, ProviderKind, TokenUsage,
@@ -89,4 +95,54 @@ impl Provider for OllamaProvider {
 
         Ok(CompletionResponse { text, usage })
     }
+}
+
+// ─── Standalone probes (used by Settings UI) ─────────────────────
+
+/// Hit `/api/version` against the given Ollama endpoint. Returns the
+/// reported server version on success, `None` if the server is not
+/// reachable (timeout, connection refused, non-2xx, malformed JSON).
+///
+/// Has a tight 2 s timeout so a misconfigured endpoint doesn't freeze
+/// the Settings panel for the default 30+ s reqwest timeout.
+pub async fn probe_version(endpoint: &str) -> Option<String> {
+    let url = format!("{}/api/version", endpoint.trim_end_matches('/'));
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .ok()?;
+    let resp = http.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let json: serde_json::Value = resp.json().await.ok()?;
+    json.get("version")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Hit `/api/tags` and return the names of locally installed models in
+/// the order Ollama reports them. Returns `None` if the probe fails.
+/// Names are the canonical `name:tag` form (e.g. `qwen2.5-coder:7b`).
+pub async fn list_installed_models(endpoint: &str) -> Option<Vec<String>> {
+    let url = format!("{}/api/tags", endpoint.trim_end_matches('/'));
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let resp = http.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let json: serde_json::Value = resp.json().await.ok()?;
+    let models = json.get("models")?.as_array()?;
+    let names: Vec<String> = models
+        .iter()
+        .filter_map(|m| {
+            m.get("name")
+                .and_then(|n| n.as_str())
+                .map(|s| s.to_string())
+        })
+        .collect();
+    Some(names)
 }

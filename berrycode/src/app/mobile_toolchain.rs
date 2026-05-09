@@ -4,7 +4,10 @@
 //! status and a copy-paste install hint when something's missing. The actual
 //! probing lives in `app::mobile::probe`; this file is just the egui shell.
 
-use super::mobile::one_click::{self, install_cargo_mobile, OneClickConfig, OneClickError};
+use super::mobile::one_click::{
+    self, download_ios_simulator_runtime, install_cargo_mobile, install_rust_targets,
+    OneClickConfig, OneClickError,
+};
 use super::mobile::{self, LogStream, MobileRunSession, MobileTarget, MobileToolchain};
 use super::scene_editor::build_settings::Platform;
 use super::BerryCodeApp;
@@ -50,6 +53,13 @@ pub struct MobileToolchainState {
     /// and after a one-click session ends (install / init / run can flip
     /// the install state).
     pub one_click_installed: Option<bool>,
+
+    // ── Doctor modal ──────────────────────────────────────────────────
+    /// Last doctor report rendered as Markdown-flavoured plain text.
+    /// Empty until the user clicks "Doctor"; persists so re-opening the
+    /// modal shows the same report without re-probing.
+    pub doctor_report: String,
+    pub doctor_open: bool,
 }
 
 /// Owns the live `cargo mobile` child and its stdout/stderr channel.
@@ -70,6 +80,8 @@ pub enum OneClickStageLabel {
     Init,
     RunIos,
     RunAndroid,
+    InstallRustTargets,
+    DownloadIosSimRuntime,
 }
 
 impl OneClickStageLabel {
@@ -79,6 +91,8 @@ impl OneClickStageLabel {
             OneClickStageLabel::Init => "Initializing mobile project",
             OneClickStageLabel::RunIos => "Running on iOS Simulator",
             OneClickStageLabel::RunAndroid => "Running on Android",
+            OneClickStageLabel::InstallRustTargets => "Installing rustup targets",
+            OneClickStageLabel::DownloadIosSimRuntime => "Downloading iOS Simulator runtime",
         }
     }
 }
@@ -293,6 +307,7 @@ impl BerryCodeApp {
     }
 
     fn render_mobile_toolchain(&mut self, ui: &mut egui::Ui) {
+        let mut want_doctor = false;
         ui.horizontal(|ui| {
             ui.heading("MOBILE TOOLCHAIN");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -300,9 +315,19 @@ impl BerryCodeApp {
                     self.mobile_toolchain.refresh();
                     self.mobile_toolchain.one_click_installed = None;
                 }
+                if ui
+                    .button("Doctor")
+                    .on_hover_text("Run a full diagnostic and show what's missing + next steps")
+                    .clicked()
+                {
+                    want_doctor = true;
+                }
             });
         });
         ui.separator();
+        if want_doctor {
+            self.run_mobile_doctor();
+        }
 
         if let Some(err) = &self.mobile_toolchain.last_error {
             ui.colored_label(egui::Color32::from_rgb(220, 80, 80), err);
@@ -425,6 +450,69 @@ impl BerryCodeApp {
         });
     }
 
+    fn run_mobile_doctor(&mut self) {
+        // Make sure the snapshot we report against is current. `refresh`
+        // is cheap aside from the simulator probe which it caches; the
+        // user explicitly asked to see the report, so a re-probe is the
+        // expected behaviour.
+        self.mobile_toolchain.refresh();
+        // Re-probe `cargo mobile` too so the report can't claim it's
+        // installed when the user just deleted it.
+        let installed = one_click::probe_cargo_mobile();
+        self.mobile_toolchain.one_click_installed = Some(installed);
+        let project_root = std::path::Path::new(&self.root_path);
+        self.mobile_toolchain.doctor_report =
+            build_doctor_report(&self.mobile_toolchain.toolchain, project_root, installed);
+        self.mobile_toolchain.doctor_open = true;
+    }
+
+    pub(crate) fn render_mobile_doctor_modal(&mut self, ctx: &egui::Context) {
+        if !self.mobile_toolchain.doctor_open {
+            return;
+        }
+        let mut open = self.mobile_toolchain.doctor_open;
+        egui::Window::new("Mobile Doctor")
+            .id(egui::Id::new("mobile_doctor_modal_v1"))
+            .open(&mut open)
+            .resizable(true)
+            .default_size([640.0, 520.0])
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Copy to clipboard").clicked() {
+                        ui.ctx()
+                            .copy_text(self.mobile_toolchain.doctor_report.clone());
+                    }
+                    if ui.button("Re-run").clicked() {
+                        // Trigger a fresh report next frame — can't call
+                        // `run_mobile_doctor` here because we're already
+                        // inside `&mut self` via the window builder.
+                        self.mobile_toolchain.doctor_report.clear();
+                    }
+                });
+                ui.separator();
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // Plain monospace text edit so the user can
+                        // select / copy any line. Read-only via the
+                        // immutable scratch buffer trick.
+                        let mut text = self.mobile_toolchain.doctor_report.clone();
+                        ui.add(
+                            egui::TextEdit::multiline(&mut text)
+                                .font(egui::TextStyle::Monospace)
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(20),
+                        );
+                    });
+            });
+        self.mobile_toolchain.doctor_open = open;
+        // Re-run was requested from the button; recompute now that the
+        // borrow on `doctor_open` is released.
+        if self.mobile_toolchain.doctor_open && self.mobile_toolchain.doctor_report.is_empty() {
+            self.run_mobile_doctor();
+        }
+    }
+
     fn start_one_click_install(&mut self) {
         self.mobile_toolchain.run_error = None;
         self.mobile_toolchain
@@ -434,6 +522,44 @@ impl BerryCodeApp {
             Ok(pair) => {
                 self.mobile_toolchain.one_click_session =
                     Some(OneClickSession::new(OneClickStageLabel::Install, pair));
+            }
+            Err(e) => {
+                self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
+            }
+        }
+    }
+
+    fn start_install_rust_targets(&mut self, triples: Vec<String>) {
+        self.mobile_toolchain.run_error = None;
+        self.mobile_toolchain
+            .run_log
+            .push_line(format!("─── rustup target add {} ───", triples.join(" ")));
+        let refs: Vec<&str> = triples.iter().map(String::as_str).collect();
+        match install_rust_targets(&refs) {
+            Ok(pair) => {
+                self.mobile_toolchain.one_click_session = Some(OneClickSession::new(
+                    OneClickStageLabel::InstallRustTargets,
+                    pair,
+                ));
+            }
+            Err(e) => {
+                self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn start_download_ios_sim_runtime(&mut self) {
+        self.mobile_toolchain.run_error = None;
+        self.mobile_toolchain.run_log.push_line(
+            "─── xcodebuild -downloadPlatform iOS (several GB, can take 10+ min) ───".into(),
+        );
+        match download_ios_simulator_runtime() {
+            Ok(pair) => {
+                self.mobile_toolchain.one_click_session = Some(OneClickSession::new(
+                    OneClickStageLabel::DownloadIosSimRuntime,
+                    pair,
+                ));
             }
             Err(e) => {
                 self.mobile_toolchain.run_error = Some(format_one_click_err(&e));
@@ -729,7 +855,31 @@ impl BerryCodeApp {
         // immutably for rendering and call `self.refresh_codesign_identities()`
         // (which needs `&mut self`), so we scope the read borrow tightly and
         // perform the refresh after the closure returns.
+        // Pre-compute the one_click_session state outside the immutable
+        // borrow on `self.mobile_toolchain.toolchain.xcode` below; we
+        // can't call &mut self methods (start_download_ios_sim_runtime)
+        // while that borrow is still live, and rust-analyzer also can't
+        // see through nested closures to relax the rule.
+        let download_busy = self
+            .mobile_toolchain
+            .one_click_session
+            .as_ref()
+            .map(|s| s.is_running())
+            .unwrap_or(false);
+        let download_button_label = if download_busy
+            && matches!(
+                self.mobile_toolchain
+                    .one_click_session
+                    .as_ref()
+                    .map(|s| s.stage),
+                Some(OneClickStageLabel::DownloadIosSimRuntime)
+            ) {
+            "Downloading…"
+        } else {
+            "Download iOS Simulator runtime"
+        };
         let mut want_refresh_identities = false;
+        let mut want_download_ios_sim = false;
         match &self.mobile_toolchain.toolchain.xcode {
             Some(xcode) => {
                 row_status(ui, "Xcode", true, &xcode.version);
@@ -753,7 +903,22 @@ impl BerryCodeApp {
                         .iter()
                         .filter(|s| s.family == mobile::SimFamily::VisionOs)
                         .count();
-                    ui.label(format!("Simulators: {ios_sims} iOS, {xr_sims} visionOS"));
+                    ui.horizontal(|ui| {
+                        ui.label(format!("Simulators: {ios_sims} iOS, {xr_sims} visionOS"));
+                        if ios_sims == 0
+                            && ui
+                                .add_enabled(
+                                    !download_busy,
+                                    egui::Button::new(download_button_label),
+                                )
+                                .on_hover_text(
+                                    "Runs `xcodebuild -downloadPlatform iOS` (several GB)",
+                                )
+                                .clicked()
+                        {
+                            want_download_ios_sim = true;
+                        }
+                    });
                     if !xcode.simulators.is_empty() {
                         ui.collapsing("Show simulators", |ui| {
                             for sim in &xcode.simulators {
@@ -768,7 +933,6 @@ impl BerryCodeApp {
                             }
                         });
                     }
-
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.label("Codesign identities:");
@@ -813,6 +977,10 @@ impl BerryCodeApp {
 
         if want_refresh_identities {
             self.mobile_toolchain.refresh_codesign_identities();
+        }
+        if want_download_ios_sim {
+            #[cfg(target_os = "macos")]
+            self.start_download_ios_sim_runtime();
         }
     }
 
@@ -941,8 +1109,224 @@ impl BerryCodeApp {
         if !missing.is_empty() {
             ui.separator();
             install_hint(ui, &format!("rustup target add {}", missing.join(" ")));
+            let busy = self
+                .mobile_toolchain
+                .one_click_session
+                .as_ref()
+                .map(|s| s.is_running())
+                .unwrap_or(false);
+            let button_label = if busy
+                && matches!(
+                    self.mobile_toolchain
+                        .one_click_session
+                        .as_ref()
+                        .map(|s| s.stage),
+                    Some(OneClickStageLabel::InstallRustTargets)
+                ) {
+                "Installing targets…"
+            } else {
+                "Install missing targets"
+            };
+            if ui
+                .add_enabled(!busy, egui::Button::new(button_label))
+                .on_hover_text("Runs `rustup target add ...` for the missing triples")
+                .clicked()
+            {
+                let owned: Vec<String> = missing.iter().map(|s| s.to_string()).collect();
+                self.start_install_rust_targets(owned);
+            }
         }
     }
+}
+
+// ─── Doctor report ────────────────────────────────────────────────────────
+
+/// Generate a Flutter-doctor-style diagnostic report from the current
+/// toolchain snapshot + project state. Pure function (no I/O, no probing)
+/// so it stays fast and easy to unit test — the caller is responsible for
+/// running `MobileToolchain::refresh()` first if a fresh probe is wanted.
+pub fn build_doctor_report(
+    toolchain: &MobileToolchain,
+    project_root: &std::path::Path,
+    one_click_installed: bool,
+) -> String {
+    let mut out = String::new();
+    let mut issues: Vec<String> = Vec::new();
+    let mut next_steps: Vec<String> = Vec::new();
+
+    out.push_str("# BerryCode Mobile Doctor\n\n");
+
+    // ── Xcode ────────────────────────────────────────────────────────
+    out.push_str("## Xcode\n");
+    match &toolchain.xcode {
+        Some(x) => {
+            out.push_str(&format!("- ✓ Xcode {}\n", x.version));
+            out.push_str(&format!(
+                "- Developer dir: `{}`\n",
+                x.developer_dir.display()
+            ));
+            out.push_str(&format!("- SDKs: {}\n", x.sdks.len()));
+            let ios_sims = x
+                .simulators
+                .iter()
+                .filter(|s| s.family == mobile::SimFamily::Ios)
+                .count();
+            let xr_sims = x
+                .simulators
+                .iter()
+                .filter(|s| s.family == mobile::SimFamily::VisionOs)
+                .count();
+            out.push_str(&format!(
+                "- Simulators: {ios_sims} iOS, {xr_sims} visionOS\n"
+            ));
+            if ios_sims == 0 {
+                issues.push("No iOS Simulator runtime installed".into());
+                next_steps.push(
+                    "Download an iOS Simulator runtime: `xcodebuild -downloadPlatform iOS` \
+                     (or click \"Download iOS Simulator runtime\" in this panel)"
+                        .into(),
+                );
+            }
+            out.push_str(&format!(
+                "- Codesign identities: {}\n",
+                x.codesign_identities.len()
+            ));
+            if x.codesign_identities.is_empty() {
+                // Codesign is only required for real-device deploys, so
+                // we surface it as advisory rather than a hard blocker.
+                next_steps.push(
+                    "(optional, real-device only) Sign in with your Apple ID in Xcode \
+                     to populate codesign identities."
+                        .into(),
+                );
+            }
+        }
+        None => {
+            out.push_str("- ✗ Xcode not detected\n");
+            issues.push("Xcode missing".into());
+            if cfg!(target_os = "macos") {
+                next_steps.push("Install Xcode: `xcode-select --install`".into());
+            } else {
+                next_steps.push(
+                    "iOS / visionOS builds require macOS — switch host or skip these targets."
+                        .into(),
+                );
+            }
+        }
+    }
+
+    // ── Android ──────────────────────────────────────────────────────
+    out.push_str("\n## Android SDK\n");
+    match &toolchain.android {
+        Some(a) => {
+            out.push_str(&format!("- ✓ SDK root: `{}`\n", a.sdk_root.display()));
+            if let Some(ndk) = &a.ndk {
+                out.push_str(&format!(
+                    "- NDK {} at `{}`\n",
+                    ndk.version,
+                    ndk.root.display()
+                ));
+            } else {
+                out.push_str("- ✗ NDK missing\n");
+                issues.push("Android NDK missing".into());
+                next_steps.push(
+                    "Install NDK via Android Studio (SDK Manager → SDK Tools → NDK (Side by side))."
+                        .into(),
+                );
+            }
+            if a.adb.is_none() {
+                out.push_str("- ✗ adb not found in platform-tools\n");
+                issues.push("`adb` missing".into());
+                next_steps.push("Install platform-tools via Android Studio SDK Manager.".into());
+            }
+        }
+        None => {
+            out.push_str("- ✗ Android SDK not detected\n");
+            issues.push("Android SDK missing".into());
+            next_steps.push(
+                "Install Android Studio (or the command-line tools) and set `$ANDROID_HOME` \
+                 to the SDK root."
+                    .into(),
+            );
+        }
+    }
+
+    // ── Rust mobile targets ──────────────────────────────────────────
+    out.push_str("\n## Rust mobile targets\n");
+    let mut missing: Vec<&str> = Vec::new();
+    for (platform, triple) in MOBILE_TRIPLES {
+        let installed = toolchain.has_rust_target(triple);
+        out.push_str(&format!(
+            "- {} {} ({})\n",
+            if installed { "✓" } else { "✗" },
+            platform.label(),
+            triple
+        ));
+        if !installed {
+            missing.push(triple);
+        }
+    }
+    if !missing.is_empty() {
+        issues.push(format!("{} Rust target(s) missing", missing.len()));
+        next_steps.push(format!(
+            "Install missing Rust targets: `rustup target add {}` \
+             (or click \"Install missing targets\" in this panel)",
+            missing.join(" ")
+        ));
+    }
+
+    // ── cargo-mobile2 + project init ─────────────────────────────────
+    out.push_str("\n## cargo-mobile2\n");
+    out.push_str(&format!(
+        "- {} cargo-mobile2 installed\n",
+        if one_click_installed { "✓" } else { "✗" }
+    ));
+    if !one_click_installed {
+        issues.push("cargo-mobile2 not installed".into());
+        next_steps.push(
+            "Install cargo-mobile2: `cargo install cargo-mobile2 --locked` \
+             (or click \"Install cargo-mobile2\" in this panel)"
+                .into(),
+        );
+    }
+    let mobile_toml = project_root.join("mobile.toml");
+    let toml_present = mobile_toml.exists();
+    out.push_str(&format!(
+        "- {} mobile.toml ({})\n",
+        if toml_present { "✓" } else { "✗" },
+        mobile_toml.display()
+    ));
+    if !toml_present {
+        issues.push("mobile.toml missing in project".into());
+        next_steps.push(
+            "Initialize the project for mobile: `cargo mobile init` from the project root \
+             (or click \"Initialize for Mobile\" in this panel)."
+                .into(),
+        );
+    }
+
+    // ── Summary + next steps ─────────────────────────────────────────
+    out.push_str("\n## Summary\n");
+    if issues.is_empty() {
+        out.push_str(
+            "✓ All checks passed — `cargo apple run --release` should work for the iOS \
+             Simulator, and `cargo android run` for an Android emulator / device.\n",
+        );
+    } else {
+        out.push_str(&format!("✗ {} issue(s) found:\n", issues.len()));
+        for (i, issue) in issues.iter().enumerate() {
+            out.push_str(&format!("  {}. {}\n", i + 1, issue));
+        }
+    }
+
+    if !next_steps.is_empty() {
+        out.push_str("\n## Next steps\n");
+        for (i, step) in next_steps.iter().enumerate() {
+            out.push_str(&format!("{}. {}\n", i + 1, step));
+        }
+    }
+
+    out
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────

@@ -71,7 +71,11 @@ impl CodingAgent for CodexAgent {
             .arg("--json")
             .arg("--cd")
             .arg(cwd)
-            .arg("--full-auto")
+            // codex 0.128+ deprecated `--full-auto`; the equivalent
+            // policy ("write inside the workspace, no approval prompts
+            // for in-tree edits") is now `--sandbox workspace-write`.
+            .arg("--sandbox")
+            .arg("workspace-write")
             .arg("--skip-git-repo-check")
             .arg("--ephemeral");
 

@@ -494,13 +494,84 @@ impl BerryCodeApp {
             "Ollama (local)",
             Some("Self-hosted server. No API key required — `ollama serve` and pick a model."),
             |ui| {
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.ai_settings.ollama_endpoint)
-                        .desired_width(420.0)
-                        .hint_text("http://localhost:11434"),
-                );
-                if resp.changed() {
-                    dirty = true;
+                ui.horizontal(|ui| {
+                    let resp = ui.add(
+                        egui::TextEdit::singleline(&mut self.ai_settings.ollama_endpoint)
+                            .desired_width(320.0)
+                            .hint_text("http://localhost:11434"),
+                    );
+                    if resp.changed() {
+                        dirty = true;
+                    }
+                    if ui.button("Test connection").clicked() {
+                        let endpoint = self.ai_settings.ollama_endpoint.clone();
+                        let status = self.ollama_status.clone();
+                        if let Ok(mut s) = status.lock() {
+                            *s = crate::app::OllamaProbeStatus::Probing;
+                        }
+                        self.lsp_runtime.spawn(async move {
+                            let result = crate::ai::ollama::probe_version(&endpoint).await;
+                            if let Ok(mut s) = status.lock() {
+                                *s = match result {
+                                    Some(v) => crate::app::OllamaProbeStatus::Connected(v),
+                                    None => crate::app::OllamaProbeStatus::Error(
+                                        "server not reachable (is `ollama serve` running?)"
+                                            .to_string(),
+                                    ),
+                                };
+                            }
+                        });
+                    }
+                    if ui.button("Refresh models").clicked() {
+                        let endpoint = self.ai_settings.ollama_endpoint.clone();
+                        let cache = self.ollama_installed_models.clone();
+                        self.lsp_runtime.spawn(async move {
+                            if let Some(list) =
+                                crate::ai::ollama::list_installed_models(&endpoint).await
+                            {
+                                if let Ok(mut c) = cache.lock() {
+                                    *c = list;
+                                }
+                            }
+                        });
+                    }
+                });
+                // Status line — surfaced under the row so the buttons
+                // don't shift around as the probe completes.
+                if let Ok(s) = self.ollama_status.lock() {
+                    match &*s {
+                        crate::app::OllamaProbeStatus::Unknown => {}
+                        crate::app::OllamaProbeStatus::Probing => {
+                            ui.label(
+                                egui::RichText::new("Probing…")
+                                    .small()
+                                    .color(egui::Color32::from_rgb(160, 160, 170)),
+                            );
+                        }
+                        crate::app::OllamaProbeStatus::Connected(v) => {
+                            ui.label(
+                                egui::RichText::new(format!("✓ Connected (v{})", v))
+                                    .small()
+                                    .color(egui::Color32::from_rgb(120, 200, 140)),
+                            );
+                        }
+                        crate::app::OllamaProbeStatus::Error(e) => {
+                            ui.label(
+                                egui::RichText::new(format!("✗ {}", e))
+                                    .small()
+                                    .color(egui::Color32::from_rgb(220, 130, 130)),
+                            );
+                        }
+                    }
+                }
+                if let Ok(models) = self.ollama_installed_models.lock() {
+                    if !models.is_empty() {
+                        ui.label(
+                            egui::RichText::new(format!("Installed: {}", models.join(", ")))
+                                .small()
+                                .color(egui::Color32::from_rgb(140, 180, 220)),
+                        );
+                    }
                 }
             },
         );
@@ -560,11 +631,24 @@ impl BerryCodeApp {
                     if resp.changed() {
                         dirty = true;
                     }
-                    let models = AiSettings::chat_models_for(self.ai_settings.chat_provider);
+                    let presets = AiSettings::chat_models_for(self.ai_settings.chat_provider);
+                    // Snapshot the dynamic model list under the lock,
+                    // then drop the lock before showing the popup —
+                    // egui closures can re-render and we don't want a
+                    // long-held mutex blocking the async refresh task.
+                    let dynamic_models: Vec<String> =
+                        if self.ai_settings.chat_provider == ProviderKind::Ollama {
+                            self.ollama_installed_models
+                                .lock()
+                                .map(|m| m.clone())
+                                .unwrap_or_default()
+                        } else {
+                            Vec::new()
+                        };
                     egui::ComboBox::from_id_salt("ai_chat_model")
                         .selected_text("Presets")
                         .show_ui(ui, |ui| {
-                            for model in models {
+                            for model in presets {
                                 if ui
                                     .selectable_label(
                                         self.ai_settings.chat_model == *model,
@@ -574,6 +658,26 @@ impl BerryCodeApp {
                                 {
                                     self.ai_settings.chat_model = model.to_string();
                                     dirty = true;
+                                }
+                            }
+                            if !dynamic_models.is_empty() {
+                                ui.separator();
+                                ui.label(
+                                    egui::RichText::new("Installed locally")
+                                        .small()
+                                        .color(egui::Color32::from_rgb(140, 180, 220)),
+                                );
+                                for model in &dynamic_models {
+                                    if ui
+                                        .selectable_label(
+                                            &self.ai_settings.chat_model == model,
+                                            model,
+                                        )
+                                        .clicked()
+                                    {
+                                        self.ai_settings.chat_model = model.clone();
+                                        dirty = true;
+                                    }
                                 }
                             }
                         });
@@ -635,6 +739,48 @@ impl BerryCodeApp {
                                 }
                             }
                         });
+                });
+            },
+        );
+
+        // ── Coding agent backend ─────────────────────────────────
+        ui.add_space(12.0);
+        ui.label(
+            egui::RichText::new("Coding agent")
+                .size(13.0)
+                .color(ui_colors::SETTINGS_HEADER)
+                .strong(),
+        );
+        ui.add_space(8.0);
+
+        setting_card(
+            ui,
+            "Agent backend",
+            Some(
+                "Which engine drives Autonomous (🤖 Agent) mode. Native runs in-process via the OpenAI Responses API. \
+                 Claude Code / Codex spawn the official CLI as a subprocess. Ollama runs against a local server — \
+                 use a tool-capable model (llama3.1, qwen2.5-coder, mistral)."
+            ),
+            |ui| {
+                let backends: &[(&str, &str)] = &[
+                    ("native", "Native (in-process)"),
+                    ("claude", "Claude Code"),
+                    ("codex", "Codex"),
+                    ("ollama", "Ollama (local)"),
+                ];
+                ui.horizontal(|ui| {
+                    for (id, label) in backends {
+                        if ui
+                            .selectable_label(
+                                self.ai_settings.agent_backend == *id,
+                                *label,
+                            )
+                            .clicked()
+                        {
+                            self.ai_settings.agent_backend = id.to_string();
+                            dirty = true;
+                        }
+                    }
                 });
             },
         );

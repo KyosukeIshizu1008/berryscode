@@ -1309,3 +1309,89 @@ fn ansi_256_color(n: u16) -> Color32 {
         _ => TERM_FG,
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Throughput micro-benchmarks (parser + grid only, no egui paint)
+// Run with: cargo test --release -p berrycode terminal_emulator::bench -- --nocapture --test-threads=1
+// ═══════════════════════════════════════════════════════════════════
+
+#[cfg(test)]
+mod bench {
+    use super::*;
+    use std::time::Instant;
+
+    fn run(label: &str, bytes: &[u8]) {
+        let mut grid = TerminalGrid::new(24, 80);
+        let mut parser = vte::Parser::new();
+        let start = Instant::now();
+        for &b in bytes {
+            parser.advance(&mut grid, b);
+        }
+        let elapsed = start.elapsed();
+        let secs = elapsed.as_secs_f64();
+        let mb = bytes.len() as f64 / 1_048_576.0;
+        let mibps = mb / secs;
+        println!(
+            "[bench] {:<28} bytes={:>10}  time={:>9.3}ms  throughput={:>8.1} MiB/s",
+            label,
+            bytes.len(),
+            secs * 1000.0,
+            mibps
+        );
+    }
+
+    #[test]
+    fn bench_seq_1_10000_lf() {
+        let mut s = String::with_capacity(60_000);
+        for i in 1..=10_000u32 {
+            s.push_str(&i.to_string());
+            s.push('\n');
+        }
+        run("seq 1..10000 (LF)", s.as_bytes());
+    }
+
+    #[test]
+    fn bench_seq_1_10000_crlf() {
+        // What a PTY in cooked mode (ONLCR) actually delivers.
+        let mut s = String::with_capacity(70_000);
+        for i in 1..=10_000u32 {
+            s.push_str(&i.to_string());
+            s.push_str("\r\n");
+        }
+        run("seq 1..10000 (CRLF)", s.as_bytes());
+    }
+
+    #[test]
+    fn bench_plain_ascii_1mib() {
+        let line = b"the quick brown fox jumps over the lazy dog 0123456789\r\n";
+        let mut s = Vec::with_capacity(1_048_576 + line.len());
+        while s.len() < 1_048_576 {
+            s.extend_from_slice(line);
+        }
+        run("plain ASCII ~1 MiB", &s);
+    }
+
+    #[test]
+    fn bench_ansi_colored_1mib() {
+        // ls --color style: SGR + filename + reset, repeated.
+        let chunk = b"\x1b[34mdir\x1b[0m  \x1b[32mexec\x1b[0m  file.txt  \x1b[36mlink\x1b[0m\r\n";
+        let mut s = Vec::with_capacity(1_048_576 + chunk.len());
+        while s.len() < 1_048_576 {
+            s.extend_from_slice(chunk);
+        }
+        run("ANSI SGR-heavy ~1 MiB", &s);
+    }
+
+    #[test]
+    fn bench_long_line_no_newline_256k() {
+        // Worst case for the grid: pure print() calls, constant scrolling/wrap.
+        let s: Vec<u8> = (0..262_144).map(|i| b'a' + (i % 26) as u8).collect();
+        run("long line no NL 256 KiB", &s);
+    }
+
+    #[test]
+    fn bench_summary_marker() {
+        // Sentinel so the summary block is easy to spot in test output.
+        println!("\n[bench] === BerryCode terminal parser+grid micro-bench complete ===\n");
+    }
+}

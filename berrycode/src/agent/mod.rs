@@ -31,6 +31,8 @@
 pub mod claude;
 pub mod codex;
 pub mod native;
+pub mod ollama;
+pub mod tools;
 
 use std::path::{Path, PathBuf};
 use tokio::process::Child;
@@ -83,6 +85,11 @@ pub enum AgentId {
     ClaudeCode,
     /// OpenAI's Codex CLI (`codex` binary).
     Codex,
+    /// In-process Chat-Completions agent loop pointed at a local Ollama
+    /// server. Endpoint comes from `AiSettings::ollama_endpoint`; tool
+    /// calling requires a model with native tool support
+    /// (e.g. `llama3.1`, `qwen2.5-coder`, `mistral`).
+    Ollama,
 }
 
 impl AgentId {
@@ -91,6 +98,7 @@ impl AgentId {
             Self::Native => "Native (in-process)",
             Self::ClaudeCode => "Claude Code",
             Self::Codex => "Codex",
+            Self::Ollama => "Ollama (local)",
         }
     }
 }

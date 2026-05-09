@@ -76,6 +76,11 @@ impl CodingAgent for ClaudeCodeAgent {
         cmd.current_dir(cwd)
             .arg("--print")
             .arg("--output-format=stream-json")
+            // Claude Code 2.x rejects stream-json without --verbose;
+            // the flag flips the JSON stream from terse "result-only"
+            // to the per-event firehose our parser expects (system,
+            // stream_event, partial_message, result, etc.).
+            .arg("--verbose")
             .arg("--include-partial-messages")
             .arg("--add-dir")
             .arg(cwd);

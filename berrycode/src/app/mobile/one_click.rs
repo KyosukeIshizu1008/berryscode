@@ -44,6 +44,10 @@ pub enum OneClickStage {
     InitProject,
     /// `cargo apple run` / `cargo android run` final launch.
     Launch,
+    /// `rustup target add <triples>`.
+    InstallRustTargets,
+    /// `xcodebuild -downloadPlatform iOS`.
+    DownloadIosSimRuntime,
 }
 
 impl OneClickStage {
@@ -53,6 +57,8 @@ impl OneClickStage {
             OneClickStage::InstallToolchain => "install cargo-mobile2",
             OneClickStage::InitProject => "init mobile project",
             OneClickStage::Launch => "launch on device",
+            OneClickStage::InstallRustTargets => "install rustup targets",
+            OneClickStage::DownloadIosSimRuntime => "download iOS Simulator runtime",
         }
     }
 }
@@ -93,6 +99,43 @@ pub fn install_cargo_mobile() -> Result<(Child, Receiver<String>), OneClickError
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()),
         OneClickStage::InstallToolchain,
+    )
+}
+
+/// Spawn `rustup target add <triples...>` to fetch the missing Rust
+/// mobile targets in one shot. Caller waits on the child and reflects
+/// completion / failure in the UI.
+pub fn install_rust_targets(triples: &[&str]) -> Result<(Child, Receiver<String>), OneClickError> {
+    if triples.is_empty() {
+        return Err(OneClickError::new(
+            OneClickStage::InstallRustTargets,
+            "no targets requested — nothing to install.",
+        ));
+    }
+    let mut cmd = Command::new("rustup");
+    cmd.arg("target").arg("add");
+    for t in triples {
+        cmd.arg(t);
+    }
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    spawn_with_log_channel(&mut cmd, OneClickStage::InstallRustTargets)
+}
+
+/// Spawn `xcodebuild -downloadPlatform iOS` to fetch a Simulator
+/// runtime. The download is several gigabytes and can take a while; the
+/// caller polls the streamed log lines for progress.
+///
+/// macOS-only because `xcodebuild` ships with Xcode. We don't gate this
+/// at compile time so the function stays callable from cross-platform
+/// code; on non-macOS hosts the spawn fails and the error surfaces in
+/// the UI just like a missing binary would.
+pub fn download_ios_simulator_runtime() -> Result<(Child, Receiver<String>), OneClickError> {
+    spawn_with_log_channel(
+        Command::new("xcodebuild")
+            .args(["-downloadPlatform", "iOS"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+        OneClickStage::DownloadIosSimRuntime,
     )
 }
 

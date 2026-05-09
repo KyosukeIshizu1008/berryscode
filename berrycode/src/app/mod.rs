@@ -436,6 +436,21 @@ pub(crate) enum CloseAction {
     Discard,
 }
 
+/// Settings-panel cache for the most recent Ollama `/api/version`
+/// probe. The async task fills this; the egui render reads it.
+#[derive(Default, Clone)]
+pub enum OllamaProbeStatus {
+    /// No probe has been issued yet — Settings shows nothing.
+    #[default]
+    Unknown,
+    /// Probe is in flight; Settings shows a spinner.
+    Probing,
+    /// Server replied — version string from `/api/version`.
+    Connected(String),
+    /// Probe failed — the message is shown verbatim under the field.
+    Error(String),
+}
+
 /// Main application state
 #[allow(dead_code)]
 pub struct BerryCodeApp {
@@ -941,6 +956,14 @@ pub struct BerryCodeApp {
     /// and selected models). Persisted to `~/.berrycode/ai.json`.
     #[cfg(feature = "ai")]
     pub(crate) ai_settings: crate::ai::settings::AiSettings,
+    /// Last result of the Settings panel's "Test connection" probe
+    /// against the configured Ollama endpoint. `Arc<Mutex>` so the
+    /// async probe task can fill it from the tokio runtime while the
+    /// egui render thread reads it on every frame.
+    pub(crate) ollama_status: std::sync::Arc<std::sync::Mutex<OllamaProbeStatus>>,
+    /// Cached list of locally installed Ollama models from the most
+    /// recent `/api/tags` fetch (also Settings-panel triggered).
+    pub(crate) ollama_installed_models: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
     /// Cached egui texture for the Scene View activity-bar icon
     /// (rasterised from `assets/icons/scene_view.svg` on first use).
     pub(crate) scene_view_icon: Option<egui::TextureHandle>,
@@ -2117,6 +2140,8 @@ impl BerryCodeApp {
             lsp_completion_accept_pending: false,
             #[cfg(feature = "ai")]
             ai_settings: crate::ai::settings::AiSettings::load(),
+            ollama_status: std::sync::Arc::new(std::sync::Mutex::new(OllamaProbeStatus::Unknown)),
+            ollama_installed_models: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
             scene_view_icon: None,
             database_icon: None,
             docker_icon: None,
@@ -3134,6 +3159,7 @@ pub fn berry_ui_system(
 
         // floating mobile toolchain window (v0.8 Phase A).
         app.render_mobile_toolchain_window(ctx);
+        app.render_mobile_doctor_modal(ctx);
 
         // Godot scene viewer — auto-shows when active tab is a `.tscn`
         // file (v0.8.x Migration & interop).
