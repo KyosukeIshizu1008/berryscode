@@ -13,6 +13,63 @@ release notes.
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-05-10
+
+### Added
+
+- **Ollama agent backend** for the AI Chat panel's Autonomous (🤖 Agent)
+  mode. Runs an in-process Chat-Completions agent loop against a local
+  Ollama server with streaming SSE deltas and tool-call reassembly across
+  fragmented chunks. Tools (`read_file`, `write_file`, `list_files`,
+  `run_bash`) are now shared with the OpenAI Responses-API backend via
+  the new `agent::tools` module. `AgentId::Ollama` joins
+  `Native` / `ClaudeCode` / `Codex` as a first-class backend.
+- **Inline backend picker** in the chat input row (Native / Claude Code /
+  Codex / Ollama). Selecting a backend persists to `~/.berrycode/ai.json`
+  immediately so users can swap mid-session without opening Settings.
+- **Ollama Settings UX**: `Test connection` button (`/api/version`,
+  2 s timeout) and `Refresh models` button (`/api/tags`, 5 s timeout) on
+  the Ollama provider card. Installed models are surfaced in the chat
+  model preset combo when Ollama is the selected provider.
+- **Mobile Doctor** modal in the Mobile Toolchain panel. Click "Doctor"
+  to get a Flutter-doctor-style unified diagnostic (Markdown plain text)
+  with `✓` / `✗` per check, summary, and ordered next-step commands.
+  Modal supports `Copy to clipboard` and `Re-run`.
+- **One-click install buttons** in the Mobile Toolchain panel:
+  `Install missing targets` (runs `rustup target add ...` for the
+  triples that are missing) and `Download iOS Simulator runtime`
+  (runs `xcodebuild -downloadPlatform iOS`). Both stream logs into the
+  Run section of the panel.
+- **Terminal parser micro-benchmarks** under
+  `terminal_emulator::bench`. Run with
+  `cargo test --release -p berrycode terminal_emulator::bench -- --nocapture --test-threads=1`.
+  Establishes a baseline (M-series Mac, release): `seq 1..10000`
+  ~9–11 ms, 1 MiB plain ASCII ~17 MiB/s, 1 MiB ANSI-heavy ~15 MiB/s,
+  long-line worst-case 62 MiB/s.
+
+### Changed
+
+- **User chat bubbles re-aligned to the left** with the corner tail
+  flipped to the top-left so the bubble visually points back at the
+  avatar column. Persisted bubble id stays the same, no settings reset
+  required.
+- **OK / MISS / FIX status badges** in the Mobile Toolchain panel now
+  render as solid colored pills with white bold text instead of low-alpha
+  tinted rectangles, fixing the contrast issue where the badge text was
+  the same hue as the (translucent) background.
+- **Docker sidebar** restyled to match the rest of the workbench: header
+  switched to small caps `DOCKER` instead of `ui.heading`, controls and
+  spacing refreshed via `button_style` helpers.
+
+### Fixed
+
+- **Claude Code agent**: pass `--verbose`. Claude Code 2.x rejects
+  `--print --output-format=stream-json` without it, so the agent
+  silently failed every run on machines with the new CLI.
+- **Codex agent**: replace `--full-auto` with `--sandbox workspace-write`.
+  `cargo exec --full-auto` is deprecated as of codex 0.128 and emits a
+  warning that ended up in the user's chat log every turn.
+
 ## [0.8.1] — 2026-05-06
 
 ### Fixed

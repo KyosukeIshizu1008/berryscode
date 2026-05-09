@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 
-use super::button_style::icon_button;
+use super::button_style::{self, icon_button};
 use super::ui_colors;
 use super::BerryCodeApp;
 
@@ -234,52 +234,55 @@ fn run_json_lines<T: serde::de::DeserializeOwned>(args: &[&str]) -> Result<Vec<T
 
 impl BerryCodeApp {
     pub(crate) fn render_docker_sidebar(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Docker");
-        ui.add_space(6.0);
+        ui.label(
+            egui::RichText::new("DOCKER")
+                .small()
+                .strong()
+                .color(ui_colors::TEXT_DEFAULT),
+        );
+        ui.add_space(10.0);
 
         self.docker.ensure_cli_check();
         if self.docker.cli_available != Some(true) {
-            ui.label(
-                egui::RichText::new("Docker CLI not found.")
-                    .color(egui::Color32::from_rgb(220, 90, 90)),
-            );
+            docker_error_card(ui, "Docker CLI not found.");
             ui.add_space(4.0);
             ui.label(
                 egui::RichText::new("Install Docker Desktop:")
                     .small()
-                    .color(egui::Color32::from_gray(180)),
+                    .color(ui_colors::TEXT_MUTED),
             );
             ui.hyperlink_to(
                 "docker.com/products/docker-desktop",
                 "https://www.docker.com/products/docker-desktop/",
             );
-            if ui.small_button("Re-check").clicked() {
+            if button_style::button_with_icon(ui, button_style::glyph::REFRESH, "Re-check")
+                .clicked()
+            {
                 self.docker.cli_available = None;
             }
             return;
         }
 
-        // Tab strip — pill-style like Docker Desktop's left rail items.
         ui.vertical(|ui| {
             tab_link(
                 ui,
                 &mut self.docker.active_tab,
                 DockerTab::Containers,
-                "🟢 Containers",
+                "Containers",
                 self.docker.containers.len(),
             );
             tab_link(
                 ui,
                 &mut self.docker.active_tab,
                 DockerTab::Images,
-                "🖼  Images",
+                "Images",
                 self.docker.images.len(),
             );
             tab_link(
                 ui,
                 &mut self.docker.active_tab,
                 DockerTab::Volumes,
-                "💾 Volumes",
+                "Volumes",
                 self.docker.volumes.len(),
             );
         });
@@ -288,38 +291,27 @@ impl BerryCodeApp {
         ui.separator();
         ui.add_space(4.0);
 
-        if ui.button("Refresh").clicked() {
+        if button_style::button_with_icon(ui, button_style::glyph::REFRESH, "Refresh").clicked() {
             self.docker.refresh_all();
         }
         if let Some(t) = self.docker.last_refresh {
             ui.label(
                 egui::RichText::new(format!("updated {}s ago", t.elapsed().as_secs()))
                     .small()
-                    .color(egui::Color32::from_gray(150)),
+                    .color(ui_colors::TEXT_MUTED),
             );
         }
 
         if let Some(err) = &self.docker.error_message {
             ui.add_space(6.0);
-            ui.colored_label(egui::Color32::from_rgb(220, 90, 90), err);
+            docker_error_card(ui, err);
         }
     }
 
     pub(crate) fn render_docker_central(&mut self, ui: &mut egui::Ui) {
         self.docker.ensure_cli_check();
         if self.docker.cli_available != Some(true) {
-            ui.add_space(16.0);
-            ui.heading("Docker Desktop is not installed");
-            ui.add_space(8.0);
-            ui.label(
-                "BerryCode talks to the local Docker daemon through the `docker` CLI. \
-                 Install Docker Desktop and restart BerryCode to enable this panel.",
-            );
-            ui.add_space(12.0);
-            ui.hyperlink_to(
-                "Download Docker Desktop →",
-                "https://www.docker.com/products/docker-desktop/",
-            );
+            empty_state(ui, "Docker Desktop is not installed", "BerryCode talks to the local Docker daemon through the docker CLI. Install Docker Desktop and restart BerryCode to enable this panel.");
             return;
         }
 
@@ -335,8 +327,11 @@ impl BerryCodeApp {
 
     fn render_docker_containers(&mut self, ui: &mut egui::Ui) {
         if self.docker.containers.is_empty() {
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new("No containers.").color(egui::Color32::from_gray(150)));
+            empty_state(
+                ui,
+                "No containers",
+                "Running containers will appear here after Docker responds.",
+            );
             return;
         }
 
@@ -383,8 +378,14 @@ impl BerryCodeApp {
                         for c in &containers {
                             let running = c.state.eq_ignore_ascii_case("running")
                                 || c.status.starts_with("Up");
-                            let dot = if running { "🟢" } else { "⚪" };
-                            ui.label(dot);
+                            ui.colored_label(
+                                if running {
+                                    egui::Color32::from_rgb(120, 200, 120)
+                                } else {
+                                    ui_colors::TEXT_MUTED
+                                },
+                                if running { "running" } else { "stopped" },
+                            );
 
                             let is_selected = selected.as_deref() == Some(c.id.as_str());
                             if ui.selectable_label(is_selected, &c.names).clicked() {
@@ -420,34 +421,46 @@ impl BerryCodeApp {
                 // Logs panel for the selected container.
                 if let Some(id) = self.docker.selected_container.clone() {
                     ui.add_space(8.0);
-                    ui.separator();
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(format!("Logs — {}", short_id(&id))).strong());
-                        if ui.small_button("Reload").clicked() {
+                        if button_style::button_with_icon(
+                            ui,
+                            button_style::glyph::REFRESH,
+                            "Reload",
+                        )
+                        .clicked()
+                        {
                             self.docker.fetch_logs(&id);
                         }
                     });
                     ui.add_space(4.0);
-                    egui::ScrollArea::both()
-                        .max_height(220.0)
-                        .auto_shrink([false, false])
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            ui.add(
-                                egui::TextEdit::multiline(&mut self.docker.selected_logs.as_str())
+                    docker_inset_frame().show(ui, |ui| {
+                        egui::ScrollArea::both()
+                            .max_height(220.0)
+                            .auto_shrink([false, false])
+                            .stick_to_bottom(true)
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::TextEdit::multiline(
+                                        &mut self.docker.selected_logs.as_str(),
+                                    )
                                     .code_editor()
                                     .desired_width(f32::INFINITY)
                                     .desired_rows(12),
-                            );
-                        });
+                                );
+                            });
+                    });
                 }
             });
     }
 
     fn render_docker_images(&mut self, ui: &mut egui::Ui) {
         if self.docker.images.is_empty() {
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new("No images.").color(egui::Color32::from_gray(150)));
+            empty_state(
+                ui,
+                "No images",
+                "Pulled and locally built images will appear here.",
+            );
             return;
         }
         let images: Vec<Image> = self.docker.images.clone();
@@ -480,8 +493,7 @@ impl BerryCodeApp {
 
     fn render_docker_volumes(&mut self, ui: &mut egui::Ui) {
         if self.docker.volumes.is_empty() {
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new("No volumes.").color(egui::Color32::from_gray(150)));
+            empty_state(ui, "No volumes", "Named volumes will appear here.");
             return;
         }
         let volumes: Vec<Volume> = self.docker.volumes.clone();
@@ -518,11 +530,83 @@ fn tab_link(ui: &mut egui::Ui, current: &mut DockerTab, tab: DockerTab, label: &
     } else {
         label.to_string()
     };
-    if ui.selectable_label(*current == tab, text).clicked() {
+    let selected = *current == tab;
+    let response = egui::Frame::NONE
+        .fill(if selected {
+            ui_colors::ACTIVE_BG
+        } else {
+            egui::Color32::TRANSPARENT
+        })
+        .stroke(egui::Stroke::new(
+            1.0,
+            if selected {
+                ui_colors::FOCUS_BORDER
+            } else {
+                egui::Color32::TRANSPARENT
+            },
+        ))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(8, 6))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(text).strong().color(if selected {
+                    ui_colors::TEXT_DEFAULT
+                } else {
+                    ui_colors::TEXT_MUTED
+                }));
+            });
+        })
+        .response
+        .interact(egui::Sense::click());
+    if response.clicked() {
         *current = tab;
     }
 }
 
 fn short_id(id: &str) -> &str {
     id.get(..12).unwrap_or(id)
+}
+
+fn docker_inset_frame() -> egui::Frame {
+    egui::Frame::NONE
+        .fill(ui_colors::EDITOR_BG)
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .corner_radius(egui::CornerRadius::same(3))
+        .inner_margin(egui::Margin::same(8))
+}
+
+fn docker_error_card(ui: &mut egui::Ui, text: &str) {
+    egui::Frame::NONE
+        .fill(egui::Color32::from_rgba_premultiplied(190, 70, 70, 38))
+        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(150, 70, 70)))
+        .corner_radius(egui::CornerRadius::same(3))
+        .inner_margin(egui::Margin::symmetric(8, 5))
+        .show(ui, |ui| {
+            ui.colored_label(egui::Color32::from_rgb(230, 110, 110), text);
+        });
+}
+
+fn empty_state(ui: &mut egui::Ui, title: &str, body: &str) {
+    ui.add_space(16.0);
+    egui::Frame::NONE
+        .fill(egui::Color32::from_rgb(30, 31, 34))
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(14, 12))
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(title)
+                    .strong()
+                    .color(ui_colors::TEXT_DEFAULT),
+            );
+            ui.add_space(4.0);
+            ui.label(egui::RichText::new(body).color(ui_colors::TEXT_MUTED));
+            if title.contains("Docker Desktop") {
+                ui.add_space(8.0);
+                ui.hyperlink_to(
+                    "Download Docker Desktop",
+                    "https://www.docker.com/products/docker-desktop/",
+                );
+            }
+        });
 }

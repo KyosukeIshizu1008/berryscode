@@ -11,6 +11,7 @@ use super::mobile::one_click::{
 use super::mobile::{self, LogStream, MobileRunSession, MobileTarget, MobileToolchain};
 use super::scene_editor::build_settings::Platform;
 use super::BerryCodeApp;
+use super::{button_style, ui_colors};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::mpsc::Receiver;
@@ -300,6 +301,7 @@ impl BerryCodeApp {
             .open(&mut open)
             .default_size([520.0, 560.0])
             .resizable(true)
+            .frame(tool_window_frame())
             .show(ctx, |ui| {
                 self.render_mobile_toolchain(ui);
             });
@@ -308,55 +310,49 @@ impl BerryCodeApp {
 
     fn render_mobile_toolchain(&mut self, ui: &mut egui::Ui) {
         let mut want_doctor = false;
-        ui.horizontal(|ui| {
-            ui.heading("MOBILE TOOLCHAIN");
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Refresh").clicked() {
-                    self.mobile_toolchain.refresh();
-                    self.mobile_toolchain.one_click_installed = None;
-                }
-                if ui
-                    .button("Doctor")
-                    .on_hover_text("Run a full diagnostic and show what's missing + next steps")
-                    .clicked()
-                {
-                    want_doctor = true;
-                }
-            });
+        panel_header(ui, "MOBILE TOOLCHAIN", |ui| {
+            if button_style::button_with_icon(ui, button_style::glyph::REFRESH, "Refresh").clicked()
+            {
+                self.mobile_toolchain.refresh();
+                self.mobile_toolchain.one_click_installed = None;
+            }
+            if button_style::button_with_icon(ui, "\u{ea6a}", "Doctor")
+                .on_hover_text("Run a full diagnostic and show what's missing + next steps")
+                .clicked()
+            {
+                want_doctor = true;
+            }
         });
-        ui.separator();
         if want_doctor {
             self.run_mobile_doctor();
         }
 
         if let Some(err) = &self.mobile_toolchain.last_error {
-            ui.colored_label(egui::Color32::from_rgb(220, 80, 80), err);
-            ui.separator();
+            error_banner(ui, err);
+            ui.add_space(8.0);
         }
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            self.render_xcode_section(ui);
+            section_frame(ui, |ui| self.render_xcode_section(ui));
             ui.add_space(8.0);
-            self.render_android_section(ui);
+            section_frame(ui, |ui| self.render_android_section(ui));
             ui.add_space(8.0);
-            self.render_rust_targets_section(ui);
+            section_frame(ui, |ui| self.render_rust_targets_section(ui));
             ui.add_space(12.0);
-            ui.separator();
-            self.render_one_click_section(ui);
+            section_frame(ui, |ui| self.render_one_click_section(ui));
             ui.add_space(12.0);
-            ui.separator();
-            self.render_run_section(ui);
+            section_frame(ui, |ui| self.render_run_section(ui));
         });
     }
 
     fn render_one_click_section(&mut self, ui: &mut egui::Ui) {
-        ui.heading("One-click mobile run");
+        section_title(ui, "One-click mobile run");
         ui.label(
             egui::RichText::new(
                 "Wraps cargo-mobile2: probe → install → init → cargo apple/android run.",
             )
             .small()
-            .color(egui::Color32::from_gray(170)),
+            .color(ui_colors::TEXT_MUTED),
         );
         ui.add_space(4.0);
 
@@ -377,27 +373,14 @@ impl BerryCodeApp {
             .map(|s| s.is_running())
             .unwrap_or(false);
 
-        ui.horizontal(|ui| {
-            ui.label(if installed {
-                egui::RichText::new("✓ cargo-mobile2 installed")
-                    .color(egui::Color32::from_rgb(120, 200, 120))
-            } else {
-                egui::RichText::new("✗ cargo-mobile2 missing")
-                    .color(egui::Color32::from_rgb(220, 80, 80))
-            });
-            ui.separator();
-            ui.label(if mobile_toml_exists {
-                egui::RichText::new("✓ mobile.toml present")
-                    .color(egui::Color32::from_rgb(120, 200, 120))
-            } else {
-                egui::RichText::new("✗ mobile.toml missing")
-                    .color(egui::Color32::from_rgb(220, 180, 80))
-            });
+        ui.horizontal_wrapped(|ui| {
+            status_chip(ui, installed, "cargo-mobile2 installed");
+            status_chip(ui, mobile_toml_exists, "mobile.toml present");
         });
 
         ui.add_space(4.0);
 
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let install_label = if busy
                 && matches!(
                     self.mobile_toolchain
@@ -406,7 +389,7 @@ impl BerryCodeApp {
                         .map(|s| s.stage),
                     Some(OneClickStageLabel::Install)
                 ) {
-                "Installing…"
+                "Installing..."
             } else {
                 "Install cargo-mobile2"
             };
@@ -441,7 +424,7 @@ impl BerryCodeApp {
                 self.start_one_click_android();
             }
             if busy {
-                if ui.button("Stop").clicked() {
+                if button_style::button_with_icon(ui, button_style::glyph::STOP, "Stop").clicked() {
                     if let Some(s) = self.mobile_toolchain.one_click_session.as_mut() {
                         s.stop();
                     }
@@ -476,20 +459,22 @@ impl BerryCodeApp {
             .open(&mut open)
             .resizable(true)
             .default_size([640.0, 520.0])
+            .frame(tool_window_frame())
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.button("Copy to clipboard").clicked() {
+                panel_header(ui, "MOBILE DOCTOR", |ui| {
+                    if button_style::button_with_icon(ui, "\u{ebcc}", "Copy").clicked() {
                         ui.ctx()
                             .copy_text(self.mobile_toolchain.doctor_report.clone());
                     }
-                    if ui.button("Re-run").clicked() {
+                    if button_style::button_with_icon(ui, button_style::glyph::REFRESH, "Re-run")
+                        .clicked()
+                    {
                         // Trigger a fresh report next frame — can't call
                         // `run_mobile_doctor` here because we're already
                         // inside `&mut self` via the window builder.
                         self.mobile_toolchain.doctor_report.clear();
                     }
                 });
-                ui.separator();
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
@@ -501,7 +486,8 @@ impl BerryCodeApp {
                             egui::TextEdit::multiline(&mut text)
                                 .font(egui::TextStyle::Monospace)
                                 .desired_width(f32::INFINITY)
-                                .desired_rows(20),
+                                .desired_rows(20)
+                                .code_editor(),
                         );
                     });
             });
@@ -657,11 +643,10 @@ impl BerryCodeApp {
     }
 
     fn render_run_section(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Run on device / simulator");
-        ui.separator();
+        section_title(ui, "Run on device / simulator");
 
         // ── Target picker ────────────────────────────────────────────
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label("Target:");
             let label = match &self.mobile_toolchain.run_target {
                 RunTargetSelection::None => "(none)".to_string(),
@@ -729,7 +714,9 @@ impl BerryCodeApp {
             {
                 self.mobile_toolchain.run_artifact = PathBuf::from(s);
             }
-            if ui.small_button("Browse…").clicked() {
+            if button_style::button_with_icon(ui, button_style::glyph::FOLDER_OPENED, "Browse")
+                .clicked()
+            {
                 if let Some(path) = rfd::FileDialog::new()
                     .add_filter("Mobile bundle", &["app", "apk", "ipa"])
                     .pick_file()
@@ -771,7 +758,7 @@ impl BerryCodeApp {
         }
 
         // ── Run / Stop / Clear ───────────────────────────────────────
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let running = self
                 .mobile_toolchain
                 .run_session
@@ -780,12 +767,12 @@ impl BerryCodeApp {
                 .unwrap_or(false);
 
             if running {
-                if ui.button("Stop").clicked() {
+                if button_style::button_with_icon(ui, button_style::glyph::STOP, "Stop").clicked() {
                     if let Some(s) = self.mobile_toolchain.run_session.as_mut() {
                         s.stop();
                     }
                 }
-                ui.colored_label(egui::Color32::from_rgb(120, 200, 120), "● running");
+                ui.colored_label(egui::Color32::from_rgb(120, 200, 120), "running");
             } else {
                 let ready = !matches!(self.mobile_toolchain.run_target, RunTargetSelection::None)
                     && self.mobile_toolchain.run_artifact.as_os_str().len() > 0;
@@ -793,40 +780,48 @@ impl BerryCodeApp {
                     self.start_mobile_run();
                 }
             }
-            if ui.button("Clear log").clicked() {
+            if button_style::button_with_icon(ui, button_style::glyph::CLEAR_ALL, "Clear log")
+                .clicked()
+            {
                 self.mobile_toolchain.run_log.clear();
             }
-            ui.label(format!("{} lines", self.mobile_toolchain.run_log.len()));
+            ui.label(
+                egui::RichText::new(format!("{} lines", self.mobile_toolchain.run_log.len()))
+                    .small()
+                    .color(ui_colors::TEXT_MUTED),
+            );
         });
 
         if let Some(err) = &self.mobile_toolchain.run_error {
-            ui.colored_label(egui::Color32::from_rgb(220, 80, 80), err);
+            error_banner(ui, err);
         }
 
         ui.add_space(4.0);
         // ── Log stream ───────────────────────────────────────────────
-        egui::ScrollArea::vertical()
-            .id_salt("mobile_run_log")
-            .max_height(220.0)
-            .stick_to_bottom(true)
-            .show(ui, |ui| {
-                for line in self.mobile_toolchain.run_log.iter() {
-                    let color = match line.severity {
-                        mobile::LogSeverity::Panic => egui::Color32::from_rgb(255, 100, 200),
-                        mobile::LogSeverity::Error => egui::Color32::from_rgb(220, 80, 80),
-                        mobile::LogSeverity::Warn => egui::Color32::from_rgb(220, 180, 80),
-                        mobile::LogSeverity::Info => egui::Color32::from_rgb(180, 200, 220),
-                        mobile::LogSeverity::Debug => egui::Color32::from_gray(170),
-                        mobile::LogSeverity::Trace => egui::Color32::from_gray(140),
-                        mobile::LogSeverity::Unknown => egui::Color32::from_gray(200),
-                    };
-                    ui.label(
-                        egui::RichText::new(&line.text)
-                            .color(color)
-                            .font(egui::FontId::monospace(11.0)),
-                    );
-                }
-            });
+        inset_frame().show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt("mobile_run_log")
+                .max_height(220.0)
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    for line in self.mobile_toolchain.run_log.iter() {
+                        let color = match line.severity {
+                            mobile::LogSeverity::Panic => egui::Color32::from_rgb(255, 100, 200),
+                            mobile::LogSeverity::Error => egui::Color32::from_rgb(220, 80, 80),
+                            mobile::LogSeverity::Warn => egui::Color32::from_rgb(220, 180, 80),
+                            mobile::LogSeverity::Info => egui::Color32::from_rgb(180, 200, 220),
+                            mobile::LogSeverity::Debug => egui::Color32::from_gray(170),
+                            mobile::LogSeverity::Trace => egui::Color32::from_gray(140),
+                            mobile::LogSeverity::Unknown => egui::Color32::from_gray(200),
+                        };
+                        ui.label(
+                            egui::RichText::new(&line.text)
+                                .color(color)
+                                .font(egui::FontId::monospace(11.0)),
+                        );
+                    }
+                });
+        });
     }
 
     fn start_mobile_run(&mut self) {
@@ -880,6 +875,7 @@ impl BerryCodeApp {
         };
         let mut want_refresh_identities = false;
         let mut want_download_ios_sim = false;
+        section_title(ui, "Xcode");
         match &self.mobile_toolchain.toolchain.xcode {
             Some(xcode) => {
                 row_status(ui, "Xcode", true, &xcode.version);
@@ -923,11 +919,11 @@ impl BerryCodeApp {
                         ui.collapsing("Show simulators", |ui| {
                             for sim in &xcode.simulators {
                                 let dot = match sim.state {
-                                    mobile::SimState::Booted => "🟢",
-                                    _ => "⚪",
+                                    mobile::SimState::Booted => "online",
+                                    _ => "offline",
                                 };
                                 ui.label(format!(
-                                    "{dot} {} — {} ({})",
+                                    "{dot}  {} — {} ({})",
                                     sim.name, sim.runtime, sim.udid
                                 ));
                             }
@@ -937,11 +933,17 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         ui.label("Codesign identities:");
                         if xcode.codesign_identities.is_empty() {
-                            ui.colored_label(egui::Color32::from_gray(170), "not loaded");
+                            ui.colored_label(ui_colors::TEXT_MUTED, "not loaded");
                         } else {
                             ui.label(format!("{}", xcode.codesign_identities.len()));
                         }
-                        if ui.small_button("Refresh identities").clicked() {
+                        if button_style::button_with_icon(
+                            ui,
+                            button_style::glyph::REFRESH,
+                            "Refresh identities",
+                        )
+                        .clicked()
+                        {
                             want_refresh_identities = true;
                         }
                     });
@@ -969,7 +971,7 @@ impl BerryCodeApp {
                              this section stays disabled on other hosts.",
                         )
                         .italics()
-                        .color(egui::Color32::from_gray(150)),
+                        .color(ui_colors::TEXT_MUTED),
                     );
                 }
             }
@@ -986,6 +988,7 @@ impl BerryCodeApp {
 
     fn render_android_section(&mut self, ui: &mut egui::Ui) {
         let mut want_refresh_devices = false;
+        section_title(ui, "Android SDK");
         match &self.mobile_toolchain.toolchain.android {
             Some(a) => {
                 row_status(ui, "Android SDK", true, &a.sdk_root.display().to_string());
@@ -1031,7 +1034,7 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         ui.label("Devices:");
                         if a.devices.is_empty() {
-                            ui.colored_label(egui::Color32::from_gray(170), "not loaded");
+                            ui.colored_label(ui_colors::TEXT_MUTED, "not loaded");
                         } else {
                             ui.label(format!("{}", a.devices.len()));
                         }
@@ -1050,7 +1053,11 @@ impl BerryCodeApp {
                     if !a.devices.is_empty() {
                         ui.collapsing("Show devices", |ui| {
                             for d in &a.devices {
-                                let dot = if d.authorised { "🟢" } else { "🟠" };
+                                let dot = if d.authorised {
+                                    "online"
+                                } else {
+                                    "unauthorised"
+                                };
                                 let model = if d.model.is_empty() {
                                     "(unknown model)"
                                 } else {
@@ -1061,7 +1068,7 @@ impl BerryCodeApp {
                                 } else {
                                     "unauthorised"
                                 };
-                                ui.label(format!("{dot} {} — {} ({auth})", d.serial, model));
+                                ui.label(format!("{dot}  {} — {} ({auth})", d.serial, model));
                             }
                         });
                     }
@@ -1069,9 +1076,9 @@ impl BerryCodeApp {
             }
             None => {
                 row_status(ui, "Android SDK", false, "not detected");
-                install_hint(
+                setup_hint(
                     ui,
-                    "Install Android Studio or set $ANDROID_HOME to the SDK root.",
+                    "Install Android Studio, then set ANDROID_HOME to the SDK root if BerryCode cannot find it automatically.",
                 );
             }
         }
@@ -1082,8 +1089,7 @@ impl BerryCodeApp {
     }
 
     fn render_rust_targets_section(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Rust mobile targets");
-        ui.separator();
+        section_title(ui, "Rust mobile targets");
         let mut missing: Vec<&str> = Vec::new();
         for (platform, triple) in MOBILE_TRIPLES {
             let installed = self.mobile_toolchain.toolchain.has_rust_target(triple);
@@ -1104,7 +1110,7 @@ impl BerryCodeApp {
                 "Meta Quest reuses aarch64-linux-android — no extra rustup target needed.",
             )
             .italics()
-            .color(egui::Color32::from_gray(150)),
+            .color(ui_colors::TEXT_MUTED),
         );
         if !missing.is_empty() {
             ui.separator();
@@ -1123,7 +1129,7 @@ impl BerryCodeApp {
                         .map(|s| s.stage),
                     Some(OneClickStageLabel::InstallRustTargets)
                 ) {
-                "Installing targets…"
+                "Installing targets..."
             } else {
                 "Install missing targets"
             };
@@ -1345,20 +1351,32 @@ fn short_id(s: &str) -> String {
 
 fn row_status(ui: &mut egui::Ui, label: &str, ok: bool, detail: &str) {
     ui.horizontal(|ui| {
-        let (mark, color) = if ok {
-            ("✔", egui::Color32::from_rgb(120, 200, 120))
+        let bg = if ok {
+            egui::Color32::from_rgb(60, 140, 80)
         } else {
-            ("✖", egui::Color32::from_rgb(220, 80, 80))
+            egui::Color32::from_rgb(190, 60, 60)
         };
-        ui.colored_label(color, mark);
+        let mark = if ok { "OK" } else { "MISS" };
+        egui::Frame::NONE
+            .fill(bg)
+            .corner_radius(egui::CornerRadius::same(4))
+            .inner_margin(egui::Margin::symmetric(8, 3))
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(mark)
+                        .size(11.0)
+                        .strong()
+                        .color(egui::Color32::WHITE),
+                );
+            });
         ui.label(egui::RichText::new(label).strong());
-        ui.label(egui::RichText::new(detail).color(egui::Color32::from_gray(170)));
+        ui.label(egui::RichText::new(detail).color(ui_colors::TEXT_MUTED));
     });
 }
 
 fn install_hint(ui: &mut egui::Ui, command: &str) {
-    ui.horizontal(|ui| {
-        ui.label("Install:");
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Command:");
         let mut text = command.to_string();
         // Read-only single-line display + copy button. The copy uses egui's
         // built-in clipboard so the user can paste into a terminal without
@@ -1369,10 +1387,130 @@ fn install_hint(ui: &mut egui::Ui, command: &str) {
                 .interactive(false)
                 .font(egui::TextStyle::Monospace),
         );
-        if ui.small_button("Copy").clicked() {
+        if button_style::button_with_icon(ui, "\u{ebcc}", "Copy").clicked() {
             ui.ctx().copy_text(command.to_string());
         }
     });
+}
+
+fn setup_hint(ui: &mut egui::Ui, text: &str) {
+    egui::Frame::NONE
+        .fill(egui::Color32::from_rgba_premultiplied(190, 130, 60, 34))
+        .stroke(egui::Stroke::new(
+            1.0,
+            egui::Color32::from_rgb(150, 105, 55),
+        ))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::symmetric(8, 6))
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                egui::Frame::NONE
+                    .fill(egui::Color32::from_rgb(200, 140, 50))
+                    .corner_radius(egui::CornerRadius::same(4))
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("FIX")
+                                .size(11.0)
+                                .strong()
+                                .color(egui::Color32::WHITE),
+                        );
+                    });
+                ui.label(egui::RichText::new(text).color(ui_colors::TEXT_DEFAULT));
+            });
+        });
+}
+
+fn tool_window_frame() -> egui::Frame {
+    egui::Frame::window(&egui::Style::default())
+        .fill(ui_colors::SIDEBAR_BG)
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::same(10))
+}
+
+fn panel_header(ui: &mut egui::Ui, title: &str, add_actions: impl FnOnce(&mut egui::Ui)) {
+    egui::Frame::NONE
+        .fill(ui_colors::TOP_BAR_BG)
+        .inner_margin(egui::Margin::symmetric(10, 7))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(title)
+                        .small()
+                        .strong()
+                        .color(ui_colors::TEXT_DEFAULT),
+                );
+                ui.with_layout(
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    add_actions,
+                );
+            });
+        });
+    ui.add_space(10.0);
+}
+
+fn section_frame(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
+    egui::Frame::NONE
+        .fill(egui::Color32::from_rgb(30, 31, 34))
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::same(10))
+        .show(ui, add_contents);
+}
+
+fn inset_frame() -> egui::Frame {
+    egui::Frame::NONE
+        .fill(ui_colors::EDITOR_BG)
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .corner_radius(egui::CornerRadius::same(3))
+        .inner_margin(egui::Margin::same(8))
+}
+
+fn section_title(ui: &mut egui::Ui, title: &str) {
+    ui.label(
+        egui::RichText::new(title)
+            .strong()
+            .color(ui_colors::TEXT_DEFAULT),
+    );
+    ui.add_space(4.0);
+}
+
+fn status_chip(ui: &mut egui::Ui, ok: bool, label: &str) {
+    let (text, color, bg) = if ok {
+        (
+            label.to_string(),
+            egui::Color32::from_rgb(120, 200, 120),
+            egui::Color32::from_rgba_premultiplied(70, 150, 90, 34),
+        )
+    } else {
+        (
+            label
+                .replace(" installed", " missing")
+                .replace(" present", " missing"),
+            egui::Color32::from_rgb(220, 160, 80),
+            egui::Color32::from_rgba_premultiplied(190, 130, 60, 34),
+        )
+    };
+    egui::Frame::NONE
+        .fill(bg)
+        .stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.45)))
+        .corner_radius(egui::CornerRadius::same(3))
+        .inner_margin(egui::Margin::symmetric(8, 3))
+        .show(ui, |ui| {
+            ui.label(egui::RichText::new(text).small().color(color));
+        });
+}
+
+fn error_banner(ui: &mut egui::Ui, text: &str) {
+    egui::Frame::NONE
+        .fill(egui::Color32::from_rgba_premultiplied(190, 70, 70, 38))
+        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(150, 70, 70)))
+        .corner_radius(egui::CornerRadius::same(3))
+        .inner_margin(egui::Margin::symmetric(8, 5))
+        .show(ui, |ui| {
+            ui.colored_label(egui::Color32::from_rgb(230, 110, 110), text);
+        });
 }
 
 #[cfg(test)]
