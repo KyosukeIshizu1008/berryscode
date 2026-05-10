@@ -8,6 +8,11 @@ pub enum EcsInspectorTab {
     #[default]
     Entities,
     Resources,
+    /// `world.trigger_event` console — fires Bevy events on the running
+    /// app so user-registered observers act as one-shot "in-editor"
+    /// systems. Bevy 0.18 BRP doesn't expose direct system execution,
+    /// so this event-bus indirection is the supported pattern.
+    Triggers,
 }
 
 // VS Code-like colors
@@ -213,6 +218,7 @@ impl BerryCodeApp {
             let tabs = [
                 (EcsInspectorTab::Entities, "Entities"),
                 (EcsInspectorTab::Resources, "Resources"),
+                (EcsInspectorTab::Triggers, "Triggers"),
             ];
             for (tab, label) in &tabs {
                 let selected = self.ecs_inspector_tab == *tab;
@@ -271,6 +277,240 @@ impl BerryCodeApp {
         match self.ecs_inspector_tab {
             EcsInspectorTab::Entities => self.render_ecs_entities_tab_vscode(ui),
             EcsInspectorTab::Resources => self.render_ecs_resources_tab(ui),
+            EcsInspectorTab::Triggers => self.render_ecs_triggers_tab(ui),
+        }
+    }
+
+    /// Render the Triggers tab — `world.trigger_event` console.
+    ///
+    /// This is BerryCode's stand-in for "run this one system on demand"
+    /// (Unity's [ExecuteInEditMode]). Bevy 0.18's BRP doesn't expose
+    /// direct system execution, so the user registers an
+    /// `Observer<MyEvent>` in their game and we trigger it from here.
+    fn render_ecs_triggers_tab(&mut self, ui: &mut egui::Ui) {
+        let small = egui::FontId::proportional(11.0);
+
+        // Hint banner so first-time users understand the setup contract.
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "Fire a Bevy event on the running app. Register an \
+                 Observer<YourEvent> in your game to act as a one-shot \
+                 \"editor system\" (procgen preview, debug toggles, etc.).",
+            )
+            .font(small.clone())
+            .color(LABEL_DIM),
+        );
+        ui.add_space(6.0);
+
+        // Event type input
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.label(
+                egui::RichText::new("Event type:")
+                    .font(small.clone())
+                    .color(LABEL_BRIGHT),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.ecs_inspector.trigger_event_type)
+                    .font(small.clone())
+                    .hint_text("my_game::commands::RegenerateLevel")
+                    .desired_width(ui.available_width() - 60.0),
+            );
+        });
+
+        // Payload input (JSON)
+        ui.add_space(2.0);
+        ui.label(
+            egui::RichText::new("Payload (JSON, `{}` for unit-struct events):")
+                .font(small.clone())
+                .color(LABEL_DIM),
+        );
+        ui.add(
+            egui::TextEdit::multiline(&mut self.ecs_inspector.trigger_event_payload)
+                .font(small.clone())
+                .desired_rows(3)
+                .desired_width(ui.available_width()),
+        );
+
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            let busy = self.ecs_inspector.pending_trigger.is_some();
+            let label = if busy { "Triggering…" } else { "Trigger" };
+            let valid_event_type = !self.ecs_inspector.trigger_event_type.trim().is_empty();
+            let connected = self.ecs_inspector.connected;
+            let enabled = !busy && valid_event_type && connected;
+
+            if ui
+                .add_enabled(
+                    enabled,
+                    egui::Button::new(egui::RichText::new(label).font(small.clone())),
+                )
+                .on_hover_text(if connected {
+                    "Send `world.trigger_event` to the running Bevy app"
+                } else {
+                    "Connect to a running Bevy app first"
+                })
+                .clicked()
+            {
+                self.dispatch_trigger_event();
+            }
+
+            if ui
+                .add(egui::Button::new(
+                    egui::RichText::new("Clear log").font(small.clone()),
+                ))
+                .clicked()
+            {
+                self.ecs_inspector.trigger_log.clear();
+            }
+        });
+
+        // Recent / saved event types — click-to-load
+        if !self.ecs_inspector.trigger_history.is_empty() {
+            ui.add_space(6.0);
+            ui.label(
+                egui::RichText::new("Recent")
+                    .font(small.clone())
+                    .color(LABEL_DIM),
+            );
+            // Snapshot to release the borrow before mutating on click
+            let history = self.ecs_inspector.trigger_history.clone();
+            ui.horizontal_wrapped(|ui| {
+                for ev in &history {
+                    if ui
+                        .small_button(egui::RichText::new(ev).font(small.clone()))
+                        .clicked()
+                    {
+                        self.ecs_inspector.trigger_event_type = ev.clone();
+                    }
+                }
+            });
+        }
+
+        ui.add_space(8.0);
+        ui.painter().line_segment(
+            [
+                egui::pos2(ui.min_rect().left(), ui.cursor().top()),
+                egui::pos2(ui.min_rect().right(), ui.cursor().top()),
+            ],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 45, 45)),
+        );
+        ui.add_space(4.0);
+
+        ui.label(
+            egui::RichText::new("Console")
+                .font(small.clone())
+                .color(LABEL_DIM),
+        );
+        ui.add_space(2.0);
+
+        egui::ScrollArea::vertical()
+            .id_salt("ecs_triggers_console")
+            .max_height(200.0)
+            .show(ui, |ui| {
+                if self.ecs_inspector.trigger_log.is_empty() {
+                    ui.label(
+                        egui::RichText::new("(no triggers yet)")
+                            .font(small.clone())
+                            .color(LABEL_DIM)
+                            .italics(),
+                    );
+                }
+                for entry in &self.ecs_inspector.trigger_log {
+                    let (mark, color) = match &entry.status {
+                        crate::bevy_ide::inspector::ecs_state::TriggerStatus::Success => {
+                            ("✓", STATUS_GREEN)
+                        }
+                        crate::bevy_ide::inspector::ecs_state::TriggerStatus::Error(_) => {
+                            ("✗", STATUS_RED)
+                        }
+                    };
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(mark)
+                                .font(small.clone())
+                                .color(color)
+                                .strong(),
+                        );
+                        ui.label(
+                            egui::RichText::new(&entry.event_type)
+                                .font(small.clone())
+                                .color(LABEL_BRIGHT),
+                        );
+                    });
+                    if let crate::bevy_ide::inspector::ecs_state::TriggerStatus::Error(msg) =
+                        &entry.status
+                    {
+                        ui.label(
+                            egui::RichText::new(format!("    {msg}"))
+                                .font(small.clone())
+                                .color(STATUS_RED),
+                        );
+                    }
+                }
+            });
+    }
+
+    fn dispatch_trigger_event(&mut self) {
+        let event_type = self.ecs_inspector.trigger_event_type.trim().to_string();
+        if event_type.is_empty() {
+            return;
+        }
+        let payload_str = self.ecs_inspector.trigger_event_payload.trim();
+        let payload: serde_json::Value = if payload_str.is_empty() {
+            serde_json::json!({})
+        } else {
+            match serde_json::from_str(payload_str) {
+                Ok(v) => v,
+                Err(e) => {
+                    self.push_trigger_log(
+                        &event_type,
+                        crate::bevy_ide::inspector::ecs_state::TriggerStatus::Error(format!(
+                            "invalid JSON payload: {e}"
+                        )),
+                    );
+                    return;
+                }
+            }
+        };
+        let endpoint = self.ecs_inspector.endpoint.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let event_type_for_task = event_type.clone();
+        let runtime = self.lsp_runtime.clone();
+        runtime.spawn(async move {
+            let mut client = crate::bevy_ide::inspector::brp_client::BrpClient::new(&endpoint);
+            let _ = tx.send(client.trigger_event(&event_type_for_task, payload).await);
+        });
+        self.ecs_inspector.pending_trigger = Some(rx);
+        // Push event_type into history (most-recent first, dedup, cap 10)
+        if !self
+            .ecs_inspector
+            .trigger_history
+            .iter()
+            .any(|e| e == &event_type)
+        {
+            self.ecs_inspector.trigger_history.insert(0, event_type);
+            if self.ecs_inspector.trigger_history.len() > 10 {
+                self.ecs_inspector.trigger_history.pop();
+            }
+        }
+    }
+
+    fn push_trigger_log(
+        &mut self,
+        event_type: &str,
+        status: crate::bevy_ide::inspector::ecs_state::TriggerStatus,
+    ) {
+        self.ecs_inspector.trigger_log.push_front(
+            crate::bevy_ide::inspector::ecs_state::TriggerLogEntry {
+                timestamp: std::time::Instant::now(),
+                event_type: event_type.to_string(),
+                status,
+            },
+        );
+        if self.ecs_inspector.trigger_log.len() > 50 {
+            self.ecs_inspector.trigger_log.pop_back();
         }
     }
 
@@ -1277,6 +1517,28 @@ impl BerryCodeApp {
                     self.ecs_inspector.pending_write_result = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+
+        // Poll trigger_event result and append to the Triggers-tab log.
+        if let Some(rx) = &self.ecs_inspector.pending_trigger {
+            let outcome = match rx.try_recv() {
+                Ok(result) => Some(result),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(Err(anyhow::anyhow!(
+                    "trigger task channel closed before reply"
+                ))),
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            };
+            if let Some(result) = outcome {
+                self.ecs_inspector.pending_trigger = None;
+                let event_type = self.ecs_inspector.trigger_event_type.clone();
+                let status = match result {
+                    Ok(()) => crate::bevy_ide::inspector::ecs_state::TriggerStatus::Success,
+                    Err(e) => {
+                        crate::bevy_ide::inspector::ecs_state::TriggerStatus::Error(e.to_string())
+                    }
+                };
+                self.push_trigger_log(&event_type, status);
             }
         }
 

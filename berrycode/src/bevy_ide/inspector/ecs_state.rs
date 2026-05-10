@@ -38,6 +38,37 @@ pub struct EcsInspectorState {
     pub perf_latency_history: std::collections::VecDeque<f64>,
     /// Timestamp when the last entity poll started (for measuring latency)
     pub poll_start: Option<std::time::Instant>,
+
+    // ── Triggers tab ──────────────────────────────────────────────
+    /// Event type path the user is about to trigger
+    /// (`my_game::commands::RegenerateLevel`).
+    pub trigger_event_type: String,
+    /// JSON payload for the event (defaults to `{}` for unit-struct events).
+    pub trigger_event_payload: String,
+    /// User-curated list of recently used / saved event types so the
+    /// "Triggers" tab acts more like a panel of buttons than a free-form
+    /// REPL. Persisted in-memory only for now (cleared between sessions).
+    pub trigger_history: Vec<String>,
+    /// Inflight `world.trigger_event` request. The poll loop completes
+    /// it and pushes the result into `trigger_log`.
+    pub pending_trigger: Option<std::sync::mpsc::Receiver<anyhow::Result<()>>>,
+    /// Console-style log of the last few trigger attempts (newest first).
+    /// Capped at 50 entries.
+    pub trigger_log: std::collections::VecDeque<TriggerLogEntry>,
+}
+
+/// One row in the Triggers-tab console.
+#[derive(Debug, Clone)]
+pub struct TriggerLogEntry {
+    pub timestamp: std::time::Instant,
+    pub event_type: String,
+    pub status: TriggerStatus,
+}
+
+#[derive(Debug, Clone)]
+pub enum TriggerStatus {
+    Success,
+    Error(String),
 }
 
 /// A pinned field to monitor in the Watch panel.
@@ -93,6 +124,11 @@ impl Default for EcsInspectorState {
             perf_poll_latency_ms: 0.0,
             perf_latency_history: std::collections::VecDeque::new(),
             poll_start: None,
+            trigger_event_type: String::new(),
+            trigger_event_payload: "{}".to_string(),
+            trigger_history: Vec::new(),
+            pending_trigger: None,
+            trigger_log: std::collections::VecDeque::new(),
         }
     }
 }

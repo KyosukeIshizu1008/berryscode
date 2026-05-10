@@ -426,6 +426,43 @@ impl BrpClient {
         Ok(())
     }
 
+    /// Fire a Bevy event (`world.trigger_event`) on the running app.
+    ///
+    /// This is BerryCode's stand-in for "run this one system on demand"
+    /// (the [ExecuteInEditMode] equivalent in Unity-speak): the user's
+    /// game registers an `Observer<MyEvent>` that runs whatever logic
+    /// they want as a one-shot, and BerryCode triggers it from the IDE.
+    /// Bevy 0.18's BRP does not expose direct system execution, so this
+    /// event-bus indirection is the supported pattern.
+    ///
+    /// `event_type` is the fully-qualified type path of the event
+    /// (`my_game::commands::RegenerateLevel`); `payload` is the JSON
+    /// representation of the event struct (an empty `{}` is fine for
+    /// unit-struct events).
+    pub async fn trigger_event(
+        &mut self,
+        event_type: &str,
+        payload: serde_json::Value,
+    ) -> Result<()> {
+        self.send_request(
+            "world.trigger_event",
+            Some(json!({
+                "event_type": event_type,
+                "event": payload,
+            })),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Discover the BRP methods + custom event types the running app
+    /// has registered via `rpc.discover`. Used by the "Triggers" panel
+    /// to populate the autocomplete with real, reflect-registered event
+    /// type paths instead of asking the user to type them by hand.
+    pub async fn discover(&mut self) -> Result<serde_json::Value> {
+        self.send_request("rpc.discover", None).await
+    }
+
     /// Filter out internal Bevy types that don't support reflect
     pub fn filter_internal_components(names: &[String]) -> Vec<String> {
         names
