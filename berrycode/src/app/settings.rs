@@ -573,6 +573,41 @@ impl BerryCodeApp {
                         );
                     }
                 }
+
+                // ── One-click "go local with Llama 3" ─────────────
+                // Sets up the whole stack (provider, model, agent
+                // backend, endpoint) for fully-local Llama inference.
+                // Pairs with the Llama-tuned cheatsheet auto-applied
+                // by `ai_chat.rs::is_llama_family_model`.
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("Use Llama 3 (local)")
+                        .on_hover_text(
+                            "Sets chat provider to Ollama, model to llama3.3, and agent \
+                             backend to Ollama. Run `ollama pull llama3.3` first if you \
+                             haven't downloaded it yet.",
+                        )
+                        .clicked()
+                    {
+                        self.ai_settings.chat_provider = ProviderKind::Ollama;
+                        self.ai_settings.chat_model = "llama3.3".to_string();
+                        self.ai_settings.completion_provider = ProviderKind::Ollama;
+                        self.ai_settings.completion_model = "llama3.3".to_string();
+                        self.ai_settings.agent_backend = "ollama".to_string();
+                        if self.ai_settings.ollama_endpoint.trim().is_empty() {
+                            self.ai_settings.ollama_endpoint = "http://localhost:11434".to_string();
+                        }
+                        dirty = true;
+                    }
+                    ui.label(
+                        egui::RichText::new(
+                            "Local-first AI (no API keys, no data leaves your machine).",
+                        )
+                        .small()
+                        .color(egui::Color32::from_rgb(140, 180, 220)),
+                    );
+                });
             },
         );
 

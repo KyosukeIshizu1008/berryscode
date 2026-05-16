@@ -430,6 +430,20 @@ impl BerryCodeApp {
                         });
                 });
 
+                // --- Mobile ---
+                // Read by the Mobile Toolchain panel's One Click flow
+                // (`cargo mobile init` requires a non-empty bundle ID).
+                ui.separator();
+                ui.heading("Mobile");
+                ui.horizontal(|ui| {
+                    ui.label("iOS Bundle ID:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.build_settings.ios_bundle_id)
+                            .hint_text("com.example.MyGame")
+                            .desired_width(220.0),
+                    );
+                });
+
                 // --- Scenes In Build ---
                 ui.separator();
                 ui.heading("Scenes In Build");

@@ -604,7 +604,7 @@ impl BerryCodeApp {
             Ok(pair) => {
                 self.mobile_toolchain
                     .run_log
-                    .push_line("─── cargo apple run --release ───".into());
+                    .push_line("─── Building & running on iOS Simulator ───".into());
                 self.mobile_toolchain.one_click_session =
                     Some(OneClickSession::new(OneClickStageLabel::RunIos, pair));
             }

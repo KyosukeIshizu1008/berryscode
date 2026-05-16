@@ -26,6 +26,8 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{channel, Receiver};
 
+use crate::common::shell::shell_quote;
+
 #[derive(Debug)]
 pub struct OneClickConfig<'a> {
     pub project_root: &'a Path,
@@ -175,27 +177,208 @@ pub fn init_mobile_project_if_needed(
     Ok(Some(pair))
 }
 
-/// Spawn `cargo apple run --release` for the iOS Simulator. Returns
-/// the child + log channel; caller polls.
+/// Build the cargo-mobile2 Xcode project for the iOS Simulator SDK and
+/// hand the resulting `.app` off to `simctl` so it boots a sim,
+/// installs, and launches the game. Returns the child + log channel;
+/// caller polls.
+///
+/// `cargo apple run` is hardcoded to "deploy IPA to connected device"
+/// in cargo-mobile2 and has no Simulator path — when a real iPhone is
+/// plugged in, it ends up calling xcodebuild against `iphoneos` and
+/// dies on provisioning (exit 65). So we drive xcodebuild + simctl
+/// ourselves here.
 pub fn run_on_ios_simulator(
     cfg: &OneClickConfig<'_>,
 ) -> Result<(Child, Receiver<String>), OneClickError> {
-    if !probe_cargo_mobile() {
+    let apple_dir = cfg.project_root.join("gen").join("apple");
+    if !apple_dir.exists() {
         return Err(OneClickError::new(
-            OneClickStage::ProbeToolchain,
-            "`cargo mobile` not found. Click `Install cargo-mobile2` \
-             below or run `cargo install cargo-mobile2 --locked` from a \
-             terminal.",
+            OneClickStage::Launch,
+            "`gen/apple` not found — click `Initialize for Mobile` first.",
         ));
     }
+    let name_lower = cfg.project_name.to_lowercase();
+    let xcodeproj = apple_dir.join(format!("{name_lower}.xcodeproj"));
+    if !xcodeproj.exists() {
+        return Err(OneClickError::new(
+            OneClickStage::Launch,
+            format!(
+                "Xcode project not found at `{}`. Re-run `Initialize for Mobile`.",
+                xcodeproj.display()
+            ),
+        ));
+    }
+    // Fall back to mobile.toml's `[app] identifier` when Build Settings
+    // hasn't been filled — for an existing cargo-mobile2 project, the
+    // bundle id already lives there and re-typing it would just drift.
+    let bundle_id_owned;
+    let bundle_id: &str = if cfg.ios_bundle_id.is_empty() {
+        bundle_id_owned = read_bundle_id_from_mobile_toml(cfg.project_root).ok_or_else(|| {
+            OneClickError::new(
+                OneClickStage::Launch,
+                "iOS Bundle ID is empty in Build Settings and `mobile.toml` \
+                 has no `[app] identifier`. Set one and retry.",
+            )
+        })?;
+        &bundle_id_owned
+    } else {
+        cfg.ios_bundle_id
+    };
+    let udid = pick_ios_simulator()?;
+    let derived = apple_dir.join("build-sim");
+    let products = derived.join("Build/Products/Release-iphonesimulator");
+
+    let proj_q = shell_quote(&xcodeproj.display().to_string());
+    let scheme_q = shell_quote(&format!("{name_lower}_iOS"));
+    let derived_q = shell_quote(&derived.display().to_string());
+    let products_q = shell_quote(&products.display().to_string());
+    let udid_q = shell_quote(&udid);
+    let bundle_q = shell_quote(bundle_id);
+
+    // Single `sh -c` pipeline so the caller gets one Child to track and
+    // one merged log stream.
+    //
+    // Three xcodebuild settings are non-obvious:
+    //   - CODE_SIGNING_REQUIRED=NO / CODE_SIGN_IDENTITY='': sim builds
+    //     don't need real codesigning; without these xcodebuild still
+    //     consults the keychain.
+    //   - GCC_PREPROCESSOR_DEFINITIONS='NDEBUG=1': cargo-mobile2's
+    //     "Build Rust Code" script uses `${GCC_PREPROCESSOR_DEFINITIONS:?}`
+    //     which exits if the setting is empty. The Release config it
+    //     generates leaves the setting blank, so we inject NDEBUG=1.
+    //   - BINDGEN_EXTRA_CLANG_ARGS_aarch64_apple_ios_sim: bevy's log
+    //     stack pulls in `tracing-oslog`, whose build.rs runs bindgen
+    //     against `os/log.h`. Without `-target …-simulator -isysroot
+    //     <sim sdk>`, clang reports "version 'sim' in target triple is
+    //     invalid" and "os/log.h not found". Setting it as an xcodebuild
+    //     build setting propagates it to the script-phase env that
+    //     `cargo apple xcode-script` then forwards to cargo.
+    let script = format!(
+        "set -e; \
+         SDK=$(xcrun --sdk iphonesimulator --show-sdk-path); \
+         echo '── Building for iOS Simulator (xcodebuild -sdk iphonesimulator) ──'; \
+         xcodebuild \
+             -project {proj_q} \
+             -scheme {scheme_q} \
+             -configuration release \
+             -sdk iphonesimulator \
+             -derivedDataPath {derived_q} \
+             CODE_SIGNING_REQUIRED=NO \
+             CODE_SIGN_IDENTITY='' \
+             GCC_PREPROCESSOR_DEFINITIONS='NDEBUG=1' \
+             \"BINDGEN_EXTRA_CLANG_ARGS_aarch64_apple_ios_sim=-target arm64-apple-ios14.0-simulator -isysroot $SDK\" \
+             build; \
+         APP=$(find {products_q} -maxdepth 1 -name '*.app' -print -quit); \
+         if [ -z \"$APP\" ]; then \
+             echo \"error: built .app not found under {products_q}\"; \
+             exit 1; \
+         fi; \
+         echo \"── Booting simulator {udid} ──\"; \
+         xcrun simctl boot {udid_q} >/dev/null 2>&1 || true; \
+         open -a Simulator; \
+         echo \"── Installing $APP ──\"; \
+         xcrun simctl install {udid_q} \"$APP\"; \
+         echo \"── Launching {bundle_q} ──\"; \
+         exec xcrun simctl launch --console-pty {udid_q} {bundle_q}"
+    );
+
     spawn_with_log_channel(
-        Command::new("cargo")
-            .args(["apple", "run", "--release"])
+        Command::new("sh")
+            .arg("-c")
+            .arg(&script)
             .current_dir(cfg.project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped()),
         OneClickStage::Launch,
     )
+}
+
+/// Read `[app].identifier` from `<project_root>/mobile.toml`. Returns
+/// `None` if the file is missing, unparseable, or has no identifier.
+fn read_bundle_id_from_mobile_toml(project_root: &Path) -> Option<String> {
+    let raw = std::fs::read_to_string(project_root.join("mobile.toml")).ok()?;
+    let parsed: toml::Value = raw.parse().ok()?;
+    parsed
+        .get("app")
+        .and_then(|v| v.get("identifier"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+}
+
+/// Pick a sensible iOS Simulator UDID: prefer one that is already
+/// `Booted`, otherwise the newest iPhone runtime available. Returns a
+/// structured error pointing the user at Xcode → Settings → Platforms
+/// when no sims are installed.
+fn pick_ios_simulator() -> Result<String, OneClickError> {
+    let out = Command::new("xcrun")
+        .args(["simctl", "list", "-j", "devices"])
+        .output()
+        .map_err(|e| {
+            OneClickError::new(
+                OneClickStage::Launch,
+                format!("`xcrun simctl` not found: {e}"),
+            )
+        })?;
+    if !out.status.success() {
+        return Err(OneClickError::new(
+            OneClickStage::Launch,
+            "`xcrun simctl list` failed",
+        ));
+    }
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .map_err(|e| OneClickError::new(OneClickStage::Launch, format!("simctl json: {e}")))?;
+    let devices = json
+        .get("devices")
+        .and_then(|d| d.as_object())
+        .ok_or_else(|| {
+            OneClickError::new(OneClickStage::Launch, "simctl: missing `devices` map")
+        })?;
+
+    let mut booted: Option<String> = None;
+    // (runtime_key, udid) — runtime keys sort lexicographically by version
+    // because the suffix is "iOS-26-4" / "iOS-17-5", so a string compare
+    // picks the newest installed runtime.
+    let mut latest: Option<(String, String)> = None;
+    for (runtime_key, list) in devices {
+        if !runtime_key.contains(".iOS-") {
+            continue;
+        }
+        let Some(arr) = list.as_array() else { continue };
+        for d in arr {
+            let Some(udid) = d.get("udid").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let name = d.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            if !name.contains("iPhone") {
+                continue;
+            }
+            let available = d
+                .get("isAvailable")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !available {
+                continue;
+            }
+            let state = d.get("state").and_then(|v| v.as_str()).unwrap_or("");
+            if state == "Booted" && booted.is_none() {
+                booted = Some(udid.to_string());
+            }
+            if latest
+                .as_ref()
+                .map(|(rk, _)| runtime_key.as_str() > rk.as_str())
+                .unwrap_or(true)
+            {
+                latest = Some((runtime_key.clone(), udid.to_string()));
+            }
+        }
+    }
+    booted.or_else(|| latest.map(|(_, u)| u)).ok_or_else(|| {
+        OneClickError::new(
+            OneClickStage::Launch,
+            "No iOS Simulator available — install one via Xcode → Settings → Platforms.",
+        )
+    })
 }
 
 /// Same as `run_on_ios_simulator` for the Android emulator / device.

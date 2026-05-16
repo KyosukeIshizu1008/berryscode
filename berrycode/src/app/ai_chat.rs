@@ -962,6 +962,13 @@ impl BerryCodeApp {
              and explain your plan before applying changes.",
         );
         extra_system.push_str(BEVY_018_CHEATSHEET);
+        // Layer the Llama-specific reminders on top of the base
+        // cheatsheet whenever we're talking to a Llama-family model.
+        // The base cheatsheet covers Bevy API renames; this one covers
+        // the Rust-vs-Python and tool-call quirks particular to Llama.
+        if backend == "ollama" && is_llama_family_model(&self.ai_settings.chat_model) {
+            extra_system.push_str(BEVY_018_LLAMA_CHEATSHEET);
+        }
         if !attached.is_empty() {
             extra_system.push_str("\n\n## Attached files (referenced via @ in the user message)\n");
             for (path, content) in &attached {
@@ -1353,6 +1360,46 @@ const BEVY_018_CHEATSHEET: &str = "
 - Time delta: `time.delta_secs()` (was `delta_seconds()`).
 - Color literals: `Color::srgb(r, g, b)` / `Color::srgba(r, g, b, a)`; `Color::rgb` is gone.
 ";
+
+/// Extra reminders appended **on top of** [`BEVY_018_CHEATSHEET`] when
+/// the configured agent model is from the Llama family. Llama 3.x is
+/// strong at general code but has specific failure modes when
+/// generating Bevy / Rust:
+///
+/// - leaks Python-flavoured syntax (`def`, `:` block intros, `lambda`)
+///   into Rust output if not reminded;
+/// - drops or mis-orders the function-call envelope when emitting
+///   `tool_calls` over the OpenAI-compatible chat endpoint;
+/// - happily writes `let mut foo = vec![]` when Rust requires a typed
+///   binding for empty containers without a context type.
+///
+/// Keeping this as a separate cheatsheet (vs. patching the base one
+/// for everyone) avoids polluting the Claude / Codex prompt path with
+/// reminders those models don't need.
+const BEVY_018_LLAMA_CHEATSHEET: &str = "
+
+## Llama-specific reminders (this is Rust, not Python)
+- Output Rust syntax only. No `def`, no `:` block intros, no `lambda`, no `print(...)`. Rust uses `fn`, `{ ... }` blocks, `|args| body` closures, and `println!(...)`.
+- Type elision: `let mut v = Vec::new();` only works if Rust can infer the element type from later use. When unsure, write `let mut v: Vec<T> = Vec::new();`.
+- Strings: `String` (owned, growable) vs `&str` (borrowed slice). `\"literal\"` is `&str`; call `.to_string()` to own. Don't mix them up like Python.
+- Borrow rules: one mutable borrow OR many immutable. Two `&mut` to the same variable inside a scope is a compile error, not a runtime warning.
+- Tool calls: when you decide to call a tool, emit a single well-formed `tool_calls` array with `id`, `type: \"function\"`, and `function: { name, arguments }`. The `arguments` field is a JSON string, not a parsed object — escape inner quotes correctly (`\"{\\\"path\\\": \\\"src/main.rs\\\"}\"`).
+- Match exhaustiveness: every `match` must cover every variant or end with `_ => { ... }`. Missing arms will not compile.
+- Bevy systems are plain `fn`s, not methods on a struct. They take params like `Query<...>`, `Res<...>`, `ResMut<...>`, `Commands`, `Time` — never `self`.
+- Don't use `EventReader` / `EventWriter` — Bevy 0.18 renamed those to `MessageReader` / `MessageWriter`. Your training data probably shows the old names.
+- Verify with `cargo check` after edits. Llama tends to be confidently wrong about Rust types; the compiler is the source of truth, not the model.
+";
+
+/// True if `model` looks like a Llama-family model name (any version).
+/// Used by the chat panel to decide whether to append the Llama-tuned
+/// cheatsheet on top of the base Bevy reminders. Match is intentionally
+/// loose: Ollama tags vary (`llama3.3:70b`, `llama3.1:8b-instruct-q4`,
+/// `llama-3-8b-instruct`, `meta-llama-3.1-70b`), and a false positive
+/// just adds harmless extra context.
+pub(crate) fn is_llama_family_model(model: &str) -> bool {
+    let lc = model.to_ascii_lowercase();
+    lc.contains("llama") || lc.contains("meta-llama")
+}
 
 /// Resolve `@<path>` references in a chat message — read each file
 /// against `root_path` and return `(rel_path, content)` pairs to

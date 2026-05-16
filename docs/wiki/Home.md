@@ -12,6 +12,7 @@
 
 ### Bevy-Native Tools
 
+- [Getting Started](Getting-Started) — install, first launch, project workflow, common troubleshooting
 - [Scene Editor](Scene-Editor) — Unity-class 3D viewport, hierarchy, inspector, gizmos, animation, prefabs
 - [Sidebar Panels](Sidebar-Panels) — ECS Inspector, System Graph, Event Monitor, Query Visualizer, State Editor, Bevy Templates, Asset Browser, Plugin Browser
 
@@ -20,6 +21,7 @@
 - [Code Editor](Code-Editor) — LSP, Vim Mode, syntax highlighting, snippets, minimap, test runner
 - [Sidebar Panels](Sidebar-Panels) — Explorer, Search, Git (6-tab), Terminal (iTerm2-class)
 - [Debug and Run](Debug-and-Run) — Debugger (DAP), Run panel, Profiler, Console
+- [Mobile & DevOps](Mobile-and-DevOps) — Mobile Toolchain, Doctor, one-click mobile run, Docker panel
 - [AI and Collaboration](AI-and-Collaboration) — AI Chat, Live Collaboration, Remote Development, Plugin System
 
 ### Reference
@@ -36,6 +38,7 @@
 
 ### Bevy ネイティブツール
 
+- [はじめかた](Getting-Started) — インストール、初回起動、プロジェクト作業、よくあるトラブル
 - [シーンエディタ](Scene-Editor) — Unity クラスの3Dビューポート、ヒエラルキー、インスペクター、ギズモ、アニメーション、プレハブ
 - [サイドバーパネル](Sidebar-Panels) — ECS インスペクター、システムグラフ、イベントモニター、クエリビジュアライザー、ステートエディタ、Bevy テンプレート、アセットブラウザ、プラグインブラウザ
 
@@ -44,6 +47,7 @@
 - [コードエディタ](Code-Editor) — LSP、Vim モード、シンタックスハイライト、スニペット、ミニマップ、テストランナー
 - [サイドバーパネル](Sidebar-Panels) — Explorer、Search、Git (6タブ)、Terminal (iTerm2クラス)
 - [デバッグ・実行](Debug-and-Run) — デバッガー (DAP)、実行パネル、プロファイラー、コンソール
+- [Mobile & DevOps](Mobile-and-DevOps) — Mobile Toolchain、Doctor、ワンクリックモバイル実行、Docker パネル
 - [AI・コラボレーション](AI-and-Collaboration) — AI Chat、ライブコラボ、リモート開発、プラグインシステム
 
 ### リファレンス

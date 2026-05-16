@@ -436,22 +436,26 @@ impl BrpClient {
     /// event-bus indirection is the supported pattern.
     ///
     /// `event_type` is the fully-qualified type path of the event
-    /// (`my_game::commands::RegenerateLevel`); `payload` is the JSON
-    /// representation of the event struct (an empty `{}` is fine for
-    /// unit-struct events).
+    /// (`my_game::commands::RegenerateLevel`); the user's event must be
+    /// derived with `Reflect` and registered with `#[reflect(Event)]` +
+    /// `app.register_type::<…>()` for the BRP server to recognise it.
+    /// `payload` is the JSON representation of the event struct (an
+    /// empty `{}` is fine for unit-struct events; pass `Value::Null` to
+    /// skip sending a value at all).
+    ///
+    /// Wire-level shape (`bevy_remote::builtin_methods::BrpTriggerEventParams`):
+    /// `{ "event": "<type path>", "value": <json> | null }`.
     pub async fn trigger_event(
         &mut self,
         event_type: &str,
         payload: serde_json::Value,
     ) -> Result<()> {
-        self.send_request(
-            "world.trigger_event",
-            Some(json!({
-                "event_type": event_type,
-                "event": payload,
-            })),
-        )
-        .await?;
+        let mut params = json!({ "event": event_type });
+        if !payload.is_null() {
+            params["value"] = payload;
+        }
+        self.send_request("world.trigger_event", Some(params))
+            .await?;
         Ok(())
     }
 

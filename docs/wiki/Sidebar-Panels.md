@@ -127,6 +127,18 @@ RustRover-style IDE settings panel.
 - **Appearance**: Theme settings (Coming soon)
 - **Plugins**: Plugin management (Coming soon)
 
+### Optional Panels
+
+Some panels are hidden by default and can be enabled from **Settings → Activity Bar**.
+
+| Panel | Purpose |
+|-------|---------|
+| **Docker** | Containers / Images / Volumes with local Docker CLI actions |
+| **Database** | SQLite-style database browsing and query workflow |
+| **OracleBerry** | AI generation surface for project scaffolding and content workflows |
+
+See [Mobile & DevOps](Mobile-and-DevOps) for the Docker panel and mobile toolchain workflow.
+
 ---
 
 <a name="japanese"></a>
@@ -251,6 +263,18 @@ RustRover スタイルの IDE 設定パネル。
 - **Appearance**: テーマ設定（Coming soon）
 - **Plugins**: プラグイン管理（Coming soon）
 
+### 任意表示パネル
+
+一部のパネルはデフォルトでは非表示で、**Settings → Activity Bar** から表示できます。
+
+| パネル | 目的 |
+|--------|------|
+| **Docker** | ローカル Docker CLI を使った Containers / Images / Volumes 管理 |
+| **Database** | SQLite 風のデータベース閲覧・クエリ作業 |
+| **OracleBerry** | プロジェクト生成やコンテンツ作成向けの AI 生成 UI |
+
+Docker パネルとモバイルツールチェーンについては [Mobile & DevOps](Mobile-and-DevOps) を参照してください。
+
 ### 6. ECS Inspector `Ctrl+6`
 
 実行中の Bevy アプリの ECS 状態をリアルタイム監視。
@@ -303,4 +327,3 @@ Unity スタイルのシーン階層パネル。
 - インラインリネーム（ダブルクリック）
 - ツールバー: New / Save / Tools ドロップダウン
 - Play Mode バナー（再生中は編集無効）
-

@@ -136,6 +136,25 @@ BerryCode isn't just Bevy tools — it's a complete Rust IDE.
 - **AI Chat** — integrated LLM assistant via gRPC
 - **Minimap, code folding, snippets, image/3D model preview, test runner**
 
+### Local-first AI with Llama 3 (60 seconds)
+
+BerryCode runs end-to-end on a local Llama 3 with no API keys, no rate limits, and no code leaving your machine. Useful for offline work, privacy-sensitive projects, and teaching kids to code without cloud dependencies.
+
+```bash
+# 1. Install Ollama and pull Llama 3.3
+brew install ollama
+ollama pull llama3.3
+
+# 2. Run the Ollama server (background)
+ollama serve
+```
+
+3. Open BerryCode → **Settings → AI Providers → Ollama (local)** → click **Use Llama 3 (local)**.
+
+That's it. Chat sidebar, inline completions, and Autonomous (🤖 Agent) mode all run against the local model. BerryCode auto-injects a Llama-tuned Bevy 0.18 cheatsheet into the system prompt to compensate for the spots Llama gets wrong (Rust-vs-Python syntax slips, `EventReader` → `MessageReader` rename, tool-call envelope shape).
+
+If you have a smaller machine, swap `llama3.3` for `llama3.1:8b` in the Settings model field — same flow, lower memory.
+
 ### Install
 
 #### Pre-built binaries (recommended)
