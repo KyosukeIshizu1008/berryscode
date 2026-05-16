@@ -1,0 +1,301 @@
+close_project = "Close Project"
+new_bevy_project = "+ New Bevy Project"
+
+run = "Run"
+stop = "Stop"
+debug = "Debug"
+release = "Release"
+
+play_in_editor = "Play in Editor"
+build_settings = "Build Settings"
+packages = "Packages"
+mobile = "Mobile"
+
+berrycode_editor = "BerryCode Editor"
+select_file_from_tree = "Select a file from the file tree"
+
+project = "Project:"
+diagnostics = "Diagnostics:"
+show_completions = "Show Completions (Ctrl+Space)"
+
+new_file = "New File"
+new_folder = "New Folder"
+
+file_name = "File name:"
+folder_name = "Folder name:"
+new_name = "New name:"
+
+create = "Create"
+cancel = "Cancel"
+
+rename = "Rename"
+rename_dots = "Rename..."
+
+delete = "Delete"
+
+copy_path = "Copy Path"
+copy = "Copy"
+
+new_file_here = "New File Here..."
+new_folder_here = "New Folder Here..."
+
+loading = "Loading..."
+error = "Error:"
+
+file_count = "File count:"
+language = "Language:"
+
+format = "Format (Cmd+Shift+F)"
+
+read_only = "READ-ONLY"
+plain_text = "Plain Text"
+
+search = "Search"
+search_dots = "Search..."
+
+replace = "Replace"
+replace_all = "Replace All"
+
+case_sensitive = "Case Sensitive"
+regex = "Regex"
+
+go = "Go"
+
+git = "Git"
+
+refresh = "Refresh"
+
+branch = "Branch:"
+message = "Message:"
+
+commit = "Commit"
+
+stage_all = "Stage All"
+
+no_changes = "No changes"
+
+load_more = "Load More"
+
+author = "Author:"
+
+no_commits = "No commits. Click Refresh to load."
+
+commit_details = "Commit Details"
+
+select_commit = "Select a commit to view details"
+
+status = "Status"
+history = "History"
+branches = "Branches"
+remotes = "Remotes"
+tags = "Tags"
+stash = "Stash"
+
+terminal = "Terminal"
+
+settings = "Settings"
+appearance = "Appearance"
+
+editor_color_scheme = "Editor > Color Scheme"
+
+keybindings = "Keybindings"
+
+language_settings = "Language"
+ui_language = "UI Language"
+
+plugins = "Plugins"
+
+github_review = "GitHub Review"
+
+other_plugins = "Other Plugins"
+
+coming_soon = "Coming soon..."
+
+window_theme = "Window theme, font settings, etc."
+
+pull_request_review = "Pull request review features."
+
+additional_plugin_config = "Additional plugin configurations."
+
+color_scheme_darcula = "Color Scheme: Darcula (Customized)"
+
+customize_syntax_colors = "Customize syntax highlighting colors:"
+
+keyword = "Keyword (fn, let, match)"
+function_macro = "Function / Macro"
+type_struct_enum = "Type (struct, enum)"
+
+string = "String"
+number = "Number"
+comment = "Comment"
+
+macro_println = "Macro (println!)"
+
+attribute = "Attribute (#[derive])"
+
+constant = "Constant (STATIC)"
+
+lifetime = "Lifetime ('a, 'static)"
+
+live_preview = "Live Preview:"
+
+reset_darcula = "Reset to Darcula Defaults"
+
+ai_chat = "AI Chat"
+
+new = "+ New"
+
+chat = "Chat"
+
+auto = "Auto"
+
+ask_anything = "Ask anything..."
+
+ask_about_image = "Ask about image..."
+
+explain_design = "Explain the design"
+
+fix_compile_errors = "Fix compile errors"
+
+commit_changes = "Commit changes"
+
+security_check = "Security check"
+
+drag_drop_images = "Images can be attached via drag & drop"
+
+rest_api = "REST · berry-core-api"
+
+thinking = "thinking..."
+
+ai_chat_right_panel = "AI Chat - Use right panel instead."
+
+continue_f5 = "Continue (F5)"
+
+pause = "Pause"
+
+step_over = "Step Over (F10)"
+
+step_into = "Step Into (F11)"
+
+step_out = "Step Out (Shift+F11)"
+
+restart = "Restart (Ctrl+Shift+F5)"
+
+stop_shift_f5 = "Stop (Shift+F5)"
+
+variables = "Variables"
+watch = "Watch"
+
+call_stack = "Call Stack"
+
+debug_console = "Debug Console"
+
+name = "Name"
+value = "Value"
+type = "Type"
+
+add_expression = "Add expression..."
+
+inspector = "Inspector"
+
+no_entity_selected = "No entity selected"
+
+entity_not_found = "Entity not found"
+
+revert_prefab = "Revert to Prefab"
+
+apply_prefab = "Apply to Prefab"
+
+unpack_prefab = "Unpack Prefab"
+
+id = "ID:"
+position = "Position"
+rotation = "Rotation"
+scale = "Scale"
+
+components = "Components"
+
+add_component = "Add Component"
+
+profiler = "Profiler"
+
+timeline = "Timeline"
+
+dopesheet = "Dopesheet"
+
+play = "Play"
+
+close = "Close"
+
+game_view = "Game View"
+
+game_not_running = "Game not running."
+
+waiting_game_window = "Waiting for game window..."
+
+asset_browser = "Asset Browser"
+
+root = "Root:"
+
+images = "Images"
+models = "Models"
+audio = "Audio"
+scenes = "Scenes"
+shaders = "Shaders"
+
+ecs_inspector = "ECS Inspector"
+
+entities = "Entities"
+resources = "Resources"
+
+connect = "Connect"
+disconnect = "Disconnect"
+
+auto_refresh = "Auto-refresh"
+
+endpoint = "Endpoint:"
+
+bevy_templates = "Bevy Templates"
+
+component = "Component"
+resource = "Resource"
+system = "System"
+plugin = "Plugin"
+
+save = "Save"
+
+add_node = "Add Node"
+
+on_start = "On Start"
+on_update = "On Update"
+
+branch_node = "Branch"
+
+print = "Print"
+
+console = "Console"
+
+clear = "Clear"
+
+time = "Time"
+data = "Data"
+
+scan_code = "Scan Code"
+
+clear_all = "Clear All"
+
+project_name = "Project Name:"
+location = "Location:"
+
+empty_2d = "Empty 2D"
+empty_3d = "Empty 3D"
+
+walker_3d = "3D Walker"
+
+explorer = "Explorer"
+
+scene_editor = "Scene Editor"
+
+reveal_in_finder = "Reveal in Finder"
+
+open_terminal = "Open in Terminal"
