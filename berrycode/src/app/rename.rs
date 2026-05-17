@@ -214,8 +214,8 @@ mod tests {
         // wrong byte positions.
         let src = "abcdef\n";
         let edits = vec![
-            edit(0, 0, 0, 1, "Z"),   // a → Z (line 0, col 0)
-            edit(0, 4, 0, 5, "Y"),   // e → Y (line 0, col 4)
+            edit(0, 0, 0, 1, "Z"), // a → Z (line 0, col 0)
+            edit(0, 4, 0, 5, "Y"), // e → Y (line 0, col 4)
         ];
         let out = apply_text_edits(src, &edits);
         assert_eq!(out, "ZbcdYf\n");

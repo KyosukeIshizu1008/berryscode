@@ -406,10 +406,8 @@ impl BerryCodeApp {
                 item.label.to_lowercase().starts_with(&current_word)
             }
         });
-        let filtered: Vec<&LspCompletionItem> = snippet_matches
-            .iter()
-            .chain(lsp_filtered)
-            .collect();
+        let filtered: Vec<&LspCompletionItem> =
+            snippet_matches.iter().chain(lsp_filtered).collect();
 
         // No matches — dismiss
         if filtered.is_empty() {
@@ -591,8 +589,7 @@ impl BerryCodeApp {
                     let chars: Vec<char> = text.chars().collect();
                     let mut word_start = cursor;
                     while word_start > 0
-                        && (chars[word_start - 1].is_alphanumeric()
-                            || chars[word_start - 1] == '_')
+                        && (chars[word_start - 1].is_alphanumeric() || chars[word_start - 1] == '_')
                     {
                         word_start -= 1;
                     }

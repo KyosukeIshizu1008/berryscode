@@ -299,17 +299,9 @@ impl BerryCodeApp {
         // do it with index-based iteration.
         for i in 0..self.additional_roots.len() {
             let root = self.additional_roots[i].clone();
-            let project_name = root
-                .split('/')
-                .last()
-                .unwrap_or("workspace")
-                .to_string();
+            let project_name = root.split('/').last().unwrap_or("workspace").to_string();
             let is_expanded = self.expanded_dirs.contains(&root);
-            let chevron = if is_expanded {
-                "\u{eab4}"
-            } else {
-                "\u{eab6}"
-            };
+            let chevron = if is_expanded { "\u{eab4}" } else { "\u{eab6}" };
 
             ui.add_space(6.0);
             let header = ui.horizontal(|ui| {

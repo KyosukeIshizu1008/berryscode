@@ -431,56 +431,104 @@ pub(crate) mod ui_colors {
     // syntax because `const` items can't be runtime-dynamic, so each
     // becomes a zero-arg function and call sites get `()` appended.
     #[allow(non_snake_case)]
-    pub fn EDITOR_BG() -> Color32 { current().EDITOR_BG }
+    pub fn EDITOR_BG() -> Color32 {
+        current().EDITOR_BG
+    }
     #[allow(non_snake_case)]
-    pub fn SIDEBAR_BG() -> Color32 { current().SIDEBAR_BG }
+    pub fn SIDEBAR_BG() -> Color32 {
+        current().SIDEBAR_BG
+    }
     #[allow(non_snake_case)]
-    pub fn ACTIVITY_BAR_BG() -> Color32 { current().ACTIVITY_BAR_BG }
+    pub fn ACTIVITY_BAR_BG() -> Color32 {
+        current().ACTIVITY_BAR_BG
+    }
     #[allow(non_snake_case)]
-    pub fn TOP_BAR_BG() -> Color32 { current().TOP_BAR_BG }
+    pub fn TOP_BAR_BG() -> Color32 {
+        current().TOP_BAR_BG
+    }
     #[allow(non_snake_case)]
-    pub fn STATUS_BAR_BG() -> Color32 { current().STATUS_BAR_BG }
+    pub fn STATUS_BAR_BG() -> Color32 {
+        current().STATUS_BAR_BG
+    }
     #[allow(non_snake_case)]
-    pub fn TEXT_DEFAULT() -> Color32 { current().TEXT_DEFAULT }
+    pub fn TEXT_DEFAULT() -> Color32 {
+        current().TEXT_DEFAULT
+    }
     #[allow(non_snake_case)]
-    pub fn TEXT_MUTED() -> Color32 { current().TEXT_MUTED }
+    pub fn TEXT_MUTED() -> Color32 {
+        current().TEXT_MUTED
+    }
     #[allow(non_snake_case)]
-    pub fn BORDER() -> Color32 { current().BORDER }
+    pub fn BORDER() -> Color32 {
+        current().BORDER
+    }
     #[allow(non_snake_case)]
-    pub fn PANEL_BORDER() -> Color32 { current().PANEL_BORDER }
+    pub fn PANEL_BORDER() -> Color32 {
+        current().PANEL_BORDER
+    }
     #[allow(non_snake_case)]
-    pub fn CONTROL_BG() -> Color32 { current().CONTROL_BG }
+    pub fn CONTROL_BG() -> Color32 {
+        current().CONTROL_BG
+    }
     #[allow(non_snake_case)]
-    pub fn CONTROL_BORDER() -> Color32 { current().CONTROL_BORDER }
+    pub fn CONTROL_BORDER() -> Color32 {
+        current().CONTROL_BORDER
+    }
     #[allow(non_snake_case)]
-    pub fn HOVER_BG() -> Color32 { current().HOVER_BG }
+    pub fn HOVER_BG() -> Color32 {
+        current().HOVER_BG
+    }
     #[allow(non_snake_case)]
-    pub fn ACTIVE_BG() -> Color32 { current().ACTIVE_BG }
+    pub fn ACTIVE_BG() -> Color32 {
+        current().ACTIVE_BG
+    }
     #[allow(non_snake_case)]
-    pub fn ACCENT() -> Color32 { current().ACCENT }
+    pub fn ACCENT() -> Color32 {
+        current().ACCENT
+    }
     #[allow(non_snake_case)]
-    pub fn ACCENT_HOVER() -> Color32 { current().ACCENT_HOVER }
+    pub fn ACCENT_HOVER() -> Color32 {
+        current().ACCENT_HOVER
+    }
     #[allow(non_snake_case)]
-    pub fn FOCUS_BORDER() -> Color32 { current().FOCUS_BORDER }
+    pub fn FOCUS_BORDER() -> Color32 {
+        current().FOCUS_BORDER
+    }
 
     // VS Code-style settings palette — derived from the same theme so
     // the Settings panel auto-themes.
     #[allow(non_snake_case)]
-    pub fn SETTINGS_NAV_BG() -> Color32 { SIDEBAR_BG() }
+    pub fn SETTINGS_NAV_BG() -> Color32 {
+        SIDEBAR_BG()
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_BG() -> Color32 { EDITOR_BG() }
+    pub fn SETTINGS_BG() -> Color32 {
+        EDITOR_BG()
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_SEARCH_BG() -> Color32 { CONTROL_BG() }
+    pub fn SETTINGS_SEARCH_BG() -> Color32 {
+        CONTROL_BG()
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_DESC() -> Color32 { TEXT_MUTED() }
+    pub fn SETTINGS_DESC() -> Color32 {
+        TEXT_MUTED()
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_HINT() -> Color32 { current().SETTINGS_HINT }
+    pub fn SETTINGS_HINT() -> Color32 {
+        current().SETTINGS_HINT
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_HEADER() -> Color32 { TEXT_DEFAULT() }
+    pub fn SETTINGS_HEADER() -> Color32 {
+        TEXT_DEFAULT()
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_CARD_BORDER() -> Color32 { BORDER() }
+    pub fn SETTINGS_CARD_BORDER() -> Color32 {
+        BORDER()
+    }
     #[allow(non_snake_case)]
-    pub fn SETTINGS_ACCENT() -> Color32 { ACCENT() }
+    pub fn SETTINGS_ACCENT() -> Color32 {
+        ACCENT()
+    }
 }
 
 // ===== Component Color Palette =====
@@ -492,14 +540,30 @@ pub(crate) mod component_colors {
     // VS Code accent blue. These were `const`s that re-exported the
     // ui_colors constants; now that the underlying palette is runtime-
     // dynamic, they're forwarding functions instead.
-    pub fn ACCENT() -> Color32 { super::ui_colors::ACCENT() }
-    pub fn TAB_ACTIVE() -> Color32 { super::ui_colors::TEXT_DEFAULT() }
-    pub fn TAB_INACTIVE() -> Color32 { super::ui_colors::TEXT_MUTED() }
-    pub fn BUTTON_TEXT() -> Color32 { super::ui_colors::TEXT_DEFAULT() }
-    pub fn BUTTON_BG() -> Color32 { super::ui_colors::CONTROL_BG() }
-    pub fn HOVER_BG() -> Color32 { super::ui_colors::HOVER_BG() }
-    pub fn INPUT_BG() -> Color32 { super::ui_colors::CONTROL_BG() }
-    pub fn TEXT_DIM() -> Color32 { super::ui_colors::TEXT_MUTED() }
+    pub fn ACCENT() -> Color32 {
+        super::ui_colors::ACCENT()
+    }
+    pub fn TAB_ACTIVE() -> Color32 {
+        super::ui_colors::TEXT_DEFAULT()
+    }
+    pub fn TAB_INACTIVE() -> Color32 {
+        super::ui_colors::TEXT_MUTED()
+    }
+    pub fn BUTTON_TEXT() -> Color32 {
+        super::ui_colors::TEXT_DEFAULT()
+    }
+    pub fn BUTTON_BG() -> Color32 {
+        super::ui_colors::CONTROL_BG()
+    }
+    pub fn HOVER_BG() -> Color32 {
+        super::ui_colors::HOVER_BG()
+    }
+    pub fn INPUT_BG() -> Color32 {
+        super::ui_colors::CONTROL_BG()
+    }
+    pub fn TEXT_DIM() -> Color32 {
+        super::ui_colors::TEXT_MUTED()
+    }
 }
 
 // ===== File Icon Color Palette =====
@@ -1364,7 +1428,8 @@ impl BerryCodeApp {
         // Non-interactive (labels, separators)
         visuals.widgets.noninteractive.bg_fill = bg_dark;
         visuals.widgets.noninteractive.weak_bg_fill = bg_dark;
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
+        visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
         visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
         visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(2);
 
@@ -1411,7 +1476,8 @@ impl BerryCodeApp {
         visuals.striped = true;
 
         // Separator
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
+        visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
 
         style.visuals = visuals;
 
@@ -4069,9 +4135,9 @@ mod ime_filter_tests {
     /// Apply our filter exactly the way `berry_ui_system` does to a
     /// borrowed event vector.
     fn apply_filter(events: &mut Vec<Event>) {
-        let has_preedit = events.iter().any(
-            |e| matches!(e, Event::Ime(ImeEvent::Preedit(s)) if !s.is_empty()),
-        );
+        let has_preedit = events
+            .iter()
+            .any(|e| matches!(e, Event::Ime(ImeEvent::Preedit(s)) if !s.is_empty()));
         let has_backspace = events.iter().any(|e| {
             matches!(
                 e,
@@ -4203,10 +4269,7 @@ mod ime_filter_tests {
     /// stripped but other events pass through unchanged.
     #[test]
     fn enabled_alone_is_stripped() {
-        let mut events = vec![
-            Event::Ime(ImeEvent::Enabled),
-            backspace(),
-        ];
+        let mut events = vec![Event::Ime(ImeEvent::Enabled), backspace()];
         apply_filter(&mut events);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], Event::Key { .. }));
@@ -4230,16 +4293,12 @@ mod ime_filter_tests {
     /// Preedit を捨てて Backspace だけ通す。
     #[test]
     fn backspace_frame_drops_preedit() {
-        let mut events = vec![
-            Event::Ime(ImeEvent::Preedit("あ".into())),
-            backspace(),
-        ];
+        let mut events = vec![Event::Ime(ImeEvent::Preedit("あ".into())), backspace()];
         apply_filter(&mut events);
         assert_eq!(events.len(), 1);
         assert!(matches!(events[0], Event::Key { .. }));
     }
 }
-
 
 #[cfg(test)]
 mod theme_and_workspace_tests {
@@ -4277,10 +4336,7 @@ mod theme_and_workspace_tests {
     /// deserialisation logic directly.
     #[test]
     fn additional_roots_roundtrip_json() {
-        let roots = vec![
-            "/tmp/proj_a".to_string(),
-            "/tmp/proj_b".to_string(),
-        ];
+        let roots = vec!["/tmp/proj_a".to_string(), "/tmp/proj_b".to_string()];
         let json = serde_json::to_string(&roots).unwrap();
         let decoded: Vec<String> = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded, roots);
@@ -4292,7 +4348,11 @@ mod theme_and_workspace_tests {
     fn additional_roots_filter_missing_paths() {
         let tmp = tempfile::tempdir().unwrap();
         let exists = tmp.path().to_string_lossy().to_string();
-        let stale = tmp.path().join("does_not_exist").to_string_lossy().to_string();
+        let stale = tmp
+            .path()
+            .join("does_not_exist")
+            .to_string_lossy()
+            .to_string();
         let raw = vec![exists.clone(), stale.clone()];
         let filtered: Vec<String> = raw
             .into_iter()

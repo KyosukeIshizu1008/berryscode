@@ -69,10 +69,9 @@ impl BerryCodeApp {
         if !already {
             // Synchronous git2 call. Blame is O(file history) so cache
             // aggressively — one fetch per (file, line) per session.
-            let blame =
-                crate::native::git::get_line_blame(&root, &file_path, line)
-                    .ok()
-                    .flatten();
+            let blame = crate::native::git::get_line_blame(&root, &file_path, line)
+                .ok()
+                .flatten();
             if let Some(tab_mut) = self.editor_tabs.get_mut(idx) {
                 tab_mut.git_blame_cache.insert(line, blame);
             }
@@ -909,7 +908,13 @@ impl BerryCodeApp {
                                     let mut targets: Vec<usize> = self
                                         .multi_cursors
                                         .iter()
-                                        .map(|&p| if p >= old_primary { p + delta as usize } else { p })
+                                        .map(|&p| {
+                                            if p >= old_primary {
+                                                p + delta as usize
+                                            } else {
+                                                p
+                                            }
+                                        })
                                         .collect();
                                     targets.sort_unstable_by(|a, b| b.cmp(a));
                                     for pos in &targets {
@@ -1011,8 +1016,7 @@ impl BerryCodeApp {
                         // completion insert). The detection lives in two
                         // pure helpers in `app::mod` so the IME-passthrough
                         // regression is locked down by unit tests.
-                        let had_key_input =
-                            ui.input(|i| super::events_look_like_typing(&i.events));
+                        let had_key_input = ui.input(|i| super::events_look_like_typing(&i.events));
                         if had_key_input {
                             if let Some(cr) = output.cursor_range {
                                 let cursor_pos = cr.primary.index;
@@ -1231,7 +1235,11 @@ impl BerryCodeApp {
                                     let line_end_offset =
                                         line_char_offsets.get(line_idx + 1).copied().unwrap_or(
                                             line_char_offsets[line_idx]
-                                                + text.lines().nth(line_idx).map(|l| l.len()).unwrap_or(0),
+                                                + text
+                                                    .lines()
+                                                    .nth(line_idx)
+                                                    .map(|l| l.len())
+                                                    .unwrap_or(0),
                                         );
                                     let end_cc =
                                         egui::text::CCursor::new(line_end_offset.saturating_sub(1));

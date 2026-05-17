@@ -197,12 +197,13 @@ impl BerryCodeApp {
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 use super::types::ThemeMode;
-                                let apply = |this: &mut Self, mode: ThemeMode, ctx: &egui::Context| {
-                                    this.theme_mode = mode;
-                                    ctx.set_visuals(super::visuals_for_theme(mode));
-                                    super::ui_colors::set_theme(mode);
-                                    super::save_theme_mode(mode);
-                                };
+                                let apply =
+                                    |this: &mut Self, mode: ThemeMode, ctx: &egui::Context| {
+                                        this.theme_mode = mode;
+                                        ctx.set_visuals(super::visuals_for_theme(mode));
+                                        super::ui_colors::set_theme(mode);
+                                        super::save_theme_mode(mode);
+                                    };
                                 let dark_sel = self.theme_mode == ThemeMode::Dark;
                                 if ui.selectable_label(dark_sel, "Dark").clicked() && !dark_sel {
                                     apply(self, ThemeMode::Dark, ui.ctx());
@@ -212,8 +213,7 @@ impl BerryCodeApp {
                                     apply(self, ThemeMode::Light, ui.ctx());
                                 }
                                 let hc_sel = self.theme_mode == ThemeMode::HighContrast;
-                                if ui.selectable_label(hc_sel, "High Contrast").clicked()
-                                    && !hc_sel
+                                if ui.selectable_label(hc_sel, "High Contrast").clicked() && !hc_sel
                                 {
                                     apply(self, ThemeMode::HighContrast, ui.ctx());
                                 }
@@ -246,10 +246,7 @@ impl BerryCodeApp {
                             ui.label(egui::RichText::new("On save").strong());
                             ui.add_space(4.0);
                             let mut fos = self.settings.format_on_save;
-                            if ui
-                                .checkbox(&mut fos, "Format file before saving")
-                                .changed()
-                            {
+                            if ui.checkbox(&mut fos, "Format file before saving").changed() {
                                 self.settings.format_on_save = fos;
                                 let _ = self.settings.save();
                             }
