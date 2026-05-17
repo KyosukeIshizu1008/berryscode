@@ -10,7 +10,7 @@ impl BerryCodeApp {
             .exact_height(22.0)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::STATUS_BAR_BG)
+                    .fill(ui_colors::STATUS_BAR_BG())
                     .inner_margin(egui::Margin::symmetric(8, 2)),
             )
             .show(ctx, |ui| {
@@ -24,7 +24,7 @@ impl BerryCodeApp {
 
                     // Left side
                     let lsp_label = if self.lsp_connected { "LSP" } else { "LSP off" };
-                    ui.label(egui::RichText::new(lsp_label).color(ui_colors::TEXT_DEFAULT));
+                    ui.label(egui::RichText::new(lsp_label).color(ui_colors::TEXT_DEFAULT()));
 
                     let rs_diag_count =
                         super::utils::filter_rust_diagnostics(&self.lsp_diagnostics).len();

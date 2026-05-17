@@ -1229,7 +1229,7 @@ impl BerryCodeApp {
         ui.label(
             egui::RichText::new(prompt)
                 .strong()
-                .color(ui_colors::TEXT_DEFAULT),
+                .color(ui_colors::TEXT_DEFAULT()),
         );
         ui.label(
             egui::RichText::new(format!("{provider_label}  •  {size_label}"))
@@ -1373,7 +1373,7 @@ fn source_picker(ui: &mut egui::Ui, label: &str, slot: &mut Option<PathBuf>) {
                         .map(|s| s.to_string_lossy().into_owned())
                         .unwrap_or_else(|| path.display().to_string()),
                 )
-                .color(ui_colors::TEXT_DEFAULT),
+                .color(ui_colors::TEXT_DEFAULT()),
             );
             if ui.small_button("Clear").clicked() {
                 *slot = None;

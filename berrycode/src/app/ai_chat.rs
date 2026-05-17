@@ -9,13 +9,15 @@ impl BerryCodeApp {
     /// Render AI Chat panel (right side of editor)
     #[allow(dead_code)]
     pub(crate) fn render_ai_chat_panel(&mut self, ctx: &egui::Context) {
-        // Accent colors for the chat panel
-        const PANEL_BG: egui::Color32 = ui_colors::SIDEBAR_BG;
+        // Accent colors for the chat panel. panel_bg / text_dim used to
+        // be `const`s referencing `ui_colors::*`, but those are now
+        // theme-dynamic functions so they have to be bound as `let`s.
+        let panel_bg: egui::Color32 = ui_colors::SIDEBAR_BG();
         const HEADER_BG: egui::Color32 = egui::Color32::from_rgb(25, 26, 28);
         const INPUT_BG: egui::Color32 = egui::Color32::from_rgb(24, 25, 31);
         const USER_BG: egui::Color32 = egui::Color32::from_rgb(45, 55, 95);
         const ACCENT: egui::Color32 = egui::Color32::from_rgb(99, 139, 255);
-        const TEXT_DIM: egui::Color32 = ui_colors::TEXT_MUTED;
+        let text_dim: egui::Color32 = ui_colors::TEXT_MUTED();
         const DIVIDER: egui::Color32 = egui::Color32::from_rgb(35, 37, 45);
 
         // ── Collapsed state: render a thin 32 px reopen strip ──
@@ -24,7 +26,7 @@ impl BerryCodeApp {
                 .exact_width(32.0)
                 .resizable(false)
                 .show_separator_line(true)
-                .frame(egui::Frame::NONE.fill(PANEL_BG).inner_margin(0))
+                .frame(egui::Frame::NONE.fill(panel_bg).inner_margin(0))
                 .show(ctx, |ui| {
                     ui.add_space(8.0);
                     ui.vertical_centered(|ui| {
@@ -74,7 +76,7 @@ impl BerryCodeApp {
             .width_range(260.0..=520.0)
             .resizable(true)
             .show_separator_line(true)
-            .frame(egui::Frame::NONE.fill(PANEL_BG).inner_margin(0))
+            .frame(egui::Frame::NONE.fill(panel_bg).inner_margin(0))
             .show(ctx, |ui| {
                 // ── Header ────────────────────
                 ui.horizontal(|ui| {
@@ -125,7 +127,7 @@ impl BerryCodeApp {
                 ui.painter().hline(
                     header_divider_rect.left()..=header_divider_rect.right(),
                     ui.cursor().top(),
-                    egui::Stroke::new(1.0, ui_colors::PANEL_BORDER),
+                    egui::Stroke::new(1.0, ui_colors::PANEL_BORDER()),
                 );
 
                 // ── Layout: input pinned to bottom, scroll fills rest ──
@@ -138,7 +140,7 @@ impl BerryCodeApp {
 
                     // ── Input area ────────────────────────────────────
                     egui::Frame::NONE
-                        .fill(PANEL_BG)
+                        .fill(panel_bg)
                         .inner_margin(egui::Margin {
                             left: 14,
                             right: 14,
@@ -151,7 +153,7 @@ impl BerryCodeApp {
                             let border_color = if input_focused {
                                 ACCENT
                             } else {
-                                ui_colors::CONTROL_BORDER
+                                ui_colors::CONTROL_BORDER()
                             };
 
                             egui::Frame::NONE
@@ -188,7 +190,7 @@ impl BerryCodeApp {
                                                         .small_button(
                                                             egui::RichText::new("x")
                                                                 .size(10.0)
-                                                                .color(TEXT_DIM),
+                                                                .color(text_dim),
                                                         )
                                                         .clicked()
                                                     {
@@ -208,7 +210,7 @@ impl BerryCodeApp {
                                         .id(input_id)
                                         .desired_width(f32::INFINITY)
                                         .desired_rows(2)
-                                        .hint_text(egui::RichText::new(hint).color(TEXT_DIM))
+                                        .hint_text(egui::RichText::new(hint).color(text_dim))
                                         .font(egui::FontId::proportional(14.0))
                                         .frame(false);
                                     let response = ui.add(text_edit);
@@ -248,7 +250,7 @@ impl BerryCodeApp {
                                                 .selected_text(
                                                     egui::RichText::new(current_label)
                                                         .size(11.0)
-                                                        .color(TEXT_DIM),
+                                                        .color(text_dim),
                                                 )
                                                 .width(110.0)
                                                 .show_ui(ui, |ui| {
@@ -292,7 +294,7 @@ impl BerryCodeApp {
                                                             if send_enabled {
                                                                 egui::Color32::WHITE
                                                             } else {
-                                                                TEXT_DIM
+                                                                text_dim
                                                             },
                                                         ),
                                                     )
@@ -359,7 +361,7 @@ impl BerryCodeApp {
                                                 "Ask anything or type / for commands",
                                             )
                                             .size(13.0)
-                                            .color(TEXT_DIM),
+                                            .color(text_dim),
                                         );
                                         ui.add_space(24.0);
 
@@ -374,12 +376,12 @@ impl BerryCodeApp {
                                             let btn = egui::Button::new(
                                                 egui::RichText::new(*text)
                                                     .size(12.0)
-                                                    .color(ui_colors::TEXT_DEFAULT),
+                                                    .color(ui_colors::TEXT_DEFAULT()),
                                             )
-                                            .fill(ui_colors::CONTROL_BG)
+                                            .fill(ui_colors::CONTROL_BG())
                                             .stroke(egui::Stroke::new(
                                                 1.0,
-                                                ui_colors::CONTROL_BORDER,
+                                                ui_colors::CONTROL_BORDER(),
                                             ))
                                             .corner_radius(6)
                                             .min_size(egui::vec2(210.0, 28.0));
@@ -441,7 +443,7 @@ impl BerryCodeApp {
                                                     ui.label(
                                                         egui::RichText::new("berrycode")
                                                             .size(10.0)
-                                                            .color(TEXT_DIM),
+                                                            .color(text_dim),
                                                     );
                                                     ui.add_space(2.0);
                                                     ui.set_max_width(380.0);
@@ -461,7 +463,7 @@ impl BerryCodeApp {
                                             ui.label(
                                                 egui::RichText::new("berrycode")
                                                     .size(10.0)
-                                                    .color(TEXT_DIM),
+                                                    .color(text_dim),
                                             );
                                             ui.add_space(2.0);
                                             ui.set_max_width(380.0);
@@ -476,7 +478,7 @@ impl BerryCodeApp {
                                                 ui.label(
                                                     egui::RichText::new(" thinking…")
                                                         .size(11.0)
-                                                        .color(TEXT_DIM),
+                                                        .color(text_dim),
                                                 );
                                             });
                                         });

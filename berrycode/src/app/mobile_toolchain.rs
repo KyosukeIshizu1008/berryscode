@@ -352,7 +352,7 @@ impl BerryCodeApp {
                 "Wraps cargo-mobile2: probe → install → init → cargo apple/android run.",
             )
             .small()
-            .color(ui_colors::TEXT_MUTED),
+            .color(ui_colors::TEXT_MUTED()),
         );
         ui.add_space(4.0);
 
@@ -788,7 +788,7 @@ impl BerryCodeApp {
             ui.label(
                 egui::RichText::new(format!("{} lines", self.mobile_toolchain.run_log.len()))
                     .small()
-                    .color(ui_colors::TEXT_MUTED),
+                    .color(ui_colors::TEXT_MUTED()),
             );
         });
 
@@ -933,7 +933,7 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         ui.label("Codesign identities:");
                         if xcode.codesign_identities.is_empty() {
-                            ui.colored_label(ui_colors::TEXT_MUTED, "not loaded");
+                            ui.colored_label(ui_colors::TEXT_MUTED(), "not loaded");
                         } else {
                             ui.label(format!("{}", xcode.codesign_identities.len()));
                         }
@@ -971,7 +971,7 @@ impl BerryCodeApp {
                              this section stays disabled on other hosts.",
                         )
                         .italics()
-                        .color(ui_colors::TEXT_MUTED),
+                        .color(ui_colors::TEXT_MUTED()),
                     );
                 }
             }
@@ -1034,7 +1034,7 @@ impl BerryCodeApp {
                     ui.horizontal(|ui| {
                         ui.label("Devices:");
                         if a.devices.is_empty() {
-                            ui.colored_label(ui_colors::TEXT_MUTED, "not loaded");
+                            ui.colored_label(ui_colors::TEXT_MUTED(), "not loaded");
                         } else {
                             ui.label(format!("{}", a.devices.len()));
                         }
@@ -1110,7 +1110,7 @@ impl BerryCodeApp {
                 "Meta Quest reuses aarch64-linux-android — no extra rustup target needed.",
             )
             .italics()
-            .color(ui_colors::TEXT_MUTED),
+            .color(ui_colors::TEXT_MUTED()),
         );
         if !missing.is_empty() {
             ui.separator();
@@ -1370,7 +1370,7 @@ fn row_status(ui: &mut egui::Ui, label: &str, ok: bool, detail: &str) {
                 );
             });
         ui.label(egui::RichText::new(label).strong());
-        ui.label(egui::RichText::new(detail).color(ui_colors::TEXT_MUTED));
+        ui.label(egui::RichText::new(detail).color(ui_colors::TEXT_MUTED()));
     });
 }
 
@@ -1416,22 +1416,22 @@ fn setup_hint(ui: &mut egui::Ui, text: &str) {
                                 .color(egui::Color32::WHITE),
                         );
                     });
-                ui.label(egui::RichText::new(text).color(ui_colors::TEXT_DEFAULT));
+                ui.label(egui::RichText::new(text).color(ui_colors::TEXT_DEFAULT()));
             });
         });
 }
 
 fn tool_window_frame() -> egui::Frame {
     egui::Frame::window(&egui::Style::default())
-        .fill(ui_colors::SIDEBAR_BG)
-        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .fill(ui_colors::SIDEBAR_BG())
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER()))
         .corner_radius(egui::CornerRadius::same(4))
         .inner_margin(egui::Margin::same(10))
 }
 
 fn panel_header(ui: &mut egui::Ui, title: &str, add_actions: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::NONE
-        .fill(ui_colors::TOP_BAR_BG)
+        .fill(ui_colors::TOP_BAR_BG())
         .inner_margin(egui::Margin::symmetric(10, 7))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -1439,7 +1439,7 @@ fn panel_header(ui: &mut egui::Ui, title: &str, add_actions: impl FnOnce(&mut eg
                     egui::RichText::new(title)
                         .small()
                         .strong()
-                        .color(ui_colors::TEXT_DEFAULT),
+                        .color(ui_colors::TEXT_DEFAULT()),
                 );
                 ui.with_layout(
                     egui::Layout::right_to_left(egui::Align::Center),
@@ -1453,7 +1453,7 @@ fn panel_header(ui: &mut egui::Ui, title: &str, add_actions: impl FnOnce(&mut eg
 fn section_frame(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::NONE
         .fill(egui::Color32::from_rgb(30, 31, 34))
-        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER()))
         .corner_radius(egui::CornerRadius::same(4))
         .inner_margin(egui::Margin::same(10))
         .show(ui, add_contents);
@@ -1461,8 +1461,8 @@ fn section_frame(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
 
 fn inset_frame() -> egui::Frame {
     egui::Frame::NONE
-        .fill(ui_colors::EDITOR_BG)
-        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .fill(ui_colors::EDITOR_BG())
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER()))
         .corner_radius(egui::CornerRadius::same(3))
         .inner_margin(egui::Margin::same(8))
 }
@@ -1471,7 +1471,7 @@ fn section_title(ui: &mut egui::Ui, title: &str) {
     ui.label(
         egui::RichText::new(title)
             .strong()
-            .color(ui_colors::TEXT_DEFAULT),
+            .color(ui_colors::TEXT_DEFAULT()),
     );
     ui.add_space(4.0);
 }

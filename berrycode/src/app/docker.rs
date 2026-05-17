@@ -238,7 +238,7 @@ impl BerryCodeApp {
             egui::RichText::new("DOCKER")
                 .small()
                 .strong()
-                .color(ui_colors::TEXT_DEFAULT),
+                .color(ui_colors::TEXT_DEFAULT()),
         );
         ui.add_space(10.0);
 
@@ -249,7 +249,7 @@ impl BerryCodeApp {
             ui.label(
                 egui::RichText::new("Install Docker Desktop:")
                     .small()
-                    .color(ui_colors::TEXT_MUTED),
+                    .color(ui_colors::TEXT_MUTED()),
             );
             ui.hyperlink_to(
                 "docker.com/products/docker-desktop",
@@ -298,7 +298,7 @@ impl BerryCodeApp {
             ui.label(
                 egui::RichText::new(format!("updated {}s ago", t.elapsed().as_secs()))
                     .small()
-                    .color(ui_colors::TEXT_MUTED),
+                    .color(ui_colors::TEXT_MUTED()),
             );
         }
 
@@ -351,27 +351,27 @@ impl BerryCodeApp {
                         ui.label(
                             egui::RichText::new("Name")
                                 .strong()
-                                .color(ui_colors::TEXT_DEFAULT),
+                                .color(ui_colors::TEXT_DEFAULT()),
                         );
                         ui.label(
                             egui::RichText::new("Image")
                                 .strong()
-                                .color(ui_colors::TEXT_DEFAULT),
+                                .color(ui_colors::TEXT_DEFAULT()),
                         );
                         ui.label(
                             egui::RichText::new("Status")
                                 .strong()
-                                .color(ui_colors::TEXT_DEFAULT),
+                                .color(ui_colors::TEXT_DEFAULT()),
                         );
                         ui.label(
                             egui::RichText::new("Ports")
                                 .strong()
-                                .color(ui_colors::TEXT_DEFAULT),
+                                .color(ui_colors::TEXT_DEFAULT()),
                         );
                         ui.label(
                             egui::RichText::new("Actions")
                                 .strong()
-                                .color(ui_colors::TEXT_DEFAULT),
+                                .color(ui_colors::TEXT_DEFAULT()),
                         );
                         ui.end_row();
 
@@ -382,7 +382,7 @@ impl BerryCodeApp {
                                 if running {
                                     egui::Color32::from_rgb(120, 200, 120)
                                 } else {
-                                    ui_colors::TEXT_MUTED
+                                    ui_colors::TEXT_MUTED()
                                 },
                                 if running { "running" } else { "stopped" },
                             );
@@ -476,7 +476,7 @@ impl BerryCodeApp {
                             ui.label(
                                 egui::RichText::new(c)
                                     .strong()
-                                    .color(ui_colors::TEXT_DEFAULT),
+                                    .color(ui_colors::TEXT_DEFAULT()),
                             );
                         }
                         ui.end_row();
@@ -509,7 +509,7 @@ impl BerryCodeApp {
                             ui.label(
                                 egui::RichText::new(c)
                                     .strong()
-                                    .color(ui_colors::TEXT_DEFAULT),
+                                    .color(ui_colors::TEXT_DEFAULT()),
                             );
                         }
                         ui.end_row();
@@ -533,14 +533,14 @@ fn tab_link(ui: &mut egui::Ui, current: &mut DockerTab, tab: DockerTab, label: &
     let selected = *current == tab;
     let response = egui::Frame::NONE
         .fill(if selected {
-            ui_colors::ACTIVE_BG
+            ui_colors::ACTIVE_BG()
         } else {
             egui::Color32::TRANSPARENT
         })
         .stroke(egui::Stroke::new(
             1.0,
             if selected {
-                ui_colors::FOCUS_BORDER
+                ui_colors::FOCUS_BORDER()
             } else {
                 egui::Color32::TRANSPARENT
             },
@@ -550,9 +550,9 @@ fn tab_link(ui: &mut egui::Ui, current: &mut DockerTab, tab: DockerTab, label: &
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(text).strong().color(if selected {
-                    ui_colors::TEXT_DEFAULT
+                    ui_colors::TEXT_DEFAULT()
                 } else {
-                    ui_colors::TEXT_MUTED
+                    ui_colors::TEXT_MUTED()
                 }));
             });
         })
@@ -569,8 +569,8 @@ fn short_id(id: &str) -> &str {
 
 fn docker_inset_frame() -> egui::Frame {
     egui::Frame::NONE
-        .fill(ui_colors::EDITOR_BG)
-        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .fill(ui_colors::EDITOR_BG())
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER()))
         .corner_radius(egui::CornerRadius::same(3))
         .inner_margin(egui::Margin::same(8))
 }
@@ -590,17 +590,17 @@ fn empty_state(ui: &mut egui::Ui, title: &str, body: &str) {
     ui.add_space(16.0);
     egui::Frame::NONE
         .fill(egui::Color32::from_rgb(30, 31, 34))
-        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER))
+        .stroke(egui::Stroke::new(1.0, ui_colors::PANEL_BORDER()))
         .corner_radius(egui::CornerRadius::same(4))
         .inner_margin(egui::Margin::symmetric(14, 12))
         .show(ui, |ui| {
             ui.label(
                 egui::RichText::new(title)
                     .strong()
-                    .color(ui_colors::TEXT_DEFAULT),
+                    .color(ui_colors::TEXT_DEFAULT()),
             );
             ui.add_space(4.0);
-            ui.label(egui::RichText::new(body).color(ui_colors::TEXT_MUTED));
+            ui.label(egui::RichText::new(body).color(ui_colors::TEXT_MUTED()));
             if title.contains("Docker Desktop") {
                 ui.add_space(8.0);
                 ui.hyperlink_to(

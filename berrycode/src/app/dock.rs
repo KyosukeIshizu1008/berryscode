@@ -72,7 +72,7 @@ impl BerryCodeApp {
             .min_height(100.0)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::SIDEBAR_BG)
+                    .fill(ui_colors::SIDEBAR_BG())
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {

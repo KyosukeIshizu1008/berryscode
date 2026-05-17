@@ -13,6 +13,11 @@ pub struct EditorSettings {
     pub tab_size: u32,
     pub insert_spaces: bool,
     pub word_wrap: bool,
+    /// Run `textDocument/formatting` before each save when a language
+    /// server is attached. Falls back to skipping the format on
+    /// languages without a server.
+    #[serde(default)]
+    pub format_on_save: bool,
 
     // Theme
     pub color_theme: String,
@@ -34,6 +39,7 @@ impl Default for EditorSettings {
             tab_size: 4,
             insert_spaces: true,
             word_wrap: false,
+            format_on_save: false,
 
             // Theme defaults
             color_theme: "darcula".to_string(),
@@ -133,5 +139,52 @@ impl EditorSettings {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_are_stable() {
+        let s = EditorSettings::default();
+        assert_eq!(s.font_size, 13);
+        assert!(!s.format_on_save);
+        assert_eq!(s.tab_size, 4);
+        assert!(s.insert_spaces);
+    }
+
+    #[test]
+    fn roundtrip_json() {
+        let mut s = EditorSettings::default();
+        s.font_size = 18;
+        s.format_on_save = true;
+        s.color_theme = "light".into();
+        let json = serde_json::to_string(&s).unwrap();
+        let back: EditorSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, s);
+    }
+
+    /// Older settings.json files (pre-format_on_save) must still
+    /// deserialise — the new field is `#[serde(default)]`.
+    #[test]
+    fn deserialise_legacy_without_format_on_save() {
+        let legacy = serde_json::json!({
+            "font_size": 14,
+            "font_family": "Monaco",
+            "line_height": 20,
+            "tab_size": 4,
+            "insert_spaces": true,
+            "word_wrap": false,
+            "color_theme": "darcula",
+            "icon_theme": "Codicons",
+            "ai_model": "Llama 4 Scout",
+            "ai_mode": "code",
+            "ai_enabled": true,
+        });
+        let s: EditorSettings = serde_json::from_value(legacy).unwrap();
+        assert_eq!(s.font_size, 14);
+        assert!(!s.format_on_save, "should default to false");
     }
 }

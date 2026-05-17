@@ -19,14 +19,14 @@ impl BerryCodeApp {
             ui.label(
                 egui::RichText::new("Settings")
                     .size(16.0)
-                    .color(ui_colors::SETTINGS_HEADER)
+                    .color(ui_colors::SETTINGS_HEADER())
                     .strong(),
             );
             ui.add_space(16.0);
             // Search box (placeholder state until v0.4.x search lands).
             let search_frame = egui::Frame::NONE
-                .fill(ui_colors::SETTINGS_SEARCH_BG)
-                .stroke(egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER))
+                .fill(ui_colors::SETTINGS_SEARCH_BG())
+                .stroke(egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER()))
                 .corner_radius(egui::CornerRadius::same(4))
                 .inner_margin(egui::Margin::symmetric(8, 4));
             search_frame.show(ui, |ui| {
@@ -34,7 +34,7 @@ impl BerryCodeApp {
                 ui.label(
                     egui::RichText::new("Search settings (coming soon)")
                         .small()
-                        .color(ui_colors::SETTINGS_HINT),
+                        .color(ui_colors::SETTINGS_HINT()),
                 );
             });
         });
@@ -42,7 +42,7 @@ impl BerryCodeApp {
         ui.painter().hline(
             ui.max_rect().x_range(),
             ui.cursor().min.y,
-            egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER),
+            egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER()),
         );
         ui.add_space(8.0);
 
@@ -52,7 +52,7 @@ impl BerryCodeApp {
             // outer `horizontal_top` would otherwise lay them on a single
             // row.
             egui::Frame::NONE
-                .fill(ui_colors::SETTINGS_NAV_BG)
+                .fill(ui_colors::SETTINGS_NAV_BG())
                 .inner_margin(egui::Margin::symmetric(8, 12))
                 .show(ui, |ui| {
                     ui.set_width(220.0);
@@ -196,29 +196,64 @@ impl BerryCodeApp {
                             ui.label(egui::RichText::new("Theme preset").strong());
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
-                                let selected = self.theme_mode == super::types::ThemeMode::Dark;
-                                if ui.selectable_label(selected, "Dark").clicked() && !selected {
-                                    let mode = super::types::ThemeMode::Dark;
-                                    self.theme_mode = mode;
-                                    ui.ctx().set_visuals(super::visuals_for_theme(mode));
+                                use super::types::ThemeMode;
+                                let apply = |this: &mut Self, mode: ThemeMode, ctx: &egui::Context| {
+                                    this.theme_mode = mode;
+                                    ctx.set_visuals(super::visuals_for_theme(mode));
+                                    super::ui_colors::set_theme(mode);
                                     super::save_theme_mode(mode);
+                                };
+                                let dark_sel = self.theme_mode == ThemeMode::Dark;
+                                if ui.selectable_label(dark_sel, "Dark").clicked() && !dark_sel {
+                                    apply(self, ThemeMode::Dark, ui.ctx());
                                 }
-                                ui.add_enabled(false, egui::Button::selectable(false, "Light"));
-                                ui.add_enabled(
-                                    false,
-                                    egui::Button::selectable(false, "High Contrast"),
-                                );
-                                ui.label(
-                                    egui::RichText::new("(WIP)")
-                                        .small()
-                                        .color(egui::Color32::from_rgb(150, 150, 160)),
-                                );
+                                let light_sel = self.theme_mode == ThemeMode::Light;
+                                if ui.selectable_label(light_sel, "Light").clicked() && !light_sel {
+                                    apply(self, ThemeMode::Light, ui.ctx());
+                                }
+                                let hc_sel = self.theme_mode == ThemeMode::HighContrast;
+                                if ui.selectable_label(hc_sel, "High Contrast").clicked()
+                                    && !hc_sel
+                                {
+                                    apply(self, ThemeMode::HighContrast, ui.ctx());
+                                }
                             });
                             ui.add_space(12.0);
 
-                            // Font size info
-                            ui.label("Editor font: monospace 13.0px (default)");
-                            ui.add_space(8.0);
+                            // Editor font size — slider with live preview.
+                            // Pushed into the global atomic in
+                            // `render_editor_area` every frame so the change
+                            // shows up immediately without restart.
+                            ui.label(egui::RichText::new("Editor font size").strong());
+                            ui.add_space(4.0);
+                            let mut size = self.settings.font_size as i32;
+                            if ui
+                                .add(
+                                    egui::Slider::new(&mut size, 8..=32)
+                                        .text("px")
+                                        .clamping(egui::SliderClamping::Always),
+                                )
+                                .changed()
+                            {
+                                self.settings.font_size = size as u32;
+                                let _ = self.settings.save();
+                            }
+                            ui.add_space(12.0);
+
+                            // Format-on-save — runs `textDocument/formatting`
+                            // through the LSP before writing to disk. Skips
+                            // the format if no language server is attached.
+                            ui.label(egui::RichText::new("On save").strong());
+                            ui.add_space(4.0);
+                            let mut fos = self.settings.format_on_save;
+                            if ui
+                                .checkbox(&mut fos, "Format file before saving")
+                                .changed()
+                            {
+                                self.settings.format_on_save = fos;
+                                let _ = self.settings.save();
+                            }
+                            ui.add_space(12.0);
 
                             // Advanced theme tools
                             ui.label(egui::RichText::new("Advanced").strong());
@@ -300,12 +335,12 @@ impl BerryCodeApp {
         ui.label(
             egui::RichText::new("Activity Bar")
                 .size(16.0)
-                .color(ui_colors::SETTINGS_HEADER)
+                .color(ui_colors::SETTINGS_HEADER())
                 .strong(),
         );
         ui.label(
             egui::RichText::new("Show or hide panels in the left activity bar.")
-                .color(ui_colors::SETTINGS_DESC),
+                .color(ui_colors::SETTINGS_DESC()),
         );
         ui.add_space(12.0);
 
@@ -325,7 +360,7 @@ impl BerryCodeApp {
                 ui.label(
                     egui::RichText::new(format!("    {h}"))
                         .small()
-                        .color(ui_colors::SETTINGS_HINT),
+                        .color(ui_colors::SETTINGS_HINT()),
                 );
             }
         };
@@ -394,14 +429,14 @@ impl BerryCodeApp {
         ui.label(
             egui::RichText::new("AI Providers")
                 .size(16.0)
-                .color(ui_colors::SETTINGS_HEADER)
+                .color(ui_colors::SETTINGS_HEADER())
                 .strong(),
         );
         ui.add_space(2.0);
         ui.label(
             egui::RichText::new("Bring your own key — BerryCode talks to each provider directly.")
                 .small()
-                .color(ui_colors::SETTINGS_DESC),
+                .color(ui_colors::SETTINGS_DESC()),
         );
         ui.add_space(16.0);
 
@@ -615,7 +650,7 @@ impl BerryCodeApp {
         ui.label(
             egui::RichText::new("Model selection")
                 .size(13.0)
-                .color(ui_colors::SETTINGS_HEADER)
+                .color(ui_colors::SETTINGS_HEADER())
                 .strong(),
         );
         ui.add_space(8.0);
@@ -783,7 +818,7 @@ impl BerryCodeApp {
         ui.label(
             egui::RichText::new("Coding agent")
                 .size(13.0)
-                .color(ui_colors::SETTINGS_HEADER)
+                .color(ui_colors::SETTINGS_HEADER())
                 .strong(),
         );
         ui.add_space(8.0);
@@ -900,7 +935,7 @@ impl BerryCodeApp {
     /// Live preview of syntax colors
     pub(crate) fn render_color_preview(&self, ui: &mut egui::Ui) {
         let frame = egui::Frame::NONE
-            .fill(ui_colors::SIDEBAR_BG)
+            .fill(ui_colors::SIDEBAR_BG())
             .inner_margin(12)
             .corner_radius(4);
 
@@ -1451,7 +1486,7 @@ fn nav_section_header(ui: &mut egui::Ui, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase())
             .small()
-            .color(ui_colors::SETTINGS_HINT)
+            .color(ui_colors::SETTINGS_HINT())
             .strong(),
     );
     ui.add_space(2.0);
@@ -1488,7 +1523,7 @@ fn nav_item(
                 egui::pos2(rect.left() + 2.0, rect.bottom()),
             ),
             egui::CornerRadius::ZERO,
-            ui_colors::SETTINGS_ACCENT,
+            ui_colors::SETTINGS_ACCENT(),
         );
     }
     ui.painter().text(
@@ -1497,9 +1532,9 @@ fn nav_item(
         label,
         egui::FontId::proportional(13.0),
         if is_selected {
-            ui_colors::SETTINGS_HEADER
+            ui_colors::SETTINGS_HEADER()
         } else {
-            ui_colors::TEXT_DEFAULT
+            ui_colors::TEXT_DEFAULT()
         },
     );
     if response.clicked() {
@@ -1519,23 +1554,23 @@ fn setting_card(
 ) {
     use crate::app::ui_colors;
     egui::Frame::NONE
-        .stroke(egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER))
+        .stroke(egui::Stroke::new(1.0, ui_colors::SETTINGS_CARD_BORDER()))
         .corner_radius(egui::CornerRadius::same(4))
         .inner_margin(egui::Margin::symmetric(12, 10))
-        .fill(ui_colors::SETTINGS_NAV_BG)
+        .fill(ui_colors::SETTINGS_NAV_BG())
         .show(ui, |ui| {
             ui.set_width(ui.available_width().min(720.0));
             ui.label(
                 egui::RichText::new(title)
                     .strong()
-                    .color(ui_colors::SETTINGS_HEADER),
+                    .color(ui_colors::SETTINGS_HEADER()),
             );
             if let Some(desc) = description {
                 ui.add_space(2.0);
                 ui.label(
                     egui::RichText::new(desc)
                         .small()
-                        .color(ui_colors::SETTINGS_DESC),
+                        .color(ui_colors::SETTINGS_DESC()),
                 );
             }
             ui.add_space(6.0);

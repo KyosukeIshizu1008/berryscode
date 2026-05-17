@@ -183,16 +183,34 @@ impl BerryCodeApp {
                         .editor_tabs
                         .get(self.active_tab_idx)
                         .map(|t| t.file_path.as_str());
+                    // Folder rects are rebuilt every frame so the OS
+                    // drag-and-drop handler can hit-test the drop point
+                    // against whatever is currently visible.
+                    let mut folder_rects: Vec<(String, egui::Rect)> = Vec::new();
                     let mut event: Option<FileTreeEvent> = None;
                     for entry in &cache {
                         if event.is_none() {
-                            event =
-                                Self::render_tree_node(ui, entry, 1, &self.expanded_dirs, selected);
+                            event = Self::render_tree_node(
+                                ui,
+                                entry,
+                                1,
+                                &self.expanded_dirs,
+                                selected,
+                                &mut folder_rects,
+                            );
                         } else {
-                            Self::render_tree_node(ui, entry, 1, &self.expanded_dirs, selected);
+                            Self::render_tree_node(
+                                ui,
+                                entry,
+                                1,
+                                &self.expanded_dirs,
+                                selected,
+                                &mut folder_rects,
+                            );
                         }
                     }
                     self.file_tree_cache = cache;
+                    self.file_tree_folder_rects = folder_rects;
 
                     // Apply the single event (if any) after rendering
                     match event {
@@ -224,7 +242,187 @@ impl BerryCodeApp {
                         None => {}
                     }
                 }
+
+                // === Additional workspace roots ===
+                // Each extra folder gets its own collapsible header row,
+                // mirroring the primary project header above. Removing a
+                // root only drops it from the workspace list; the disk
+                // contents are untouched.
+                self.render_additional_roots(ui);
+
+                // Footer: "+ Add Folder…" picker for adding another root.
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("+ Add Folder to Workspace…")
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(150, 165, 200)),
+                            )
+                            .frame(false),
+                        )
+                        .clicked()
+                    {
+                        if let Some(picked) = rfd::FileDialog::new().pick_folder() {
+                            let p = picked.to_string_lossy().to_string();
+                            if p != self.root_path && !self.additional_roots.contains(&p) {
+                                self.additional_roots.push(p);
+                                self.additional_root_caches.push(Vec::new());
+                                super::save_additional_roots(&self.additional_roots);
+                            }
+                        }
+                    }
+                });
             });
+    }
+
+    /// Render each `additional_roots[i]` as its own top-level
+    /// collapsible folder, sharing `expanded_dirs` and `folder_rects`
+    /// with the primary root so D&D and selection rules apply uniformly.
+    pub(crate) fn render_additional_roots(&mut self, ui: &mut egui::Ui) {
+        if self.additional_roots.is_empty() {
+            return;
+        }
+        // Ensure caches line up with the roots list.
+        while self.additional_root_caches.len() < self.additional_roots.len() {
+            self.additional_root_caches.push(Vec::new());
+        }
+        let selected = self
+            .editor_tabs
+            .get(self.active_tab_idx)
+            .map(|t| t.file_path.clone());
+
+        let mut remove_idx: Option<usize> = None;
+        let mut event: Option<FileTreeEvent> = None;
+        // We need disjoint mutable access to each (root, cache) pair;
+        // do it with index-based iteration.
+        for i in 0..self.additional_roots.len() {
+            let root = self.additional_roots[i].clone();
+            let project_name = root
+                .split('/')
+                .last()
+                .unwrap_or("workspace")
+                .to_string();
+            let is_expanded = self.expanded_dirs.contains(&root);
+            let chevron = if is_expanded {
+                "\u{eab4}"
+            } else {
+                "\u{eab6}"
+            };
+
+            ui.add_space(6.0);
+            let header = ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.label(
+                    egui::RichText::new(chevron)
+                        .size(12.0)
+                        .color(egui::Color32::from_rgb(180, 180, 180))
+                        .family(egui::FontFamily::Name("codicon".into())),
+                );
+                let resp = ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(project_name.to_uppercase())
+                            .size(11.0)
+                            .strong()
+                            .color(egui::Color32::from_rgb(204, 204, 204)),
+                    )
+                    .sense(egui::Sense::click()),
+                );
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("\u{ea76}")
+                                .size(10.0)
+                                .color(egui::Color32::from_rgb(150, 150, 150))
+                                .family(egui::FontFamily::Name("codicon".into())),
+                        )
+                        .frame(false),
+                    )
+                    .on_hover_text("Remove from Workspace")
+                    .clicked()
+                {
+                    remove_idx = Some(i);
+                }
+                resp.clicked()
+            });
+
+            if header.inner {
+                if is_expanded {
+                    self.expanded_dirs.remove(&root);
+                } else {
+                    self.expanded_dirs.insert(root.clone());
+                    // Lazy-load this root's children on first expand.
+                    if self.additional_root_caches[i].is_empty() {
+                        if let Ok(entries) = native::fs::read_dir(&root, Some(1)) {
+                            self.additional_root_caches[i] = entries;
+                        }
+                    }
+                }
+            }
+
+            if self.expanded_dirs.contains(&root) {
+                let cache = std::mem::take(&mut self.additional_root_caches[i]);
+                let sel = selected.as_deref();
+                let mut folder_rects: Vec<(String, egui::Rect)> = Vec::new();
+                for entry in &cache {
+                    if event.is_none() {
+                        event = Self::render_tree_node(
+                            ui,
+                            entry,
+                            1,
+                            &self.expanded_dirs,
+                            sel,
+                            &mut folder_rects,
+                        );
+                    } else {
+                        Self::render_tree_node(
+                            ui,
+                            entry,
+                            1,
+                            &self.expanded_dirs,
+                            sel,
+                            &mut folder_rects,
+                        );
+                    }
+                }
+                self.additional_root_caches[i] = cache;
+                self.file_tree_folder_rects.extend(folder_rects);
+            }
+        }
+
+        if let Some(rm) = remove_idx {
+            self.additional_roots.remove(rm);
+            self.additional_root_caches.remove(rm);
+            super::save_additional_roots(&self.additional_roots);
+        }
+
+        // Apply child events the same way the primary root does.
+        match event {
+            Some(FileTreeEvent::ExpandDir(path, needs_load)) => {
+                self.expanded_dirs.insert(path.clone());
+                if needs_load {
+                    self.load_directory_children(&path);
+                }
+            }
+            Some(FileTreeEvent::CollapseDir(path)) => {
+                self.expanded_dirs.remove(&path);
+            }
+            Some(FileTreeEvent::OpenFile(path)) => {
+                self.open_file_from_path(&path);
+            }
+            Some(FileTreeEvent::ContextMenu(path, is_dir)) => {
+                self.context_menu_path = Some(path);
+                self.context_menu_is_dir = is_dir;
+                self.context_menu_pos = ui
+                    .ctx()
+                    .input(|i| i.pointer.hover_pos().unwrap_or(egui::Pos2::ZERO));
+            }
+            Some(FileTreeEvent::StartAssetDrag(path)) => {
+                self.dragged_asset_path = Some(path);
+            }
+            None => {}
+        }
     }
 
     /// Render a single tree node (VS Code style).
@@ -234,6 +432,7 @@ impl BerryCodeApp {
         depth: usize,
         expanded_dirs: &std::collections::HashSet<String>,
         selected_file: Option<&str>,
+        folder_rects: &mut Vec<(String, egui::Rect)>,
     ) -> Option<FileTreeEvent> {
         let indent = depth as f32 * 16.0;
         let row_height = 22.0;
@@ -253,8 +452,23 @@ impl BerryCodeApp {
                 egui::Sense::click(),
             );
 
-            // Hover highlight
-            if response.hovered() {
+            // Record this folder's rect so the OS drag-and-drop handler can
+            // resolve "which folder was the pointer over" when the drop fires.
+            folder_rects.push((node.path.clone(), rect));
+
+            // Highlight as the active drop target when the user is dragging an
+            // OS file over this row. Falls back to normal hover otherwise.
+            let drop_hover = ui.ctx().input(|i| {
+                !i.raw.hovered_files.is_empty()
+                    && i.pointer
+                        .hover_pos()
+                        .map(|p| rect.contains(p))
+                        .unwrap_or(false)
+            });
+            if drop_hover {
+                ui.painter()
+                    .rect_filled(rect, 0.0, egui::Color32::from_rgb(14, 99, 156));
+            } else if response.hovered() {
                 ui.painter().rect_filled(rect, 0.0, hover_bg);
             }
 
@@ -321,6 +535,7 @@ impl BerryCodeApp {
                                 depth + 1,
                                 expanded_dirs,
                                 selected_file,
+                                folder_rects,
                             );
                         } else {
                             Self::render_tree_node(
@@ -329,6 +544,7 @@ impl BerryCodeApp {
                                 depth + 1,
                                 expanded_dirs,
                                 selected_file,
+                                folder_rects,
                             );
                         }
                     }
@@ -1019,7 +1235,7 @@ impl BerryCodeApp {
         {
             ("\u{ea85}", file_icon_colors::SHELL_GREEN) // terminal
         } else if filename.ends_with(".txt") || filename.ends_with(".log") {
-            ("\u{ea7b}", ui_colors::TEXT_DEFAULT) // file
+            ("\u{ea7b}", ui_colors::TEXT_DEFAULT()) // file
         } else if filename.ends_with(".lock") {
             ("\u{ea7f}", file_icon_colors::CONFIG_GRAY) // lock
         } else if filename.ends_with(".xml") {
@@ -1059,7 +1275,7 @@ impl BerryCodeApp {
         } else if filename.ends_with(".import") {
             ("\u{ea7b}", file_icon_colors::CONFIG_GRAY) // file — Godot asset import metadata
         } else {
-            ("\u{ea7b}", ui_colors::TEXT_DEFAULT) // file — default
+            ("\u{ea7b}", ui_colors::TEXT_DEFAULT()) // file — default
         }
     }
 }

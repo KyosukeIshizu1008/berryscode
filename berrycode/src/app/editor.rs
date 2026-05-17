@@ -5,14 +5,188 @@ use super::types::{ColorTheme, LspInlayHint};
 use super::ui_colors;
 use super::BerryCodeApp;
 use crate::syntax::{SyntaxHighlighter, TokenType};
+use std::sync::atomic::{AtomicU32, Ordering};
+
+/// Font size used by the syntax-highlighting layouters and any other
+/// editor-text rendering that's reached from `fn` items (not `&self`
+/// methods). Updated once per frame from `self.settings.font_size` so
+/// users see the change immediately after editing the setting.
+///
+/// Stored as `AtomicU32` (the f32 bits) instead of an `f32` because
+/// `AtomicF32` doesn't exist in stable.
+pub(crate) static EDITOR_FONT_SIZE_BITS: AtomicU32 = AtomicU32::new(0x4150_0000); // 13.0
+
+pub(crate) fn editor_font_size() -> f32 {
+    f32::from_bits(EDITOR_FONT_SIZE_BITS.load(Ordering::Relaxed))
+}
+
+pub(crate) fn set_editor_font_size(size: f32) {
+    let clamped = size.clamp(8.0, 48.0);
+    EDITOR_FONT_SIZE_BITS.store(clamped.to_bits(), Ordering::Relaxed);
+}
+
+/// Format a Unix-epoch timestamp into a short relative-time string
+/// for the inline blame line ("3 days ago", "just now"). Avoids
+/// pulling in a date-formatting crate.
+pub(crate) fn humanize_age_secs(age_secs: i64) -> String {
+    let age = age_secs.max(0);
+    if age < 60 {
+        return "just now".to_string();
+    }
+    let mins = age / 60;
+    if mins < 60 {
+        return format!("{} min ago", mins);
+    }
+    let hours = mins / 60;
+    if hours < 24 {
+        return format!("{} hour{} ago", hours, if hours == 1 { "" } else { "s" });
+    }
+    let days = hours / 24;
+    if days < 30 {
+        return format!("{} day{} ago", days, if days == 1 { "" } else { "s" });
+    }
+    let months = days / 30;
+    if months < 12 {
+        return format!("{} month{} ago", months, if months == 1 { "" } else { "s" });
+    }
+    let years = days / 365;
+    format!("{} year{} ago", years, if years == 1 { "" } else { "s" })
+}
 
 impl BerryCodeApp {
+    /// Look up (and populate) the active tab's git blame info for its
+    /// current cursor line. Returns a short single-line string ready to
+    /// paint at the end of that line ("Alice · 3 days ago · fix typo")
+    /// or `None` when no blame is available (untracked file, working-
+    /// tree edit, or `git2` couldn't open the repo).
+    fn fetch_inline_blame_for_active_tab(&mut self) -> Option<String> {
+        let idx = self.active_tab_idx;
+        let tab = self.editor_tabs.get(idx)?;
+        let line = tab.cursor_line;
+        let file_path = tab.file_path.clone();
+        let already = tab.git_blame_cache.contains_key(&line);
+        let root = self.root_path.clone();
+        if !already {
+            // Synchronous git2 call. Blame is O(file history) so cache
+            // aggressively — one fetch per (file, line) per session.
+            let blame =
+                crate::native::git::get_line_blame(&root, &file_path, line)
+                    .ok()
+                    .flatten();
+            if let Some(tab_mut) = self.editor_tabs.get_mut(idx) {
+                tab_mut.git_blame_cache.insert(line, blame);
+            }
+        }
+        let info = self
+            .editor_tabs
+            .get(idx)
+            .and_then(|t| t.git_blame_cache.get(&line).cloned().flatten())?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let age = now - info.timestamp;
+        let when = humanize_age_secs(age);
+        // Truncate long commit summaries so the inline label doesn't
+        // dominate the right margin.
+        let mut msg = info.message;
+        if msg.len() > 64 {
+            msg.truncate(61);
+            msg.push_str("…");
+        }
+        Some(format!("    {} · {} · {}", info.author, when, msg))
+    }
+
+    /// Read-only side-by-side preview pane (right-side split). Shows
+    /// the contents of `editor_tabs[split_right_tab]` in a non-
+    /// interactive TextEdit so users can read two files at once. Edits
+    /// still go through the main pane. Toggle with Cmd+\\ — clears the
+    /// pane when already open.
+    pub(crate) fn render_split_right_pane(&mut self, ctx: &egui::Context) {
+        let idx = match self.split_right_tab {
+            Some(i) if i < self.editor_tabs.len() => i,
+            Some(_) => {
+                // Tab was closed under us — drop the split.
+                self.split_right_tab = None;
+                return;
+            }
+            None => return,
+        };
+        let (file_path, mut content) = {
+            let tab = &self.editor_tabs[idx];
+            (tab.file_path.clone(), tab.buffer.to_string())
+        };
+        let header = std::path::Path::new(&file_path)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| file_path.clone());
+
+        egui::SidePanel::right("editor_split_right")
+            .resizable(true)
+            .default_width(360.0)
+            .width_range(220.0..=900.0)
+            .frame(
+                egui::Frame::NONE
+                    .fill(ui_colors::EDITOR_BG())
+                    .inner_margin(egui::Margin::symmetric(0, 8)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(format!("◧ {} (preview)", header))
+                            .size(11.0)
+                            .color(ui_colors::TEXT_MUTED()),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add(
+                                egui::Button::new(
+                                    egui::RichText::new("\u{ea76}")
+                                        .size(11.0)
+                                        .family(egui::FontFamily::Name("codicon".into()))
+                                        .color(ui_colors::TEXT_MUTED()),
+                                )
+                                .frame(false),
+                            )
+                            .on_hover_text("Close split")
+                            .clicked()
+                        {
+                            self.split_right_tab = None;
+                        }
+                    });
+                });
+                ui.separator();
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut content)
+                                .desired_width(f32::INFINITY)
+                                .font(egui::FontId::monospace(editor_font_size()))
+                                .interactive(false)
+                                .frame(false)
+                                .code_editor(),
+                        );
+                    });
+            });
+    }
+
     /// Render Editor area (full implementation with TextEdit)
     pub(crate) fn render_editor_area(&mut self, ctx: &egui::Context) {
+        // Publish the current settings font size to the global atomic so
+        // the syntax-highlighter free fns (called via `TextEdit::layouter`)
+        // can read it. Doing this once per frame is cheap and keeps the
+        // value coherent if the user edits Settings → Font Size live.
+        set_editor_font_size(self.settings.font_size as f32);
+        // Right preview pane must be reserved BEFORE the CentralPanel
+        // claims the remaining width, otherwise it lands on top and
+        // gets clipped.
+        self.render_split_right_pane(ctx);
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::SIDEBAR_BG) // #191A1C - Match sidebar background
+                    .fill(ui_colors::SIDEBAR_BG()) // #191A1C - Match sidebar background
                     // Keep vertical breathing room, but avoid horizontal
                     // gap next to side-panel splitters (looked like a black band).
                     .inner_margin(egui::Margin::symmetric(0, 8)),
@@ -46,13 +220,13 @@ impl BerryCodeApp {
                 // Tab bar (VS Code style)
                 let mut tab_to_close: Option<usize> = None;
 
-                let tab_bar_bg = ui_colors::SIDEBAR_BG;
-                let tab_active_bg = ui_colors::EDITOR_BG;
-                let tab_inactive_bg = ui_colors::SIDEBAR_BG;
-                let tab_border = ui_colors::PANEL_BORDER;
-                let tab_active_indicator = ui_colors::ACCENT;
-                let tab_text_active = ui_colors::TEXT_DEFAULT;
-                let tab_text_inactive = ui_colors::TEXT_MUTED;
+                let tab_bar_bg = ui_colors::SIDEBAR_BG();
+                let tab_active_bg = ui_colors::EDITOR_BG();
+                let tab_inactive_bg = ui_colors::SIDEBAR_BG();
+                let tab_border = ui_colors::PANEL_BORDER();
+                let tab_active_indicator = ui_colors::ACCENT();
+                let tab_text_active = ui_colors::TEXT_DEFAULT();
+                let tab_text_inactive = ui_colors::TEXT_MUTED();
 
                 // Tab bar background
                 let tab_bar_rect = egui::Rect::from_min_size(
@@ -78,6 +252,7 @@ impl BerryCodeApp {
                     })
                     .collect();
 
+                let mut tab_rects: Vec<(usize, egui::Rect)> = Vec::new();
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
                     ui.set_height(35.0);
@@ -113,15 +288,19 @@ impl BerryCodeApp {
                                         .family(egui::FontFamily::Name("codicon".into())),
                                 );
 
-                                // Filename
+                                // Filename — click selects, drag triggers
+                                // the reorder loop below.
                                 let resp = ui.add(
                                     egui::Label::new(
                                         egui::RichText::new(filename).size(13.0).color(text_color),
                                     )
-                                    .sense(egui::Sense::click()),
+                                    .sense(egui::Sense::click_and_drag()),
                                 );
                                 if resp.clicked() {
                                     self.active_tab_idx = *idx;
+                                }
+                                if resp.drag_started() {
+                                    self.tab_drag_source = Some(*idx);
                                 }
 
                                 // Close button (only show on hover or active)
@@ -135,6 +314,12 @@ impl BerryCodeApp {
                             });
                         });
 
+                        // Record this tab's full rect for the drop hit-test
+                        // (the drag handler outside this loop walks the list
+                        // and swaps when the pointer crosses a neighbour's
+                        // midpoint).
+                        tab_rects.push((*idx, resp.response.rect));
+
                         // Active tab indicator (blue bottom line)
                         if is_active {
                             let tab_rect = resp.response.rect;
@@ -147,6 +332,36 @@ impl BerryCodeApp {
                         }
                     }
                 });
+
+                // === Tab drag-and-drop reorder ===
+                // While the user holds Primary on a tab and moves over
+                // another tab's midpoint, swap those two slots so the
+                // dragged tab visibly follows the cursor. Releasing the
+                // mouse just clears `tab_drag_source`; the reorder has
+                // already taken effect frame-by-frame.
+                if let Some(src) = self.tab_drag_source {
+                    let pointer = ui.input(|i| i.pointer.hover_pos());
+                    let still_held = ui.input(|i| i.pointer.primary_down());
+                    if !still_held {
+                        self.tab_drag_source = None;
+                    } else if let Some(pos) = pointer {
+                        let dest = tab_rects
+                            .iter()
+                            .find(|(_, r)| pos.x >= r.left() && pos.x <= r.right())
+                            .map(|(i, _)| *i);
+                        if let Some(dst) = dest {
+                            if dst != src && dst < self.editor_tabs.len() {
+                                self.editor_tabs.swap(src, dst);
+                                if self.active_tab_idx == src {
+                                    self.active_tab_idx = dst;
+                                } else if self.active_tab_idx == dst {
+                                    self.active_tab_idx = src;
+                                }
+                                self.tab_drag_source = Some(dst);
+                            }
+                        }
+                    }
+                }
 
                 // Close tab if requested (after the loop to avoid borrow issues)
                 if let Some(close_idx) = tab_to_close {
@@ -241,6 +456,15 @@ impl BerryCodeApp {
                     }
                     return;
                 }
+
+                // Inline `git blame` for the cursor line. Computed once
+                // per frame (memoised in the tab's blame cache by line
+                // index) so the synchronous git2 call only fires when the
+                // user moves to a new line. Done BEFORE the inlay hints
+                // snapshot below so the &mut self call in
+                // `fetch_inline_blame_for_active_tab` can complete before
+                // we hold the long-lived immutable borrows.
+                let blame_inline_text: Option<String> = self.fetch_inline_blame_for_active_tab();
 
                 // Snapshot data that we need from self before taking &mut tab
                 let empty_hints: Vec<LspInlayHint> = Vec::new();
@@ -382,20 +606,20 @@ impl BerryCodeApp {
                     };
 
                 // Dark background for scroll area
-                ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
-                ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG;
-                ui.style_mut().visuals.window_fill = ui_colors::SIDEBAR_BG;
-                ui.style_mut().visuals.panel_fill = ui_colors::SIDEBAR_BG;
+                ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG();
+                ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG();
+                ui.style_mut().visuals.window_fill = ui_colors::SIDEBAR_BG();
+                ui.style_mut().visuals.panel_fill = ui_colors::SIDEBAR_BG();
                 // Also override the faint_bg_color used for scroll bar track
-                ui.style_mut().visuals.faint_bg_color = ui_colors::SIDEBAR_BG;
+                ui.style_mut().visuals.faint_bg_color = ui_colors::SIDEBAR_BG();
 
                 let scroll_area = egui::ScrollArea::vertical()
                     .auto_shrink([false; 2])
                     .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible);
 
                 let scroll_output = scroll_area.show(ui, |ui| {
-                    ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG;
-                    ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG;
+                    ui.style_mut().visuals.extreme_bg_color = ui_colors::SIDEBAR_BG();
+                    ui.style_mut().visuals.widgets.noninteractive.bg_fill = ui_colors::SIDEBAR_BG();
 
                     // CRITICAL: Disable text color override to allow syntax highlighting
                     ui.style_mut().visuals.override_text_color = None;
@@ -467,7 +691,7 @@ impl BerryCodeApp {
                                     text.to_string(),
                                     egui::TextFormat {
                                         font_id: egui::FontId::monospace(13.0),
-                                        color: ui_colors::TEXT_DEFAULT,
+                                        color: ui_colors::TEXT_DEFAULT(),
                                         ..Default::default()
                                     },
                                 );
@@ -515,46 +739,17 @@ impl BerryCodeApp {
                         }
                     });
 
-                    // ── IME preedit overlay ─────────────────────────────
-                    // Render the preedit string near the focused cursor
-                    // when IME is mid-conversion. We draw it as a small
-                    // floating area pinned to `output.galley_pos +
-                    // cursor_pixel_pos` so it tracks the caret regardless
-                    // of scroll position. Falls back to the TextEdit's
-                    // top-left if the cursor rect is unavailable.
-                    if !self.editor_ime_preedit.is_empty() && output.response.has_focus() {
-                        let caret_pos = output
-                            .cursor_range
-                            .map(|cr| {
-                                let cursor = output.galley.pos_from_cursor(cr.primary);
-                                output.galley_pos
-                                    + cursor.min.to_vec2()
-                                    + egui::vec2(0.0, cursor.height())
-                            })
-                            .unwrap_or_else(|| output.response.rect.left_top());
-                        egui::Area::new(egui::Id::new("editor_ime_preedit_overlay"))
-                            .order(egui::Order::Tooltip)
-                            .fixed_pos(caret_pos)
-                            .interactable(false)
-                            .show(ui.ctx(), |ui| {
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgb(50, 52, 60))
-                                    .stroke(egui::Stroke::new(
-                                        1.0,
-                                        egui::Color32::from_rgb(99, 122, 168),
-                                    ))
-                                    .corner_radius(egui::CornerRadius::same(2))
-                                    .inner_margin(egui::Margin::symmetric(4, 2))
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            egui::RichText::new(&self.editor_ime_preedit)
-                                                .font(egui::FontId::monospace(13.0))
-                                                .color(egui::Color32::from_rgb(220, 220, 220))
-                                                .underline(),
-                                        );
-                                    });
-                            });
-                    }
+                    // ── IME preedit overlay (removed) ────────────────────
+                    // We used to render `self.editor_ime_preedit` as a
+                    // tooltip-style floating box near the caret, but
+                    // egui's TextEdit already draws the preedit inline
+                    // *and* macOS shows its own native IME candidate
+                    // marker above the caret — three overlapping copies
+                    // of the same char were confusing, and the floater
+                    // sometimes lingered after composition because
+                    // macOS doesn't always emit a clean Disabled /
+                    // empty-Preedit pair. Removing it keeps the inline
+                    // egui rendering as the single source of truth.
 
                     // Auto-close brackets: only when the user *typed* a
                     // bracket this frame. Checking `response.changed()` alone
@@ -683,6 +878,112 @@ impl BerryCodeApp {
                     // saving folded (truncated) text back to the buffer.
                     let text_changed = !is_readonly && !is_folded && text != tab.text_cache;
                     if text_changed {
+                        // === Multi-cursor edit fan-out ===
+                        // egui's TextEdit only edits at one cursor; replay the
+                        // same insertion (or deletion) at every secondary
+                        // cursor in `self.multi_cursors` so typing with N
+                        // cursors writes N copies. We work entirely on `text`
+                        // (the egui-mutated buffer) BEFORE syncing it into
+                        // the Rope; the TextEdit state and the rope therefore
+                        // stay coherent. Only handles pure insertion /
+                        // deletion at the primary; mixed edits (select +
+                        // replace via shortcut) fall back to single-cursor.
+                        if !self.multi_cursors.is_empty() {
+                            let old_text = tab.text_cache.clone();
+                            let old_chars = old_text.chars().count() as i64;
+                            let new_chars = text.chars().count() as i64;
+                            let delta = new_chars - old_chars;
+                            if let Some(cr) = output.cursor_range {
+                                let new_primary = cr.primary.index as i64;
+                                if delta > 0 {
+                                    // Pure insertion of `delta` chars ending
+                                    // at the primary cursor.
+                                    let old_primary = (new_primary - delta).max(0) as usize;
+                                    let ins_start = old_primary;
+                                    let ins_end = new_primary as usize;
+                                    let inserted: String = text
+                                        .chars()
+                                        .skip(ins_start)
+                                        .take(ins_end - ins_start)
+                                        .collect();
+                                    let mut targets: Vec<usize> = self
+                                        .multi_cursors
+                                        .iter()
+                                        .map(|&p| if p >= old_primary { p + delta as usize } else { p })
+                                        .collect();
+                                    targets.sort_unstable_by(|a, b| b.cmp(a));
+                                    for pos in &targets {
+                                        let byte_pos = text
+                                            .char_indices()
+                                            .nth(*pos)
+                                            .map(|(b, _)| b)
+                                            .unwrap_or(text.len());
+                                        text.insert_str(byte_pos, &inserted);
+                                    }
+                                    // After all inserts, every secondary
+                                    // cursor advances past its inserted span.
+                                    for cur in self.multi_cursors.iter_mut() {
+                                        let shifted = if *cur >= old_primary {
+                                            *cur + delta as usize
+                                        } else {
+                                            *cur
+                                        };
+                                        *cur = shifted + delta as usize;
+                                    }
+                                } else if delta < 0 {
+                                    // Pure deletion of `-delta` chars
+                                    // ending at the new primary cursor.
+                                    let del_len = (-delta) as usize;
+                                    let del_end_old = new_primary as usize + del_len;
+                                    let mut targets: Vec<usize> = self
+                                        .multi_cursors
+                                        .iter()
+                                        .filter_map(|&p| {
+                                            if p >= del_end_old {
+                                                Some(p - del_len)
+                                            } else if p >= new_primary as usize {
+                                                None
+                                            } else {
+                                                Some(p)
+                                            }
+                                        })
+                                        .collect();
+                                    // Delete the same range size before each
+                                    // secondary cursor (mimics backspace).
+                                    targets.sort_unstable_by(|a, b| b.cmp(a));
+                                    for pos in &targets {
+                                        let start = pos.saturating_sub(del_len);
+                                        let byte_start = text
+                                            .char_indices()
+                                            .nth(start)
+                                            .map(|(b, _)| b)
+                                            .unwrap_or(text.len());
+                                        let byte_end = text
+                                            .char_indices()
+                                            .nth(*pos)
+                                            .map(|(b, _)| b)
+                                            .unwrap_or(text.len());
+                                        if byte_start < byte_end {
+                                            text.replace_range(byte_start..byte_end, "");
+                                        }
+                                    }
+                                    let new_positions: Vec<usize> = self
+                                        .multi_cursors
+                                        .iter()
+                                        .filter_map(|&p| {
+                                            if p >= del_end_old {
+                                                Some(p - del_len * 2)
+                                            } else if p >= new_primary as usize {
+                                                None
+                                            } else {
+                                                Some(p.saturating_sub(del_len))
+                                            }
+                                        })
+                                        .collect();
+                                    self.multi_cursors = new_positions;
+                                }
+                            }
+                        }
                         tab.buffer = crate::buffer::TextBuffer::from_str(&text);
                         tab.text_cache_version = tab.buffer.version();
                         // Keep cache in sync (read by get_text())
@@ -705,29 +1006,21 @@ impl BerryCodeApp {
                             }
                         }
 
-                        // Auto-trigger completions only on actual keyboard typing
-                        // (not on programmatic text changes like completion insert).
-                        // Treat IME-committed strings as typing too, so 日本語
-                        // input still pops the completion list.
-                        let had_key_input = ui.input(|i| {
-                            i.events.iter().any(|e| {
-                                matches!(e, egui::Event::Text(_))
-                                    || matches!(e, egui::Event::Ime(egui::ImeEvent::Commit(_)))
-                            })
-                        });
+                        // Auto-trigger completions only on actual keyboard
+                        // typing (not on programmatic text changes like a
+                        // completion insert). The detection lives in two
+                        // pure helpers in `app::mod` so the IME-passthrough
+                        // regression is locked down by unit tests.
+                        let had_key_input =
+                            ui.input(|i| super::events_look_like_typing(&i.events));
                         if had_key_input {
                             if let Some(cr) = output.cursor_range {
                                 let cursor_pos = cr.primary.index;
                                 if cursor_pos > 0 {
                                     let last_char =
                                         text.char_indices().nth(cursor_pos - 1).map(|(_, c)| c);
-                                    let should_trigger = last_char.map_or(false, |c| {
-                                        c.is_alphanumeric()
-                                            || c == '_'
-                                            || c == '.'
-                                            || c == ':'
-                                            || c == '<'
-                                    });
+                                    let should_trigger =
+                                        last_char.map_or(false, super::char_triggers_completion);
                                     if should_trigger {
                                         self.lsp_auto_trigger_pending = true;
                                     }
@@ -929,6 +1222,31 @@ impl BerryCodeApp {
                                 num_color,
                             );
 
+                            // --- Inline `git blame` (VS Code GitLens style) ---
+                            // Drawn at the end-of-line of the current
+                            // cursor line, dimmed so it doesn't pull the
+                            // eye away from the code.
+                            if line_idx == tab.cursor_line {
+                                if let Some(ref blame_txt) = blame_inline_text {
+                                    let line_end_offset =
+                                        line_char_offsets.get(line_idx + 1).copied().unwrap_or(
+                                            line_char_offsets[line_idx]
+                                                + text.lines().nth(line_idx).map(|l| l.len()).unwrap_or(0),
+                                        );
+                                    let end_cc =
+                                        egui::text::CCursor::new(line_end_offset.saturating_sub(1));
+                                    let end_rect = galley.pos_from_cursor(end_cc);
+                                    let end_x = text_origin.x + end_rect.max.x;
+                                    ui.painter().text(
+                                        egui::pos2(end_x, y),
+                                        egui::Align2::LEFT_TOP,
+                                        blame_txt,
+                                        egui::FontId::proportional(11.0),
+                                        egui::Color32::from_rgb(110, 110, 110),
+                                    );
+                                }
+                            }
+
                             // --- Diagnostic gutter icon + line border (only .rs) ---
                             if is_rs {
                                 let line_severity = self
@@ -1110,8 +1428,17 @@ impl BerryCodeApp {
                             };
 
                             if let Some(match_idx) = matching_idx {
+                                // Use *unmultiplied* alpha — the previous
+                                // `from_rgba_premultiplied(255, 255, 255, 30)`
+                                // was technically invalid (RGB > alpha for
+                                // premultiplied) and rendered as a solid
+                                // white square instead of a 12 %-opacity tint
+                                // depending on the GPU's blend path. The
+                                // user-visible symptom was "parens turn pure
+                                // white sometimes" — this fixes both the
+                                // light and dark themes at once.
                                 let highlight_color =
-                                    egui::Color32::from_rgba_premultiplied(255, 255, 255, 30);
+                                    egui::Color32::from_rgba_unmultiplied(255, 255, 255, 30);
                                 // Highlight both brackets using galley positions
                                 for idx in [cursor_idx, match_idx] {
                                     if idx < chars.len() {
@@ -1292,7 +1619,7 @@ impl BerryCodeApp {
                                         ui.painter().rect_filled(
                                             bg_rect,
                                             0.0,
-                                            ui_colors::SIDEBAR_BG,
+                                            ui_colors::SIDEBAR_BG(),
                                         );
                                         ui.painter().text(
                                             text_pos,
@@ -1408,12 +1735,16 @@ impl BerryCodeApp {
                     }
 
                     // === Git Gutter Diff Markers ===
-                    // Thin colored bar at the left edge of the text area
+                    // VS Code-style: a 3px coloured bar between the line
+                    // number and the text. The earlier minimap-edge bar
+                    // was easy to miss because it sat outside the eye-
+                    // scan path; sitting it flush against the text body
+                    // lines up with what users expect from VS Code /
+                    // Cursor and makes "this line is modified" obvious.
                     if tab.git_changes_loaded && !tab.git_line_changes.is_empty() {
                         let clip = ui.clip_rect();
                         let bar_width = 3.0_f32;
-                        // Draw on the right edge of the editor panel (VS Code minimap style)
-                        let bar_x = editor_rect.right() - bar_width;
+                        let bar_x = text_origin.x - bar_width - 2.0;
 
                         for change in &tab.git_line_changes {
                             if change.line >= line_char_offsets.len() {
@@ -1750,7 +2081,7 @@ impl BerryCodeApp {
             self.lsp_completions.clear();
         }
 
-        // Auto-trigger completions on typing (VS Code behavior)
+        // Auto-trigger completions on typing (VS Code behavior).
         if self.lsp_auto_trigger_pending && self.lsp_connected {
             self.lsp_auto_trigger_pending = false;
             self.trigger_lsp_completions();
@@ -1806,8 +2137,12 @@ impl BerryCodeApp {
         }
 
         let mut job = egui::text::LayoutJob::default();
-        const FONT_SIZE: f32 = 13.0;
-        let default_color = ui_colors::TEXT_DEFAULT;
+        let font_size: f32 = editor_font_size();
+        // Use a local name `FONT_SIZE` so the inserted `font_id` lines
+        // below don't need to change.
+        #[allow(non_snake_case)]
+        let FONT_SIZE = font_size;
+        let default_color = ui_colors::TEXT_DEFAULT();
         let key_color = egui::Color32::from_rgb(86, 156, 214); // blue
         let string_color = egui::Color32::from_rgb(206, 145, 120); // orange-brown
         let number_color = egui::Color32::from_rgb(181, 206, 168); // light green
@@ -1965,10 +2300,13 @@ impl BerryCodeApp {
 
         let mut job = egui::text::LayoutJob::default();
 
-        // Font size: 13px for optimal readability
-        const FONT_SIZE: f32 = 13.0;
+        // Font size from settings (settings.font_size). Pushed into a
+        // global atomic each frame so this free fn can read it without
+        // a `&self` parameter.
+        #[allow(non_snake_case)]
+        let FONT_SIZE: f32 = editor_font_size();
         // Default color unified white (#D4D4D4)
-        let default_color = ui_colors::TEXT_DEFAULT;
+        let default_color = ui_colors::TEXT_DEFAULT();
 
         for line in text.lines() {
             // Get tokens from regex-based highlighter
@@ -2066,5 +2404,48 @@ impl BerryCodeApp {
             *c.borrow_mut() = Some((key, job.clone()));
         });
         job
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn humanize_age_just_now() {
+        assert_eq!(humanize_age_secs(0), "just now");
+        assert_eq!(humanize_age_secs(59), "just now");
+    }
+
+    #[test]
+    fn humanize_age_minutes_hours_days() {
+        assert_eq!(humanize_age_secs(60), "1 min ago");
+        assert_eq!(humanize_age_secs(3600), "1 hour ago");
+        assert_eq!(humanize_age_secs(7200), "2 hours ago");
+        assert_eq!(humanize_age_secs(86_400), "1 day ago");
+        assert_eq!(humanize_age_secs(2 * 86_400), "2 days ago");
+    }
+
+    #[test]
+    fn humanize_age_months_years() {
+        assert_eq!(humanize_age_secs(31 * 86_400), "1 month ago");
+        assert_eq!(humanize_age_secs(365 * 86_400), "1 year ago");
+        assert_eq!(humanize_age_secs(2 * 365 * 86_400), "2 years ago");
+    }
+
+    #[test]
+    fn humanize_age_negative_floored_to_zero() {
+        assert_eq!(humanize_age_secs(-100), "just now");
+    }
+
+    #[test]
+    fn editor_font_size_clamps_low_and_high() {
+        set_editor_font_size(2.0);
+        assert_eq!(editor_font_size(), 8.0);
+        set_editor_font_size(100.0);
+        assert_eq!(editor_font_size(), 48.0);
+        set_editor_font_size(14.5);
+        assert_eq!(editor_font_size(), 14.5);
+        set_editor_font_size(13.0);
     }
 }

@@ -7,6 +7,13 @@ use super::BerryCodeApp;
 impl BerryCodeApp {
     /// Render Sidebar (file tree, chat, terminal, etc.)
     pub(crate) fn render_sidebar(&mut self, ctx: &egui::Context) {
+        // Cmd+B toggles the whole sidebar; while hidden we skip the
+        // SidePanel entirely so the central content gets the reclaimed
+        // horizontal space. Re-showing it brings back the same active
+        // panel because we don't touch `self.active_panel`.
+        if !self.sidebar_visible {
+            return;
+        }
         // Bumped id (`sidebar_v3`) discards stale persisted widths from
         // earlier builds, so the panel comes up at `default_width` and
         // stays inside `width_range` regardless of what the previous
@@ -19,7 +26,7 @@ impl BerryCodeApp {
             .show_separator_line(true)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::SIDEBAR_BG)
+                    .fill(ui_colors::SIDEBAR_BG())
                     .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {

@@ -2172,7 +2172,7 @@ impl BerryCodeApp {
             ui.add_space(8.0);
             ui.label(
                 egui::RichText::new("Add Component")
-                    .color(crate::app::component_colors::TEXT_DIM)
+                    .color(crate::app::component_colors::TEXT_DIM())
                     .size(11.0),
             );
             let add_btn_label = if self.add_component_popup_open {
@@ -2184,8 +2184,8 @@ impl BerryCodeApp {
                 .add_sized(
                     [ui.available_width(), 24.0],
                     egui::Button::new(egui::RichText::new(add_btn_label).size(12.0))
-                        .fill(crate::app::component_colors::BUTTON_BG)
-                        .stroke(egui::Stroke::new(1.0, crate::app::ui_colors::BORDER)),
+                        .fill(crate::app::component_colors::BUTTON_BG())
+                        .stroke(egui::Stroke::new(1.0, crate::app::ui_colors::BORDER())),
                 )
                 .clicked()
             {
