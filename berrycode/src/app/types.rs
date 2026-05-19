@@ -47,6 +47,10 @@ pub struct EditorTab {
     pub git_line_changes: Vec<crate::native::git::LineChange>,
     /// Whether git line changes have been loaded
     pub git_changes_loaded: bool,
+    /// Per-line `git blame` lookup cache. Populated lazily as the
+    /// cursor moves between lines; `None` means "we tried and the line
+    /// has no blame info" (uncommitted / outside the repo).
+    pub git_blame_cache: std::collections::HashMap<usize, Option<crate::native::git::BlameInfo>>,
     /// Set of folded line ranges (start_line, end_line) - exclusive end
     pub folded_regions: Vec<(usize, usize)>,
     /// Whether this file is an image (not a text file)
@@ -83,6 +87,7 @@ impl EditorTab {
             text_cache_version: version,
             git_line_changes: Vec::new(),
             git_changes_loaded: false,
+            git_blame_cache: std::collections::HashMap::new(),
             folded_regions: Vec::new(),
             is_image: false,
             image_texture: None,

@@ -369,7 +369,7 @@ fn render_result_grid(ui: &mut egui::Ui, id: &str, cols: &[String], rows: &[Vec<
                         ui.label(
                             egui::RichText::new(c)
                                 .strong()
-                                .color(ui_colors::TEXT_DEFAULT),
+                                .color(ui_colors::TEXT_DEFAULT()),
                         );
                     }
                     ui.end_row();

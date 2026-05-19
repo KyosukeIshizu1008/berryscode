@@ -144,7 +144,7 @@ impl BerryCodeApp {
 }
 
 /// Apply LSP TextEdits to a string (edits must be applied in reverse order)
-fn apply_text_edits(content: &str, edits: &[lsp_types::TextEdit]) -> String {
+pub(crate) fn apply_text_edits(content: &str, edits: &[lsp_types::TextEdit]) -> String {
     let mut result = content.to_string();
     let mut sorted_edits: Vec<_> = edits.to_vec();
     sorted_edits.sort_by(|a, b| {
@@ -175,4 +175,65 @@ fn lsp_position_to_offset(text: &str, pos: lsp_types::Position) -> Option<usize>
         offset += line.len() + 1; // +1 for newline
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lsp_types::{Position, Range, TextEdit};
+
+    fn edit(line_s: u32, char_s: u32, line_e: u32, char_e: u32, new: &str) -> TextEdit {
+        TextEdit {
+            range: Range {
+                start: Position {
+                    line: line_s,
+                    character: char_s,
+                },
+                end: Position {
+                    line: line_e,
+                    character: char_e,
+                },
+            },
+            new_text: new.to_string(),
+        }
+    }
+
+    #[test]
+    fn apply_text_edits_single_rename() {
+        let src = "fn foo() {}\nfn bar() {}\n";
+        // Rename `foo` (line 0, cols 3..6) → `qux`
+        let edits = vec![edit(0, 3, 0, 6, "qux")];
+        let out = apply_text_edits(src, &edits);
+        assert_eq!(out, "fn qux() {}\nfn bar() {}\n");
+    }
+
+    #[test]
+    fn apply_text_edits_reverse_order_safe() {
+        // Two edits in the same line — verifying the in-place
+        // reverse-order strategy doesn't shift later edits onto the
+        // wrong byte positions.
+        let src = "abcdef\n";
+        let edits = vec![
+            edit(0, 0, 0, 1, "Z"), // a → Z (line 0, col 0)
+            edit(0, 4, 0, 5, "Y"), // e → Y (line 0, col 4)
+        ];
+        let out = apply_text_edits(src, &edits);
+        assert_eq!(out, "ZbcdYf\n");
+    }
+
+    #[test]
+    fn apply_text_edits_multiline_replacement() {
+        let src = "one\ntwo\nthree\n";
+        // Replace "two\nthree" with "TWO+THREE"
+        let edits = vec![edit(1, 0, 2, 5, "TWO+THREE")];
+        let out = apply_text_edits(src, &edits);
+        assert_eq!(out, "one\nTWO+THREE\n");
+    }
+
+    #[test]
+    fn apply_text_edits_empty_keeps_text() {
+        let src = "unchanged\n";
+        let out = apply_text_edits(src, &[]);
+        assert_eq!(out, src);
+    }
 }

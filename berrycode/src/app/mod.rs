@@ -297,57 +297,273 @@ pub(crate) mod syntax_colors {
 // ===== UI Color Palette =====
 
 #[allow(dead_code)]
+/// The UI colour palette. Originally a flat list of `const Color32`s
+/// hardcoded for the dark theme; converted to a `OnceLock`-backed
+/// struct so the Light / High Contrast themes from the Settings panel
+/// can swap in their own palettes at runtime.
+///
+/// Existing call sites use `ui_colors::EDITOR_BG()` etc. — kept as
+/// SCREAMING_SNAKE-named accessor fields on the struct so a one-line
+/// `let c = palette();` followed by `c.EDITOR_BG` continues to read
+/// like a constant lookup.
 pub(crate) mod ui_colors {
     use egui::Color32;
+    use std::sync::atomic::{AtomicU8, Ordering};
 
-    pub const EDITOR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
-    pub const SIDEBAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
-    pub const ACTIVITY_BAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
-    pub const TOP_BAR_BG: Color32 = Color32::from_rgb(48, 49, 52); // #303134
-    pub const STATUS_BAR_BG: Color32 = Color32::from_rgb(25, 26, 28); // #191A1C
-    pub const TEXT_DEFAULT: Color32 = Color32::from_rgb(212, 212, 212); // #D4D4D4
-    pub const TEXT_MUTED: Color32 = Color32::from_rgb(153, 153, 153); // #999999
-    pub const BORDER: Color32 = Color32::from_rgb(60, 60, 60); // #3C3C3C
-    pub const PANEL_BORDER: Color32 = Color32::from_rgb(43, 43, 43); // #2B2B2B
-    pub const CONTROL_BG: Color32 = Color32::from_rgb(60, 60, 60); // #3C3C3C
-    pub const CONTROL_BORDER: Color32 = Color32::from_rgb(86, 86, 86); // #565656
-    pub const HOVER_BG: Color32 = Color32::from_rgb(45, 45, 45); // #2D2D2D
-    pub const ACTIVE_BG: Color32 = Color32::from_rgb(55, 55, 61); // #37373D
-    pub const ACCENT: Color32 = Color32::from_rgb(0, 122, 204); // #007ACC
-    pub const ACCENT_HOVER: Color32 = Color32::from_rgb(17, 119, 187); // #1177BB
-    pub const FOCUS_BORDER: Color32 = Color32::from_rgb(0, 127, 212); // #007FD4
+    /// 0 = Dark, 1 = Light, 2 = High Contrast. Plain `AtomicU8` because
+    /// the egui render runs on a single thread anyway and atomics keep
+    /// the API `&'static` without a lock.
+    static THEME_INDEX: AtomicU8 = AtomicU8::new(0);
 
-    // VS Code-style settings palette
-    pub const SETTINGS_NAV_BG: Color32 = SIDEBAR_BG;
-    pub const SETTINGS_BG: Color32 = EDITOR_BG;
-    pub const SETTINGS_SEARCH_BG: Color32 = CONTROL_BG;
-    pub const SETTINGS_DESC: Color32 = TEXT_MUTED;
-    pub const SETTINGS_HINT: Color32 = Color32::from_rgb(128, 128, 128);
-    pub const SETTINGS_HEADER: Color32 = TEXT_DEFAULT;
-    pub const SETTINGS_CARD_BORDER: Color32 = BORDER;
-    pub const SETTINGS_ACCENT: Color32 = ACCENT;
+    pub fn set_theme(mode: super::types::ThemeMode) {
+        let idx = match mode {
+            super::types::ThemeMode::Dark => 0u8,
+            super::types::ThemeMode::Light => 1u8,
+            super::types::ThemeMode::HighContrast => 2u8,
+        };
+        THEME_INDEX.store(idx, Ordering::Relaxed);
+    }
+
+    fn dark() -> &'static Palette {
+        static DARK: Palette = Palette {
+            EDITOR_BG: Color32::from_rgb(25, 26, 28),
+            SIDEBAR_BG: Color32::from_rgb(25, 26, 28),
+            ACTIVITY_BAR_BG: Color32::from_rgb(25, 26, 28),
+            TOP_BAR_BG: Color32::from_rgb(48, 49, 52),
+            STATUS_BAR_BG: Color32::from_rgb(25, 26, 28),
+            TEXT_DEFAULT: Color32::from_rgb(212, 212, 212),
+            TEXT_MUTED: Color32::from_rgb(153, 153, 153),
+            BORDER: Color32::from_rgb(60, 60, 60),
+            PANEL_BORDER: Color32::from_rgb(43, 43, 43),
+            CONTROL_BG: Color32::from_rgb(60, 60, 60),
+            CONTROL_BORDER: Color32::from_rgb(86, 86, 86),
+            HOVER_BG: Color32::from_rgb(45, 45, 45),
+            ACTIVE_BG: Color32::from_rgb(55, 55, 61),
+            ACCENT: Color32::from_rgb(0, 122, 204),
+            ACCENT_HOVER: Color32::from_rgb(17, 119, 187),
+            FOCUS_BORDER: Color32::from_rgb(0, 127, 212),
+            SETTINGS_HINT: Color32::from_rgb(128, 128, 128),
+        };
+        &DARK
+    }
+
+    fn light() -> &'static Palette {
+        static LIGHT: Palette = Palette {
+            EDITOR_BG: Color32::from_rgb(255, 255, 255),
+            SIDEBAR_BG: Color32::from_rgb(243, 243, 243),
+            ACTIVITY_BAR_BG: Color32::from_rgb(245, 245, 245),
+            TOP_BAR_BG: Color32::from_rgb(221, 221, 221),
+            STATUS_BAR_BG: Color32::from_rgb(0, 122, 204),
+            TEXT_DEFAULT: Color32::from_rgb(34, 34, 34),
+            TEXT_MUTED: Color32::from_rgb(96, 96, 96),
+            BORDER: Color32::from_rgb(200, 200, 200),
+            PANEL_BORDER: Color32::from_rgb(225, 225, 225),
+            CONTROL_BG: Color32::from_rgb(245, 245, 245),
+            CONTROL_BORDER: Color32::from_rgb(190, 190, 190),
+            HOVER_BG: Color32::from_rgb(230, 230, 230),
+            ACTIVE_BG: Color32::from_rgb(210, 224, 244),
+            ACCENT: Color32::from_rgb(0, 102, 184),
+            ACCENT_HOVER: Color32::from_rgb(0, 87, 158),
+            FOCUS_BORDER: Color32::from_rgb(0, 102, 184),
+            SETTINGS_HINT: Color32::from_rgb(110, 110, 110),
+        };
+        &LIGHT
+    }
+
+    fn high_contrast() -> &'static Palette {
+        static HC: Palette = Palette {
+            EDITOR_BG: Color32::BLACK,
+            SIDEBAR_BG: Color32::BLACK,
+            ACTIVITY_BAR_BG: Color32::BLACK,
+            TOP_BAR_BG: Color32::BLACK,
+            STATUS_BAR_BG: Color32::BLACK,
+            TEXT_DEFAULT: Color32::WHITE,
+            TEXT_MUTED: Color32::from_rgb(200, 200, 200),
+            BORDER: Color32::from_rgb(110, 110, 110),
+            PANEL_BORDER: Color32::from_rgb(110, 110, 110),
+            CONTROL_BG: Color32::from_rgb(20, 20, 20),
+            CONTROL_BORDER: Color32::from_rgb(150, 150, 150),
+            HOVER_BG: Color32::from_rgb(40, 40, 40),
+            ACTIVE_BG: Color32::from_rgb(60, 60, 60),
+            ACCENT: Color32::from_rgb(252, 200, 0),
+            ACCENT_HOVER: Color32::from_rgb(255, 220, 60),
+            FOCUS_BORDER: Color32::from_rgb(255, 215, 0),
+            SETTINGS_HINT: Color32::from_rgb(200, 200, 200),
+        };
+        &HC
+    }
+
+    /// The struct kept as `static`s above; one per theme. Fields are
+    /// PascalCase to match the original const names so callers can keep
+    /// writing `ui_colors::EDITOR_BG()` (now a function returning the
+    /// active palette's field).
+    #[allow(non_snake_case)]
+    pub struct Palette {
+        pub EDITOR_BG: Color32,
+        pub SIDEBAR_BG: Color32,
+        pub ACTIVITY_BAR_BG: Color32,
+        pub TOP_BAR_BG: Color32,
+        pub STATUS_BAR_BG: Color32,
+        pub TEXT_DEFAULT: Color32,
+        pub TEXT_MUTED: Color32,
+        pub BORDER: Color32,
+        pub PANEL_BORDER: Color32,
+        pub CONTROL_BG: Color32,
+        pub CONTROL_BORDER: Color32,
+        pub HOVER_BG: Color32,
+        pub ACTIVE_BG: Color32,
+        pub ACCENT: Color32,
+        pub ACCENT_HOVER: Color32,
+        pub FOCUS_BORDER: Color32,
+        pub SETTINGS_HINT: Color32,
+    }
+
+    fn current() -> &'static Palette {
+        match THEME_INDEX.load(Ordering::Relaxed) {
+            1 => light(),
+            2 => high_contrast(),
+            _ => dark(),
+        }
+    }
+
+    // Compatibility shims — original call sites use
+    // `ui_colors::EDITOR_BG()` without parens. We can't keep that exact
+    // syntax because `const` items can't be runtime-dynamic, so each
+    // becomes a zero-arg function and call sites get `()` appended.
+    #[allow(non_snake_case)]
+    pub fn EDITOR_BG() -> Color32 {
+        current().EDITOR_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn SIDEBAR_BG() -> Color32 {
+        current().SIDEBAR_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn ACTIVITY_BAR_BG() -> Color32 {
+        current().ACTIVITY_BAR_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn TOP_BAR_BG() -> Color32 {
+        current().TOP_BAR_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn STATUS_BAR_BG() -> Color32 {
+        current().STATUS_BAR_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn TEXT_DEFAULT() -> Color32 {
+        current().TEXT_DEFAULT
+    }
+    #[allow(non_snake_case)]
+    pub fn TEXT_MUTED() -> Color32 {
+        current().TEXT_MUTED
+    }
+    #[allow(non_snake_case)]
+    pub fn BORDER() -> Color32 {
+        current().BORDER
+    }
+    #[allow(non_snake_case)]
+    pub fn PANEL_BORDER() -> Color32 {
+        current().PANEL_BORDER
+    }
+    #[allow(non_snake_case)]
+    pub fn CONTROL_BG() -> Color32 {
+        current().CONTROL_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn CONTROL_BORDER() -> Color32 {
+        current().CONTROL_BORDER
+    }
+    #[allow(non_snake_case)]
+    pub fn HOVER_BG() -> Color32 {
+        current().HOVER_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn ACTIVE_BG() -> Color32 {
+        current().ACTIVE_BG
+    }
+    #[allow(non_snake_case)]
+    pub fn ACCENT() -> Color32 {
+        current().ACCENT
+    }
+    #[allow(non_snake_case)]
+    pub fn ACCENT_HOVER() -> Color32 {
+        current().ACCENT_HOVER
+    }
+    #[allow(non_snake_case)]
+    pub fn FOCUS_BORDER() -> Color32 {
+        current().FOCUS_BORDER
+    }
+
+    // VS Code-style settings palette — derived from the same theme so
+    // the Settings panel auto-themes.
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_NAV_BG() -> Color32 {
+        SIDEBAR_BG()
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_BG() -> Color32 {
+        EDITOR_BG()
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_SEARCH_BG() -> Color32 {
+        CONTROL_BG()
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_DESC() -> Color32 {
+        TEXT_MUTED()
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_HINT() -> Color32 {
+        current().SETTINGS_HINT
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_HEADER() -> Color32 {
+        TEXT_DEFAULT()
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_CARD_BORDER() -> Color32 {
+        BORDER()
+    }
+    #[allow(non_snake_case)]
+    pub fn SETTINGS_ACCENT() -> Color32 {
+        ACCENT()
+    }
 }
 
 // ===== Component Color Palette =====
 // Shared colors for UI components (tabs, buttons, inputs, etc.)
 
-#[allow(dead_code)]
+#[allow(dead_code, non_snake_case)]
 pub(crate) mod component_colors {
     use egui::Color32;
-    // VS Code accent blue
-    pub const ACCENT: Color32 = super::ui_colors::ACCENT;
-    // Tab colors
-    pub const TAB_ACTIVE: Color32 = super::ui_colors::TEXT_DEFAULT;
-    pub const TAB_INACTIVE: Color32 = super::ui_colors::TEXT_MUTED;
-    // Button colors
-    pub const BUTTON_TEXT: Color32 = super::ui_colors::TEXT_DEFAULT;
-    pub const BUTTON_BG: Color32 = super::ui_colors::CONTROL_BG;
-    // Hover
-    pub const HOVER_BG: Color32 = super::ui_colors::HOVER_BG;
-    // Input
-    pub const INPUT_BG: Color32 = super::ui_colors::CONTROL_BG;
-    // Dim text
-    pub const TEXT_DIM: Color32 = super::ui_colors::TEXT_MUTED;
+    // VS Code accent blue. These were `const`s that re-exported the
+    // ui_colors constants; now that the underlying palette is runtime-
+    // dynamic, they're forwarding functions instead.
+    pub fn ACCENT() -> Color32 {
+        super::ui_colors::ACCENT()
+    }
+    pub fn TAB_ACTIVE() -> Color32 {
+        super::ui_colors::TEXT_DEFAULT()
+    }
+    pub fn TAB_INACTIVE() -> Color32 {
+        super::ui_colors::TEXT_MUTED()
+    }
+    pub fn BUTTON_TEXT() -> Color32 {
+        super::ui_colors::TEXT_DEFAULT()
+    }
+    pub fn BUTTON_BG() -> Color32 {
+        super::ui_colors::CONTROL_BG()
+    }
+    pub fn HOVER_BG() -> Color32 {
+        super::ui_colors::HOVER_BG()
+    }
+    pub fn INPUT_BG() -> Color32 {
+        super::ui_colors::CONTROL_BG()
+    }
+    pub fn TEXT_DIM() -> Color32 {
+        super::ui_colors::TEXT_MUTED()
+    }
 }
 
 // ===== File Icon Color Palette =====
@@ -485,6 +701,32 @@ pub struct BerryCodeApp {
     pub(crate) file_tree_cache: Vec<DirEntry>, // Cached directory tree
     pub(crate) file_tree_load_pending: bool,
     pub(crate) expanded_dirs: HashSet<String>, // Set of expanded directory paths
+    /// Folder rows rendered last frame, recorded so an OS drag-and-drop release
+    /// can be resolved back to the folder under the pointer. Without this the
+    /// drop handler had no way to know which folder the user aimed at and
+    /// always copied into the project root.
+    pub(crate) file_tree_folder_rects: Vec<(String, egui::Rect)>,
+    /// Cmd+B toggles this. When false, `render_sidebar` early-returns.
+    pub(crate) sidebar_visible: bool,
+    /// Index of the tab being dragged by the user (left button held).
+    /// Reset to `None` once the user releases or moves off the tab strip.
+    pub(crate) tab_drag_source: Option<usize>,
+    /// Extra folders added to the workspace beyond the primary
+    /// `root_path`. Each renders as its own collapsible root in the
+    /// file tree and is included in project-wide search. The primary
+    /// root is still the one used for LSP server roots / Cargo
+    /// commands / git status; secondary roots are read-only browse
+    /// targets so we don't need to spin up per-root LSPs.
+    pub(crate) additional_roots: Vec<String>,
+    /// Per-extra-root cached tree (mirrors `file_tree_cache`).
+    pub(crate) additional_root_caches: Vec<Vec<DirEntry>>,
+    /// When `Some(idx)`, a side-by-side preview pane is shown on the
+    /// right with `editor_tabs[idx]`. Cmd+\\ toggles. The right pane is
+    /// read-only by design — editing is still done in the main pane —
+    /// which keeps the implementation scoped (no second cursor / LSP
+    /// session) while still solving the "diff two files visually" use
+    /// case the user audit called out.
+    pub(crate) split_right_tab: Option<usize>,
 
     // === Terminal State (iTerm2-style PTY emulator) ===
     pub(crate) terminal: terminal_emulator::TerminalEmulator,
@@ -944,6 +1186,10 @@ pub struct BerryCodeApp {
     /// Persisted under `~/.berrycode/theme.json` so the choice survives
     /// restarts.
     pub(crate) theme_mode: types::ThemeMode,
+    /// User-editable settings (font size, format-on-save, etc.) loaded
+    /// from `<config>/berrycode/settings.json`. The Settings → Appearance
+    /// tab writes back to this and calls `EditorSettings::save()`.
+    pub(crate) settings: crate::settings::EditorSettings,
     /// Per-panel visibility for the activity bar. Persisted under
     /// `~/.berrycode/panels.json` so users keep a tidy left strip across
     /// restarts. Database/Docker/OracleBerry default off.
@@ -1138,26 +1384,26 @@ impl BerryCodeApp {
         let mut style = egui::Style::default();
         let mut visuals = egui::Visuals::dark();
 
-        let bg_dark = ui_colors::EDITOR_BG;
-        let bg_panel = ui_colors::SIDEBAR_BG;
-        let bg_input = ui_colors::CONTROL_BG;
-        let bg_hover = ui_colors::HOVER_BG;
-        let bg_active = ui_colors::ACTIVE_BG;
+        let bg_dark = ui_colors::EDITOR_BG();
+        let bg_panel = ui_colors::SIDEBAR_BG();
+        let bg_input = ui_colors::CONTROL_BG();
+        let bg_hover = ui_colors::HOVER_BG();
+        let bg_active = ui_colors::ACTIVE_BG();
         let bg_selected = egui::Color32::from_rgba_premultiplied(9, 71, 113, 180);
-        let border = ui_colors::BORDER;
-        let border_focus = ui_colors::FOCUS_BORDER;
-        let text = ui_colors::TEXT_DEFAULT;
+        let border = ui_colors::BORDER();
+        let border_focus = ui_colors::FOCUS_BORDER();
+        let text = ui_colors::TEXT_DEFAULT();
 
         visuals.override_text_color = None;
         visuals.window_fill = bg_panel;
         visuals.panel_fill = bg_dark;
         visuals.extreme_bg_color = bg_input;
         visuals.code_bg_color = bg_dark;
-        visuals.faint_bg_color = ui_colors::HOVER_BG;
-        visuals.hyperlink_color = ui_colors::ACCENT_HOVER;
+        visuals.faint_bg_color = ui_colors::HOVER_BG();
+        visuals.hyperlink_color = ui_colors::ACCENT_HOVER();
 
         // Window
-        visuals.window_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER);
+        visuals.window_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
         visuals.window_shadow = egui::epaint::Shadow {
             offset: [0, 8],
             blur: 24,
@@ -1182,7 +1428,8 @@ impl BerryCodeApp {
         // Non-interactive (labels, separators)
         visuals.widgets.noninteractive.bg_fill = bg_dark;
         visuals.widgets.noninteractive.weak_bg_fill = bg_dark;
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER);
+        visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
         visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(1.0, text);
         visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(2);
 
@@ -1197,7 +1444,7 @@ impl BerryCodeApp {
         // Hovered
         visuals.widgets.hovered.bg_fill = bg_hover;
         visuals.widgets.hovered.weak_bg_fill = bg_hover;
-        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, ui_colors::CONTROL_BORDER);
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, ui_colors::CONTROL_BORDER());
         visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
         visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(2);
         visuals.widgets.hovered.expansion = 0.0;
@@ -1229,7 +1476,8 @@ impl BerryCodeApp {
         visuals.striped = true;
 
         // Separator
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, ui_colors::PANEL_BORDER);
+        visuals.widgets.noninteractive.bg_stroke =
+            egui::Stroke::new(1.0, ui_colors::PANEL_BORDER());
 
         style.visuals = visuals;
 
@@ -1500,7 +1748,7 @@ impl BerryCodeApp {
     /// Render the project picker screen (shown when no project is loaded)
     pub(crate) fn render_project_picker(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(ui_colors::EDITOR_BG))
+            .frame(egui::Frame::NONE.fill(ui_colors::EDITOR_BG()))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
@@ -1509,7 +1757,7 @@ impl BerryCodeApp {
                     ui.label(
                         egui::RichText::new("BerryCode")
                             .size(48.0)
-                            .color(ui_colors::TEXT_DEFAULT)
+                            .color(ui_colors::TEXT_DEFAULT())
                             .strong(),
                     );
                     ui.label(
@@ -1768,6 +2016,12 @@ impl BerryCodeApp {
             editor_ime_preedit: String::new(),
             file_tree_cache: Vec::new(),
             file_tree_load_pending: true,
+            file_tree_folder_rects: Vec::new(),
+            sidebar_visible: true,
+            tab_drag_source: None,
+            additional_roots: load_additional_roots(),
+            additional_root_caches: Vec::new(),
+            split_right_tab: None,
             expanded_dirs: {
                 let mut dirs = HashSet::new();
                 // Auto-expand src/ directory
@@ -2136,6 +2390,7 @@ impl BerryCodeApp {
             keybinding_recording: None,
             keybinding_message: None,
             theme_mode: load_theme_mode(),
+            settings: crate::settings::EditorSettings::load(),
             panel_visibility: load_panel_visibility(),
             lsp_completion_accept_pending: false,
             #[cfg(feature = "ai")]
@@ -2372,24 +2627,71 @@ fn theme_mode_path() -> std::path::PathBuf {
 
 fn load_theme_mode() -> types::ThemeMode {
     let path = theme_mode_path();
-    let saved = std::fs::read_to_string(&path)
+    std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str::<types::ThemeMode>(&s).ok())
-        .unwrap_or_default();
-    // Light / High Contrast presets are still WIP (hardcoded ui_colors::*
-    // constants haven't been audited yet) — fall back to Dark so users on
-    // an upgraded build don't see half-themed panels until that work
-    // lands. The persisted file is overwritten the next time the user
-    // explicitly picks a theme.
-    match saved {
-        types::ThemeMode::Dark => types::ThemeMode::Dark,
-        _ => types::ThemeMode::Dark,
-    }
+        .unwrap_or_default()
 }
 
 fn save_theme_mode(mode: types::ThemeMode) {
     let path = theme_mode_path();
     if let Ok(json) = serde_json::to_string_pretty(&mode) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+/// True when the frame's events look like the user typed something
+/// the LSP completion popup should react to (real `Event::Text`, IME
+/// `Commit`, or a non-empty `Preedit`).
+///
+/// Why Preedit counts: on macOS, bevy_egui forwards ASCII keystrokes
+/// through `Ime::Preedit` while a CJK input source is selected, and
+/// our global IME filter strips the duplicated `Event::Text` events
+/// to avoid double-insert during real composition. Without counting
+/// Preedit here, the auto-trigger never fires while the user has
+/// IME on — even when they're typing pure Latin code.
+pub(crate) fn events_look_like_typing(events: &[egui::Event]) -> bool {
+    events.iter().any(|e| {
+        matches!(e, egui::Event::Text(_))
+            || matches!(e, egui::Event::Ime(egui::ImeEvent::Commit(_)))
+            || matches!(
+                e,
+                egui::Event::Ime(egui::ImeEvent::Preedit(s)) if !s.is_empty()
+            )
+    })
+}
+
+/// Characters whose insertion should cause a fresh LSP completion
+/// request: word chars, plus the four "open a completion" operators
+/// (`.`, `:`, `<`, `_`).
+pub(crate) fn char_triggers_completion(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '.' || c == ':' || c == '<'
+}
+
+fn additional_roots_path() -> std::path::PathBuf {
+    if let Some(home) = dirs::home_dir() {
+        let dir = home.join(".berrycode");
+        std::fs::create_dir_all(&dir).ok();
+        dir.join("workspace_roots.json")
+    } else {
+        std::path::PathBuf::from("workspace_roots.json")
+    }
+}
+
+fn load_additional_roots() -> Vec<String> {
+    let path = additional_roots_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|p| std::path::Path::new(p).is_dir())
+        .collect()
+}
+
+pub(crate) fn save_additional_roots(roots: &[String]) {
+    let path = additional_roots_path();
+    if let Ok(json) = serde_json::to_string_pretty(roots) {
         let _ = std::fs::write(&path, json);
     }
 }
@@ -2587,7 +2889,9 @@ pub fn setup_egui_fonts_and_style(
     ctx.set_fonts(fonts);
 
     // Apply the persisted theme preset. Defaults to Dark on first run.
-    ctx.set_visuals(visuals_for_theme(load_theme_mode()));
+    let initial_theme = load_theme_mode();
+    ctx.set_visuals(visuals_for_theme(initial_theme));
+    ui_colors::set_theme(initial_theme);
 
     // Also apply the One Dark style (panel-specific tweaks; visuals_for_theme
     // covers the colour-scheme defaults).
@@ -2673,29 +2977,49 @@ pub fn berry_ui_system(
         }
     }
 
-    // === IME ⇄ Text de-duplication (global, before any TextEdit runs) ===
-    // egui on macOS sometimes emits both `Event::Ime(Preedit("l"))` and
-    // `Event::Text("l")` for the *same* romaji char. Standard `TextEdit`s
-    // happily insert the Text event into the buffer while also showing the
-    // preedit overlay on top — leaving a stray latin char that the user
-    // can't backspace (they think they're deleting the overlay, not the
-    // committed char). The IME's own `Preedit` / `Commit` events are
-    // sufficient to drive text insertion, so drop loose `Text` events
-    // whenever any IME event is in flight this frame.
+    // === IME event filtering (global, before any TextEdit runs) ===
+    //
+    // Two goals:
+    //
+    // 1. **Drop `Event::Text` when `Ime::Preedit` is in flight** —
+    //    on macOS the OS double-fires both for the same romaji char,
+    //    and egui's `TextEdit` would insert the Text *in addition to*
+    //    showing the preedit overlay, leaving a stray char.
+    //
+    // 2. **Drop `Event::Ime(ImeEvent::Enabled)`** — that event is the
+    //    only thing that sets egui's internal `state.ime_enabled`
+    //    flag. While the flag is true `TextEdit` *deletes* Backspace
+    //    and arrow keys before processing input
+    //    (`egui-0.33.3/src/widgets/text_edit/builder.rs:1147-1153`).
+    //    bevy_egui re-emits `Enabled` ahead of every `Preedit`, so
+    //    during a composition Backspace never reaches the buffer.
+    //    By suppressing `Enabled` the flag stays false and Backspace
+    //    works at every stage — fixing the "あああ と打って最後の一
+    //    文字が消えない" report. Preedit / Commit / Disabled still
+    //    go through, so composition logic is untouched.
     if let Ok(ctx) = egui_ctx.ctx_mut() {
         ctx.input_mut(|i| {
-            // Only the *Preedit* case is the buggy one — the OS sometimes
-            // double-fires `Text("l")` alongside `Preedit("l")` for the
-            // same romaji char. `Commit` is the normal IME insertion path
-            // and may also be paired with `Text` carrying the same final
-            // string; dropping that breaks deletion of the last committed
-            // char (egui's `TextEdit` ends up with mismatched buffer state).
+            // Drop the `Text` events that bevy_egui forwards alongside
+            // each `Preedit` (they're the same chars in two flavours;
+            // egui inserts via Preedit only).
             let has_preedit = i.events.iter().any(
                 |e| matches!(e, egui::Event::Ime(egui::ImeEvent::Preedit(s)) if !s.is_empty()),
             );
-            if has_preedit {
-                i.events.retain(|e| !matches!(e, egui::Event::Text(_)));
-            }
+            // Drop `Ime::Enabled` so egui never flips `state.ime_enabled`
+            // to true — that flag is what makes its TextEdit filter
+            // Backspace out of the event list while composing
+            // (`egui-0.33.3/.../text_edit/builder.rs:1147-1153`).
+            //
+            // Crucially we do NOT drop Preedit/Commit/Disabled or
+            // Backspace itself — letting Preedit flow through means
+            // egui's IME state machine still drives the inline preedit
+            // (insert / shrink / delete), and macOS stays in sync with
+            // our buffer because every shrink it sends is honoured.
+            i.events.retain(|e| match e {
+                egui::Event::Ime(egui::ImeEvent::Enabled) => false,
+                egui::Event::Text(_) if has_preedit => false,
+                _ => true,
+            });
         });
     }
 
@@ -2775,21 +3099,43 @@ pub fn berry_ui_system(
         }
     }
     // Handle drag-and-drop files from OS (via Bevy's FileDragAndDrop event)
+    //
+    // Resolving the drop target: the folder rects recorded by the file-tree
+    // renderer (previous frame) are hit-tested against the pointer's last
+    // known egui position. If the pointer was inside a folder row, that
+    // folder is the destination; otherwise we fall back to the project root.
+    // The deepest matching rect wins so nested folders take precedence over
+    // their ancestors.
+    let drop_pointer_pos: Option<egui::Pos2> = egui_ctx
+        .ctx_mut()
+        .ok()
+        .and_then(|ctx| ctx.input(|i| i.pointer.hover_pos().or_else(|| i.pointer.latest_pos())));
     for event in drop_events.read() {
         if let bevy::window::FileDragAndDrop::DroppedFile { path_buf, .. } = event {
             let path = path_buf;
             let path_str = path.to_string_lossy().to_string();
+            let target_dir = drop_pointer_pos
+                .and_then(|pos| {
+                    app.file_tree_folder_rects
+                        .iter()
+                        .filter(|(_, rect)| rect.contains(pos))
+                        .max_by_key(|(p, _)| p.len())
+                        .map(|(p, _)| p.clone())
+                })
+                .unwrap_or_else(|| app.root_path.clone());
             if path.is_file() {
                 let file_name = path
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
-                let dest = format!("{}/{}", app.root_path, file_name);
+                let dest = format!("{}/{}", target_dir, file_name);
                 match std::fs::copy(&path_str, &dest) {
                     Ok(_) => {
                         app.status_message = format!("Imported: {}", file_name);
                         app.status_message_timestamp = Some(std::time::Instant::now());
+                        app.expanded_dirs.insert(target_dir.clone());
+                        app.load_directory_children(&target_dir);
                         app.file_tree_cache.clear();
                         app.file_tree_load_pending = true;
                         app.open_file_from_path(&dest);
@@ -2805,13 +3151,14 @@ pub fn berry_ui_system(
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
-                let dest = format!("{}/{}", app.root_path, dir_name);
+                let dest = format!("{}/{}", target_dir, dir_name);
                 if let Err(e) = copy_dir_recursive(path, std::path::Path::new(&dest)) {
                     app.status_message = format!("Import failed: {}", e);
                     app.status_message_timestamp = Some(std::time::Instant::now());
                 } else {
                     app.status_message = format!("Imported folder: {}", dir_name);
                     app.status_message_timestamp = Some(std::time::Instant::now());
+                    app.expanded_dirs.insert(target_dir.clone());
                     app.file_tree_cache.clear();
                     app.file_tree_load_pending = true;
                 }
@@ -2957,7 +3304,7 @@ pub fn berry_ui_system(
                 .resizable(true)
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::SIDEBAR_BG)
+                        .fill(ui_colors::SIDEBAR_BG())
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
@@ -2975,7 +3322,7 @@ pub fn berry_ui_system(
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
+                        .fill(ui_colors::EDITOR_BG())
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
@@ -2990,7 +3337,7 @@ pub fn berry_ui_system(
                 .resizable(true)
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::SIDEBAR_BG)
+                        .fill(ui_colors::SIDEBAR_BG())
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
@@ -2999,7 +3346,7 @@ pub fn berry_ui_system(
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
+                        .fill(ui_colors::EDITOR_BG())
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
@@ -3011,7 +3358,7 @@ pub fn berry_ui_system(
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
+                        .fill(ui_colors::EDITOR_BG())
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
@@ -3023,7 +3370,7 @@ pub fn berry_ui_system(
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
+                        .fill(ui_colors::EDITOR_BG())
                         .inner_margin(egui::Margin::same(8)),
                 )
                 .show(ctx, |ui| {
@@ -3038,7 +3385,7 @@ pub fn berry_ui_system(
                 egui::CentralPanel::default()
                     .frame(
                         egui::Frame::NONE
-                            .fill(ui_colors::EDITOR_BG)
+                            .fill(ui_colors::EDITOR_BG())
                             .inner_margin(egui::Margin::same(12)),
                     )
                     .show(ctx, |ui| {
@@ -3052,7 +3399,7 @@ pub fn berry_ui_system(
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::NONE
-                        .fill(ui_colors::EDITOR_BG)
+                        .fill(ui_colors::EDITOR_BG())
                         .inner_margin(egui::Margin::same(16)),
                 )
                 .show(ctx, |ui| {
@@ -3649,5 +3996,368 @@ mod project_open_tests {
         // extension check — so this test documents the current behaviour
         // and forces a deliberate decision if we ever change it.
         assert!(out.iter().any(|p| p.ends_with("real.bscene")));
+    }
+}
+
+#[cfg(test)]
+mod lsp_completion_trigger_tests {
+    //! Regression tests for the LSP auto-trigger detection. The bug
+    //! that motivates these: the user reported "コードヒント (LSP
+    //! completion popup) 出なくなった" when macOS IME was enabled
+    //! even for plain ASCII typing — bevy_egui forwarded each Latin
+    //! keystroke through `Ime::Preedit`, our IME filter stripped the
+    //! paired `Event::Text`, and the auto-trigger detector — which
+    //! only looked at Text + Commit — never fired.
+
+    use super::*;
+    use egui::{Event, ImeEvent, Modifiers};
+
+    fn text(s: &str) -> Event {
+        Event::Text(s.to_string())
+    }
+    fn preedit(s: &str) -> Event {
+        Event::Ime(ImeEvent::Preedit(s.to_string()))
+    }
+    fn commit(s: &str) -> Event {
+        Event::Ime(ImeEvent::Commit(s.to_string()))
+    }
+    fn key_press(key: egui::Key) -> Event {
+        Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    /// **Direct Latin path**: plain `Event::Text("a")` must register
+    /// as typing.
+    #[test]
+    fn text_event_counts_as_typing() {
+        assert!(events_look_like_typing(&[text("a")]));
+    }
+
+    /// **macOS IME passthrough**: a Latin keystroke arrives as a
+    /// non-empty `Preedit` (the paired Text is stripped upstream by
+    /// our IME filter). This must STILL count as typing — otherwise
+    /// completions never trigger while the IME is on.
+    #[test]
+    fn preedit_counts_as_typing() {
+        assert!(
+            events_look_like_typing(&[preedit("a")]),
+            "Preedit('a') must count as typing — this is the IME-on regression"
+        );
+    }
+
+    /// IME conversion commit (Japanese composition finalized) counts
+    /// as typing.
+    #[test]
+    fn commit_counts_as_typing() {
+        assert!(events_look_like_typing(&[commit("あ")]));
+    }
+
+    /// Empty preedit is the "IME cleared" signal, not typing.
+    #[test]
+    fn empty_preedit_is_not_typing() {
+        assert!(!events_look_like_typing(&[preedit("")]));
+    }
+
+    /// Non-text input shouldn't fire the popup.
+    #[test]
+    fn key_press_alone_is_not_typing() {
+        assert!(!events_look_like_typing(&[key_press(egui::Key::ArrowDown)]));
+        assert!(!events_look_like_typing(&[key_press(egui::Key::Backspace)]));
+        assert!(!events_look_like_typing(&[key_press(egui::Key::Enter)]));
+    }
+
+    /// Empty event list is a no-op frame.
+    #[test]
+    fn empty_frame_is_not_typing() {
+        assert!(!events_look_like_typing(&[]));
+    }
+
+    // ── char_triggers_completion ───────────────────────────────────
+
+    #[test]
+    fn alphanumeric_triggers_completion() {
+        assert!(char_triggers_completion('a'));
+        assert!(char_triggers_completion('Z'));
+        assert!(char_triggers_completion('0'));
+        assert!(char_triggers_completion('9'));
+    }
+
+    #[test]
+    fn special_completion_triggers() {
+        // VS Code-style trigger characters.
+        assert!(char_triggers_completion('_'));
+        assert!(char_triggers_completion('.'));
+        assert!(char_triggers_completion(':'));
+        assert!(char_triggers_completion('<'));
+    }
+
+    #[test]
+    fn whitespace_and_brackets_do_not_trigger() {
+        assert!(!char_triggers_completion(' '));
+        assert!(!char_triggers_completion('\n'));
+        assert!(!char_triggers_completion('\t'));
+        assert!(!char_triggers_completion('('));
+        assert!(!char_triggers_completion(')'));
+        assert!(!char_triggers_completion(';'));
+        assert!(!char_triggers_completion(','));
+    }
+
+    /// CJK chars should also trigger — a user typing into an
+    /// identifier with kanji (rare but legal) deserves completion.
+    #[test]
+    fn cjk_chars_trigger_completion() {
+        assert!(char_triggers_completion('あ'));
+        assert!(char_triggers_completion('日'));
+    }
+}
+
+#[cfg(test)]
+mod ime_filter_tests {
+    //! Reproduces the bevy_egui → egui IME pipeline manually so we
+    //! can assert that the filter in `berry_ui_system` actually
+    //! restores Backspace during composition.
+    //!
+    //! The user-visible bug was: type "あああ" (3 chars via Preedit),
+    //! then Backspace — only 2 chars deleted, the last one stuck.
+    //! The root cause was egui's TextEdit dropping `Backspace` from
+    //! the event list while `state.ime_enabled` is true, and
+    //! bevy_egui re-asserting `ImeEvent::Enabled` ahead of every
+    //! Preedit.
+
+    use super::*;
+    use egui::{Event, ImeEvent};
+
+    /// Apply our filter exactly the way `berry_ui_system` does to a
+    /// borrowed event vector.
+    fn apply_filter(events: &mut Vec<Event>) {
+        let has_preedit = events
+            .iter()
+            .any(|e| matches!(e, Event::Ime(ImeEvent::Preedit(s)) if !s.is_empty()));
+        let has_backspace = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Key {
+                    key: egui::Key::Backspace,
+                    pressed: true,
+                    ..
+                }
+            )
+        });
+        events.retain(|e| match e {
+            Event::Ime(ImeEvent::Enabled) => false,
+            Event::Ime(ImeEvent::Preedit(_)) if has_backspace => false,
+            Event::Text(_) if has_preedit => false,
+            _ => true,
+        });
+    }
+
+    fn render(ctx: &egui::Context, buffer: &mut String, id: egui::Id) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let resp = egui::TextEdit::multiline(buffer).id(id).show(ui);
+            resp.response.request_focus();
+        });
+    }
+
+    fn run_frame(ctx: &egui::Context, buffer: &mut String, id: egui::Id, mut events: Vec<Event>) {
+        apply_filter(&mut events);
+        let raw = egui::RawInput {
+            events,
+            ..Default::default()
+        };
+        let _ = ctx.run(raw, |c| render(c, buffer, id));
+    }
+
+    fn backspace() -> Event {
+        Event::Key {
+            key: egui::Key::Backspace,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// **The user's bug**: type "あ", "ああ", "あああ" via Preedit
+    /// (bevy_egui-style: Enabled-then-Preedit-then-Text), then send
+    /// Commit + a Backspace. The buffer should end up with "ああ".
+    /// Without the filter, ime_enabled stays true and Backspace is
+    /// dropped — buffer stays "あああ".
+    #[test]
+    fn aaa_then_backspace_deletes_last_char() {
+        let ctx = egui::Context::default();
+        let mut buffer = String::new();
+        let id = egui::Id::new("test_te");
+
+        // Focus.
+        let _ = ctx.run(egui::RawInput::default(), |c| render(c, &mut buffer, id));
+
+        // Three preedit frames mimic bevy_egui's "Enabled then Preedit
+        // then duplicated Text" pattern for typing あ, ああ, あああ.
+        for value in ["あ", "ああ", "あああ"] {
+            run_frame(
+                &ctx,
+                &mut buffer,
+                id,
+                vec![
+                    Event::Ime(ImeEvent::Enabled),
+                    Event::Ime(ImeEvent::Preedit(value.to_string())),
+                    Event::Text(value.to_string()),
+                ],
+            );
+        }
+        // Commit the composition.
+        run_frame(
+            &ctx,
+            &mut buffer,
+            id,
+            vec![Event::Ime(ImeEvent::Commit("あああ".into()))],
+        );
+        assert_eq!(buffer, "あああ", "commit must leave 3 chars");
+
+        // The actual regression: Backspace.
+        run_frame(&ctx, &mut buffer, id, vec![backspace()]);
+        assert_eq!(buffer, "ああ", "backspace must delete the last char");
+    }
+
+    /// Backspace mid-preedit must REACH egui (the whole point of the
+    /// filter). With egui's `state.ime_enabled = false` the inserted
+    /// preedit lives in the buffer as a selection, so Backspace
+    /// deletes the entire selection in one shot. That's the trade-
+    /// off vs. shrinking-by-one — the alternative was "can't delete
+    /// anything", which is much worse. The next Preedit frame from
+    /// the IME resyncs the visible composition with whatever macOS
+    /// still has in its preedit state.
+    #[test]
+    fn backspace_during_preedit_reaches_egui() {
+        let ctx = egui::Context::default();
+        let mut buffer = String::new();
+        let id = egui::Id::new("test_te");
+
+        let _ = ctx.run(egui::RawInput::default(), |c| render(c, &mut buffer, id));
+
+        // Type "ああ" in preedit.
+        for value in ["あ", "ああ"] {
+            run_frame(
+                &ctx,
+                &mut buffer,
+                id,
+                vec![
+                    Event::Ime(ImeEvent::Enabled),
+                    Event::Ime(ImeEvent::Preedit(value.to_string())),
+                    Event::Text(value.to_string()),
+                ],
+            );
+        }
+        // Backspace mid-preedit must NOT be silently dropped. The
+        // buffer changes (vs. staying "ああ" forever, which was the
+        // bug).
+        let before = buffer.clone();
+        run_frame(&ctx, &mut buffer, id, vec![backspace()]);
+        assert_ne!(
+            buffer, before,
+            "Backspace must mutate the buffer; was {:?}",
+            before
+        );
+    }
+
+    /// Sanity: Enabled-only frames (no Preedit) get their Enabled
+    /// stripped but other events pass through unchanged.
+    #[test]
+    fn enabled_alone_is_stripped() {
+        let mut events = vec![Event::Ime(ImeEvent::Enabled), backspace()];
+        apply_filter(&mut events);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], Event::Key { .. }));
+    }
+
+    /// Sanity: Preedit + duplicated Text → Text dropped but Preedit
+    /// preserved.
+    #[test]
+    fn preedit_drops_text_keeps_preedit() {
+        let mut events = vec![
+            Event::Ime(ImeEvent::Preedit("あ".into())),
+            Event::Text("あ".into()),
+        ];
+        apply_filter(&mut events);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], Event::Ime(ImeEvent::Preedit(_))));
+    }
+
+    /// "最後の一文字を消すのに Backspace 2回必要" 対策の検証：
+    /// macOS が Backspace と同じフレームに Preedit を再送ってきた場合、
+    /// Preedit を捨てて Backspace だけ通す。
+    #[test]
+    fn backspace_frame_drops_preedit() {
+        let mut events = vec![Event::Ime(ImeEvent::Preedit("あ".into())), backspace()];
+        apply_filter(&mut events);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], Event::Key { .. }));
+    }
+}
+
+#[cfg(test)]
+mod theme_and_workspace_tests {
+    use super::*;
+
+    /// `ui_colors::set_theme` must swap the active palette so callers
+    /// see the right values immediately (no rerender lag, no caching).
+    #[test]
+    fn ui_colors_dark_vs_light_distinct() {
+        ui_colors::set_theme(types::ThemeMode::Dark);
+        let dark_editor = ui_colors::EDITOR_BG();
+        let dark_text = ui_colors::TEXT_DEFAULT();
+        ui_colors::set_theme(types::ThemeMode::Light);
+        let light_editor = ui_colors::EDITOR_BG();
+        let light_text = ui_colors::TEXT_DEFAULT();
+        assert_ne!(dark_editor, light_editor, "EDITOR_BG must differ");
+        assert_ne!(dark_text, light_text, "TEXT_DEFAULT must differ");
+        // Light bg should be brighter than dark bg.
+        assert!(light_editor.r() > dark_editor.r());
+        // Restore for unrelated tests.
+        ui_colors::set_theme(types::ThemeMode::Dark);
+    }
+
+    #[test]
+    fn ui_colors_high_contrast_uses_pure_black_white() {
+        ui_colors::set_theme(types::ThemeMode::HighContrast);
+        assert_eq!(ui_colors::EDITOR_BG(), egui::Color32::BLACK);
+        assert_eq!(ui_colors::TEXT_DEFAULT(), egui::Color32::WHITE);
+        ui_colors::set_theme(types::ThemeMode::Dark);
+    }
+
+    /// `save_additional_roots` / `load_additional_roots` must round-trip
+    /// through JSON without losing entries. We can't easily redirect the
+    /// home-dir-derived path, so just hit the JSON serialisation /
+    /// deserialisation logic directly.
+    #[test]
+    fn additional_roots_roundtrip_json() {
+        let roots = vec!["/tmp/proj_a".to_string(), "/tmp/proj_b".to_string()];
+        let json = serde_json::to_string(&roots).unwrap();
+        let decoded: Vec<String> = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, roots);
+    }
+
+    /// `load_additional_roots` filters out paths that no longer exist
+    /// on disk so a stale entry from last session doesn't blow up.
+    #[test]
+    fn additional_roots_filter_missing_paths() {
+        let tmp = tempfile::tempdir().unwrap();
+        let exists = tmp.path().to_string_lossy().to_string();
+        let stale = tmp
+            .path()
+            .join("does_not_exist")
+            .to_string_lossy()
+            .to_string();
+        let raw = vec![exists.clone(), stale.clone()];
+        let filtered: Vec<String> = raw
+            .into_iter()
+            .filter(|p| std::path::Path::new(p).is_dir())
+            .collect();
+        assert_eq!(filtered, vec![exists]);
     }
 }

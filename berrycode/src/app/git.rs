@@ -808,7 +808,7 @@ impl BerryCodeApp {
             .resizable(true)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::SIDEBAR_BG)
+                    .fill(ui_colors::SIDEBAR_BG())
                     .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
@@ -834,7 +834,7 @@ impl BerryCodeApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::SIDEBAR_BG)
+                    .fill(ui_colors::SIDEBAR_BG())
                     .inner_margin(egui::Margin::same(8)),
             )
             .show(ctx, |ui| {
@@ -858,7 +858,7 @@ impl BerryCodeApp {
                             "added" => egui::Color32::from_rgb(100, 255, 100),
                             "deleted" => egui::Color32::from_rgb(255, 100, 100),
                             "modified" => egui::Color32::from_rgb(100, 180, 255),
-                            _ => ui_colors::TEXT_DEFAULT,
+                            _ => ui_colors::TEXT_DEFAULT(),
                         };
                         ui.label(
                             egui::RichText::new(&diff.status.to_uppercase())
@@ -959,7 +959,7 @@ impl BerryCodeApp {
                                         egui::Align2::LEFT_CENTER,
                                         content,
                                         font.clone(),
-                                        ui_colors::TEXT_DEFAULT,
+                                        ui_colors::TEXT_DEFAULT(),
                                     );
                                 }
 

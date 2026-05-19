@@ -26,6 +26,10 @@ pub enum KeyAction {
     DeleteEntity,
     DuplicateEntity,
     Escape,
+    ToggleSidebar,
+    SplitEditor,
+    AddCursorAbove,
+    AddCursorBelow,
 }
 
 impl KeyAction {
@@ -51,6 +55,10 @@ impl KeyAction {
         KeyAction::DeleteEntity,
         KeyAction::DuplicateEntity,
         KeyAction::Escape,
+        KeyAction::ToggleSidebar,
+        KeyAction::SplitEditor,
+        KeyAction::AddCursorAbove,
+        KeyAction::AddCursorBelow,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -76,6 +84,10 @@ impl KeyAction {
             KeyAction::DeleteEntity => "Delete Entity",
             KeyAction::DuplicateEntity => "Duplicate Entity",
             KeyAction::Escape => "Escape",
+            KeyAction::ToggleSidebar => "Toggle Sidebar",
+            KeyAction::SplitEditor => "Split Editor",
+            KeyAction::AddCursorAbove => "Add Cursor Above",
+            KeyAction::AddCursorBelow => "Add Cursor Below",
         }
     }
 }
@@ -140,6 +152,10 @@ impl Default for Keymap {
         bindings.insert(KeyAction::DeleteEntity, b(false, false, false, "Delete"));
         bindings.insert(KeyAction::DuplicateEntity, b(true, false, false, "D"));
         bindings.insert(KeyAction::Escape, b(false, false, false, "Escape"));
+        bindings.insert(KeyAction::ToggleSidebar, b(true, false, false, "B"));
+        bindings.insert(KeyAction::SplitEditor, b(true, false, false, "Backslash"));
+        bindings.insert(KeyAction::AddCursorAbove, b(true, false, true, "ArrowUp"));
+        bindings.insert(KeyAction::AddCursorBelow, b(true, false, true, "ArrowDown"));
         Self { bindings }
     }
 }
@@ -206,6 +222,13 @@ impl Keymap {
             "Backspace" => egui::Key::Backspace,
             "OpenBracket" => egui::Key::OpenBracket,
             "CloseBracket" => egui::Key::CloseBracket,
+            "Slash" => egui::Key::Slash,
+            "Backslash" => egui::Key::Backslash,
+            "Tab" => egui::Key::Tab,
+            "ArrowUp" => egui::Key::ArrowUp,
+            "ArrowDown" => egui::Key::ArrowDown,
+            "ArrowLeft" => egui::Key::ArrowLeft,
+            "ArrowRight" => egui::Key::ArrowRight,
             _ => return false,
         };
 

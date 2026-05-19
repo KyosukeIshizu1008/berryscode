@@ -50,12 +50,12 @@ impl BerryCodeApp {
         // tabs so the two surfaces feel like one IDE: dark active bg,
         // a slightly lighter inactive bg, ACCENT-coloured 2px bottom
         // bar marking the active one.
-        let tab_active_bg = ui_colors::EDITOR_BG;
-        let tab_inactive_bg = ui_colors::SIDEBAR_BG;
-        let tab_border = ui_colors::PANEL_BORDER;
-        let tab_active_indicator = ui_colors::ACCENT;
-        let tab_text_active = ui_colors::TEXT_DEFAULT;
-        let tab_text_inactive = ui_colors::TEXT_MUTED;
+        let tab_active_bg = ui_colors::EDITOR_BG();
+        let tab_inactive_bg = ui_colors::SIDEBAR_BG();
+        let tab_border = ui_colors::PANEL_BORDER();
+        let tab_active_indicator = ui_colors::ACCENT();
+        let tab_text_active = ui_colors::TEXT_DEFAULT();
+        let tab_text_inactive = ui_colors::TEXT_MUTED();
         // Pre-compute display labels with disambiguation: when two tabs
         // share the same base label, prefix the one with a different
         // path with its parent directory ("scenes/scene" vs

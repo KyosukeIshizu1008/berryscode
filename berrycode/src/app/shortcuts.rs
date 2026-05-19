@@ -164,6 +164,28 @@ impl BerryCodeApp {
                 self.open_rename_dialog();
             }
 
+            // Cmd+B: Toggle sidebar
+            if keymap.is_pressed(KeyAction::ToggleSidebar, i) {
+                self.sidebar_visible = !self.sidebar_visible;
+            }
+
+            // Cmd+\: Split editor (toggle right preview pane)
+            if keymap.is_pressed(KeyAction::SplitEditor, i) {
+                if self.split_right_tab.is_some() {
+                    self.split_right_tab = None;
+                } else if !self.editor_tabs.is_empty() {
+                    self.split_right_tab = Some(self.active_tab_idx);
+                }
+            }
+
+            // Cmd+Alt+↑/↓: Add cursor above/below
+            if keymap.is_pressed(KeyAction::AddCursorAbove, i) {
+                self.add_cursor_above();
+            }
+            if keymap.is_pressed(KeyAction::AddCursorBelow, i) {
+                self.add_cursor_below();
+            }
+
             // F5: Start/Continue debugging
             if keymap.is_pressed(KeyAction::StartDebug, i) {
                 if self.debug_state.active {
@@ -191,13 +213,26 @@ impl BerryCodeApp {
         });
     }
 
-    /// Save current file
+    /// Save current file. When `settings.format_on_save` is on and the
+    /// file's language has an attached LSP server, run
+    /// `textDocument/formatting` first and apply the returned TextEdits
+    /// before writing to disk. The formatting call is wrapped in a 2-
+    /// second timeout so a slow / stuck server never blocks the save.
     pub(crate) fn save_current_file(&mut self) {
+        if self.editor_tabs.get(self.active_tab_idx).is_none() {
+            return;
+        }
+        if self.settings.format_on_save {
+            self.apply_lsp_format_to_active_tab();
+        }
         if let Some(tab) = self.editor_tabs.get(self.active_tab_idx) {
             let content = tab.buffer.to_string();
             let file_path = tab.file_path.clone();
             match native::fs::write_file(&file_path, &content) {
                 Ok(_) => {
+                    if let Some(tab_mut) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                        tab_mut.is_dirty = false;
+                    }
                     tracing::info!("💾 File saved: {} ({} bytes)", file_path, content.len());
 
                     // Notify LSP about the save (textDocument/didSave)
@@ -216,8 +251,88 @@ impl BerryCodeApp {
                 }
                 Err(e) => {
                     tracing::error!("❌ Failed to save file {}: {}", file_path, e);
+                    self.status_message = format!("Save failed: {}", e);
+                    self.status_message_timestamp = Some(std::time::Instant::now());
                 }
             }
+        }
+    }
+
+    /// Block-on `textDocument/formatting` for the active tab and apply
+    /// the returned edits to the buffer. Bails out silently when no
+    /// language server is attached or the request times out so the
+    /// save keeps going on languages without a server.
+    fn apply_lsp_format_to_active_tab(&mut self) {
+        let tab = match self.editor_tabs.get(self.active_tab_idx) {
+            Some(t) => t,
+            None => return,
+        };
+        let file_path = tab.file_path.clone();
+        let lang = match crate::native::lsp_native::detect_server_language(&file_path) {
+            Some(l) => l.to_string(),
+            None => return,
+        };
+        let client = match &self.lsp_native_client {
+            Some(c) => c.clone(),
+            None => return,
+        };
+        let rt = self.lsp_runtime.clone();
+        let edits = rt.block_on(async move {
+            tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                client.format_file(&lang, &file_path),
+            )
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            .unwrap_or_default()
+        });
+        if edits.is_empty() {
+            return;
+        }
+        let tab_mut = match self.editor_tabs.get_mut(self.active_tab_idx) {
+            Some(t) => t,
+            None => return,
+        };
+        let before = tab_mut.buffer.to_string();
+        let after = crate::app::rename::apply_text_edits(&before, &edits);
+        if after != before {
+            tab_mut.buffer = crate::buffer::TextBuffer::from_str(&after);
+            tab_mut.text_cache = after;
+            tab_mut.text_cache_version = tab_mut.buffer.version();
+            tab_mut.is_dirty = true;
+        }
+    }
+
+    /// Save the active tab to a user-chosen path via the native file
+    /// picker (Cmd+Shift+S). Updates the tab's `file_path` so subsequent
+    /// Cmd+S writes to the new location.
+    #[allow(dead_code)]
+    pub(crate) fn save_current_file_as(&mut self) {
+        let Some(tab) = self.editor_tabs.get(self.active_tab_idx) else {
+            return;
+        };
+        let default_name = std::path::Path::new(&tab.file_path)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "untitled".to_string());
+        let content = tab.buffer.to_string();
+        let picked = rfd::FileDialog::new()
+            .set_file_name(&default_name)
+            .save_file();
+        if let Some(path) = picked {
+            let path_str = path.to_string_lossy().to_string();
+            if let Err(e) = native::fs::write_file(&path_str, &content) {
+                self.status_message = format!("Save As failed: {}", e);
+                self.status_message_timestamp = Some(std::time::Instant::now());
+                return;
+            }
+            if let Some(t) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                t.file_path = path_str.clone();
+                t.is_dirty = false;
+            }
+            self.status_message = format!("Saved as: {}", path_str);
+            self.status_message_timestamp = Some(std::time::Instant::now());
         }
     }
 
@@ -271,6 +386,57 @@ impl BerryCodeApp {
                 }
             }
         }
+    }
+
+    /// Add a virtual cursor on the line above the primary cursor at the
+    /// same column. The added cursor is stored as a character offset in
+    /// `self.multi_cursors` so subsequent typing inserts at every cursor
+    /// (see the per-cursor insert loop in editor.rs).
+    pub(crate) fn add_cursor_above(&mut self) {
+        if let Some((line, col)) = self.primary_cursor_line_col() {
+            if line == 0 {
+                return;
+            }
+            if let Some(off) = self.line_col_to_char_offset(line - 1, col) {
+                if !self.multi_cursors.contains(&off) {
+                    self.multi_cursors.push(off);
+                }
+            }
+        }
+    }
+
+    /// Mirror of `add_cursor_above` for the line below.
+    pub(crate) fn add_cursor_below(&mut self) {
+        if let Some((line, col)) = self.primary_cursor_line_col() {
+            if let Some(off) = self.line_col_to_char_offset(line + 1, col) {
+                if !self.multi_cursors.contains(&off) {
+                    self.multi_cursors.push(off);
+                }
+            }
+        }
+    }
+
+    fn primary_cursor_line_col(&self) -> Option<(usize, usize)> {
+        let tab = self.editor_tabs.get(self.active_tab_idx)?;
+        Some((tab.cursor_line, tab.cursor_col))
+    }
+
+    /// Convert a (line, column) into a character offset, returning
+    /// `None` if `line` is past the end of the text. Columns past
+    /// end-of-line are clamped so users can drop a cursor on shorter
+    /// neighbouring lines without it falling off entirely.
+    fn line_col_to_char_offset(&self, line: usize, col: usize) -> Option<usize> {
+        let tab = self.editor_tabs.get(self.active_tab_idx)?;
+        let text = &tab.text_cache;
+        let mut offset = 0usize;
+        for (idx, ln) in text.split('\n').enumerate() {
+            if idx == line {
+                let clamped = col.min(ln.chars().count());
+                return Some(offset + clamped);
+            }
+            offset += ln.chars().count() + 1; // +1 for '\n'
+        }
+        None
     }
 
     /// Add a cursor at the next occurrence of the word under the primary cursor (Ctrl+D)
@@ -336,15 +502,15 @@ impl BerryCodeApp {
 
     /// Keyboard shortcuts that fire while the Scene Editor panel is active.
     fn handle_scene_editor_shortcuts(&mut self, ctx: &egui::Context) {
-        // Suppress shortcuts while a text field (e.g. inline rename) has
-        // keyboard focus, otherwise typing letters like "d" would delete the
-        // selection.
-        if ctx.wants_keyboard_input() {
-            // Cmd+S still goes through even when typing in the rename buffer
-            // would be surprising for "save scene", so just bail entirely.
-            // Save is also exposed in the toolbar.
-            return;
-        }
+        // Suppress most shortcuts while a text field (e.g. inline rename
+        // or an inspector value) has keyboard focus, otherwise typing
+        // letters like "d" would delete the selection. Cmd+S is the
+        // exception — users *always* expect it to save, even while
+        // typing into a number field; without this carve-out adding an
+        // entity and tweaking its position would silently lose data on
+        // Cmd+S. See user report: "scene で fox 足しても Cmd+S で保存
+        // できない".
+        let suppress = ctx.wants_keyboard_input();
 
         let keymap = self.keymap.clone();
 
@@ -356,8 +522,12 @@ impl BerryCodeApp {
         let mut redo_requested = false;
 
         ctx.input(|i| {
+            // Cmd+S always fires — even while a text field is focused.
             if keymap.is_pressed(KeyAction::Save, i) {
                 save_requested = true;
+            }
+            if suppress {
+                return;
             }
             if keymap.is_pressed(KeyAction::DuplicateEntity, i) {
                 duplicate_requested = true;

@@ -29,9 +29,9 @@ pub fn render_tab_bar<T: PartialEq + Copy>(ui: &mut egui::Ui, tabs: &[(T, &str)]
         for (tab, label) in tabs {
             let selected = *active == *tab;
             let color = if selected {
-                super::component_colors::TAB_ACTIVE
+                super::component_colors::TAB_ACTIVE()
             } else {
-                super::component_colors::TAB_INACTIVE
+                super::component_colors::TAB_INACTIVE()
             };
             let btn = egui::Button::new(egui::RichText::new(*label).size(11.0).color(color))
                 .frame(false)
@@ -45,7 +45,7 @@ pub fn render_tab_bar<T: PartialEq + Copy>(ui: &mut egui::Ui, tabs: &[(T, &str)]
                         egui::vec2(r.width(), 2.0),
                     ),
                     0.0,
-                    super::component_colors::ACCENT,
+                    super::component_colors::ACCENT(),
                 );
             }
             if resp.clicked() {

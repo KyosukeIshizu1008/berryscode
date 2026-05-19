@@ -12,7 +12,7 @@ impl BerryCodeApp {
             .exact_height(32.0)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::TOP_BAR_BG)
+                    .fill(ui_colors::TOP_BAR_BG())
                     .inner_margin(egui::Margin::symmetric(8, 4)),
             )
             .show(ctx, |ui| {
@@ -29,14 +29,14 @@ impl BerryCodeApp {
                     ui.painter().rect_stroke(
                         tab_rect,
                         3.0,
-                        egui::Stroke::new(1.0, ui_colors::CONTROL_BORDER),
+                        egui::Stroke::new(1.0, ui_colors::CONTROL_BORDER()),
                         egui::StrokeKind::Inside,
                     );
 
                     // Draw badge with "0"
                     let badge_center = egui::pos2(tab_rect.left() + 16.0, tab_rect.center().y);
                     ui.painter()
-                        .circle_filled(badge_center, 9.0, ui_colors::ACCENT);
+                        .circle_filled(badge_center, 9.0, ui_colors::ACCENT());
                     ui.painter().text(
                         badge_center,
                         egui::Align2::CENTER_CENTER,
@@ -54,7 +54,7 @@ impl BerryCodeApp {
                         egui::Align2::LEFT_CENTER,
                         project_name,
                         egui::FontId::proportional(12.0),
-                        ui_colors::TEXT_DEFAULT,
+                        ui_colors::TEXT_DEFAULT(),
                     );
 
                     // Dropdown arrow
@@ -64,7 +64,7 @@ impl BerryCodeApp {
                         egui::Align2::CENTER_CENTER,
                         "▼",
                         egui::FontId::proportional(9.0),
-                        ui_colors::TEXT_MUTED,
+                        ui_colors::TEXT_MUTED(),
                     );
 
                     ui.add_space(16.0);
@@ -75,7 +75,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Close Project"))
                                     .size(12.0)
-                                    .color(ui_colors::TEXT_MUTED),
+                                    .color(ui_colors::TEXT_MUTED()),
                             )
                             .frame(false),
                         )
@@ -96,7 +96,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("+ New Bevy Project"))
                                     .size(12.0)
-                                    .color(ui_colors::TEXT_DEFAULT),
+                                    .color(ui_colors::TEXT_DEFAULT()),
                             )
                             .frame(false),
                         )
@@ -168,7 +168,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Build Settings"))
                                     .size(12.0)
-                                    .color(ui_colors::TEXT_DEFAULT),
+                                    .color(ui_colors::TEXT_DEFAULT()),
                             )
                             .frame(false),
                         )
@@ -185,7 +185,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Packages"))
                                     .size(12.0)
-                                    .color(ui_colors::TEXT_DEFAULT),
+                                    .color(ui_colors::TEXT_DEFAULT()),
                             )
                             .frame(false),
                         )
@@ -202,7 +202,7 @@ impl BerryCodeApp {
                             egui::Button::new(
                                 egui::RichText::new(self.tr("Mobile"))
                                     .size(12.0)
-                                    .color(ui_colors::TEXT_DEFAULT),
+                                    .color(ui_colors::TEXT_DEFAULT()),
                             )
                             .frame(false),
                         )
@@ -282,7 +282,7 @@ impl BerryCodeApp {
             .resizable(false)
             .frame(
                 egui::Frame::NONE
-                    .fill(ui_colors::ACTIVITY_BAR_BG)
+                    .fill(ui_colors::ACTIVITY_BAR_BG())
                     .inner_margin(egui::Margin::same(4)),
             )
             .show(ctx, |ui| {
@@ -291,10 +291,10 @@ impl BerryCodeApp {
 
                     let icon_size = 24.0;
                     let btn_size = egui::vec2(40.0, 40.0);
-                    let active_bar_color = ui_colors::TEXT_DEFAULT;
-                    let icon_active = ui_colors::TEXT_DEFAULT;
-                    let icon_inactive = ui_colors::TEXT_MUTED;
-                    let hover_bg = ui_colors::HOVER_BG;
+                    let active_bar_color = ui_colors::TEXT_DEFAULT();
+                    let icon_active = ui_colors::TEXT_DEFAULT();
+                    let icon_inactive = ui_colors::TEXT_MUTED();
+                    let hover_bg = ui_colors::HOVER_BG();
 
                     for panel in MAIN_PANELS {
                         if !self.panel_visibility.is_visible(panel.variant) {

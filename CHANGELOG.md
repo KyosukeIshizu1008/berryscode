@@ -13,6 +13,113 @@ release notes.
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-05-17
+
+### Added
+
+- **VS Code parity batch** — eleven editor features the audit had flagged
+  as "partially implemented" are now end-to-end:
+  - Editable **font size** (Settings → Appearance, 8–32 px slider). The
+    syntax-highlighter layouters read from a global atomic so the change
+    applies live without restart.
+  - **Light** and **High Contrast** themes alongside Dark. The Settings
+    radio group now switches between all three; `ui_colors::*` is backed
+    by a runtime-swappable palette.
+  - **Format on save** toggle. When on, `Cmd+S` runs LSP
+    `textDocument/formatting` (2 s timeout) and applies the returned
+    `TextEdit[]` before writing to disk.
+  - **`Cmd+B` sidebar toggle** — Explorer / Search / Git etc. side panel
+    hides and the central editor reclaims the width.
+  - **Multi-cursor** wiring: `Cmd+D` selects the next occurrence (was
+    already there), `Cmd+Alt+↑/↓` adds a cursor above/below, and typing
+    or backspacing now fans out to every cursor in the active tab.
+  - **Snippet completions** from `~/.berrycode/snippets/*.json` are
+    prepended to the LSP completion popup. Accepting a snippet entry
+    expands `$1`/`$2`/`$0` tab stops via the existing snippet engine.
+  - **Tab drag-reorder** — drag a tab's title to swap it with neighbours;
+    the active index follows.
+  - **Split editor** (`Cmd+\\`) — opens a read-only preview pane on the
+    right showing the same file so users can scroll two regions side by
+    side.
+  - **Git gutter markers** moved from the right edge to a 3 px bar next
+    to the line numbers (VS Code position).
+  - **Inline `git blame`** at the end of the cursor line
+    (`Author · age · message`), memoised per file/line via
+    `EditorTab::git_blame_cache`.
+  - **Multi-root workspaces** — additional folders persisted to
+    `~/.berrycode/workspace_roots.json`. "+ Add Folder to Workspace…"
+    appears at the bottom of the file tree; project-wide search now
+    iterates every root.
+- **ECS Inspector → Triggers tab**. Fire Bevy `Observer<MyEvent>` events
+  on demand from the IDE (Bevy 0.18 BRP doesn't expose direct system
+  execution, so events are the supported mechanism). Free-form event
+  type + JSON payload, per-tab recents bar for one-click re-fires, and a
+  console pane showing ✓ / ✗ for the last 50 attempts. BRP client gains
+  `trigger_event(event_type, payload)` and `discover()`.
+- **Local Llama 3 one-tap** in Settings → AI Providers: `Use Llama 3
+  (local)` wires chat + completion + agent backend to
+  Ollama/`llama3.3` in a single click. AI Chat layers a Llama-tuned
+  Bevy cheatsheet over the base prompt when the selected model is in
+  the Llama family.
+- **iOS Simulator one-click**: Mobile Toolchain's "Run on iOS Sim" now
+  builds via `xcodebuild -sdk iphonesimulator` (with the cargo-mobile2
+  `GCC_PREPROCESSOR_DEFINITIONS=NDEBUG=1` and
+  `BINDGEN_EXTRA_CLANG_ARGS_aarch64_apple_ios_sim` workarounds tracing-
+  oslog needs) and drives `xcrun simctl boot / install / launch`.
+  Replaces the previous `cargo apple run` path which kept failing
+  `xcodebuild 65` against a connected device.
+- **iOS Bundle ID** field in Player Settings so the one-click iOS flow
+  doesn't have to bounce users to `mobile.toml`.
+- **Drag-and-drop into file-tree folders** now lands in the folder
+  under the pointer instead of always copying to the project root.
+  Folders highlight blue while a drag is hovering them.
+- **698 unit tests** (15 new). Notable additions lock down the IME-on
+  LSP completion regression (`preedit_counts_as_typing`), the
+  IME-Backspace fan-out (`type_then_backspace_with_filter`), theme
+  palette swapping (`ui_colors_dark_vs_light_distinct`), and multi-root
+  persistence.
+
+### Changed
+
+- **`ui_colors::*` is now runtime-dynamic.** Each constant is replaced
+  by a same-named zero-arg function (`EDITOR_BG()`, `SIDEBAR_BG()`,
+  `TEXT_DEFAULT()`, …) backed by an `AtomicU8` theme index. ~160 call
+  sites updated. Adding a new theme is a single static `Palette` block.
+- **`EditorSettings` is wired** into `BerryCodeApp::settings` and
+  persisted to `<config>/berrycode/settings.json` (was defined but
+  unused before). Legacy `settings.json` files without the new
+  `format_on_save` field still deserialise — the field is
+  `#[serde(default)]`.
+
+### Fixed
+
+- **macOS IME backspace stuck on last preedit char.** egui's TextEdit
+  filters `Backspace` and arrow keys out of the event list while
+  `state.ime_enabled` is true
+  (`egui-0.33.3/src/widgets/text_edit/builder.rs:1147-1153`), and
+  bevy_egui re-asserts `Ime::Enabled` ahead of every Preedit, so
+  Backspace never reached the buffer during composition. We now drop
+  `Ime::Enabled` events so the flag never flips, while still passing
+  Preedit / Commit / Disabled through. The duplicated `Event::Text`
+  that arrives alongside Preedit is still dropped to avoid double
+  insertion. Reported by user typing "あああ" → Backspace.
+- **LSP completion popup stopped appearing while macOS IME was on.**
+  bevy_egui forwards Latin keystrokes through `Ime::Preedit` whenever
+  a CJK input source is selected, and the global IME filter strips
+  the paired `Event::Text`. The auto-trigger detector now counts
+  non-empty Preedit as typing, so completions fire for ASCII input
+  through an active IME. The previous `ime_composing_now` guard
+  (which locked completions out for the entire IME session) has been
+  removed.
+- **Bracket-match highlight rendered as a solid white box** for some
+  cursor positions / theme combinations. The colour was
+  `from_rgba_premultiplied(255, 255, 255, 30)` — invalid premultiplied
+  data (RGB > alpha) that some GPU blend paths normalised to opaque
+  white. Switched to `from_rgba_unmultiplied(255, 255, 255, 30)`.
+- **BRP `trigger_event`** request shape: switched to bevy_remote's
+  actual `BrpTriggerEventParams` (`event` + optional `value`). The
+  previous `event_type` / `event` wrapping never matched the server.
+
 ## [0.8.2] — 2026-05-10
 
 ### Added

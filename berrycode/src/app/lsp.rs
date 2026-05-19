@@ -388,18 +388,26 @@ impl BerryCodeApp {
             String::new()
         };
 
+        // Custom snippets matching the current word — prepended so they
+        // show above LSP results (matches VS Code's behaviour where
+        // snippet entries with the user's chosen prefix come first).
+        // Loaded once at startup from `~/.berrycode/snippets/*.json`.
+        let snippet_matches: Vec<LspCompletionItem> = if current_word.is_empty() {
+            Vec::new()
+        } else {
+            self.get_snippet_completions(&current_word)
+        };
+
         // Filter completions: must START with current word (not just contain)
-        let filtered: Vec<_> = self
-            .lsp_completions
-            .iter()
-            .filter(|item| {
-                if current_word.is_empty() {
-                    true
-                } else {
-                    item.label.to_lowercase().starts_with(&current_word)
-                }
-            })
-            .collect();
+        let lsp_filtered = self.lsp_completions.iter().filter(|item| {
+            if current_word.is_empty() {
+                true
+            } else {
+                item.label.to_lowercase().starts_with(&current_word)
+            }
+        });
+        let filtered: Vec<&LspCompletionItem> =
+            snippet_matches.iter().chain(lsp_filtered).collect();
 
         // No matches — dismiss
         if filtered.is_empty() {
@@ -426,7 +434,7 @@ impl BerryCodeApp {
             self.lsp_completion_index = 0;
         }
 
-        let mut selected_item: Option<String> = None;
+        let mut selected_item: Option<(String, bool)> = None;
 
         // Accept on Tab/Enter. The actual key was consumed in `editor.rs`
         // *before* the `TextEdit` widget rendered so it never reached the
@@ -434,7 +442,10 @@ impl BerryCodeApp {
         let accepted = std::mem::take(&mut self.lsp_completion_accept_pending);
         if accepted {
             if let Some(item) = filtered.get(self.lsp_completion_index) {
-                selected_item = Some(item.insert_text.clone().unwrap_or(item.label.clone()));
+                selected_item = Some((
+                    item.insert_text.clone().unwrap_or(item.label.clone()),
+                    item.is_snippet,
+                ));
             }
         }
 
@@ -550,22 +561,55 @@ impl BerryCodeApp {
                                 }
 
                                 if response.clicked() {
-                                    selected_item = Some(
+                                    selected_item = Some((
                                         item.insert_text.clone().unwrap_or(item.label.clone()),
-                                    );
+                                        item.is_snippet,
+                                    ));
                                 }
                             }
                         });
                 });
         }
 
-        // Insert selected completion
-        if let Some(ref insert_text) = selected_item {
+        // Insert selected completion. Snippets go through the parsed
+        // tab-stop engine so $1 / $2 placeholders land in their right
+        // positions and Tab cycles between them; plain LSP items are
+        // inserted as literal text.
+        if let Some((insert_text, is_snippet)) = selected_item {
             self.lsp_show_completions = false;
             self.lsp_completions.clear();
             self.lsp_completion_index = 0;
 
-            if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+            if is_snippet {
+                // Replace the prefix the user already typed so the
+                // snippet doesn't double-write it (e.g. "fn" → fn name…).
+                if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
+                    let text = tab.buffer.to_string();
+                    let cursor = tab.cursor_col + tab.buffer.line_to_char(tab.cursor_line);
+                    let chars: Vec<char> = text.chars().collect();
+                    let mut word_start = cursor;
+                    while word_start > 0
+                        && (chars[word_start - 1].is_alphanumeric() || chars[word_start - 1] == '_')
+                    {
+                        word_start -= 1;
+                    }
+                    if word_start < cursor {
+                        let mut new_text = String::new();
+                        new_text.push_str(&text[..word_start]);
+                        new_text.push_str(&text[cursor..]);
+                        tab.buffer = crate::buffer::TextBuffer::from_str(&new_text);
+                        tab.text_cache = new_text.clone();
+                        tab.text_cache_version = tab.buffer.version();
+                        tab.cursor_line = new_text[..word_start].matches('\n').count();
+                        tab.cursor_col = word_start
+                            - new_text[..word_start]
+                                .rfind('\n')
+                                .map(|p| p + 1)
+                                .unwrap_or(0);
+                    }
+                }
+                self.insert_snippet(&insert_text);
+            } else if let Some(tab) = self.editor_tabs.get_mut(self.active_tab_idx) {
                 let text = tab.buffer.to_string();
                 let cursor = tab.cursor_col + tab.buffer.line_to_char(tab.cursor_line);
                 let chars: Vec<char> = text.chars().collect();
@@ -577,7 +621,7 @@ impl BerryCodeApp {
                 }
                 let mut new_text = String::new();
                 new_text.push_str(&text[..word_start]);
-                new_text.push_str(insert_text);
+                new_text.push_str(&insert_text);
                 new_text.push_str(&text[cursor..]);
                 tab.buffer = crate::buffer::TextBuffer::from_str(&new_text);
                 tab.text_cache = new_text.clone();

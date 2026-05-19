@@ -85,7 +85,7 @@ pub(crate) fn render_peek_standalone(
             egui::Align2::LEFT_TOP,
             line,
             egui::FontId::monospace(12.0),
-            ui_colors::TEXT_DEFAULT,
+            ui_colors::TEXT_DEFAULT(),
         );
     }
 }

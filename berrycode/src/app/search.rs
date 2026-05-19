@@ -14,14 +14,14 @@ impl BerryCodeApp {
         let text_primary = egui::Color32::from_rgb(204, 204, 204);
         let text_muted = egui::Color32::from_rgb(133, 133, 133);
         let text_dim = egui::Color32::from_rgb(110, 110, 110);
-        let input_bg = ui_colors::CONTROL_BG;
+        let input_bg = ui_colors::CONTROL_BG();
         // VS Code's `input.border` is invisible by default — the box is
         // distinguished from the panel only by the slightly lighter fill.
         let input_border = egui::Color32::TRANSPARENT;
-        let input_border_focus = ui_colors::FOCUS_BORDER;
-        let toggle_active_bg = ui_colors::ACTIVE_BG;
-        let toggle_hover_bg = ui_colors::HOVER_BG;
-        let toggle_active_border = ui_colors::FOCUS_BORDER;
+        let input_border_focus = ui_colors::FOCUS_BORDER();
+        let toggle_active_bg = ui_colors::ACTIVE_BG();
+        let toggle_hover_bg = ui_colors::HOVER_BG();
+        let toggle_active_border = ui_colors::FOCUS_BORDER();
         let match_highlight = egui::Color32::from_rgba_unmultiplied(234, 92, 0, 90);
         let row_hover_bg = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 12);
 
@@ -874,41 +874,47 @@ impl BerryCodeApp {
             self.root_path
         );
 
-        // Use native::search::search_in_files() for parallel search
-        match native::search::search_in_files(
-            &self.root_path,
-            &self.search_query,
-            self.search_case_sensitive,
-            self.search_use_regex,
-            self.search_whole_word,
-        ) {
-            Ok(results) => {
-                // Convert native::search::SearchResult to our SearchMatch
-                self.search_results = results
-                    .into_iter()
-                    .map(|r| SearchMatch {
+        // Use native::search::search_in_files() for parallel search.
+        // Search every workspace root so multi-root workspaces don't
+        // silently miss files in their secondary roots.
+        let mut all_roots: Vec<String> = vec![self.root_path.clone()];
+        all_roots.extend(self.additional_roots.iter().cloned());
+        let mut combined: Vec<SearchMatch> = Vec::new();
+        let mut failures: Vec<String> = Vec::new();
+        for root in &all_roots {
+            match native::search::search_in_files(
+                root,
+                &self.search_query,
+                self.search_case_sensitive,
+                self.search_use_regex,
+                self.search_whole_word,
+            ) {
+                Ok(results) => {
+                    combined.extend(results.into_iter().map(|r| SearchMatch {
                         file_path: Some(r.file_path),
-                        line_number: r.line_number - 1, // native returns 1-based, we use 0-based
+                        line_number: r.line_number - 1,
                         start_col: r.match_start,
                         end_col: r.match_end,
                         line_text: r.line_content,
-                    })
-                    .collect();
-
-                tracing::info!(
-                    "🔍 Project search found {} matches for '{}'",
-                    self.search_results.len(),
-                    self.search_query
-                );
-
-                // Jump to first match if any results found
-                if !self.search_results.is_empty() {
-                    self.jump_to_current_match();
+                    }));
+                }
+                Err(e) => {
+                    failures.push(format!("{}: {}", root, e));
                 }
             }
-            Err(e) => {
-                tracing::error!("❌ Project search failed: {}", e);
-            }
+        }
+        if !failures.is_empty() {
+            tracing::warn!("Some workspace roots failed to search: {:?}", failures);
+        }
+        self.search_results = combined;
+        tracing::info!(
+            "🔍 Project search found {} matches for '{}' across {} root(s)",
+            self.search_results.len(),
+            self.search_query,
+            all_roots.len()
+        );
+        if !self.search_results.is_empty() {
+            self.jump_to_current_match();
         }
     }
 
