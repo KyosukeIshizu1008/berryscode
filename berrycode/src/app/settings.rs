@@ -150,6 +150,7 @@ impl BerryCodeApp {
                             let heading = match self.ui_language {
                                 UiLanguage::English => "Language",
                                 UiLanguage::Japanese => "言語設定",
+                                UiLanguage::Korean => "언어 설정",
                             };
                             ui.heading(heading);
                             ui.add_space(8.0);
@@ -157,6 +158,7 @@ impl BerryCodeApp {
                             let label = match self.ui_language {
                                 UiLanguage::English => "UI Language",
                                 UiLanguage::Japanese => "表示言語",
+                                UiLanguage::Korean => "UI 언어",
                             };
                             ui.label(label);
                             ui.add_space(4.0);
@@ -179,6 +181,15 @@ impl BerryCodeApp {
                                     .clicked()
                                 {
                                     self.ui_language = UiLanguage::Japanese;
+                                }
+                                if ui
+                                    .selectable_label(
+                                        self.ui_language == UiLanguage::Korean,
+                                        "한국어",
+                                    )
+                                    .clicked()
+                                {
+                                    self.ui_language = UiLanguage::Korean;
                                 }
                             });
                         }

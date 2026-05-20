@@ -8,6 +8,7 @@ use crate::native;
 pub enum UiLanguage {
     English,
     Japanese,
+    Korean,
 }
 
 impl UiLanguage {
@@ -15,6 +16,15 @@ impl UiLanguage {
         match self {
             UiLanguage::English => "English",
             UiLanguage::Japanese => "日本語",
+            UiLanguage::Korean => "한국어",
+        }
+    }
+
+    pub fn locale(&self) -> &'static str {
+        match self {
+            Self::English => "en_US",
+            Self::Japanese => "ja_JP",
+            Self::Korean => "ko_KR",
         }
     }
 }
